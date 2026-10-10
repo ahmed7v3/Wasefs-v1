@@ -34,7 +34,8 @@ cd "$WASFA_DIR"
 
 if [[ "${DEPLOY_SKIP_LOGIN:-0}" != "1" ]]; then
   [[ -n "$GHCR_USER" ]] || die "ghcr username is required"
-  IFS= read -r GHCR_TOKEN || die "no GHCR token on stdin"
+  # `read` fails on a last line without a trailing newline but still fills the variable.
+  IFS= read -r GHCR_TOKEN || [[ -n "${GHCR_TOKEN:-}" ]] || die "no GHCR token on stdin"
   umask 077
   DOCKER_CONFIG="$(mktemp -d)"
   export DOCKER_CONFIG
@@ -72,7 +73,8 @@ export IMAGE_TAG="$SHA"
 
 if [[ "${DEPLOY_SKIP_PULL:-0}" != "1" ]]; then
   log "pulling images"
-  dc pull
+  # `--profile tools` includes the backup image (the migrate service reuses the API image).
+  dc --profile tools pull
 fi
 
 log "running migrations"

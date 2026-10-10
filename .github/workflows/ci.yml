@@ -91,7 +91,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [web, api, worker]
+        image: [web, api, worker, backup]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -134,6 +134,8 @@ jobs:
           image-ref: ${{ env.IMAGE }}:${{ github.sha }}
           severity: HIGH,CRITICAL
           ignore-unfixed: true
+          # Dated, justified exceptions only (see the file): they expire and re-open the finding.
+          trivyignores: .trivyignore.yaml
           exit-code: "1"
           format: table
 

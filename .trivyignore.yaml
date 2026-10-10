@@ -1,0 +1,26 @@
+# Trivy exceptions for the image scan in CI. Every entry needs a reason and an expiry, so a
+# finding cannot be forgotten: once `expired_at` passes, the scan fails again and forces a review.
+vulnerabilities:
+  # Go standard library DoS issues (net/http Range headers, HTTP/2 SETTINGS, crypto/tls ECH),
+  # fixed in Go 1.26.9 / 1.27.2. They sit in `age`, which the backup image uses only as an offline
+  # file encryptor: it never opens a network connection, so none of these code paths run. Alpine's
+  # package and the upstream release are both built with an affected Go; remove these entries when
+  # age is released with a patched toolchain.
+  - id: CVE-2026-78667
+    paths:
+      - "usr/bin/age"
+      - "usr/bin/age-*"
+    expired_at: 2026-12-01
+    statement: Go net/http issue in age, which makes no HTTP requests (offline encryption only).
+  - id: CVE-2026-78669
+    paths:
+      - "usr/bin/age"
+      - "usr/bin/age-*"
+    expired_at: 2026-12-01
+    statement: Go HTTP/2 issue in age, which makes no network connections.
+  - id: CVE-2026-97031
+    paths:
+      - "usr/bin/age"
+      - "usr/bin/age-*"
+    expired_at: 2026-12-01
+    statement: Go crypto/tls issue in age, which makes no TLS connections.

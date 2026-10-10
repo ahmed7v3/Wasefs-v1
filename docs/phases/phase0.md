@@ -204,9 +204,9 @@ Steps (Ubuntu 24.04 LTS on AWS EC2)
 5. Directory layout on server: `/opt/wasfa/{compose.prod.yml, Caddyfile, .env.prod, certs/, backups/}` with tight permissions.
 
 Acceptance
-- [ ] Direct request to the server IP (bypassing Cloudflare) is refused.
-- [ ] `ssh root@…` and password logins fail.
-- [ ] SSL Labs (via domain) grade A+; securityheaders.com grade A or better.
+- [ ] Direct request to the server IP (bypassing Cloudflare) is refused. *(Needs the real server. Built and tested in parts: Caddy `client_auth require_and_verify` config loads; the DOCKER-USER/UFW script was run in a NET_ADMIN container.)*
+- [ ] `ssh root@…` and password logins fail. *(Needs the real server. `provision.sh --dry-run` shows the sshd drop-in; the script runs `sshd -t` before reloading and refuses to start if the admin user has no authorized key.)*
+- [ ] SSL Labs (via domain) grade A+; securityheaders.com grade A or better. *(Needs the live domain. Headers are in place: HSTS 2 years + preload from Caddy, CSP/Referrer/Permissions/XCTO/XFO/COOP from Next.js.)*
 
 ---
 
@@ -221,16 +221,16 @@ Steps
 4. `restore.sh` documented step by step; perform one restore into a scratch database.
 
 Acceptance
-- [ ] A backup file appears in R2 and is not readable without the private key.
-- [ ] Restore test recreates all tables with matching row counts.
+- [ ] A backup file appears in R2 and is not readable without the private key. *(Real R2 not tested: no credentials. The same container and script were run against an S3-compatible server (`rclone serve s3`): the object starts with `age-encryption.org/v1`, contains no plaintext table names, and `restore.sh` with a different key fails with "no identity matched any of the recipients".)*
+- [x] Restore test recreates all tables with matching row counts. *(Against PostgreSQL 18 with seeded + inserted rows: `restore.sh --verify latest` restored 5 tables, every count identical to the manifest written at backup time, scratch database dropped. Also verified: `--into <new db>` (extensions and rows present), `weekly/` objects, refusal to touch the live database, rejection of non-backup object names. Run through the real `compose.prod.yml` `backup` service as well.)*
 
 ---
 
 ## Phase 0 final checklist
 
 - [ ] All task acceptance boxes ticked.
-- [ ] `docs/REUSE-INDEX.md` up to date.
-- [ ] `docs/DOCKER-GUIDE.md` written for a Docker beginner (install, commands, logs, restart, update, rollback, backup/restore).
+- [x] `docs/REUSE-INDEX.md` up to date.
+- [x] `docs/DOCKER-GUIDE.md` written for a Docker beginner (install, commands, logs, restart, update, rollback, backup/restore).
 - [ ] Production stack live at `https://wasfa.online` (placeholder page) and `https://api.wasfa.online/health/live`.
 - [ ] Summary written below with any deviations.
 
@@ -319,6 +319,25 @@ Acceptance
   - Required GitHub setup (Task 0.9 runbook): environment `production` with secrets `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`; run `infra/scripts/protect-main.sh` once.
   - **Migrations are not rolled back** on a failed release. Write each migration so the previous release still runs against the new schema (expand, then contract in a later release); documented in `deploy.sh`.
   - Bug found while testing the rollback and fixed: `docker compose up -d` returns non-zero when a dependency never becomes healthy, which under `set -e` skipped the rollback entirely.
+
+- **Task 0.9 deviations**
+  - Written and tested without a server, so every acceptance box that needs one is still open (above). Tested: `provision.sh --dry-run` in an `ubuntu:24.04` container (full output reviewed), ShellCheck, and the firewall script itself (`wasfa-firewall`) in a container with `NET_ADMIN`: 15 IPv4 + 7 IPv6 Cloudflare ranges applied to UFW and to `DOCKER-USER`, idempotent on a second run. The Cloudflare ranges inlined in the Caddyfile were diffed against Cloudflare's live lists: identical.
+  - **`deploy` has no sudo** (the plan said "sudo"): it is in the `docker` group (root-equivalent already) and is the CI identity; administration uses the `ubuntu` account. Fewer privileges for the key that sits in GitHub.
+  - **UFW alone does not protect Docker-published ports.** The script also filters Docker's `DOCKER-USER` chain (interface-scoped, so containers' outbound HTTPS is unaffected). Layers: AWS security group, firewall, Caddy mutual TLS (Authenticated Origin Pulls).
+  - SSH is opened to `OWNER_IP_CIDR` only (the script refuses to run without it, or an explicit `ALLOW_SSH_FROM_ANYWHERE=1`). Unattended upgrades reboot at 03:30 UTC when needed (`AUTO_REBOOT=0` disables).
+  - AWS (Elastic IP, security group, billing alarm) and Cloudflare (DNS, SSL, WAF, rate limit, cache) are console/CLI steps documented in `docs/DOCKER-GUIDE.md`; they are not scripted because they cannot be tested here. Note the Cloudflare **free plan allows a single rate-limiting rule**, so the guide uses one combined rule for `/auth/*` and `/ai/*`.
+  - The guide also covers daily operations, rollback, development, troubleshooting, backups and disaster recovery (the Phase 0 checklist asks for those).
+  - **Local production run** (used for the Task 0.7 checks): create an env file with random secrets (see `.env.example`), set `GHCR_OWNER=local IMAGE_TAG=test CADDY_TLS_FILE=./caddy/tls.local.caddy HTTP_PORT=8080 HTTPS_PORT=8443`, then from `infra/docker`: `docker compose --env-file <file> -f compose.prod.yml -f compose.build.yml build`, `... up -d postgres redis`, `... run --rm migrate`, `... up -d`, and `curl -sk --resolve api.wasfa.online:8443:127.0.0.1 https://api.wasfa.online:8443/health/ready`.
+
+- **Task 0.10 deviations**
+  - **Decision: host systemd timer + a `backup` container, not a worker job.** `pg_dump` must match PostgreSQL 18, the worker image is minimal and has no internet access, and a backup (and its alert) must survive a broken worker or API. `provision.sh` installs `wasfa-backup.timer` (02:30 UTC, runs the container as `deploy`). The image (`infra/docker/backup.Dockerfile`) is built and scanned by CI like the others and pulled by `deploy.sh`.
+  - Stream: `pg_dump --snapshot` → `age` (public key) → `rclone rcat` to R2. The plain dump never touches a disk. Dumps are zstd-compressed custom format. Only the public key is on the server.
+  - A second encrypted object per run holds the **row count of every table, taken in the same snapshot** as the dump (the `pg_export_snapshot` transaction stays open while `pg_dump` runs). That is what makes "matching row counts" provable without relying on a quiet database.
+  - Retention 14 daily + 8 weekly, in the script (not R2 lifecycle rules, which cannot pair a dump with its manifest). Guarded: nothing is deleted unless more than N dumps exist. Weekly = server-side copy on Sundays.
+  - A failed run deletes its own partial objects (found by testing: a `pg_dump` that dies mid-stream still produces a "valid" encrypted object) and alerts by Telegram (optional) and an optional healthchecks.io-style dead-man's-switch URL.
+  - `rclone` is the **official release binary, SHA-256 verified** (the Alpine package carried ~20 HIGH advisories in Go dependencies). `age` still carries three Go standard-library advisories in code it never runs (offline encryption only); they are listed in `.trivyignore.yaml` with a justification and an expiry date (2026-12-01) so they cannot be forgotten.
+  - **Not tested against real R2** (no account/credentials here); everything else ran against an S3-compatible stand-in. First thing to do on the server: one manual `backup`, then one `restore.sh --verify` (guide section 7).
+  - `restore.sh` needs the private key, mounted for the duration of the restore only; it never accepts arbitrary object paths and never writes into the live database without `--overwrite-live`.
 
 ## Open questions
 - ~~Commit for Task 0.1 not made.~~ **Resolved:** `wasfa.online` is now its own git repo (remote `github.com/ahmed7v3/Wasefs-v1`); Task 0.1 is committed as `4d17aed`. Never commit from the `C:/Users/hp` home repo.

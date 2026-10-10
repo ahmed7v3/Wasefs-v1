@@ -198,6 +198,44 @@ services:
     mem_limit: 256m
     cpus: 0.5
 
+  # Nightly encrypted dump -> Cloudflare R2, started by the host's wasfa-backup.timer (see
+  # provision.sh). Also the restore tool:
+  #   docker compose --env-file .env.prod -f compose.prod.yml run --rm \
+  #     -v /path/to/age-key.txt:/run/age-identity:ro backup restore.sh --verify latest
+  # Kept out of the worker on purpose: it needs pg_dump 18 and the internet, and must keep
+  # working (and alerting) when the worker or API are broken. Only the PUBLIC age key lives here.
+  backup:
+    <<: *app
+    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER}/wasfa-backup:${IMAGE_TAG:-latest}
+    profiles: [tools]
+    restart: "no"
+    command: ["backup.sh"]
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:?}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?}
+      PGDATABASE: ${POSTGRES_DB:?}
+      # Optional here so a missing value never blocks a deploy; backup.sh refuses to run without them.
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      R2_ENDPOINT: ${R2_ENDPOINT:-}
+      R2_PROVIDER: ${R2_PROVIDER:-Cloudflare}
+      R2_BUCKET: ${R2_BUCKET:-wasfa-backups}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+      BACKUP_AGE_PUBLIC_KEY: ${BACKUP_AGE_PUBLIC_KEY:-}
+      BACKUP_KEEP_DAILY: ${BACKUP_KEEP_DAILY:-14}
+      BACKUP_KEEP_WEEKLY: ${BACKUP_KEEP_WEEKLY:-8}
+      BACKUP_ALERT_TELEGRAM_BOT_TOKEN: ${BACKUP_ALERT_TELEGRAM_BOT_TOKEN:-}
+      BACKUP_ALERT_TELEGRAM_CHAT_ID: ${BACKUP_ALERT_TELEGRAM_CHAT_ID:-}
+      BACKUP_HEALTHCHECK_URL: ${BACKUP_HEALTHCHECK_URL:-}
+    # `internal` reaches Postgres, `egress` reaches R2. Nothing is published.
+    networks: [internal, egress]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 256m
+    cpus: 0.5
+
 networks:
   # Caddy <-> web/api. Caddy gets a fixed address (TRUST_PROXY above); everything else is handed
   # addresses from the upper half only, so a container that starts first can never take Caddy's.

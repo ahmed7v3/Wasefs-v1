@@ -294,3 +294,7 @@ Backups: nightly `pg_dump` (compressed, encrypted) → R2, 14 daily + 8 weekly r
 | 7 | 2026-10-09 | No RxNorm, no Chatwoot, no live chat | Owner decision. Own drug DB; ticket-based support. |
 | 8 | 2026-10-09 | Data-retention consent via privacy policy text | Owner decision. Retained data is anonymized before storage. |
 | 9 | 2026-10-09 | Brand: navy `#1E3A8A` + soft blue `#60A5FA`, Alexandria + IBM Plex Sans Arabic | Trustworthy, calm, distinctive. |
+| 10 | 2026-10-10 | Next.js 16 (`proxy.ts`), per-request CSP nonce, pages rendered per request | Strict CSP without `unsafe-inline`; trade-off: HTML is not CDN-cacheable (revisit hash-based CSP for SEO pages). |
+| 11 | 2026-10-10 | One Redis instance with `noeviction`; a second `redis-cache` (LRU) when a real cache arrives | Queues must never be evicted; every non-queue key must carry a TTL. |
+| 12 | 2026-10-10 | Backups: host systemd timer + `backup` container (pg_dump, age, R2), not a worker job | Must work and alert even if worker/API are broken; only the public key lives on the server. |
+| 13 | 2026-10-10 | Fastify overridden to 5.12.5 over Nest's pinned 5.11.3 | Four high-severity advisories fixed in 5.12.2; drop the override when Nest catches up. |
