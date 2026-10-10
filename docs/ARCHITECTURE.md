@@ -1,0 +1,296 @@
+# ARCHITECTURE.md — Wasfa AI
+
+> System design for wasfa.online. Read `AGENT.md` first.
+
+---
+
+## 1. High-level picture
+
+```
+                         ┌──────────────────────────────────────────┐
+  Browser / Mobile app   │              Cloudflare (free)           │
+  ───────────────────►   │ DNS · WAF · DDoS · Bot fight · Turnstile │
+                         │ Cache for static + ISR pages · Rate rules│
+                         └───────────────┬──────────────────────────┘
+                                         │ only Cloudflare IPs allowed
+                         ┌───────────────▼──────────────────────────┐
+                         │  Server (Docker Compose)                  │
+                         │                                           │
+                         │  caddy :443  ──►  web  (Next.js :3000)    │
+                         │      │                                    │
+                         │      └──────►  api  (NestJS :4000)        │
+                         │                  │   │   │                │
+                         │        ┌─────────┘   │   └────────┐       │
+                         │        ▼             ▼            ▼       │
+                         │   postgres:5432   redis:6379    worker    │
+                         │   (internal only) (internal)   (BullMQ)   │
+                         └──────────┬────────────────────────┬───────┘
+                                    │                        │
+              ┌─────────────────────┼────────────────────────┼───────────────────┐
+              ▼                     ▼                        ▼                   ▼
+     Cloudflare R2 (private)   AI providers            Payment gateways     Messaging
+     prescriptions, backups    Gemini, OpenRouter,     Kashier, manual,     Email, Web Push,
+                               OpenAI-compatible…      (Stripe later)       WhatsApp OTP
+```
+
+**Hostnames**
+- `wasfa.online` / `www.wasfa.online` → `web`
+- `api.wasfa.online` → `api` (REST + SSE streaming)
+- Admin UI lives in `web` under `/admin`, but every admin action is authorized by `api`.
+
+Only ports **80/443** are exposed publicly, and only to Cloudflare IP ranges. Postgres and Redis are on an internal Docker network with no published ports.
+
+---
+
+## 2. Services
+
+| Service | Responsibility | Scaling path |
+|---|---|---|
+| `web` | SSR/ISR pages, SEO, UI. Holds **no secrets** except public keys (Turnstile site key, pixel IDs). | More replicas, or move to Cloudflare (OpenNext) later. |
+| `api` | Auth, business logic, permissions, AI orchestration + streaming, payments, webhooks. Stateless. | Horizontal replicas behind Caddy. |
+| `worker` | Image re-encode, AI batch jobs, email/push/WhatsApp sends, subscription expiry & renewal reminders, campaign sends, drug imports, backups, sitemap rebuilds. | More workers; separate queues per job type. |
+| `postgres` | Source of truth. | Bigger instance → managed Postgres / read replica. |
+| `redis` | Rate limits, sessions cache, queues, settings cache, idempotency keys, SSE coordination. | Bigger instance → managed Redis. |
+| `caddy` | TLS (Cloudflare Origin cert), security headers, request size limits, routing. | — |
+
+---
+
+## 3. Authentication & identity
+
+**Library:** Better Auth, mounted inside `api` (`/auth/*`).
+
+**Sign-in methods**
+- Google, Facebook, Apple (Apple required later for the iOS app)
+- Email + password (Argon2id hashing)
+- Phone + password, phone verified by **OTP over WhatsApp** (Meta WhatsApp Cloud API), SMS fallback if configured
+
+**Sessions**
+- Web: DB-backed session, **httpOnly, Secure, SameSite=Lax** cookie scoped to `.wasfa.online`. Revocable instantly (admin "suspend" kills all sessions).
+- Mobile (later): bearer access token (short-lived) + rotating refresh token.
+- Admins: **mandatory 2FA (TOTP)**, shorter session lifetime, re-auth for dangerous actions (refunds, role changes, key edits).
+
+**Hardening**
+- Turnstile on register, login after N failures, password reset, OTP request.
+- Rate limits per IP + per identifier; progressive delays; lockout notifications.
+- OTP: 6 digits, 5-minute TTL, max 5 attempts, max 3 sends/hour per phone, hashed at rest.
+- Disposable-email blocklist; one free-tier account per verified phone (anti-farming).
+- CSRF: SameSite cookies + Origin/Referer check on state-changing routes.
+
+**Onboarding (required before using tools)**
+`account_type` (individual | organization) → phone/WhatsApp (if missing) → name → organization details (name, type: pharmacy/clinic/hospital/other, country, city) → profession & usage intent (for marketing segmentation) → plan picker (or stay free) → open Facebook page in new tab (optional) → dashboard.
+Progress is saved per step; the user can resume.
+
+---
+
+## 4. Authorization (RBAC)
+
+- **Roles:** `user`, `org_member`, `org_admin`, `support`, `marketing`, `finance`, `admin`, `super_admin`.
+- **Permissions** are fine-grained strings (`users.read`, `users.suspend`, `plans.write`, `ai.providers.write`, `payments.refund`, `tracking.write`, …). Roles map to permission sets in the DB; `super_admin` can create custom roles.
+- Enforced by a Nest `@RequirePermission()` guard. The web UI hides what you can't do, but **the API is the authority**.
+- Every admin write is recorded in `audit_logs` (actor, action, target, before/after diff, IP, user agent).
+- "Act as user" (support viewing a user's account) is **read-only by default**, time-boxed, and audited.
+
+---
+
+## 5. AI gateway (`packages/ai`)
+
+### 5.1 Goals
+Any provider, any model, full admin control, consistent streaming, accurate structured output, minimal cost.
+
+### 5.2 Data model (summary — details in DATABASE.md)
+- `ai_providers` — id, kind (`gemini` | `openrouter` | `openai_compatible` | `anthropic` | …), baseUrl, encrypted apiKey, enabled, priority.
+- `ai_models` — providerId, modelId (free-text, admin can type any model name), displayName, capabilities (vision, thinking, search, json), context limits, **cost per 1M input/output tokens**, **credit price multiplier**, enabled.
+- `ai_task_routes` — task (`chat`, `rx_extract`, `rx_verify`, `deep_think`, `lab_analysis`, `imaging_edu`, `web_search`, `title_gen`) × plan → primary model + ordered fallbacks + thinking level + max tokens.
+- `plan_ai_entitlements` — which tasks/thinking levels each plan can use, daily/monthly caps.
+
+### 5.3 Adapter interface
+```ts
+interface AIProviderAdapter {
+  stream(req: NormalizedRequest, signal: AbortSignal): AsyncIterable<NormalizedEvent>;
+  countTokens?(req: NormalizedRequest): Promise<number>;
+}
+
+type NormalizedEvent =
+  | { type: 'thinking'; text: string }          // thought summaries (when model supports it)
+  | { type: 'text'; text: string }
+  | { type: 'search'; query: string; sources?: { title: string; url: string }[] }
+  | { type: 'tool'; name: string; status: 'start' | 'end' }
+  | { type: 'usage'; inputTokens: number; outputTokens: number; thinkingTokens?: number }
+  | { type: 'error'; code: string }
+  | { type: 'done' };
+```
+Adapters: `GeminiAdapter` (thinking config + thought signatures preserved across turns, Google Search grounding, structured output via response schema), `OpenRouterAdapter`, `OpenAICompatibleAdapter` (covers DeepSeek, NVIDIA NIM, Groq, OpenAI, etc.). New providers = new adapter + admin row.
+
+### 5.4 Router behavior
+1. Resolve route by (task, user's plan, requested thinking level).
+2. Check entitlement + quota → **reserve credits** (estimate from input tokens + max output).
+3. Call primary; on provider error/timeout → next fallback (same capability class only).
+4. Normalize stream → SSE to client.
+5. On `usage` → settle actual credits, release remainder, write `ai_usage` row (provider cost in USD micro-units + credits charged).
+6. Client disconnect → abort upstream call, settle what was used.
+
+### 5.5 Streaming to the client
+- `POST /ai/chats/:id/messages` returns `text/event-stream`.
+- Events mirror `NormalizedEvent`; the UI shows a collapsible "thinking" panel, a "searching the web…" chip with sources, then the streamed answer (Markdown + tables, RTL-aware).
+- Heartbeat every 15s; max stream duration per plan; one active stream per user (configurable).
+
+### 5.6 Skills
+- Stored in `/skills/<skill-name>/SKILL.md` (agentskills.io format: frontmatter `name`, `description`, then instructions + output schema reference).
+- Initial skills: `prescription-analysis`, `drug-info`, `lab-test-interpretation`, `imaging-educational`, `dose-calculator`, `drug-interaction-check`.
+- A cheap classifier step (or user-chosen tool chip) picks the skill; only that skill's instructions are injected → smaller prompts, lower cost.
+- Admin can enable/disable skills per plan.
+
+### 5.7 Prescription pipeline (accuracy-first)
+```
+upload (browser-compressed) → R2 private
+   → worker: validate magic bytes, re-encode with sharp (strip EXIF/payloads),
+             auto-orient, deskew/crop, resize to model-optimal size, grayscale if helpful
+   → rx_extract  (vision model, strict JSON schema, temperature 0)
+   → drug matcher (Postgres pg_trgm + unaccent over drugs/brands/aliases, AR+EN)
+   → rx_verify   (only for items with low match/confidence; focused crop + candidate list)
+   → validated JSON (zod) → stored → rendered as RTL table + notes + confidence badges
+```
+- Cache key = perceptual hash of processed image + skill version → identical re-uploads cost zero.
+- Output schema (fixed, versioned in `packages/shared/schemas/rx.ts`): patient (optional, redacted in storage), prescriber (optional), date, items[] { rawText, matchedDrugId?, name, activeIngredient?, strength, form, dose, frequency, duration, route, notes, confidence }, warnings[], unreadableRegions[].
+- Accuracy is measured on a growing labeled test set (`/evals/rx`) on every prompt or model change; the admin sees accuracy per model.
+
+### 5.8 Drug database
+- Tables: `drugs` (canonical), `drug_brands`, `drug_ingredients`, `drug_aliases` (spelling variants, Arabic/English), `drug_sources` (provenance per record).
+- Sources: SFDA registered-drug lists (imported via offline script, not live scraping), open datasets, and **admin uploads (JSON / Excel)** with preview, column mapping, duplicate detection, and dry-run before commit.
+- Imports run in the worker in batches; indexes: GIN trigram on names/aliases.
+- Powers both matching accuracy and programmatic SEO drug pages (later phase).
+
+---
+
+## 6. Files & uploads
+
+- Browser compresses (max ~1600px, WebP/JPEG) → requests a **presigned PUT** URL from `api` (size + MIME declared, checked against plan limits) → uploads **directly to R2** → notifies `api` → worker processes.
+- Files never land on the server's disk; processing happens in memory with strict size caps.
+- Allowed types: JPEG, PNG, WebP, HEIC (converted), PDF (page-limited). Magic-byte validation; anything else rejected.
+- Read access via short-lived presigned GET URLs, only for the owner (or org members with permission).
+- R2 lifecycle rule deletes originals after N days (admin setting); derived results are kept per policy.
+- Public/blog images → ImgBB (or R2 public bucket), never medical content.
+
+---
+
+## 7. Billing, subscriptions & credits
+
+### 7.1 Model
+- `plans` (admin-defined: name, audience individual/org, interval week/month/6mo/year/custom, features JSON, limits JSON, AI entitlements, visibility, sort, badge like "most popular").
+- `plan_prices` (plan × country/currency → amountMinor). Currency chosen from geo (Cloudflare `CF-IPCountry`) with manual switcher: EGP, SAR, AED, USD, + admin-addable.
+- `subscriptions` (user or org, plan, status, period start/end, auto-renew, gateway refs).
+- `credit_ledger` (append-only: grant, purchase, usage_reserve, usage_settle, release, referral_reward, admin_adjust, expiry).
+- `coupons`, `campaigns`, `discounts` (percent/fixed, plan-scoped, first-time only, date range, usage caps, per-user caps).
+- `org_custom_terms` for enterprise deals (custom limits/models/prices per organization).
+
+### 7.2 Payment gateway layer
+```ts
+interface PaymentGateway {
+  createCheckout(input: CheckoutInput): Promise<{ redirectUrl: string; ref: string }>;
+  verifyWebhook(raw: Buffer, headers: Headers): Promise<GatewayEvent>; // signature check
+  refund?(ref: string, amountMinor: number): Promise<void>;
+}
+```
+- **Kashier** (cards, wallets incl. Vodafone Cash where supported), **Manual** (user uploads transfer proof / contacts WhatsApp → admin approves), **Stripe** later.
+- Admin can enable/disable each gateway and edit keys (encrypted).
+- Flow: server computes final price (plan + country + coupon) → creates `payment_intents` row → redirect to hosted checkout → **webhook** (verified, idempotent) activates subscription and grants credits → user returns to a success page that polls status (never trusts the return URL alone).
+
+### 7.3 Lifecycle jobs (worker, scheduled)
+- Expire subscriptions at period end → downgrade to free automatically.
+- Renewal reminders (7d / 3d / 1d), win-back offers to expired non-renewers (configurable coupon).
+- Credit expiry per plan rules.
+
+---
+
+## 8. Security architecture (summary — full checklist in SECURITY.md)
+
+| Threat | Controls |
+|---|---|
+| DDoS / floods | Cloudflare proxy + WAF rules + rate limiting rules; origin accepts only Cloudflare IPs; Caddy request limits. |
+| Credential stuffing / brute force | Turnstile, per-IP + per-account rate limits, Argon2id, lockout + alerts, 2FA for admins. |
+| **Denial-of-wallet (AI cost)** | Credit reservation before every call, per-user/plan daily caps, global daily spend cap with kill switch + alert, max tokens per route, one stream per user, upload size/page caps, result caching, phone-verified free tier. |
+| Free-tier abuse / multi-accounting | Phone verification, device/IP heuristics, disposable email block, free quota tied to verified phone. |
+| Payment fraud | Server-side pricing, signed + idempotent webhooks, amount/currency re-check against intent, no client-trusted success. |
+| IDOR / data mixing between users | Scoped repositories, ownership checks in services, integration tests for wrong-owner access on every endpoint. |
+| Injection (SQL/XSS/SSRF) | Drizzle parameterized queries only, strict CSP with nonces, Markdown rendered via sanitizer, no user-controlled outbound URLs (allowlist for AI/payment hosts). |
+| Malicious uploads | Direct-to-R2, magic-byte checks, re-encode with sharp, size/pixel limits (decompression-bomb guard), no server disk writes. |
+| Prompt injection via images/text | System prompts isolate user content; tools have no destructive powers; outputs validated by schema; no secrets in prompts. |
+| Secret leakage | Env validation, encrypted keys in DB, log redaction, gitleaks in CI, least-privilege R2/API tokens. |
+| Supply chain | Lockfile, `pnpm audit`, Dependabot, Trivy image scan, pinned base images, non-root containers, read-only filesystems where possible. |
+
+Security headers (Caddy + Next.js): HSTS (preload), CSP (nonce-based), `X-Content-Type-Options`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`, `frame-ancestors 'none'` (except where embedding is needed).
+
+---
+
+## 9. Errors & observability
+
+- **Reference codes:** global exception filter generates `WSF-XXXX-XXXX`, stores an `error_events` row (route, user, request id, error class, redacted context, provider/gateway response, stack) and returns `{ code, ref, message_ar }`.
+- **Admin "Issues" page:** grouped by fingerprint, count, first/last seen, affected users, status (new/investigating/resolved), human-readable explanation + likely cause hint per error code.
+- Logs: pino JSON → Docker log rotation; request id propagated web → api → worker.
+- Health: `/health/live`, `/health/ready` (db, redis); external uptime monitor.
+- Alerts (email/Telegram to admin): error spikes, AI spend threshold, payment webhook failures, backup failure.
+
+---
+
+## 10. Marketing, tracking & growth (summary)
+
+- **Tracking manager (admin):** Meta Pixel, Google Analytics 4 / Google Ads tag, TikTok Pixel, Snap, custom scripts — on/off per pixel, loaded through a single consent-aware loader.
+- **Server-side events:** Meta Conversions API, GA4 Measurement Protocol, TikTok Events API for `CompleteRegistration`, `StartTrial`, `Purchase`, `Subscribe` (deduplicated with client `event_id`).
+- **Campaign links:** `/c/<slug>` → records click (UTM, referrer, country, device) → sets first-touch + last-touch attribution cookie → funnel stats: clicks → signups → paid → revenue.
+- **Referrals:** user invite codes (credit reward on friend's verified signup / first payment); **doctor/partner program** with % commission or fixed balance per paid subscriber; payouts tracked; admin sees full tree (who invited whom, who paid).
+- **Coupons & campaigns:** see §7.1. Psychological pricing features (anchoring, "most popular", annual savings, limited-time banners, social proof counters) are admin-configurable components.
+- **Ad slots:** named placements on public pages and dashboard, admin-controlled (show/hide, creative, link, schedule, targeting by country/plan). Later phase.
+
+---
+
+## 11. Content & SEO platform (summary — details in SEO-GEO.md)
+
+- Public pages SSR/ISR, cached at Cloudflare; per-page metadata, canonical, hreflang-ready, JSON-LD (Organization, WebSite, SoftwareApplication, FAQPage, Article, MedicalWebPage, BreadcrumbList).
+- Blog: categories, tags, authors with credentials (E-E-A-T), medical reviewer field, scheduled publishing.
+- **Blog publishing API:** `POST /blog/api/posts` with scoped API keys (admin-issued, HMAC-signed requests, rate-limited) for automated publishing including image upload.
+- `sitemap.xml` (split by type), `robots.txt`, `llms.txt` for AI crawlers, RSS.
+- Local SEO: country/city landing pages from admin-managed data.
+
+---
+
+## 12. Support (no live chat)
+
+- Floating contact hub: WhatsApp, Telegram, phone call (numbers from admin settings).
+- **Tickets:** user creates ticket (category, message, optional attachment, optional error ref code) → admin inbox (assign, status, internal notes, canned replies) → reply triggers **Web Push** + email (and in-app notification; mobile push via FCM later).
+- Contact page form → same inbox (Turnstile-protected).
+
+---
+
+## 13. Settings & feature flags
+
+- `site_settings` (key → JSON value, typed by zod) cached in Redis, invalidated on admin write: branding, contact numbers, socials, default currency, legal texts version, maintenance mode, signup open/closed, free-tier limits, etc.
+- `feature_flags` with targeting (all / plan / org / user / percentage).
+
+---
+
+## 14. Environments & deployment
+
+| Env | Where | Notes |
+|---|---|---|
+| `local` | Developer machine, `docker compose -f compose.dev.yml` | Hot reload, seeded data, fake gateways. |
+| `production` | Server, `docker compose -f compose.prod.yml` | Images from GHCR, pinned by git SHA. |
+
+Deploy: push to `main` → CI (lint, typecheck, test, build, scan) → push images `ghcr.io/<owner>/wasfa-{web,api,worker}:<sha>` → SSH deploy step pulls + runs migrations (one-off container) + `docker compose up -d` → health check → automatic rollback to previous SHA on failure.
+
+Backups: nightly `pg_dump` (compressed, encrypted) → R2, 14 daily + 8 weekly retention; monthly restore test.
+
+---
+
+## 15. Decision log
+
+| # | Date | Decision | Reason |
+|---|---|---|---|
+| 1 | 2026-10-09 | NestJS + TypeScript backend | One language across web/api/mobile; shared schemas; structured security guards. |
+| 2 | 2026-10-09 | PostgreSQL + Drizzle, Redis | Relational integrity for money/credits; Redis for limits, queues, cache. |
+| 3 | 2026-10-09 | Medical files on private Cloudflare R2 | Privacy law compliance (EG 151/2020, KSA/UAE PDPL), no public URLs, no server disk. |
+| 4 | 2026-10-09 | All services on one server via Docker Compose, Cloudflare in front | Simple, strong, cheap start; vertical then horizontal scaling. Frontend may move to Cloudflare later. |
+| 5 | 2026-10-09 | Provider-agnostic AI gateway (Gemini + OpenRouter at launch) | Full admin control, failover, cost routing. |
+| 6 | 2026-10-09 | Pluggable payments, Kashier first | Stripe unavailable to Egypt-only merchants; add later if a foreign entity exists. |
+| 7 | 2026-10-09 | No RxNorm, no Chatwoot, no live chat | Owner decision. Own drug DB; ticket-based support. |
+| 8 | 2026-10-09 | Data-retention consent via privacy policy text | Owner decision. Retained data is anonymized before storage. |
+| 9 | 2026-10-09 | Brand: navy `#1E3A8A` + soft blue `#60A5FA`, Alexandria + IBM Plex Sans Arabic | Trustworthy, calm, distinctive. |

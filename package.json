@@ -1,0 +1,24 @@
+{
+  "name": "wasfa-online",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Wasfa AI (وصفة AI) monorepo",
+  "packageManager": "pnpm@10.34.6",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@wasfa/config": "workspace:*",
+    "prettier": "^3.9.9",
+    "turbo": "^2.11.7",
+    "typescript": "^5.9.3"
+  }
+}
