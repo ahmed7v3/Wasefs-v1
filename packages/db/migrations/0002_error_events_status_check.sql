@@ -1,0 +1,1 @@
+ALTER TABLE "error_events" ADD CONSTRAINT "error_events_status_check" CHECK ("error_events"."status" in ('new', 'investigating', 'resolved'));

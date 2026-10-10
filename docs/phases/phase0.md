@@ -32,7 +32,7 @@ Steps
 7. Remove the stray reference images from the repo root into `docs/references/` (`1.png` dashboard, `2.png` + `3.png` AI page style).
 
 Acceptance
-- [x] `pnpm install` succeeds with a committed `pnpm-lock.yaml`. *(lockfile generated; not yet committed, see Open questions)*
+- [x] `pnpm install` succeeds with a committed `pnpm-lock.yaml`.
 - [x] `pnpm lint` and `pnpm typecheck` run (no-op OK) across the workspace.
 
 ---
@@ -51,8 +51,8 @@ Steps
 7. Register all exports in `docs/REUSE-INDEX.md` (create the file with a table header).
 
 Acceptance
-- [ ] Unit tests for money, ids, env parsing pass.
-- [ ] `docs/REUSE-INDEX.md` lists every export.
+- [x] Unit tests for money, ids, env parsing pass. *(23 tests, also covering errors + i18n)*
+- [x] `docs/REUSE-INDEX.md` lists every export.
 
 ---
 
@@ -72,8 +72,8 @@ Steps
 5. Conventions: snake_case columns, `created_at`/`updated_at` timestamptz default now(), UUIDv7 PKs.
 
 Acceptance
-- [ ] `pnpm db:migrate` against local Postgres creates the tables and extensions.
-- [ ] Seed is idempotent (running twice changes nothing).
+- [x] `pnpm db:migrate` against local Postgres creates the tables and extensions.
+- [x] Seed is idempotent (running twice changes nothing).
 
 ---
 
@@ -83,6 +83,7 @@ Acceptance
 
 Steps
 1. Nest 11 with `@nestjs/platform-fastify`. Boot validates env via `packages/shared/env` (`NODE_ENV`, `PORT`, `DATABASE_URL`, `REDIS_URL`, `WEB_ORIGIN`, `ENCRYPTION_KEY` (32-byte base64), `TRUST_PROXY`).
+   **Module format: ESM.** `apps/api` uses `"type": "module"` with `NodeNext` resolution, because `@wasfa/shared` and `@wasfa/db` export ESM only (`import` condition). Do not switch the API to CommonJS.
 2. Fastify options: `bodyLimit` 1 MB default (uploads never go through the API), `trustProxy` limited to Caddy, request id from `cf-ray` / generated.
 3. `@fastify/helmet` (API-appropriate headers), `@fastify/cors` with **exact-origin allowlist** from env, credentials true.
 4. **Rate limiting:** `@fastify/rate-limit` backed by Redis; global default (e.g. 120/min/IP) + decorator for stricter per-route limits; real client IP from `CF-Connecting-IP` only when request came through Caddy.
@@ -151,7 +152,7 @@ Steps
 1. **Multi-stage Dockerfiles** using `node:24-alpine` (pinned by digest), `pnpm deploy --prod` / `turbo prune` for minimal images. Final stage: **non-root user**, `NODE_ENV=production`, only built output, `HEALTHCHECK`.
 2. `compose.dev.yml`: postgres:18-alpine, redis:8-alpine with ports published to **127.0.0.1 only**, named volumes. Apps run on host via `pnpm dev`.
 3. `compose.prod.yml`:
-   - Services: `caddy`, `web`, `api`, `worker`, `postgres`, `redis`, `migrate` (one-off, `profiles: [tools]`).
+   - Services: `caddy`, `web`, `api`, `worker`, `postgres`, `redis`, `migrate` (one-off, `profiles: [tools]`). It runs `node packages/db/dist/migrate.js` — `tsx` is a dev dependency and is not in production images.
    - Networks: `edge` (caddy↔web/api) and `internal` (`internal: true`; api/worker/postgres/redis). Postgres and Redis **publish no ports**.
    - `restart: unless-stopped`, healthchecks, `depends_on: condition: service_healthy`.
    - Resource limits (`mem_limit`, `cpus`) per service, tuned for the current server size, documented in comments.
@@ -243,5 +244,24 @@ Acceptance
   - Reference images moved to `docs/references/1.png`, `2.png`, `3.png`.
   - `pnpm install` reports ignored build scripts for `unrs-resolver`. Not needed for lint or typecheck; run `pnpm approve-builds` if a later task needs it.
 
+- **Tasks 0.2 / 0.3 deviations**
+  - `packages/shared` and `packages/db` compile to `dist/` as ESM with `tsc`, and the `package.json` `exports` point at `dist`. Consumers need `pnpm build` first; the root `db:migrate` and `db:seed` scripts build `shared` automatically.
+  - Subpath exports `@wasfa/shared/{env,errors,i18n,ids,money}` were added. `queues.ts` is deferred to Task 0.5.
+  - UUIDv7 primary keys in the DB use Postgres 18's native `uuidv7()` default. The app-side `newId()` is a separate implementation with no `uuid` dependency.
+  - `formatMoney` defaults to Western digits via `-u-nu-latn`, per AGENT.md §5.10. Currency exponents come from a small built-in table: EGP, SAR, AED, USD, EUR, QAR, JOD, KWD, BHD, OMR, JPY.
+  - Migrations: `0000_extensions.sql` (hand-written, via `drizzle-kit generate --custom`) enables `pgcrypto`, `pg_trgm`, `unaccent` and `citext`. `0001_*.sql` holds the four tables.
+  - Added columns beyond the plan: `created_at`/`updated_at` on `site_settings` and `feature_flags`, and `error_events.updated_at`. `audit_logs.target_id` and `ip` are `text`, not `uuid`/`inet`.
+  - Seed uses `ON CONFLICT DO NOTHING`, so it never overwrites admin-edited settings.
+  - Verified against a throwaway PostgreSQL 18.4 cluster (local install, port 55432, now stopped). Docker is not running on this machine, so Task 0.7 will need Docker Desktop started.
+
+- **Review fixes after Tasks 0.2 / 0.3** (Opus review, 2026-10-10)
+  - `turbo.json`: `typecheck` and `lint` now depend on `^build`. Before, a fresh checkout (CI) failed with `TS2307: Cannot find module '@wasfa/shared/env'` because `dist/` did not exist yet.
+  - `timestamps().updatedAt` now has `$onUpdate(() => new Date())`, so ORM updates refresh it. Raw SQL updates must still set it themselves.
+  - `error_events.status` is restricted to `new | investigating | resolved` by a check constraint (migration `0002_error_events_status_check.sql`). It has not yet been applied to a live database; it runs on the next `db:migrate`.
+  - `currencyExponent` falls back to CLDR data (`Intl`) for any valid ISO 4217 code, since admins can add currencies. Unknown codes still throw.
+  - `t()` substitutes only the caller's own params (`Object.hasOwn`), never inherited object properties.
+  - Decisions recorded in the tasks: the API is ESM (Task 0.4), and the production `migrate` container runs `node packages/db/dist/migrate.js` (Task 0.7).
+  - Deferred: seed-idempotency integration test (with Task 0.4 Testcontainers); DB role that blocks UPDATE/DELETE on `audit_logs` (SECURITY.md).
+
 ## Open questions
-- **Commit for Task 0.1 not made.** The project folder sits inside a git repo rooted at `C:/Users/hp` (branch `main`, one commit `c336b4b first commit`). AGENT.md expects one commit per task. Committing there would mix with unrelated home-directory files, so this needs a decision: (a) `git init` inside `wasfa.online` as its own repo, or (b) commit only the project paths in the home repo.
+- ~~Commit for Task 0.1 not made.~~ **Resolved:** `wasfa.online` is now its own git repo (remote `github.com/ahmed7v3/Wasefs-v1`); Task 0.1 is committed as `4d17aed`. Never commit from the `C:/Users/hp` home repo.
