@@ -36,3 +36,6 @@ Thumbs.db
 
 # Next.js generated
 next-env.d.ts
+
+# Server credentials (SSH key, tokens): never committed
+docs/vps/
