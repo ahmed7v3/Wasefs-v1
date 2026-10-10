@@ -27,8 +27,10 @@ export function currencyExponent(currency: string): number {
   if (!/^[A-Z]{3}$/.test(code) || !Intl.supportedValuesOf("currency").includes(code)) {
     throw new RangeError(`Unsupported currency: ${currency}`);
   }
-  const digits = new Intl.NumberFormat("en", { style: "currency", currency: code }).resolvedOptions()
-    .maximumFractionDigits;
+  const digits = new Intl.NumberFormat("en", {
+    style: "currency",
+    currency: code,
+  }).resolvedOptions().maximumFractionDigits;
   return digits ?? 2;
 }
 

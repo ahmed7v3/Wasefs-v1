@@ -10,6 +10,7 @@ import { ZodValidationPipe } from "./common/validation.js";
 import { ConfigModule } from "./config/config.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { NotificationsModule } from "./notifications/notifications.module.js";
+import { PhoneModule } from "./phone/phone.module.js";
 
 import type { ApiEnv } from "./config/env.js";
 
@@ -33,6 +34,7 @@ export class AppModule {
         RedisModule,
         NotificationsModule.register({ authMailer: options.authMailer ?? true }),
         AuthModule,
+        PhoneModule,
         HealthModule,
         ...extraImports,
       ],

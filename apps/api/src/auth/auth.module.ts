@@ -50,6 +50,6 @@ import type { ApiEnv } from "../config/env.js";
       },
     },
   ],
-  exports: [AUTH, AuthService, AuthSettingsReader],
+  exports: [AUTH, AuthService, AuthSettingsReader, AuthRateLimiter, TurnstileService],
 })
 export class AuthModule {}

@@ -33,11 +33,7 @@ describe("env parsing", () => {
       throw new Error("exit");
     };
     expect(() =>
-      parseEnv(
-        schema,
-        { PORT: "oops" },
-        { write: (m) => written.push(m), exit: fakeExit },
-      ),
+      parseEnv(schema, { PORT: "oops" }, { write: (m) => written.push(m), exit: fakeExit }),
     ).toThrow("exit");
     expect(exitCode).toBe(1);
     expect(written.join("\n")).toContain("PORT");

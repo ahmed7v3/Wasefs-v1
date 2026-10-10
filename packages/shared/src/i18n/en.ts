@@ -14,18 +14,24 @@ export const en: Partial<Record<MessageKey, string>> = {
   "common.retry": "Try again",
   "common.backHome": "Back to home",
   "common.skipToContent": "Skip to main content",
+  "phone.verify.waMessage": "Wasfa AI verification code: {code}",
+  "phone.reply.verified": "Verified ✅",
+  "phone.reply.invalid": "The code is incorrect or has expired",
   "email.greeting": "Hello {name},",
   "email.greetingAnonymous": "Hello,",
   "email.linkFallback": "If the button does not work, copy this link into your browser:",
-  "email.ignoreIfNotYou": "If you did not ask for this, ignore this message; nothing changes in your account.",
+  "email.ignoreIfNotYou":
+    "If you did not ask for this, ignore this message; nothing changes in your account.",
   "email.footer": "Automated message from Wasfa AI. Please do not reply.",
   "email.disclaimer": "Wasfa AI is an assistive tool and does not replace a doctor or pharmacist.",
   "email.verify.subject": "Verify your email for Wasfa AI",
-  "email.verify.intro": "Thanks for signing up for Wasfa AI. Press the button below to confirm your email and activate your account.",
+  "email.verify.intro":
+    "Thanks for signing up for Wasfa AI. Press the button below to confirm your email and activate your account.",
   "email.verify.button": "Verify email",
   "email.verify.expires": "This link expires in one hour.",
   "email.reset.subject": "Reset your Wasfa AI password",
-  "email.reset.intro": "We received a request to reset your account password. Press the button below to choose a new one.",
+  "email.reset.intro":
+    "We received a request to reset your account password. Press the button below to choose a new one.",
   "email.reset.button": "Choose a new password",
   "email.reset.expires": "This link expires in one hour and works once.",
   "email.invite.subject": "You are invited to join {org} on Wasfa AI",
@@ -34,7 +40,9 @@ export const en: Partial<Record<MessageKey, string>> = {
   "email.invite.button": "Accept invitation",
   "email.invite.expires": "This invitation expires in 7 days and works once.",
   "email.suspended.subject": "Your Wasfa AI account has been suspended",
-  "email.suspended.intro": "Your Wasfa AI account has been suspended and you cannot sign in until it is reviewed.",
-  "email.suspended.contact": "If you think this is a mistake, contact support and we will review your account.",
+  "email.suspended.intro":
+    "Your Wasfa AI account has been suspended and you cannot sign in until it is reviewed.",
+  "email.suspended.contact":
+    "If you think this is a mistake, contact support and we will review your account.",
   ...errorMessages,
 };

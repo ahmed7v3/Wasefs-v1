@@ -2,12 +2,7 @@ import { randomBytes } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
 
-import {
-  SecretDecryptionError,
-  decryptSecret,
-  encryptSecret,
-  maskSecret,
-} from "../src/crypto.js";
+import { SecretDecryptionError, decryptSecret, encryptSecret, maskSecret } from "../src/crypto.js";
 
 const key = randomBytes(32);
 

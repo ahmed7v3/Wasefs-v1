@@ -286,6 +286,28 @@ values an admin has edited).
 
 ---
 
+### 3.9 Link the WhatsApp number (phone verification, Task 1.5)
+
+Phone verification works by users **sending** a code from their own WhatsApp to ours, so it needs a
+dedicated WhatsApp (Business) number, **never your personal one**, with a complete business profile
+(name, logo, description, website) and an auto-greeting set in the phone app. Use the number for a few
+days like a normal business line before linking it.
+
+1. Put the number in `.env.prod` as `WHATSAPP_NUMBER=2015XXXXXXXX` (digits, with country code) and
+   redeploy, so the API knows where to send users.
+2. On the server, run the one-off linking command with the same number:
+   `dc run --rm wa-bridge node dist/wa-bridge/main.js link 2015XXXXXXXX`
+   It prints a pairing code. On the phone: WhatsApp > Linked devices > Link a device > **Link with
+   phone number instead**, and type the code. The phone stays the primary device. The command stops by
+   itself a few seconds after it connects; the `wa-bridge` service then picks the session up.
+3. `dc up -d wa-bridge` (it is part of the stack and idles, reporting "logged out", until step 2 is done).
+   Check with `dc logs --tail 20 wa-bridge` ("WhatsApp connected").
+4. If WhatsApp ever logs the device out, the bridge stops and says so; phone verification hides itself
+   and email verification keeps working. To link again: `... run --rm wa-bridge node dist/wa-bridge/main.js unlink`,
+   then step 2. The bridge never re-pairs by itself.
+5. Kill switch: set `auth.phoneVerification` to `disabled` (admin settings) to hide phone verification
+   without touching the bridge.
+
 ## 4. Everyday commands (on the server)
 
 Log in: `ssh deploy@<ELASTIC-IP>`. First define a short name for the long command (add it to `~/.bashrc`):

@@ -67,6 +67,7 @@
 | `role_permissions` | Which catalog permissions a role holds. | Platform. |
 | `user_roles` | Which platform roles a user holds (the implicit `user` role has no row). | `user_id` for the user's own permission resolution; admin writes only. |
 | `onboarding_progress` | Resumable wizard state, 1:1 with `users`. | `user_id` |
+| `wa_sessions` | Encrypted Baileys auth state of the WhatsApp bridge (`session`, `key`, AES-256-GCM `value`, Task 1.5). | None: not user data; read only by the bridge. |
 
 ### Phase 1 — later tasks (*planned*)
 
@@ -157,5 +158,5 @@ Not added yet, on purpose: a trigram index for admin user search by name/email/p
 - Every query on user-owned tables goes through `scopedRepo` (Task 1.6); services never call `db.select` on them directly.
 - User-owned (`user_id`): `user_profiles`, `accounts`, `sessions`, `two_factors`, `onboarding_progress`, `user_roles`.
 - Organization-owned (`org_id` **and** a membership check): `organizations`, `organization_members`, `organization_invites`.
-- Platform data (no owner): `roles`, `role_permissions`, `site_settings`, `feature_flags`, `audit_logs`, `error_events`. Reachable only through permission-checked admin routes (public subset of settings excepted).
+- Platform data (no owner): `roles`, `role_permissions`, `site_settings`, `feature_flags`, `audit_logs`, `error_events`, `wa_sessions`. Reachable only through permission-checked admin routes (public subset of settings excepted).
 - The test pattern for "wrong owner" access is created in Task 1.6 and used by every endpoint of Task 1.7.

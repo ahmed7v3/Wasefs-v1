@@ -19,7 +19,10 @@ export type EmailTemplate = (typeof EMAIL_TEMPLATES)[number];
  * Mail a person is waiting for right now. Under the daily provider cap these still go out, while the
  * rest (invites, notices) wait for the next day.
  */
-export const CRITICAL_EMAIL_TEMPLATES: readonly EmailTemplate[] = ["verify_email", "reset_password"];
+export const CRITICAL_EMAIL_TEMPLATES: readonly EmailTemplate[] = [
+  "verify_email",
+  "reset_password",
+];
 
 export function isCriticalEmail(template: EmailTemplate): boolean {
   return CRITICAL_EMAIL_TEMPLATES.includes(template);

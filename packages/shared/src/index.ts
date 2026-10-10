@@ -10,3 +10,4 @@ export * from "./permissions.js";
 export * from "./queues.js";
 export * from "./redact.js";
 export * from "./schemas/auth.js";
+export * from "./schemas/phone.js";

@@ -30,6 +30,9 @@ export const ar = {
   "home.pill.privacy": "خصوصية وأمان",
   "home.pill.arabic": "عربي أولًا",
   "home.disclaimer": "وصفة AI أداة مساعدة ولا تغني عن استشارة الطبيب أو الصيدلي.",
+  "phone.verify.waMessage": "رمز التحقق في وصفة AI: {code}",
+  "phone.reply.verified": "تم التحقق ✅",
+  "phone.reply.invalid": "الرمز غير صحيح أو منتهي الصلاحية",
   "email.greeting": "مرحبًا {name}،",
   "email.greetingAnonymous": "مرحبًا،",
   "email.linkFallback": "إن لم يعمل الزر، انسخ الرابط التالي والصقه في المتصفح:",
@@ -37,11 +40,13 @@ export const ar = {
   "email.footer": "رسالة آلية من وصفة AI، لا يمكن الرد عليها.",
   "email.disclaimer": "وصفة AI أداة مساعدة ولا تغني عن استشارة الطبيب أو الصيدلي.",
   "email.verify.subject": "فعّل بريدك الإلكتروني في وصفة AI",
-  "email.verify.intro": "شكرًا لتسجيلك في وصفة AI. اضغط الزر التالي لتأكيد بريدك الإلكتروني وتفعيل حسابك.",
+  "email.verify.intro":
+    "شكرًا لتسجيلك في وصفة AI. اضغط الزر التالي لتأكيد بريدك الإلكتروني وتفعيل حسابك.",
   "email.verify.button": "تأكيد البريد الإلكتروني",
   "email.verify.expires": "ينتهي هذا الرابط خلال ساعة واحدة.",
   "email.reset.subject": "إعادة تعيين كلمة المرور في وصفة AI",
-  "email.reset.intro": "وصلنا طلب لإعادة تعيين كلمة مرور حسابك. اضغط الزر التالي لاختيار كلمة مرور جديدة.",
+  "email.reset.intro":
+    "وصلنا طلب لإعادة تعيين كلمة مرور حسابك. اضغط الزر التالي لاختيار كلمة مرور جديدة.",
   "email.reset.button": "اختيار كلمة مرور جديدة",
   "email.reset.expires": "ينتهي هذا الرابط خلال ساعة واحدة، ويُستخدم مرة واحدة فقط.",
   "email.invite.subject": "دعوة للانضمام إلى {org} على وصفة AI",
@@ -50,7 +55,8 @@ export const ar = {
   "email.invite.button": "قبول الدعوة",
   "email.invite.expires": "تنتهي هذه الدعوة خلال 7 أيام، وتُستخدم مرة واحدة فقط.",
   "email.suspended.subject": "تم إيقاف حسابك في وصفة AI",
-  "email.suspended.intro": "تم إيقاف حسابك في وصفة AI مؤقتًا، ولن تتمكن من تسجيل الدخول حتى تتم مراجعته.",
+  "email.suspended.intro":
+    "تم إيقاف حسابك في وصفة AI مؤقتًا، ولن تتمكن من تسجيل الدخول حتى تتم مراجعته.",
   "email.suspended.contact": "إن كنت ترى أن هذا حدث بالخطأ فتواصل مع فريق الدعم وسنراجع حسابك.",
   ...errorMessages,
 } as const;

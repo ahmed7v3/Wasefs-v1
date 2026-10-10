@@ -172,7 +172,17 @@ Design in phase1.md Task 1.5. The security properties that must hold:
 4. One linked session, one server IP, no frequent re-pairing; reconnect with exponential backoff; on `loggedOut` stop and alert the admin; **never auto-re-pair**.
 5. Phone numbers are never logged in clear (hash only). Wrong-sender messages are counted for abuse alerts.
 6. **Kill switch:** setting `auth.phoneVerification = whatsapp_inbound | disabled`. When disabled, or when the bridge is down or restricted, the UI hides phone verification and email verification keeps working.
-7. Operations: the pairing QR is printed to container logs by a one-off admin command only; rotate the linked device if the server is ever suspected compromised.
+7. Operations: the pairing code is printed to the console by a one-off admin command only (`wa-bridge ... link <number>`, DOCKER-GUIDE 3.9); rotate the linked device if the server is ever suspected compromised.
+
+**How it is built (Task 1.5):**
+
+- **Challenge**: `POST /phone/verify/start` (session, Turnstile, 3 starts an hour per user, per number and per IP, all failing closed) makes a 6-digit code valid for 10 minutes and returns a `wa.me` link with the code pre-filled. Redis keys: `phone:ch:<user>` (the challenge), `phone:code:<hash(phone)>:<code>` (lookup by the inbound message, removed with `GETDEL`, so a code works once), `phone:result:<user>`. The lookup key contains the **sender's** number, so the same code from another number finds nothing.
+- **Bridge to api**: the bridge appends `{id, phone, code, receivedAt, jid}` to the Redis stream `wa:inbound` (`MAXLEN ~ 10000`); the api consumes it in the consumer group `api` (any number of replicas; stale entries are claimed after 60 s), resolves the challenge, writes `phone`, `phone_verified_at` and `phone_verified`, and asks the bridge to answer through `wa:replies`. Wrong or unknown claims are counted per sender and hour (`phone:abuse:<hash>`); at 10 a warning is logged, above 5 the sender gets no reply.
+- **The api cannot make the bridge say anything**: `wa:replies` carries only an outcome name; the two sentences (verified / wrong or expired) are fixed in the bridge, and `guard.ts` checks every send against the rules above (inbound seen in that chat within 24 h and for that message id, one reply per inbound message, no links, direct chats only, 2-6 s delay, at least 3 s apart, 300 a day).
+- **One verified account per number** (partial unique index); the loser sees `failed / phone_in_use`.
+- **Auth state**: `wa_sessions` rows are AES-256-GCM ciphertext with the session and key as AAD; a row that cannot be decrypted stops the bridge instead of minting new credentials.
+- **Health**: the bridge writes `wa:heartbeat` every 30 s with its state (`connecting | connected | disconnected | logged_out`); `GET /phone/verify/status` reports `available` and why not. `/health/ready` does not depend on it. After `loggedOut` the bridge also sets `wa:alert` for the future admin dashboard.
+- **Unverified in this repository**: the Baileys socket glue (`wa-bridge/main.ts`) has not run against real WhatsApp. The spike (can the sender's number be resolved from a LID?) and the end-to-end checks of Task 1.5 need the dedicated number and are tracked in phase1.md.
 
 ---
 
@@ -212,6 +222,8 @@ Open security items from Phase 0 and design decisions. Each has an owner task; n
 | Item | Source | Owner task |
 |---|---|---|
 | Restricted API DB role that cannot `UPDATE`/`DELETE` `audit_logs` (migration + compose env) | Phase 0 review | Task 1.6 |
+| Baileys is a release candidate (`7.0.0-rc14`, pinned exactly); re-test the bridge before upgrading it, and treat the sender-number resolution (LID to phone) as unproven until the spike is done on the real number | Task 1.5 | Task 1.5 spike |
+| `wa:inbound` and `wa:replies` entries hold the sender's phone number and chat id in Redis until trimmed (`MAXLEN`); Redis is on the private network only. Encrypt the entries if that ever changes | Task 1.5 | - |
 | API image is 214 MB (target < 200 MB): audit `pnpm deploy --prod`, drop dev-only deps, or record an accepted size | Phase 0 | Task 1.12 |
 | Branch protection not enforced (private repo on the free plan; `infra/scripts/protect-main.sh` is ready) | Phase 0 | Task 1.12 |
 | Live checks on the server: direct-IP request refused, `ssh root` and password logins fail, SSL Labs A+, securityheaders.com ≥ A, restore drill | Phase 0 | Task 1.12 |

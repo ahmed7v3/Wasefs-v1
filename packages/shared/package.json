@@ -70,6 +70,11 @@
       "import": "./dist/redact.js",
       "default": "./dist/redact.js"
     },
+    "./schemas/phone": {
+      "types": "./dist/schemas/phone.d.ts",
+      "import": "./dist/schemas/phone.js",
+      "default": "./dist/schemas/phone.js"
+    },
     "./schemas/auth": {
       "types": "./dist/schemas/auth.d.ts",
       "import": "./dist/schemas/auth.js",

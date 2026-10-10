@@ -7,3 +7,4 @@ export * from "./organizations.js";
 export * from "./rbac.js";
 export * from "./site-settings.js";
 export * from "./users.js";
+export * from "./wa-sessions.js";

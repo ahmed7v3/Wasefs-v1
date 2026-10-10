@@ -82,6 +82,15 @@ export const apiEnvSchema = z
     GOOGLE_CLIENT_SECRET: optional(z.string().min(1)),
     FACEBOOK_CLIENT_ID: optional(z.string().min(1)),
     FACEBOOK_CLIENT_SECRET: optional(z.string().min(1)),
+
+    // --- Phone verification (WhatsApp inbound, Task 1.5) ---
+    /** The business number users send the code to, digits with country code (a leading + is accepted). Unset = phone verification unavailable. */
+    WHATSAPP_NUMBER: optional(
+      z
+        .string()
+        .transform((value) => value.replace(/^\+/, ""))
+        .pipe(z.string().regex(/^[1-9]\d{7,14}$/)),
+    ),
   })
   .superRefine((env, ctx) => {
     const issue = (key: keyof typeof env, message: string) =>

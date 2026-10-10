@@ -98,6 +98,9 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD:?}@redis:6379
       WEB_ORIGIN: ${WEB_ORIGIN:-https://wasfa.online}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?}
+      # The business WhatsApp number users send their verification code to (digits, with country
+      # code). Empty = phone verification is unavailable and the UI hides it.
+      WHATSAPP_NUMBER: ${WHATSAPP_NUMBER:-}
       # Authentication (Better Auth). The api container reaches Cloudflare (Turnstile), Google and
       # the breached-password service through the `edge` network.
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
@@ -148,6 +151,39 @@ services:
         condition: service_healthy
     # Active jobs get 30 s to finish (WORKER_SHUTDOWN_TIMEOUT_MS); Docker must wait longer than that.
     stop_grace_period: 40s
+    mem_limit: 256m
+    cpus: 0.5
+
+  # WhatsApp bridge (Task 1.5): receives the verification codes users send from their own phone.
+  # EXACTLY ONE replica: a second process on the same linked session would fight the first.
+  # Outbound internet only (WhatsApp's servers), nothing published. It reads and writes its auth state
+  # in Postgres (encrypted), so the read-only container survives restarts without re-pairing.
+  # One-off linking by an operator (prints a pairing code in the output; use the dedicated number):
+  #   docker compose --env-file .env.prod -f compose.prod.yml run --rm wa-bridge   #     node dist/wa-bridge/main.js link 2015XXXXXXXX
+  # Forget the session: ... run --rm wa-bridge node dist/wa-bridge/main.js unlink
+  wa-bridge:
+    <<: *app
+    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER}/wasfa-worker:${IMAGE_TAG:-latest}
+    command: ["node", "dist/wa-bridge/main.js"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?}@redis:6379
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    networks: [internal, egress]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "dist/wa-bridge/healthcheck.js"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    stop_grace_period: 15s
     mem_limit: 256m
     cpus: 0.5
 
