@@ -186,7 +186,7 @@ Steps
 5. Branch protection on `main`: CI required, no force-push.
 
 Acceptance
-- [ ] A PR with a failing test cannot merge. *(Needs the workflows pushed to GitHub and `infra/scripts/protect-main.sh` run once by a repo admin; not done from this machine because it changes the remote repository.)*
+- [ ] A PR with a failing test cannot merge. *(Workflows are on GitHub and both checks run on every PR. **Branch protection could not be enabled**: GitHub returns 403 "Upgrade to GitHub Pro or make this repository public" for private repositories on the free plan, and `infra/scripts/protect-main.sh` is ready to run once that changes. Until then the merge gate is a convention, not an enforced rule.)*
 - [x] A committed fake secret is caught by gitleaks. *(Same pinned gitleaks image and `.gitleaks.toml` as CI, on a scratch repo containing a fake `ghp_…` token: "leaks found: 1", exit 1. The real repository history scans clean.)*
 - [x] Deploy of a broken image auto-rolls back. *(`infra/scripts/deploy.sh` run against the local production stack: good release → healthy; release whose API image exits immediately → "did not become ready", rolled back to the previous SHA, healthy again, exit 1, `.deployed-sha` unchanged. The SSH/GitHub half of `deploy.yml` can only be exercised on the real server.)*
 
