@@ -100,7 +100,7 @@ Acceptance
 - [x] Throwing an unknown error in a test route returns `{ code: 'INTERNAL', ref: 'WSF-…' }` and creates an `error_events` row; stack never appears in the response.
 - [x] 121st request in a minute from same IP → 429 with `RATE_LIMITED`.
 - [x] Request from a non-allowlisted Origin gets no CORS headers.
-- [x] Integration tests (Testcontainers) cover the above. *(38 API tests. Run here against local services through the `TEST_*` fallback, because Docker Desktop would not start; see Notes.)*
+- [x] Integration tests (Testcontainers) cover the above. *(38 API tests + 1 db seed test, all passing against `postgres:18-alpine` + `redis:8-alpine` containers.)*
 
 ---
 
@@ -274,7 +274,7 @@ Acceptance
   - `encryptSecret` format is `v1.<iv>.<tag>.<ciphertext>` (base64url), with an optional AAD `context` that binds a ciphertext to its row. `maskSecret` was added for admin display.
   - `pnpm dev` (api) runs TS directly via `@swc-node/register` (esbuild/tsx cannot emit decorator metadata) and loads the repo-root `.env` if present (`--env-file-if-exists`). Tests use `unplugin-swc` for the same reason.
   - `packages/db` gained `runMigrations()` / `MIGRATIONS_FOLDER` (used by the CLI and tests) and a `connectTimeoutSeconds` option. The deferred **seed-idempotency integration test** now exists (`packages/db/test/seed.int.test.ts`).
-  - Integration tests start `postgres:18-alpine` + `redis:8-alpine` with Testcontainers. If `TEST_DATABASE_URL` + `TEST_REDIS_URL` are set, they use those services instead (`turbo.json` passes these and `DOCKER_*`/`TESTCONTAINERS_*` through). **Docker Desktop failed to start on this machine** ("Docker Desktop is unable to start"), so this run used a throwaway PostgreSQL 18.4 cluster (port 55432) and the local Windows Redis service (3.0.504). The Testcontainers path is unverified until Docker works or CI runs it (Task 0.8).
+  - Integration tests start `postgres:18-alpine` + `redis:8-alpine` with Testcontainers. If `TEST_DATABASE_URL` + `TEST_REDIS_URL` are set, they use those services instead (`turbo.json` passes these and `DOCKER_*`/`TESTCONTAINERS_*` through). Both paths are verified: first via the fallback (throwaway PostgreSQL 18.4 cluster + local Windows Redis 3.0.504) while Docker Desktop was down, then via Testcontainers (Docker 29.8.2) with all 64 workspace tests passing.
   - Graceful shutdown: `enableShutdownHooks(SIGTERM, SIGINT)` closes Fastify, then the DB pool and Redis (`OnApplicationShutdown`). Covered by `app.close()` in tests; a real SIGTERM can't be sent on Windows, so it gets checked in the Docker setup (Task 0.7).
 
 ## Open questions
