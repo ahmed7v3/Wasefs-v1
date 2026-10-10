@@ -1,0 +1,323 @@
+# Phase 1 — Identity, Admin Core & Public Front Door
+
+> Goal: real people can create accounts and finish onboarding, admins can run the platform safely, and visitors land on a real, fast, Arabic landing page.
+> Prerequisites: read `docs/AGENT.md`, `docs/ARCHITECTURE.md` (§3, §4, §9, §12, §13), `docs/ROADMAP.md`, and the Phase 0 Notes.
+> Phase 1 of 4 build phases (see `ROADMAP.md`). **No AI, uploads, plans, or payments in this phase.**
+
+---
+
+## Outcome
+
+- A visitor can register with email + password, Google, or phone + password (phone verified by sending us a WhatsApp message), then verify, sign in, and sign out on any device. Sessions are revocable. Facebook appears as "coming soon".
+- New users go through a resumable onboarding wizard and land on the dashboard shell (RTL, 360 px → desktop).
+- Every API route is **deny-by-default**: authenticated, permission-checked, rate-limited, and audited where it writes admin data.
+- Admins (mandatory TOTP 2FA) manage users (suspend kills sessions), organizations, roles/permissions, site settings, feature flags, and errors (Issues page), and can read the audit log.
+- Landing page v1, legal pages, and the contact hub are live, with Lighthouse targets met.
+- `DATABASE.md`, `SECURITY.md`, `DESIGN-SYSTEM.md` exist and match the code.
+
+---
+
+## Owner prerequisites (start now — some take days)
+
+| Item | Needed by | Notes |
+|---|---|---|
+| **A dedicated WhatsApp number** on a real SIM (not the owner's personal number), registered in the **WhatsApp Business app** with the brand name and logo, and used normally by a person for 1–2 weeks before launch ("warm-up") | Task 1.5 | Linked to the server as a *linked device* (QR scan). No Meta Business API needed. |
+| Google OAuth client (web) | Task 1.3 | Redirect URI `https://api.wasfa.online/auth/callback/google`. Needs the privacy + terms URLs (Task 1.11). |
+| Cloudflare Turnstile site + secret key | Task 1.3 | Free. One widget, "managed" mode. |
+| **Brevo** free account (300 emails/day, no card) with the `wasfa.online` domain authenticated (SPF, DKIM, DMARC records in Cloudflare DNS) | Task 1.4 | Used through SMTP, so the provider can be swapped by changing env only. |
+| Privacy policy, terms of use, medical disclaimer texts (Arabic) | Task 1.11 | Placeholders ship until the owner provides final text; OAuth apps need the URLs to exist. |
+
+Not needed in Phase 1: AWS SES (owner decision), Meta WhatsApp Business API, Facebook Login app (Facebook ships as "coming soon").
+
+---
+
+## Decisions for this phase (record in ARCHITECTURE.md → Decision log)
+
+1. **Better Auth handles authentication only** (core + `phone-number` + `two-factor` + `haveibeenpwned` plugins). **Organizations, roles, and permissions are our own tables**, not Better Auth's `organization`/`admin` plugins: we need DB-defined custom roles, fine-grained permission strings, audit on every change, and `scopedRepo` integration (ARCHITECTURE §4).
+2. **Password hashing is Argon2id** via `@node-rs/argon2` (Better Auth's default is scrypt; override `password.hash`/`verify`). Parameters: `memoryCost 19456 KiB, timeCost 2, parallelism 1` (OWASP minimum), tunable by env.
+3. **One session cookie** for web, `__Secure-wasfa.session`, `Domain=.wasfa.online; Secure; HttpOnly; SameSite=Lax`. The web server reads the session by forwarding the cookie to the API (`GET /me`); `web` never touches the DB (AGENT §4).
+4. **Email via SMTP** (`nodemailer`) behind an `EmailTransport` interface. **Brevo free tier** (300/day) in production, a capture transport in dev/tests. Moving to Resend/Mailjet/any SMTP later is an env change. Email is the primary verification channel, so the daily cap is monitored (Task 1.4).
+5. **Emails are sent by the worker** (`notifications` queue). The API only enqueues, so a slow provider never blocks a request.
+6. **Phone verification by inbound WhatsApp message ("reverse OTP")**, not by sending codes. The user taps a `wa.me` link that opens WhatsApp with a pre-filled code and presses send. Our bridge (Baileys, linked device) **receives** it and checks that the sender's number equals the phone being verified. WhatsApp itself proves ownership of the sending number, so the code is only a correlation token. Our number never starts a conversation, which keeps ban risk as low as an unofficial client allows. Behind a `PhoneVerifier` interface: replace it with Meta Cloud API or SMS later without touching auth.
+7. **Sign-in providers are a registry** (`google`, `facebook`, later `apple`) with status `enabled | coming_soon | disabled`. **Facebook ships as `coming_soon`**: a visible but disabled button with a "قريباً" badge. Enabling it later = add keys to env + flip the status in admin settings; no code change.
+
+---
+
+## Task 1.1 — Docs: DATABASE, SECURITY, DESIGN-SYSTEM
+
+**Files:** `docs/DATABASE.md`, `docs/SECURITY.md`, `docs/DESIGN-SYSTEM.md`, `docs/AGENT.md` (doc map), `docs/ARCHITECTURE.md` (decision log)
+
+Steps
+1. `DATABASE.md`: conventions (snake_case, UUIDv7 via `uuidv7()`, `created_at`/`updated_at`, money as minor units, soft-delete policy: **none** except users → `deleted_at` + anonymization), a table index (Phase 0 + Phase 1 tables), the ownership column for each user-owned table, and the index list. Update it in every task that adds tables.
+2. `SECURITY.md`: threat model (from ARCHITECTURE §8), plus a **mandatory per-endpoint checklist** (auth, permission, ownership, zod input, rate limit, size limit, Turnstile if public, audit if admin write, no PII in logs). Also a "carry-overs" section holding the Phase 0 open items (below) and the deferred `audit_logs` append-only DB role.
+3. `DESIGN-SYSTEM.md`: tokens from `packages/ui/tokens.css`, type scale (Alexandria/Plex), spacing, radii, elevation, motion (durations, `prefers-reduced-motion`), RTL rules (logical properties, mirrored icons list), form patterns (labels, errors, field-level messages from `VALIDATION_FAILED.details.fields`), and empty/loading/error state patterns. Include screenshots/descriptions of `docs/references/*.png` as the visual target.
+4. Add `ROADMAP.md` to the AGENT.md doc map; mark the three docs as written.
+
+Acceptance
+- [ ] The three docs exist, and every table and permission added in this phase is listed in them by phase end. *(The three docs exist and list everything through Task 1.2: 13 tables, 14 permissions, 6 system roles. Re-check and tick at phase end, after Tasks 1.5 and 1.11 add `wa_sessions` and `contact_messages`.)*
+- [x] Decision log has entries for the seven decisions above (ARCHITECTURE §3 updated: WhatsApp OTP via Meta Cloud API → inbound "reverse OTP" via a linked-device bridge; Facebook deferred). *(Decisions #14-#20, plus #21 and #22 from Task 1.2; §2 gained the `wa-bridge` service and §4 the platform-vs-organization role split.)*
+
+---
+
+## Task 1.2 — Identity & organization schema
+
+**Files:** `packages/db/src/schema/{auth.ts, users.ts, organizations.ts, rbac.ts, onboarding.ts}`, migration(s), `packages/db/src/seed-data.ts`, `packages/shared/src/permissions.ts`
+
+Steps
+1. Better Auth core tables via Drizzle (generate with `@better-auth/cli generate`, then hand-review): `users`, `accounts`, `sessions`, `verifications`, `two_factors`. Add app columns to `users`: `phone` (E.164, unique when verified), `phone_verified_at`, `account_type` (`individual | organization`), `locale`, `status` (`active | suspended | deleted`), `suspended_reason`, `deleted_at`, `last_login_at`.
+2. `user_profiles` (user_id PK/FK, display name, profession enum: `pharmacist | doctor | nurse | student | patient | other`, usage_intent text[], country ISO-3166, city).
+3. `organizations` (id, name, type `pharmacy | clinic | hospital | other`, country, city, created_by) and `organization_members` (org_id, user_id, role `org_admin | org_member`, unique pair, invited_by, joined_at), plus `organization_invites` (org_id, email/phone, token hash, role, expires_at, accepted_at).
+4. RBAC: `roles` (key, name_ar, name_en, is_system), `role_permissions` (role_key, permission), `user_roles` (user_id, role_key, granted_by, granted_at). Permission strings are **not** a DB table; they live in `packages/shared/src/permissions.ts` as a typed const catalog (`users.read`, `users.suspend`, `users.roles.write`, `orgs.read`, `orgs.write`, `roles.write`, `settings.read`, `settings.write`, `flags.write`, `audit.read`, `issues.read`, `issues.write`, …) with Arabic/English labels for the admin UI.
+5. `onboarding_progress` (user_id PK, current_step, completed_steps text[], data jsonb (validated per step), completed_at).
+6. Seed system roles: `user`, `support`, `marketing`, `finance`, `admin`, `super_admin` with their permission sets (`super_admin` = all). The seed stays idempotent and never overwrites edited role permissions (insert-only, same as site settings).
+7. Indexes: `users(email)` citext unique, `users(phone)` partial unique where verified, `sessions(user_id)`, `organization_members(user_id)`, `user_roles(user_id)`.
+
+Acceptance
+- [x] `pnpm db:generate` produces a clean migration; `db:migrate` + `db:seed` (twice) succeed on a fresh DB. *(`0003_identity_schema.sql`; a second `db:generate` reports "No schema changes". Fresh PostgreSQL 18 container: migrate, seed → "7 new site setting(s), 6 new role(s), 34 new role permission(s)", seed again → 0, 0, 0, migrate again OK.)*
+- [x] Seed idempotency test extended to roles. *(`packages/db/test/seed.int.test.ts`: idempotent counts, every system role with its permission set and `super_admin` = whole catalog, and an admin's edits to a role survive a re-seed.)*
+
+---
+
+## Task 1.3 — Authentication in the API (Better Auth)
+
+**Files:** `apps/api/src/auth/{auth.config.ts, auth.module.ts, auth.controller.ts, turnstile.ts, disposable-domains.ts, password.ts}`, `apps/api/src/config/env.ts`, `.env.example`
+
+Steps
+1. Mount Better Auth at `/auth/*` inside Nest/Fastify (convert the Fastify request to a Fetch `Request`, pass it to `auth.handler`, and copy status, headers, and `set-cookie` back). Use the Drizzle adapter on the existing pool, with `trustedOrigins = WEB_ORIGIN`.
+2. Methods: email + password (email verification **required** before tool use; min length 10; `haveibeenpwned` check), Google, phone + password (`phone-number` plugin for storage and sign-in only; verification comes from Task 1.5, so the plugin's `sendOTP` is never used). Account linking is allowed only between verified identifiers.
+3. Provider registry (`apps/api/src/auth/providers.ts` + setting `auth.providers`): each social provider has `status` and is configured only when its env keys exist. `GET /auth/providers` (public) returns `[{ id, status }]` for the web buttons. Facebook = `coming_soon`. A provider whose status is not `enabled` rejects its callback route.
+4. **Turnstile** server verification (`turnstile.ts`, with the `remoteip` from `clientIp`) required on: register, password-reset request, phone-verification start, and login after 3 failures per identifier (failure counter in Redis, 15 min).
+5. Rate limits (Redis, via `@RateLimit` or Better Auth `rateLimit` with Redis storage): login 10/15 min per IP + 5/15 min per identifier; register 5/hour per IP; reset 3/hour per identifier. All return `RATE_LIMITED`.
+6. Disposable-email blocklist (bundled list + admin-extendable setting `auth.blockedEmailDomains`).
+7. Sessions: 30-day sliding web sessions; **admins 12 hours**; `cookieCache` off (instant revocation); `last_login_at` updated on sign-in.
+8. Errors from Better Auth are mapped to our `{ code, message }` shape (no Better Auth messages leak; Arabic by default).
+9. New env: `BETTER_AUTH_SECRET` (≥32 bytes), `AUTH_COOKIE_DOMAIN`, `GOOGLE_CLIENT_ID/SECRET`, `FACEBOOK_CLIENT_ID/SECRET` (optional, unused while `coming_soon`), `TURNSTILE_SECRET_KEY`, `ARGON2_MEMORY_KIB` (default 19456). OAuth keys are optional: a provider without keys is never `enabled`. Add all of them to `.env.example`, the compose prod env, and the deploy secrets doc.
+10. Password reset: by email link, or for phone-only accounts by the same inbound-WhatsApp proof as Task 1.5 (the reset is allowed only when the message arrives from the account's verified number).
+
+Acceptance
+- [ ] Integration tests: register → verify email (captured) → login → `/me` → logout; wrong password ×N → Turnstile required → rate limited; phone + password sign-in for a verified phone.
+- [ ] Password hashes in DB start with `$argon2id$`.
+- [ ] Session cookie attributes asserted in tests (`HttpOnly`, `Secure`, `SameSite=Lax`, domain).
+- [ ] Google flow tested with a mocked provider (`msw` or a local OIDC stub); manual check against real Google in production.
+- [ ] `GET /auth/providers` reports Facebook as `coming_soon`, and its callback route is rejected; a test flips it to `enabled` with fake keys and the route becomes active (proves "easy to add later").
+
+---
+
+## Task 1.4 — Email sending (worker, Brevo free tier)
+
+**Files:** `packages/shared/src/queues.ts` (new `notifications` queue), `apps/worker/src/notifications/{email.ts, templates/*}`, `apps/worker/src/config/env.ts`
+
+Steps
+1. Queue `notifications` with job `email.send` (template key + locale + params). Payloads are zod schemas. Links that carry a token (verify email, reset password, invite) pass the token **encrypted** (`encryptSecret`, context `email:<template>`). Move `crypto.ts` to `packages/shared` so the worker can decrypt, and update REUSE-INDEX.
+2. `EmailTransport` interface: `SmtpTransport` (nodemailer, TLS required) configured for **Brevo SMTP relay** (`smtp-relay.brevo.com:587`, login + SMTP key from env), and `CaptureTransport` (dev/tests: stores the last N messages in Redis with a 10 min TTL; refuses to start when `NODE_ENV=production`). Env: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` (`"وصفة AI" <no-reply@wasfa.online>`), `MAIL_DAILY_CAP` (default 280, a margin under Brevo's 300).
+3. **Daily cap guard:** a Redis counter per UTC day. Over the cap, non-critical mail (invites, suspension notices) is delayed to the next day, while verification and reset mail still try to go out; an admin alert fires at 80 %. Upgrading Brevo or switching provider is an env change only.
+4. Arabic-first email templates (RTL HTML + plain text): verify email, reset password, org invite, account suspended. Strings go through i18n keys; layout uses brand tokens; no remote images or tracking pixels (logo as text or inline CID).
+5. Deliverability: SPF, DKIM (Brevo-provided), and DMARC `p=quarantine` in Cloudflare DNS; a test mail to mail-tester.com scores ≥ 9/10. Check on the Brevo dashboard whether the free plan adds Brevo branding to transactional mail, and record the result in Notes.
+6. Retries with backoff; permanent failures go to `failed` with a redacted reason; one log line per send (recipient hashed, never the address).
+7. Per-queue concurrency from env (pattern from Task 0.5).
+
+Acceptance
+- [ ] Worker integration test: an enqueued email lands in `CaptureTransport` with the correct RTL template; an invalid payload is rejected by schema.
+- [ ] No plaintext token in Redis job data, logs, or `error_events` (test greps for it).
+- [ ] Cap guard test: the 281st non-critical mail of the day is delayed, and a verification mail still sends.
+- [ ] mail-tester.com score ≥ 9/10 from production.
+
+---
+
+## Task 1.5 — Phone verification via inbound WhatsApp ("reverse OTP")
+
+**Files:** `apps/worker/src/wa-bridge/{main.ts, auth-state.ts, inbound.ts, guard.ts}`, `apps/api/src/phone/{phone.module.ts, phone.controller.ts, phone.service.ts, phone-verifier.ts}`, `packages/shared/src/schemas/phone.ts`, `packages/db/src/schema/wa-sessions.ts`, `infra/docker/compose.prod.yml`
+
+How it works
+```
+user enters phone ──► POST /phone/verify/start  (Turnstile, rate-limited)
+                       └─ creates challenge { userId, phone, code (6 digits), expires 10 min }
+                       └─ returns wa.me/<OUR_NUMBER>?text=<"رمز التحقق في وصفة AI: 482913">
+user taps link ──► WhatsApp opens with the text pre-filled ──► user presses Send
+wa-bridge (Baileys, linked device) receives the message
+  └─ sender number (remoteJidAlt / LID→PN map) + code ──► Redis stream ──► api
+api: challenge found AND sender number == claimed phone AND not expired
+  └─ mark phone verified (unique per active account) ──► web sees it (polls /phone/verify/status every 2 s)
+```
+The code is not a secret: anyone can read it on the screen. The proof is that **the message came from that WhatsApp number**, which only its owner can send from.
+
+Steps
+1. **Spike first (1 day, before building the rest):** with Baileys 7 and two real test numbers, confirm that a 1:1 inbound message from a contact who is *not* in the bridge's address book exposes the sender's phone number (`remoteJidAlt`, or the LID→PN mapping). If the phone number cannot be resolved reliably, stop and write it in Open questions (fallback: email-only verification in Phase 1).
+2. `wa-bridge`: a separate long-running process in the worker image (`node dist/wa-bridge/main.js`), exactly **one** replica, its own compose service (`internal` network + outbound internet; no ports). Library: `@whiskeysockets/baileys` (no browser, so the image stays small, unlike `whatsapp-web.js`, which needs Chromium).
+3. Linking: a one-off admin command prints the pairing QR/code in the container logs; the owner scans it from the WhatsApp Business app on the dedicated phone (**linked device**; the phone stays the primary device). Auth state is stored **encrypted** (`encryptSecret`) in Postgres (`wa_sessions` table), not on disk, so the read-only container survives restarts.
+4. Inbound handler: only 1:1 text messages; ignore groups, statuses, broadcasts, media, and calls. Parse `/\b(\d{6})\b/`, resolve the sender to E.164, and push `{ phone, code, receivedAt }` to a Redis stream (`wa:inbound`, `MAXLEN ~10000`). Never log the phone in clear (hash only).
+5. API `PhoneVerifier` interface with `WhatsAppInboundVerifier` as the first implementation (a Meta Cloud API or SMS verifier can be added later behind the same interface): `POST /phone/verify/start`, `GET /phone/verify/status`, and a stream consumer that resolves challenges. Rules: 10-minute TTL, max 3 starts per hour per user, per phone, and per IP, constant-time code compare, single use, messages from the wrong sender ignored (and counted for abuse alerts).
+6. **Anti-ban rules (enforced in `guard.ts`, documented in SECURITY.md):**
+   - Our number **never starts a conversation**, never sends to a number that did not message first in the last 24 h, never joins groups, never posts statuses, and never sends media or links.
+   - At most **one short reply** per verification ("تم التحقق ✅" or "الرمز غير صحيح أو منتهي الصلاحية"), sent only in the user's own conversation, after a random 2–6 s delay with a typing indicator. Global reply cap: 1 per 3 s and 300 per day; above the cap, stay silent (the web UI shows the result anyway).
+   - Mark inbound messages as read; the phone app has a complete business profile (name, logo, description, website) and an auto-greeting.
+   - Stable identity: one linked session, one server IP, no frequent re-pairing; reconnect with exponential backoff; on `loggedOut`, stop and alert the admin, and **never** auto-re-pair.
+   - Kill switch: setting `auth.phoneVerification` = `whatsapp_inbound | disabled`. If the bridge is down or the number is restricted, the UI hides phone verification and email verification keeps working, so a ban is an inconvenience, not an outage.
+7. Health: the bridge writes a heartbeat key (`wa:heartbeat`) and its connection state; `/health/ready` does not depend on it (logged only); the admin dashboard shows "WhatsApp: connected / disconnected / logged out".
+8. Desktop users: the verification page also shows the `wa.me` link as a QR code to scan with their phone.
+
+Acceptance
+- [ ] Spike result recorded in Notes (sender number resolution works on Baileys 7, with versions).
+- [ ] Integration test with a fake inbound stream: right sender + right code → verified; right code from another number → not verified; expired code → not verified; replayed code → not verified; 4th start in an hour → `RATE_LIMITED`.
+- [ ] Guard unit tests: no outbound send without a matching inbound message in the last 24 h; reply caps enforced.
+- [ ] Manual end-to-end on production with the real number: verify two different phones; restart the bridge container and verify again without re-pairing.
+- [ ] Bridge down (kill switch) → verification UI hidden; the rest of the app works.
+
+> **Honest risk note.** Baileys is an unofficial WhatsApp client; using it is against WhatsApp's Terms of Service, and no technique removes ban risk entirely. Inbound-only, low-volume use on a warmed-up business number is the lowest-risk pattern, and the design above makes a ban recoverable (new number + re-pair, or move to Meta's Cloud API through the same `PhoneVerifier` interface). Never use the owner's personal number.
+
+---
+
+## Task 1.6 — Request identity, RBAC, audit
+
+**Files:** `apps/api/src/common/{auth.guard.ts, permissions.guard.ts, current-user.ts, origin.guard.ts, fresh-auth.ts, scoped-repo.ts}`, `apps/api/src/audit/*`, `apps/api/src/rbac/*`
+
+Steps
+1. Global `AuthGuard` (**deny by default**) resolving the Better Auth session; `@Public()` opts out (health, public settings, auth routes). Suspended/deleted users → `AUTH_REQUIRED` and session destroyed.
+2. `@CurrentUser()` decorator → `{ id, roles, permissions, orgIds, twoFactorEnabled, emailVerified, phoneVerified }`; permissions resolved from DB and cached in Redis (5 min TTL, busted on role change).
+3. `@RequirePermission(...perms)` guard; admin routes live under `/admin/*` and additionally require `twoFactorEnabled` and a 2FA-verified session.
+4. `@RequireFreshAuth(minutes)` for dangerous actions (role changes, suspensions, settings with secrets): the session must have re-authenticated (password or TOTP) within N minutes. Otherwise `AUTH_REQUIRED` with `details.reason = "reauth"`.
+5. `OriginGuard`: for non-GET requests with a cookie session, `Origin` (or `Referer`) must be in `WEB_ORIGIN` (CSRF defense in depth, ARCHITECTURE §3).
+6. `AuditService.record({ actorId, action, targetType, targetId, before, after, ip, userAgent })` and an `@Audited(action)` interceptor that captures before/after for admin writes; values pass through `redactText`/field allowlist (no secrets in `before/after`).
+7. `scopedRepo(userId | { orgId, membership })` helper: every query on user-owned data goes through it (AGENT §5.4). Add a lint-able convention: repo files only, never raw `db.select` in services.
+8. DB role carry-over: create a restricted DB role for the API that **cannot UPDATE/DELETE `audit_logs`** (migration + compose env change). Document it in SECURITY.md.
+
+Acceptance
+- [ ] A test module with one route per guard proves: anonymous → 401, missing permission → 403, admin without 2FA → 403, stale auth → `reauth`, foreign Origin → 403.
+- [ ] Every admin write in this phase creates an `audit_logs` row (asserted per endpoint).
+- [ ] `UPDATE audit_logs` as the API DB role fails.
+- [ ] Wrong-owner access test pattern exists and is used by Task 1.7 endpoints.
+
+---
+
+## Task 1.7 — Users, organizations, onboarding API
+
+**Files:** `apps/api/src/{users,orgs,onboarding}/*` (module shape per AGENT §6), `packages/shared/src/schemas/{user.ts, org.ts, onboarding.ts}`
+
+Steps
+1. `GET /me` (profile, roles, permissions, onboarding state, verification flags), `PATCH /me` (name, locale), `GET/DELETE /me/sessions` (list + revoke others), `DELETE /me` (account deletion request → anonymize after 14 days via worker job; immediate session kill).
+2. Onboarding state machine (ARCHITECTURE §3): `account_type → phone (if missing; verified via Task 1.5, skippable when `auth.phoneVerification = disabled` and the email is verified) → name → organization (if org) → profession & intent → plan_picker (placeholder: "free" only until Phase 2) → social_follow (optional) → done`. `GET /onboarding`, `PUT /onboarding/:step` (zod per step; steps cannot be skipped except optional ones), resumable.
+3. Organizations: create (during onboarding), `GET /orgs/:id`, update (org_admin), members list, invite by email/phone (token, 7-day expiry, single use), accept invite, remove member, leave org. Every query goes through ownership/membership checks.
+4. "Tools require": a `@RequireVerified()` guard (email **or** phone verified + onboarding done) for Phase 2 tool routes, built and tested now.
+5. One-free-account-per-verified-phone: a phone can be verified on only one active account (DB constraint + friendly error).
+
+Acceptance
+- [ ] Integration tests for every endpoint: happy path, unauthenticated, wrong owner / non-member, invalid input, rate limit (AGENT §7).
+- [ ] Onboarding resume works after logout/login mid-wizard.
+
+---
+
+## Task 1.8 — Settings & feature flags service
+
+**Files:** `packages/shared/src/settings.ts`, `apps/api/src/settings/*`, `apps/api/src/flags/*`
+
+Steps
+1. Typed registry: each `site_settings` key has a zod schema + default + visibility (`public | admin`) in `packages/shared/src/settings.ts` (branding, contact, socials, locale, currency, access, free_tier, auth).
+2. `SettingsService.get(key)`: Redis cache (TTL 10 min, every key has a TTL per decision #11) → DB → default. Writes validate, audit, bump cache, and publish an invalidation message (Redis pub/sub) for other API replicas.
+3. `GET /settings/public` (public, cacheable `max-age=60`): only `public` keys; used by web for contact hub, branding, socials.
+4. `maintenanceMode` and `signupOpen` enforced in the auth/register paths and a global guard (admins bypass maintenance).
+5. Feature flags: rule evaluation `all | user | org | percentage` (stable hash of user id); `plan` targeting type defined and evaluated once plans exist (Phase 2). `GET /flags` returns flags for the current user.
+
+Acceptance
+- [ ] Invalid setting value is rejected with field paths; a write invalidates the cache (test reads new value immediately).
+- [ ] Percentage rollout is stable for the same user across calls.
+
+---
+
+## Task 1.9 — Web: auth, onboarding, dashboard shell, account
+
+**Files:** `apps/web/src/app/(auth)/*`, `apps/web/src/app/(app)/{dashboard,onboarding,account}/*`, `apps/web/src/lib/{api-client.ts, session.ts}`, `packages/ui/src/*` (new primitives), `packages/shared/src/i18n/ar.ts`
+
+Steps
+1. `api-client.ts`: typed fetch wrapper (credentials `include`, `Accept-Language`, zod-parsed responses using shared schemas, maps `{ code, ref }` to `ApiRequestError`). Server-side variant forwards the incoming cookie to `GET /me`.
+2. Route protection in `proxy.ts`: `(app)` routes without a session cookie → `/login?next=…` (only same-origin relative `next`, open-redirect safe). The authoritative check is server-side via `/me`; onboarding not done → `/onboarding`.
+3. Pages: login (email/phone tabs, Google, Facebook button disabled with a "قريباً" badge, all driven by `GET /auth/providers`), register, verify email, phone verification (big "open WhatsApp" button, QR code for desktop, live "waiting for your message…" state, success/expired/retry states), forgot/reset password, Turnstile widget (explicit render, CSP nonce, `challenges.cloudflare.com` added to CSP via env).
+4. Onboarding wizard: one step per screen, progress indicator, back/next, server-saved, resumable; RTL-correct; 360 px first.
+5. Dashboard shell: sidebar (collapsible, mirrored for RTL) + top bar (account menu), empty-state home ("tools arrive soon" placeholder cards for Phase 2), and the floating contact hub.
+6. Account: profile, password change, sessions list with revoke, 2FA setup (QR + backup codes, shown once), delete account (re-auth + typed confirmation).
+7. New `packages/ui` primitives: `Input`, `Field` (label + hint + error), `Select`, `Checkbox`, `Dialog`, `Toast`, `Tabs`, `Avatar`, `Badge`, `Skeleton`, `EmptyState`. All accessible (labels, focus, ARIA), tokens only, logical properties. Register each in REUSE-INDEX.
+8. All strings via `t()`; forms show field errors from `details.fields`; every error screen shows the `WSF-` ref when present.
+
+Acceptance
+- [ ] Playwright E2E: register (email) → verify (capture transport) → onboarding (individual + organization paths) → dashboard; phone verification with a fake inbound stream; Facebook button visible and disabled; logout; revoke other session.
+- [ ] Axe (Playwright) has no serious/critical violations on auth, onboarding, dashboard, and account pages, at 360 px and 1440 px.
+- [ ] No CSP violations in the console with Turnstile loaded.
+
+---
+
+## Task 1.10 — Admin v1
+
+**Files:** `apps/api/src/admin/{users,orgs,roles,settings,flags,audit,issues}/*`, `apps/web/src/app/admin/*`
+
+Steps
+1. API (all `/admin/*`, permission-gated, audited, 2FA-required): users search (email/phone/name, paginated, cursor), user detail (profile, roles, orgs, sessions, recent audit), suspend/unsuspend (kills sessions, notifies the user, reason required, fresh auth), assign/revoke roles (fresh auth; cannot remove the last `super_admin`), orgs list/detail, roles CRUD (custom roles, `super_admin` only), settings read/write (by registry), flags CRUD, audit log query (filters: actor, action, target, date), Issues (error_events grouped by fingerprint: count, first/last seen, affected users, status change, human explanation per error code).
+2. Web `/admin`: layout matching `docs/references/1.png` (dense, calm, data-first), permission-aware nav (UI hides what the API would reject), tables with server pagination + filters in the URL, detail drawers, confirm dialogs for dangerous actions with reason fields, re-auth modal on `reauth`.
+3. Bootstrap the first super admin with a one-off CLI (`pnpm --filter @wasfa/api admin:grant <email>`), run via the `migrate`-style tools container in production and audited as `system`.
+
+Acceptance
+- [ ] Integration tests per admin endpoint (permission denied, 2FA missing, audit row written, fresh-auth enforced where marked).
+- [ ] Playwright: admin suspends a user → that user's open session gets 401 on the next request.
+- [ ] Issues page groups a thrown test error and lets the admin mark it resolved (audited).
+
+---
+
+## Task 1.11 — Public front door: landing v1, legal, contact hub
+
+**Files:** `apps/web/src/app/(marketing)/{page.tsx, privacy, terms, disclaimer, contact}/*`, `apps/web/src/components/marketing/*`
+
+Steps
+1. Landing page v1 (flagship, AGENT priority 2 + 3): hero with value proposition + primary CTA (register) + secondary (how it works); how-it-works (3 steps: upload → analyze → structured result); feature sections (prescription analysis, AI assistant skills, organizations); trust (privacy, private storage, medical disclaimer, "assists, does not diagnose"); FAQ (6–8 Arabic questions) with `FAQPage` JSON-LD; final CTA. `Organization` + `WebSite` + `SoftwareApplication` JSON-LD. Copy lives in i18n/content files, not components.
+2. Visual direction from `docs/references/2.png` / `3.png` and DESIGN-SYSTEM.md; motion subtle and `prefers-reduced-motion`-safe; images via `next/image` (AVIF/WebP, explicit sizes); no layout shift.
+3. Legal pages: privacy (incl. data-retention consent per decision #8, Egypt 151/2020 / KSA / UAE PDPL references), terms, medical disclaimer, with owner-supplied text (placeholders until then, clearly marked).
+4. Contact page (form → stored as a `contact_messages` row, Turnstile, rate-limited; becomes tickets in Phase 4) and the floating contact hub (WhatsApp / Telegram / phone from public settings, hidden when empty).
+5. Sitemap includes the new public pages; canonical + Open Graph images per page.
+
+Acceptance
+- [ ] Lighthouse mobile on `/`: Performance ≥ 95, SEO 100, Best Practices 100, Accessibility ≥ 95 (Lighthouse CI step added to CI for `/`).
+- [ ] Rich Results Test passes for FAQPage and Organization.
+- [ ] RTL verified at 360 px and 1440 px; no hard-coded Arabic in components (content files only).
+
+---
+
+## Task 1.12 — Phase 0 carry-overs
+
+Steps
+1. API image < 200 MB (currently 214 MB): `pnpm deploy --prod` audit, drop dev-only deps from the runtime layer, check for duplicate packages (e.g. two `fastify`), or document an accepted size in Notes with owner sign-off.
+2. Branch protection: run `infra/scripts/protect-main.sh` when the repo is public or on GitHub Pro; until then keep the convention and note it.
+3. Live checks on the real server: direct-IP request refused, `ssh root` / password login fail, SSL Labs A+, securityheaders.com ≥ A, a real R2 backup object exists and the restore drill passes. Tick the Phase 0 boxes with evidence.
+
+Acceptance
+- [ ] Phase 0 checklist fully ticked, or each remaining item has a written owner decision.
+
+---
+
+## Phase 1 final checklist
+
+- [ ] All task acceptance boxes ticked.
+- [ ] `pnpm lint`, `pnpm typecheck`, `pnpm test`, Playwright E2E, and CI all green; deployed to production through the normal pipeline, with migrations run by the `migrate` container.
+- [ ] `docs/REUSE-INDEX.md`, `DATABASE.md`, `SECURITY.md`, `DESIGN-SYSTEM.md` up to date.
+- [ ] SECURITY.md per-endpoint checklist filled for every new endpoint.
+- [ ] Summary written below with any deviations.
+
+## Notes
+- **Task 1.1 (docs)**
+  - `DATABASE.md`, `SECURITY.md`, `DESIGN-SYSTEM.md` written; `AGENT.md` doc map and `REUSE-INDEX.md` updated; `ARCHITECTURE.md` §1-§4 corrected and decisions #14-#22 logged. Docs are not prettier-formatted (the committed ones are not either, and CI does not check them).
+  - Added to `packages/ui/tokens.css` so `DESIGN-SYSTEM.md` matches the code: motion tokens (`--motion-fast/base/slow`, `--ease-standard`).
+  - **Contrast measured from the tokens** (recorded in DESIGN-SYSTEM §3.2): `accent` on white is only 2.54:1 (never text) and `--color-border` is 1.41:1, so **input borders must use `neutral-400` (3.13:1)** to meet WCAG 1.4.11. Success/warning chips sit at 4.5-4.6:1, right at the AA limit.
+  - `VALIDATION_FAILED.details.fields` carries **field paths only** (the Phase 0 pipe never echoes values), so DESIGN-SYSTEM §6 specifies that per-field text comes from running the shared zod schema in the browser, with a generic message as the fallback.
+  - Rules the plan did not state, written into SECURITY.md §5 because the plan's `admin` role could otherwise promote itself: an actor may grant a role only if they already hold every permission in it; only `super_admin` may grant, revoke or edit `super_admin`; nobody changes their own roles. Task 1.10 must implement and test them.
+  - Open items found while writing SECURITY.md §11 and given an owner task: OAuth tokens in `accounts` must be encrypted (`account.encryptOAuthTokens`, Task 1.3); the rate limiter fails open when Redis is down and must fail closed on auth routes (Task 1.3); unknown routes are not rate limited (Task 1.3); a purge job for expired `sessions`/`verifications` (Task 1.7).
+- **Task 1.2 (identity schema)**
+  - Migration `0003_identity_schema.sql`: 13 new tables. **Better Auth tables are hand-written from the reference output of `@better-auth/cli generate` (better-auth 1.7.7, run in a scratch directory because the real auth config only arrives in Task 1.3).** Differences from the CLI output: UUIDv7 keys with a database default, `timestamptz`, a unique `(provider_id, account_id)` on `accounts`, no index on `two_factors.secret`. `two_factors` has three columns beyond the plan that Better Auth 1.7 expects: `verified`, `failed_verification_count`, `locked_until` (TOTP brute-force lockout).
+  - **Verified against the real library**: a scratch Better Auth 1.7.7 instance (Drizzle adapter, `advanced.database.generateId: false`, phone-number plugin remapped to `phone`/`phone_verified`, two-factor plugin) signed up and signed in against the migrated schema; the user id came back as a database-generated UUIDv7. The Task 1.3 auth config therefore needs: `generateId: false`, a plural/explicit schema map (`user → users`, ...) and `schema.user.fields: { phoneNumber: "phone", phoneNumberVerified: "phoneVerified" }` on the phone plugin.
+  - **Phone columns**: `phone`, `phone_verified` (the plugin's boolean) **and** `phone_verified_at` (ours), kept consistent by CHECK `users_phone_verified_sync_check`, so the two can never disagree. Partial unique index on `phone` where verified, plus a plain `phone` index for sign-in lookups.
+  - **Columns beyond the plan**: `users.anonymized_at` (lets the worker find accounts due for anonymization and stay idempotent; Task 1.7), `users.phone_verified`, `organization_invites.invited_by` and `created_at`. `account_type` is `NOT NULL DEFAULT 'individual'` (the onboarding step confirms it) so no code path has to handle "unset". `user_profiles.display_name` is optional and falls back to `users.name`, which Better Auth requires.
+  - **Indexes**: the plan's `user_roles(user_id)` is not created because the composite primary key `(user_id, role_key)` already serves it; `user_roles(role_key)` was added instead (last-`super_admin` check). Added `accounts_provider_account_key`, `users_phone_idx`, `users_pending_anonymization_idx`.
+  - **Value sets live in `@wasfa/shared`** (`identity.ts`, `permissions.ts`), not in `packages/db`, and the same tuples type the columns and build the CHECK constraints (`inList`, `arrayWithin`, `matches`), so the DB, the zod schemas of Task 1.7 and the web forms cannot drift. Regexes are written without backslashes so the DB can inline `.source`. `LOCALES` was added to `i18n`.
+  - **Permission catalog** (14): the plan's list plus `roles.read` and `flags.read` (the role editor and flag list need a read permission that is not the write permission). Nothing is added "for later": each phase adds its own.
+  - **Seed**: `seedDefaults()` now returns `{ settings, roles, rolePermissions }`. It is insert-only; a role's permissions are seeded **only in the transaction that creates the role**, so removing a permission in the admin panel is never undone by a deploy. Consequence (documented in DATABASE.md): permissions added in later phases reach existing roles through a data migration or the role editor; `super_admin` will be a wildcard in the resolver (Task 1.6).
+  - **Tooling**: the shared package's `exports` gained a `default` condition because `drizzle-kit` loads the schema through CommonJS (Node 24 `require()`s the ESM build); the root `db:generate` now builds `@wasfa/shared` first, like `db:migrate`.
+  - **Tests**: `packages/db/test/identity-schema.int.test.ts` (17 tests) asserts every constraint by name against a real PostgreSQL 18; `packages/shared/test/permissions.test.ts` (catalog, patterns). Totals: shared 42, db 20, api 38, web 11, worker 9, all green; workspace `lint`, `typecheck` and the web build pass.
+  - Prettier reformatted three unrelated shared files while formatting; those were reverted, so the diff holds only intended changes.
+
+## Open questions
+- Should admins be allowed to "act as user" (read-only, time-boxed) in Phase 1, or wait for Phase 4 support tooling? Planned: Phase 4.

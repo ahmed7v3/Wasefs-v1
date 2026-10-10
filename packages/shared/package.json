@@ -7,35 +7,53 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./env": {
       "types": "./dist/env.d.ts",
-      "import": "./dist/env.js"
+      "import": "./dist/env.js",
+      "default": "./dist/env.js"
     },
     "./errors": {
       "types": "./dist/errors/index.d.ts",
-      "import": "./dist/errors/index.js"
+      "import": "./dist/errors/index.js",
+      "default": "./dist/errors/index.js"
     },
     "./i18n": {
       "types": "./dist/i18n/index.d.ts",
-      "import": "./dist/i18n/index.js"
+      "import": "./dist/i18n/index.js",
+      "default": "./dist/i18n/index.js"
+    },
+    "./identity": {
+      "types": "./dist/identity.d.ts",
+      "import": "./dist/identity.js",
+      "default": "./dist/identity.js"
     },
     "./ids": {
       "types": "./dist/ids.d.ts",
-      "import": "./dist/ids.js"
+      "import": "./dist/ids.js",
+      "default": "./dist/ids.js"
     },
     "./money": {
       "types": "./dist/money.d.ts",
-      "import": "./dist/money.js"
+      "import": "./dist/money.js",
+      "default": "./dist/money.js"
+    },
+    "./permissions": {
+      "types": "./dist/permissions.d.ts",
+      "import": "./dist/permissions.js",
+      "default": "./dist/permissions.js"
     },
     "./queues": {
       "types": "./dist/queues.d.ts",
-      "import": "./dist/queues.js"
+      "import": "./dist/queues.js",
+      "default": "./dist/queues.js"
     },
     "./redact": {
       "types": "./dist/redact.d.ts",
-      "import": "./dist/redact.js"
+      "import": "./dist/redact.js",
+      "default": "./dist/redact.js"
     }
   },
   "files": [

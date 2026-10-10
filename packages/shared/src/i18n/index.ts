@@ -1,7 +1,8 @@
 import { ar, type MessageKey } from "./ar.js";
 import { en } from "./en.js";
 
-export type Locale = "ar" | "en";
+export const LOCALES = ["ar", "en"] as const;
+export type Locale = (typeof LOCALES)[number];
 export type { MessageKey } from "./ar.js";
 export { ar } from "./ar.js";
 export { en } from "./en.js";
