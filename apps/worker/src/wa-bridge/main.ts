@@ -75,6 +75,7 @@ let connection: WaConnectionState = "connecting";
 let stopped = false;
 let attempt = 0;
 let pairingRequested = false;
+let linkStarted = false;
 let reconnectTimer: NodeJS.Timeout | undefined;
 let stableTimer: NodeJS.Timeout | undefined;
 
@@ -148,10 +149,13 @@ async function connect(): Promise<void> {
     await publishState("logged_out");
     return;
   }
-  if (command === "link" && auth.existed && auth.state.creds.registered) {
+  // Only on the first connection: right after the code is entered WhatsApp closes the socket
+  // (restartRequired) and the reconnect must finish the pairing with the credentials just saved.
+  if (command === "link" && !linkStarted && auth.existed && auth.state.creds.registered) {
     logger.fatal("A session is already linked. Run `unlink` first to link another number.");
     process.exit(1);
   }
+  linkStarted = true;
 
   const latest = await fetchLatestBaileysVersion().catch(() => undefined);
   const baileysLogger = logger.child({ module: "baileys" }, { level: "error" });
