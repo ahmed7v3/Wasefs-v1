@@ -116,8 +116,8 @@ Steps
 5. `api /health/ready` additionally reports `worker: ok|stale` based on heartbeat age (internal detail only in logs; public body stays minimal).
 
 Acceptance
-- [ ] Heartbeat key refreshes; stopping worker makes it stale after 10 minutes.
-- [ ] Invalid job payload is rejected by schema and moved to failed with a clear reason.
+- [x] Heartbeat key refreshes; stopping worker makes it stale after 10 minutes. *(worker test: key written at boot and refreshed by a manual job; `workerStatus` flips to `stale` past 10 min; API integration test covers ok → stale → missing.)*
+- [x] Invalid job payload is rejected by schema and moved to failed with a clear reason. *(`UnrecoverableError`: one attempt, reason names the field, never the value.)*
 
 ---
 
@@ -276,6 +276,14 @@ Acceptance
   - `packages/db` gained `runMigrations()` / `MIGRATIONS_FOLDER` (used by the CLI and tests) and a `connectTimeoutSeconds` option. The deferred **seed-idempotency integration test** now exists (`packages/db/test/seed.int.test.ts`).
   - Integration tests start `postgres:18-alpine` + `redis:8-alpine` with Testcontainers. If `TEST_DATABASE_URL` + `TEST_REDIS_URL` are set, they use those services instead (`turbo.json` passes these and `DOCKER_*`/`TESTCONTAINERS_*` through). Both paths are verified: first via the fallback (throwaway PostgreSQL 18.4 cluster + local Windows Redis 3.0.504) while Docker Desktop was down, then via Testcontainers (Docker 29.8.2) with all 64 workspace tests passing.
   - Graceful shutdown: `enableShutdownHooks(SIGTERM, SIGINT)` closes Fastify, then the DB pool and Redis (`OnApplicationShutdown`). Covered by `app.close()` in tests; a real SIGTERM can't be sent on Windows, so it gets checked in the Docker setup (Task 0.7).
+
+- **Task 0.5 deviations**
+  - `redactText` / `LOG_REDACT_PATHS` moved from `apps/api` to `@wasfa/shared/redact` so the worker reuses the exact same redaction. New subpath exports `@wasfa/shared/{queues,redact}`.
+  - Worker env keys: `NODE_ENV`, `REDIS_URL`, `LOG_LEVEL`, `WORKER_CONCURRENCY_SYSTEM` (default 1), `WORKER_SHUTDOWN_TIMEOUT_MS` (default 30000). `DATABASE_URL` / `ENCRYPTION_KEY` are not required yet because no job uses them; add them with the first job that does.
+  - On boot the worker also enqueues one manual `system.heartbeat`, so `worker: ok` does not wait up to 5 minutes after a deploy. The 5-minute job is a BullMQ job scheduler (`upsertJobScheduler`), idempotent across restarts.
+  - A stale worker does **not** make `/health/ready` return 503: the API still serves requests, and failing readiness would pull it out of rotation (and trip the deploy rollback in Task 0.8) for a background problem. The state is exposed as `ReadinessResult.worker` and logged on change only (probes poll every few seconds).
+  - A missing heartbeat key counts as `stale`.
+  - Graceful shutdown: `worker.close()` waits for active jobs; after `WORKER_SHUTDOWN_TIMEOUT_MS` the workers are force-closed (BullMQ re-queues the job as stalled). Unit-tested with fake workers; the real SIGTERM path is checked in Docker (Task 0.7) because Windows cannot send it.
 
 ## Open questions
 - ~~Commit for Task 0.1 not made.~~ **Resolved:** `wasfa.online` is now its own git repo (remote `github.com/ahmed7v3/Wasefs-v1`); Task 0.1 is committed as `4d17aed`. Never commit from the `C:/Users/hp` home repo.

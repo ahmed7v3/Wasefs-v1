@@ -1,8 +1,7 @@
+import { LOG_REDACT_PATHS } from "@wasfa/shared/redact";
 import { LoggerModule } from "nestjs-pino";
 
 import { API_ENV } from "../config/config.module.js";
-
-import { LOG_REDACT_PATHS } from "./redact.js";
 
 import type { ApiEnv } from "../config/env.js";
 

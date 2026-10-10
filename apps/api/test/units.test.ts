@@ -5,7 +5,6 @@ import { z } from "zod";
 
 import { clientIp, compileTrust } from "../src/common/client-ip.js";
 import { toAppError } from "../src/common/errors.js";
-import { redactText } from "../src/common/redact.js";
 import { ZodValidationPipe, createZodDto } from "../src/common/validation.js";
 import { apiEnvSchema } from "../src/config/env.js";
 
@@ -75,17 +74,6 @@ describe("clientIp", () => {
     expect(clientIp(fakeRequest("172.18.0.5", { "cf-connecting-ip": "1.2.3.4" }), none)).toBe(
       "172.18.0.5",
     );
-  });
-});
-
-describe("redactText", () => {
-  it("removes emails, phones, bearer tokens and connection-string passwords", () => {
-    const text =
-      "user ahmed@example.com phone +20 100 123 4567 auth Bearer abc.def.ghi db postgres://u:secret@h/db";
-    const out = redactText(text);
-    expect(out).not.toMatch(/ahmed@example\.com|123 4567|abc\.def\.ghi|secret/);
-    expect(out).toContain("[EMAIL]");
-    expect(out).toContain("[PHONE]");
   });
 });
 

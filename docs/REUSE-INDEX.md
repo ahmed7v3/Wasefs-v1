@@ -39,4 +39,11 @@ Registry of every shared function/component. Search here before writing a helper
 | `RateLimit` / `SkipRateLimit` | `apps/api/src/common/rate-limit.ts` | Per-route stricter limit, or exemption (health only). | `@RateLimit(5, "1 minute")` |
 | `clientIp` / `compileTrust` | `apps/api/src/common/client-ip.ts` | Real client IP; `CF-Connecting-IP` honoured only from the trusted proxy. | `clientIp(request, trust)` |
 | `ErrorReporter` / `AllExceptionsFilter` / `toAppError` | `apps/api/src/common/errors.ts` | Error → `{ code, message, details?, ref? }`; unexpected errors stored in `error_events` with a ref. | `throw new AppError(ErrorCode.NOT_FOUND)` |
-| `redactText` / `LOG_REDACT_PATHS` | `apps/api/src/common/redact.ts` | Scrub emails, phones, bearer tokens, DSN passwords from text; pino redact paths. | `redactText(err.message)` |
+| `redactText` / `LOG_REDACT_PATHS` | `packages/shared/src/redact.ts` | Scrub emails, phones, bearer tokens, DSN passwords from text; pino redact paths. Used by api and worker. | `redactText(err.message)` |
+| `QUEUE_REGISTRY` / `QueueName` / `JobName` / `JobPayload` | `packages/shared/src/queues.ts` | Queue and job names with the zod schema of each payload; shared by producers (api) and consumers (worker). | `QUEUE_REGISTRY.system["system.heartbeat"]` |
+| `parseJobPayload` | `packages/shared/src/queues.ts` | Validate a job payload; failure reason lists field paths, never values. | `parseJobPayload("system", job.name, job.data)` |
+| `DEFAULT_JOB_OPTIONS` | `packages/shared/src/queues.ts` | Retry/backoff/history policy for every job. | `new Queue(name, { defaultJobOptions: DEFAULT_JOB_OPTIONS })` |
+| `WORKER_HEARTBEAT_KEY` / `workerStatus` | `packages/shared/src/queues.ts` | Redis heartbeat key and the `ok`/`stale` rule (10 min). | `workerStatus(await redis.get(WORKER_HEARTBEAT_KEY))` |
+| `workerEnvSchema` / `loadEnv` / `queueConcurrency` | `apps/worker/src/config/env.ts` | Worker env schema; per-queue concurrency from env. | `queueConcurrency(loadEnv())` |
+| `createLogger` (worker) | `apps/worker/src/logger.ts` | pino logger with shared redaction. | `createLogger(env)` |
+| `HANDLERS` / `createProcessor` / `startWorkers` / `registerSchedules` / `closeWorkers` | `apps/worker/src/queues.ts` | Job handler registry (exhaustive over the shared registry), schema-validating processor, worker start-up, idempotent schedules, graceful shutdown with timeout. | `HANDLERS.system["system.heartbeat"]` |
