@@ -62,7 +62,7 @@ Cloudflare R2 bucket (for backups), and a laptop with `ssh`.
 
 **Console steps**
 
-1. **EC2 → Launch instance.** Name `wasfa-prod`. Image: **Ubuntu Server 24.04 LTS**. Type:
+1. **EC2 → Launch instance.** Name `wasfa-prod`. Image: **Ubuntu Server 24.04 or 26.04 LTS** (both are supported by `provision.sh`). Type:
    **t3.medium** (2 vCPU, 4 GB; the container limits in `compose.prod.yml` are sized for it).
    Storage: **30 GB gp3**. Key pair: create one (`wasfa-prod.pem`), keep it safe.
    Under *Advanced details* set **Metadata version = V2 only** and enable **Termination protection**.
@@ -77,6 +77,10 @@ Cloudflare R2 bucket (for backups), and a laptop with `ssh`.
    | HTTP | 80 | Cloudflare ranges only |
 
    Outbound: allow all (default). **Never** open 5432 (Postgres) or 6379 (Redis).
+
+   Without ports 80/443 open here, Cloudflare shows error **522** even though the server is healthy.
+   **Attach an Elastic IP** before anything else: a plain public IP changes on every stop/start and
+   would break DNS and the `DEPLOY_HOST` secret.
 
    Cloudflare publishes its ranges at <https://www.cloudflare.com/ips-v4> and `/ips-v6`. With the
    AWS CLI (replace `sg-xxxx`):
@@ -168,6 +172,9 @@ All in the Cloudflare dashboard for your domain. Order matters a little: do DNS 
    ```
 4. **SSL/TLS → Origin Server → Authenticated Origin Pulls: ON.** Cloudflare now presents a client
    certificate and Caddy refuses everyone else (that is what `caddy/tls.prod.caddy` enforces).
+   Use the zone-wide switch (API: `PATCH /zones/<id>/settings/tls_client_auth` = `on`). The separate
+   "per-hostname / custom certificate" mode (`origin_tls_client_auth`) presents nothing Caddy trusts and
+   shows up as Cloudflare error **520**.
 5. **SSL/TLS → Edge Certificates:** *Always Use HTTPS* ON; *Minimum TLS Version* 1.2; *TLS 1.3* ON;
    *Automatic HTTPS Rewrites* ON; **HSTS** ON (max-age 12 months or more, include subdomains,
    preload). Caddy sends the same header, so both agree.
@@ -325,6 +332,8 @@ To try the **production** stack on your computer (own certificates, no Cloudflar
 | Deploy job red, "did not become ready" | Look at the log lines printed under it, or `dc logs --tail 100 api`. The previous version was restored automatically. Usually a missing/misspelled variable in `.env.prod`. |
 | `dc ps` shows a service `Restarting` | `dc logs --tail 50 <service>`. API refusing to start prints the **names** of invalid variables (never their values). |
 | `required variable X is missing` | `.env.prod` lacks X. Compare with `.env.example`. |
+| Site shows Cloudflare error 522 | Cloudflare cannot reach the server at all: the AWS **security group** does not allow 80/443 from Cloudflare (section 3.1), or the instance IP changed (attach an **Elastic IP**). |
+| Site shows Cloudflare error 520 | Origin answered badly: Authenticated Origin Pulls is the wrong mode, or Caddy cannot start (`dc logs caddy`). |
 | Site shows Cloudflare error 521 / 525 / 526 | 521: containers down or firewall closed (`dc ps`). 525/526: certificate files wrong or SSL mode not *Full (strict)* (section 3.3). |
 | Site shows 403 / handshake error from Cloudflare | *Authenticated Origin Pulls* is off in Cloudflare, or `cloudflare-origin-pull-ca.pem` is missing in `certs/`. |
 | API says `RATE_LIMITED` for everybody | The real client address is not reaching the API: check the Cloudflare IP list in the Caddyfile and that the proxy is on (orange cloud). |
@@ -377,7 +386,7 @@ list, and deletes the scratch database. It touches nothing else.
 # 1. put the private key on the server just for this test (from your password manager)
 install -m 600 /dev/null /tmp/age-key.txt && nano /tmp/age-key.txt        # paste, save
 # 2. run the verification
-dc --profile tools run --rm -T -v /tmp/age-key.txt:/run/age-identity:ro backup restore.sh --verify latest
+dc --profile tools run --rm -T --user "$(id -u)" -v /tmp/age-key.txt:/run/age-identity:ro backup restore.sh --verify latest
 # 3. ALWAYS remove the key again
 shred -u /tmp/age-key.txt
 ```
@@ -392,7 +401,7 @@ identical row counts`. Any `MISMATCH` or error is a problem: fix it *now*, not o
 2. Recreate `/opt/wasfa/.env.prod` with the **same** `ENCRYPTION_KEY` as before (from your safe place); new passwords are fine.
 3. Start only the database: `dc up -d postgres redis`.
 4. Restore the newest backup into the empty database:
-   `dc --profile tools run --rm -T -v /tmp/age-key.txt:/run/age-identity:ro backup restore.sh --into <POSTGRES_DB> --overwrite-live latest`
+   `dc --profile tools run --rm -T --user "$(id -u)" -v /tmp/age-key.txt:/run/age-identity:ro backup restore.sh --into <POSTGRES_DB> --overwrite-live latest`
    (`--overwrite-live` is required because that is the live database's name; it is empty on a new server.)
 5. `shred -u /tmp/age-key.txt`, then `dc up -d` (or run the Deploy workflow). Check `/health/ready`.
 
