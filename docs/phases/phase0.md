@@ -186,9 +186,9 @@ Steps
 5. Branch protection on `main`: CI required, no force-push.
 
 Acceptance
-- [ ] A PR with a failing test cannot merge.
-- [ ] A committed fake secret is caught by gitleaks.
-- [ ] Deploy of a broken image auto-rolls back.
+- [ ] A PR with a failing test cannot merge. *(Needs the workflows pushed to GitHub and `infra/scripts/protect-main.sh` run once by a repo admin; not done from this machine because it changes the remote repository.)*
+- [x] A committed fake secret is caught by gitleaks. *(Same pinned gitleaks image and `.gitleaks.toml` as CI, on a scratch repo containing a fake `ghp_…` token: "leaks found: 1", exit 1. The real repository history scans clean.)*
+- [x] Deploy of a broken image auto-rolls back. *(`infra/scripts/deploy.sh` run against the local production stack: good release → healthy; release whose API image exits immediately → "did not become ready", rolled back to the previous SHA, healthy again, exit 1, `.deployed-sha` unchanged. The SSH/GitHub half of `deploy.yml` can only be exercised on the real server.)*
 
 ---
 
@@ -309,6 +309,16 @@ Acceptance
   - `db:migrate` / `db:seed` now read the repo-root `.env` (`tsx --env-file-if-exists`). `pnpm dev` was verified end to end against `compose.dev.yml`: web 200 with CSP nonce, `/health/ready` 200, worker heartbeat written.
   - Verified: `docker stop` sends SIGTERM and api and worker exit 0 (worker logs "Shutting down" then "Worker stopped"); the Next.js standalone server exits 143 (it has no SIGTERM handler; acceptable, it holds no state).
   - Known gap, not fixed here: requests to *unknown* routes are not rate limited (`@fastify/rate-limit` only attaches to registered routes). They are cheap 404s, but revisit with the auth/AI routes.
+
+- **Task 0.8 deviations**
+  - **Tests in CI use Testcontainers**, not `services:` containers: every suite gets its own Postgres/Redis, so suites running in parallel cannot clash (the API and worker tests both touch `worker:heartbeat`). Same containers as local runs.
+  - CI is three jobs: `verify` (lint, typecheck, test, build), `security` (gitleaks over full history, `pnpm audit --audit-level high`), `images` (main only: build → Trivy → push). Images are scanned **before** they are pushed, so a HIGH/CRITICAL fixable finding never gets the `latest` tag. All actions are pinned to commit SHAs (Dependabot keeps them current).
+  - **Found and fixed by the audit gate**: `@nestjs/platform-fastify@11.2.x` pins Fastify 5.11.3, which has four high-severity advisories (auth bypass via malformed URLs, validation bypasses; fixed in 5.12.2). `pnpm-workspace.yaml` now overrides `fastify` to 5.12.5 (also pinned in `apps/api`); all 38 API tests pass on it. Remove the override once Nest ships a patched dependency.
+  - `auditConfig.ignoreGhsas` accepts one advisory: `braces` ReDoS (GHSA-vfj7-8cjw-p6xm), reachable only through the ESLint plugin at dev time, no patched version exists.
+  - **Deploy** (`deploy.yml` + `infra/scripts/deploy.sh`): triggered by CI success on a push to `main`, or manually with a SHA (which is also the rollback path to an older release). It copies the compose/Caddy/Postgres/Redis config and `deploy.sh` to `/opt/wasfa`, then runs the script over SSH: pull → migrate → `up -d` → poll the API container's `/health/ready` for 60 s → roll back to the previous SHA and fail on error. The host key is pinned in a secret; the GHCR token is the workflow's own `GITHUB_TOKEN`, sent over stdin and kept in a temporary Docker config (no long-lived registry credential on the server). Readiness is checked inside the container because Caddy requires Cloudflare's client certificate.
+  - Required GitHub setup (Task 0.9 runbook): environment `production` with secrets `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`; run `infra/scripts/protect-main.sh` once.
+  - **Migrations are not rolled back** on a failed release. Write each migration so the previous release still runs against the new schema (expand, then contract in a later release); documented in `deploy.sh`.
+  - Bug found while testing the rollback and fixed: `docker compose up -d` returns non-zero when a dependency never becomes healthy, which under `set -e` skipped the rollback entirely.
 
 ## Open questions
 - ~~Commit for Task 0.1 not made.~~ **Resolved:** `wasfa.online` is now its own git repo (remote `github.com/ahmed7v3/Wasefs-v1`); Task 0.1 is committed as `4d17aed`. Never commit from the `C:/Users/hp` home repo.

@@ -1,0 +1,97 @@
+name: Deploy
+
+# Runs after CI succeeded on main, or by hand for any commit whose images are already in GHCR
+# (that is also how you roll back to an older release: run it with that commit's SHA).
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full 40-character commit SHA to deploy
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  # The temporary registry login on the server uses this workflow's token.
+  packages: read
+
+# One deploy at a time, and never cancel one halfway through.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to production
+    # CI must have passed, and it must have been a push to main (not a pull request).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # Secrets live in the `production` environment (Settings -> Environments), where
+    # required reviewers can also be configured.
+    environment: production
+    steps:
+      - name: Resolve commit
+        id: sha
+        env:
+          DISPATCH_SHA: ${{ inputs.sha }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          sha="${DISPATCH_SHA:-$RUN_SHA}"
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::not a full commit SHA"; exit 1; }
+          echo "value=$sha" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.sha.outputs.value }}
+          persist-credentials: false
+
+      - name: SSH setup
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # The host key is pinned in a secret: no trust-on-first-use, so a man in the middle
+          # cannot receive the registry token.
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          {
+            echo "Host production"
+            echo "  HostName $DEPLOY_HOST"
+            echo "  User $DEPLOY_USER"
+            echo "  IdentityFile ~/.ssh/deploy_key"
+            echo "  IdentitiesOnly yes"
+            echo "  StrictHostKeyChecking yes"
+            echo "  ServerAliveInterval 15"
+          } > ~/.ssh/config
+
+      - name: Sync stack configuration
+        # Copies compose/Caddy/Postgres/Redis config and the deploy script. `.env.prod`, certificates
+        # and volumes already on the server are never touched (they are not in the archive).
+        run: |
+          tar -C infra/docker -cf - compose.prod.yml Caddyfile caddy postgres redis \
+            | ssh production 'tar -C /opt/wasfa -xf -'
+          scp infra/scripts/deploy.sh production:/opt/wasfa/deploy.sh
+          ssh production 'chmod 750 /opt/wasfa/deploy.sh'
+
+      - name: Deploy (rolls back automatically if the release is not healthy)
+        env:
+          SHA: ${{ steps.sha.outputs.value }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: |
+          # The token goes over stdin, not as an argument or environment variable. SHA is a
+          # validated 40-character hex string and the actor name is [A-Za-z0-9-], so expanding
+          # them on the client side is safe.
+          # shellcheck disable=SC2029
+          printf '%s\n' "$GHCR_TOKEN" | ssh production "/opt/wasfa/deploy.sh $SHA $GHCR_USER"

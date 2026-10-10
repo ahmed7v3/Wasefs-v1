@@ -25,7 +25,7 @@
     "@wasfa/db": "workspace:*",
     "@wasfa/shared": "workspace:*",
     "drizzle-orm": "^0.45.4",
-    "fastify": "5.11.3",
+    "fastify": "5.12.5",
     "ioredis": "^5.11.1",
     "nestjs-pino": "^5.3.1",
     "pino": "^10.4.0",
