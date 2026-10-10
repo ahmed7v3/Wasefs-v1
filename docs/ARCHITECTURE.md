@@ -30,7 +30,7 @@
               ▼                     ▼                        ▼                   ▼
      Cloudflare R2 (private)   AI providers            Payment gateways     Messaging
      prescriptions, backups    Gemini, OpenRouter,     Kashier, manual,     Email, Web Push,
-                               OpenAI-compatible…      (Stripe later)       WhatsApp OTP
+                               OpenAI-compatible…      (Stripe later)       WhatsApp (verify)
 ```
 
 **Hostnames**
@@ -48,7 +48,8 @@ Only ports **80/443** are exposed publicly, and only to Cloudflare IP ranges. Po
 |---|---|---|
 | `web` | SSR/ISR pages, SEO, UI. Holds **no secrets** except public keys (Turnstile site key, pixel IDs). | More replicas, or move to Cloudflare (OpenNext) later. |
 | `api` | Auth, business logic, permissions, AI orchestration + streaming, payments, webhooks. Stateless. | Horizontal replicas behind Caddy. |
-| `worker` | Image re-encode, AI batch jobs, email/push/WhatsApp sends, subscription expiry & renewal reminders, campaign sends, drug imports, backups, sitemap rebuilds. | More workers; separate queues per job type. |
+| `worker` | Image re-encode, AI batch jobs, email and push sends, subscription expiry & renewal reminders, campaign sends, drug imports, account anonymization, sitemap rebuilds. (Backups run on the host, not here: decision #12.) | More workers; separate queues per job type. |
+| `wa-bridge` | Phase 1. A long-running Baileys (WhatsApp linked-device) client in the worker image: **receives** messages to verify phone numbers, replies at most once per verification, never starts a conversation. `internal` network + outbound internet, no ports. | Exactly one replica by design (one linked session). Replaceable by the Meta Cloud API behind the `PhoneVerifier` interface. |
 | `postgres` | Source of truth. | Bigger instance → managed Postgres / read replica. |
 | `redis` | Rate limits, sessions cache, queues, settings cache, idempotency keys, SSE coordination. | Bigger instance → managed Redis. |
 | `caddy` | TLS (Cloudflare Origin cert), security headers, request size limits, routing. | — |
@@ -60,9 +61,11 @@ Only ports **80/443** are exposed publicly, and only to Cloudflare IP ranges. Po
 **Library:** Better Auth, mounted inside `api` (`/auth/*`).
 
 **Sign-in methods**
-- Google, Facebook, Apple (Apple required later for the iOS app)
+- Google. Facebook ships as **"coming soon"** (a visible, disabled button; enabling it later = add keys to env and flip its status in settings, no code change). Apple is deferred to the mobile app (iOS requires it).
 - Email + password (Argon2id hashing)
-- Phone + password, phone verified by **OTP over WhatsApp** (Meta WhatsApp Cloud API), SMS fallback if configured
+- Phone + password, the phone verified by an **inbound WhatsApp message** ("reverse OTP", below); SMS or the Meta Cloud API can replace the verifier later behind the same interface
+
+Better Auth handles **authentication only** (core + phone-number + two-factor + haveibeenpwned). Organizations, roles and permissions are our own tables (§4, decision #14).
 
 **Sessions**
 - Web: DB-backed session, **httpOnly, Secure, SameSite=Lax** cookie scoped to `.wasfa.online`. Revocable instantly (admin "suspend" kills all sessions).
@@ -72,8 +75,8 @@ Only ports **80/443** are exposed publicly, and only to Cloudflare IP ranges. Po
 **Hardening**
 - Turnstile on register, login after N failures, password reset, OTP request.
 - Rate limits per IP + per identifier; progressive delays; lockout notifications.
-- OTP: 6 digits, 5-minute TTL, max 5 attempts, max 3 sends/hour per phone, hashed at rest.
-- Disposable-email blocklist; one free-tier account per verified phone (anti-farming).
+- **Phone verification by inbound WhatsApp ("reverse OTP"):** the user taps a `wa.me` link that opens WhatsApp with a pre-filled message containing a 6-digit code and presses send; the bridge receives it and checks that the **sender's number equals the phone being verified**. WhatsApp itself proves the sender owns the number, so the code is only a correlation token. 10-minute TTL, single use, constant-time compare, max 3 starts/hour per user, per phone and per IP, wrong-sender messages ignored and counted. Our number never starts a conversation (anti-ban rules and the kill switch are in SECURITY.md §8).
+- Disposable-email blocklist (bundled list + admin-extendable); one free-tier account per verified phone (anti-farming, enforced by a partial unique index).
 - CSRF: SameSite cookies + Origin/Referer check on state-changing routes.
 
 **Onboarding (required before using tools)**
@@ -84,8 +87,8 @@ Progress is saved per step; the user can resume.
 
 ## 4. Authorization (RBAC)
 
-- **Roles:** `user`, `org_member`, `org_admin`, `support`, `marketing`, `finance`, `admin`, `super_admin`.
-- **Permissions** are fine-grained strings (`users.read`, `users.suspend`, `plans.write`, `ai.providers.write`, `payments.refund`, `tracking.write`, …). Roles map to permission sets in the DB; `super_admin` can create custom roles.
+- **Platform roles** (global, in the DB): `user` (implicit for everyone), `support`, `marketing`, `finance`, `admin`, `super_admin`; `super_admin` can create custom roles. **Organization roles** are a separate, per-organization concept stored on the membership: `org_admin` and `org_member`.
+- **Permissions** are fine-grained strings (`users.read`, `users.suspend`, `plans.write`, `ai.providers.write`, `payments.refund`, `tracking.write`, …) listed in a **typed catalog in code** (`packages/shared/src/permissions.ts`, with Arabic/English labels), not in a table. Roles map to permission sets in the DB; each phase adds the permissions of its own features to the catalog. `super_admin` is a wildcard. Grant rules (no self-escalation, last `super_admin`) are in SECURITY.md §5.
 - Enforced by a Nest `@RequirePermission()` guard. The web UI hides what you can't do, but **the API is the authority**.
 - Every admin write is recorded in `audit_logs` (actor, action, target, before/after diff, IP, user agent).
 - "Act as user" (support viewing a user's account) is **read-only by default**, time-boxed, and audited.
@@ -298,3 +301,12 @@ Backups: nightly `pg_dump` (compressed, encrypted) → R2, 14 daily + 8 weekly r
 | 11 | 2026-10-10 | One Redis instance with `noeviction`; a second `redis-cache` (LRU) when a real cache arrives | Queues must never be evicted; every non-queue key must carry a TTL. |
 | 12 | 2026-10-10 | Backups: host systemd timer + `backup` container (pg_dump, age, R2), not a worker job | Must work and alert even if worker/API are broken; only the public key lives on the server. |
 | 13 | 2026-10-10 | Fastify overridden to 5.12.5 over Nest's pinned 5.11.3 | Four high-severity advisories fixed in 5.12.2; drop the override when Nest catches up. |
+| 14 | 2026-10-10 | **Better Auth handles authentication only** (core + `phone-number` + `two-factor` + `haveibeenpwned`). Organizations, roles and permissions are our own tables, not Better Auth's `organization`/`admin` plugins. | We need DB-defined custom roles, fine-grained permission strings, audit on every change and `scopedRepo` integration (§4). |
+| 15 | 2026-10-10 | **Password hashing is Argon2id** (`@node-rs/argon2`, `memoryCost 19456 KiB, timeCost 2, parallelism 1`, tunable by env), overriding Better Auth's scrypt default. | OWASP-recommended minimum parameters for Argon2id; stored hashes must start with `$argon2id$`. |
+| 16 | 2026-10-10 | **One session cookie** for web, `__Secure-wasfa.session`, `Domain=.wasfa.online; Secure; HttpOnly; SameSite=Lax`. The web server reads the session by forwarding the cookie to the API (`GET /me`); `web` never touches the DB. | Keeps AGENT §4 (web has no DB or secrets); instant revocation (no cookie cache). |
+| 17 | 2026-10-10 | **Email through SMTP** (`nodemailer`) behind an `EmailTransport` interface: Brevo free tier (300/day) in production, a capture transport in dev/tests. | Provider swap (Resend, Mailjet, any SMTP) is an env change. Email is the primary verification channel, so the daily cap is monitored. |
+| 18 | 2026-10-10 | **Emails are sent by the worker** (`notifications` queue); the API only enqueues. Tokens in jobs are encrypted. | A slow provider never blocks a request; Redis never holds a usable token. |
+| 19 | 2026-10-10 | **Phone verification by inbound WhatsApp message ("reverse OTP")** through a Baileys linked-device bridge, behind a `PhoneVerifier` interface. **Replaces** "OTP over WhatsApp via the Meta Cloud API" in §3. | The user sends us the message, so our number never starts a conversation (lowest ban risk for an unofficial client) and WhatsApp proves number ownership. Free. A ban is recoverable (new number, or Meta Cloud API / SMS behind the same interface); the kill switch degrades to email verification. |
+| 20 | 2026-10-10 | **Sign-in providers are a registry** (`google`, `facebook`, later `apple`) with status `enabled`, `coming_soon` or `disabled`. **Facebook is deferred** and ships as `coming_soon`. | Enabling it later = keys in env + one setting; no code change. |
+| 21 | 2026-10-10 | **Closed value sets are `text` + CHECK built from `const` tuples in `@wasfa/shared`**, not Postgres enums; the same tuple types the column and the zod schemas. | Adding a value is a one-line migration; TypeScript, API and database cannot drift. |
+| 22 | 2026-10-10 | **Users are never hard-deleted**: a deletion request sets `status = 'deleted'` and kills sessions; a worker anonymizes the row after 14 days. **Seeds are insert-only**: a system role's permissions are seeded only when the role is created. | Foreign keys from payments, usage and audit stay valid; an admin's edits to a role survive every deploy. |

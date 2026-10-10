@@ -27,15 +27,16 @@ Around it: an AI medical assistant (`/ai`) with skills (lab tests, drug info, X-
 |---|---|
 | `docs/AGENT.md` | This file. Rules, conventions, definition of done. |
 | `docs/ARCHITECTURE.md` | System design, services, data flows, AI layer, payments, security architecture. |
-| `docs/SECURITY.md` | Threat model + mandatory checklist *(to be written)*. |
-| `docs/DATABASE.md` | Full schema *(to be written)*. |
-| `docs/DESIGN-SYSTEM.md` | Tokens, typography, components, motion *(to be written)*. |
+| `docs/SECURITY.md` | Threat model, mandatory per-endpoint checklist, anti-ban rules, carry-overs. |
+| `docs/DATABASE.md` | Conventions, table index with owner columns, indexes, anonymization. Update it in every task that touches the schema. |
+| `docs/DESIGN-SYSTEM.md` | Tokens, typography, RTL rules, forms, states, component specs, visual targets. |
 | `docs/SEO-GEO.md` | Keyword strategy, structured data, blog API, GEO *(to be written)*. |
-| `docs/DOCKER-GUIDE.md` | Beginner-friendly Docker + deployment guide *(to be written)*. |
+| `docs/DOCKER-GUIDE.md` | Beginner-friendly Docker + deployment guide. |
 | `docs/REUSE-INDEX.md` | Registry of every shared function/component with its path. **Update it whenever you add one.** |
+| `docs/ROADMAP.md` | The five phases (0–4) with scope and order. Read before starting a phase. |
 | `docs/phases/phaseN.md` | Executable phase plans with acceptance criteria. |
 
-Work **one phase at a time**, in order. Do not start phase N+1 until phase N's acceptance criteria all pass.
+Work **one phase at a time**, in order. Do not start phase N+1 until phase N's acceptance criteria all pass, except items that depend on external accounts or the live server: those move to the next phase's carry-over task with a written reason.
 
 ---
 
@@ -54,7 +55,7 @@ Do not replace any of these without an explicit decision recorded in `ARCHITECTU
 | Database | **PostgreSQL 18** + **Drizzle ORM** (+ `pg_trgm`, `unaccent`) |
 | Cache / queues / rate limits | **Redis 8** |
 | Validation | **zod** schemas shared in `packages/shared` |
-| Auth | **Better Auth** (DB sessions, OAuth, phone OTP, 2FA for admins) |
+| Auth | **Better Auth** (DB sessions, Google OAuth, phone verified by inbound WhatsApp message, mandatory 2FA for admins). Authentication only: orgs, roles and permissions are our own tables. |
 | Medical file storage | **Cloudflare R2, private bucket**, presigned URLs only |
 | Public/blog images | ImgBB API (non-sensitive images only) |
 | Image processing | **sharp** (worker) + browser-side pre-compression |
