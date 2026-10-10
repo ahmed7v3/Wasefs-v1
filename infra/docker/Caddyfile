@@ -1,0 +1,77 @@
+# Caddy: the only public entrypoint (ports 80/443). Traffic arrives from Cloudflare (orange cloud,
+# SSL mode "Full (strict)"), terminates TLS with a Cloudflare Origin Certificate and is proxied to
+# `web` / `api` on the internal Docker network. TLS material comes from /etc/caddy/tls.caddy so the
+# same file runs in production (origin cert + Authenticated Origin Pulls) and locally (`tls internal`).
+
+{
+	# No runtime config API: change the file, restart the container.
+	admin off
+
+	servers {
+		# Cloudflare talks HTTP/1.1 or HTTP/2 to the origin; HTTP/3 would need UDP 443 open.
+		protocols h1 h2
+		# Only Cloudflare may tell us the real client address. Refresh from
+		# https://www.cloudflare.com/ips-v4 and /ips-v6 when Cloudflare announces changes
+		# (infra/scripts/provision.sh prints a diff).
+		trusted_proxies static 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+		client_ip_headers CF-Connecting-IP
+	}
+}
+
+(common) {
+	encode zstd gzip
+
+	header {
+		# 2 years + preload, as required for the HSTS preload list.
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		-Server
+		-X-Powered-By
+	}
+}
+
+(proxy_headers) {
+	# `{client_ip}` is the Cloudflare-reported address only when the TCP peer is a trusted
+	# Cloudflare IP, otherwise the peer itself. Overwriting the header means a client can never
+	# forge CF-Connecting-IP and slip past the API per-IP rate limits.
+	header_up CF-Connecting-IP {client_ip}
+}
+
+{$SITE_DOMAIN:wasfa.online} {
+	import /etc/caddy/tls.caddy
+	import common
+	request_body {
+		max_size 2MB
+	}
+	reverse_proxy web:3000 {
+		import proxy_headers
+	}
+}
+
+www.{$SITE_DOMAIN:wasfa.online} {
+	import /etc/caddy/tls.caddy
+	import common
+	redir https://{$SITE_DOMAIN:wasfa.online}{uri} permanent
+}
+
+{$API_DOMAIN:api.wasfa.online} {
+	import /etc/caddy/tls.caddy
+	import common
+	# Uploads go straight to R2 via presigned URLs, so the API never needs a big body.
+	request_body {
+		max_size 1MB
+	}
+	reverse_proxy api:4000 {
+		import proxy_headers
+		# Stream server-sent events (AI answers) as they are produced instead of buffering them.
+		flush_interval -1
+		transport http {
+			response_header_timeout 120s
+		}
+	}
+}
+
+# Container health probe only; bound to loopback so it is unreachable from outside the container.
+:2020 {
+	bind 127.0.0.1
+	respond /healthz "ok" 200
+}

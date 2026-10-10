@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Wasfa background worker (BullMQ consumers)",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "dev": "node --env-file-if-exists=../../.env --watch-path=src --import @swc-node/register/esm-register src/main.ts",
