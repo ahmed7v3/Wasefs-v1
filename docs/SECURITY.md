@@ -120,7 +120,7 @@ Everything else under `/auth/*` answers 404 (§4). Tasks 1.5 to 1.11 add their r
 | IP address | Better Auth records the IP we computed from the trusted proxy header; a client-supplied header is discarded. |
 | Admin sessions | Created with 12 h expiry, and `AuthService.getSession` ends any admin session older than 12 h, whatever Better Auth's sliding refresh did. "Admin" = holds any platform role. |
 | Social sign-in | Linked only to an existing account whose email is verified (`requireLocalEmailVerified`), so squatting someone's address cannot take over their Google login. The cost: the real owner cannot use Google until the squatter's unverified account is removed (purge job, §11). |
-| Mail | Sent in the background (never awaited, so timing does not reveal whether an address exists). Verification and reset mails go through the `AuthMailer` interface; until Task 1.4 provides the worker-backed one, nothing is sent and an error is logged. |
+| Mail | Sent in the background (never awaited, so timing does not reveal whether an address exists). Verification and reset mails go through the `AuthMailer` interface; `QueueMailer` puts an `email.send` job on the `notifications` queue and the worker sends it (Task 1.4). The link is encrypted in the job (`encryptSecret`, AAD `email:<template>`), so the token is never in Redis, failed-job history or logs in clear; the log line carries an HMAC of the recipient, never the address. SMTP must use TLS (STARTTLS, or implicit on 465). The capture transport (mail kept in Redis for 10 minutes) refuses to run in production, and the worker env schema requires `SMTP_*` there. |
 
 ---
 
@@ -228,7 +228,9 @@ Open security items from Phase 0 and design decisions. Each has an owner task; n
 | **Purge unverified accounts** older than N days (a squatted address blocks the real owner's Google sign-in until then), together with expired sessions and verifications | Task 1.3 | Task 1.7 |
 | The breached-password check (Have I Been Pwned) **fails closed**: if that service is unreachable, registration and password changes return an error with a `WSF-` ref. Decide whether to fail open (and log) once real traffic shows how often it happens | Task 1.3 | Phase 4 launch review |
 | Better Auth's `sendOnSignIn` mails a fresh verification link on every correct-password sign-in to an unverified account (at most 5 per 15 min per account by the login limit). Acceptable; revisit if it is abused | Task 1.3 | — |
-| The `AuthMailer` has no real implementation yet (logs an error); verification and reset mail work only after Task 1.4 | Task 1.3 | Task 1.4 |
+| ~~The `AuthMailer` has no real implementation~~ **Done (Task 1.4):** `QueueMailer` + worker `email.send`. Still open for the owner: SPF/DKIM/DMARC in Cloudflare and the mail-tester check (DOCKER-GUIDE 3.7) | Task 1.3 | Task 1.4 |
+| Email addresses sit in clear in `email.send` job data (Redis, with the last 1000 failed jobs kept); only the links are encrypted. Encrypt `to` too if Redis ever leaves the private network or is snapshotted off-host | Task 1.4 | - |
+| The admin alert at 80 percent of the daily mail cap is a once-a-day warning log plus the `mail:alert:<day>` Redis key; the dashboard surface arrives with the admin panel | Task 1.4 | Phase 8 |
 | `sessions` / `verifications` purge job (expired rows hold IPs and token identifiers) | Task 1.2 review | Task 1.7 |
 
 ---

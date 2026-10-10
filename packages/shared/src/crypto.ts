@@ -65,3 +65,10 @@ export function decryptSecret(payload: string, key: Buffer, context = ""): strin
 export function maskSecret(secret: string): string {
   return secret.length <= 8 ? "••••" : `${secret.slice(0, 3)}…${secret.slice(-4)}`;
 }
+
+/** Decodes a base64 `ENCRYPTION_KEY` (the env schemas of the api and worker validate the length). */
+export function decodeEncryptionKey(base64: string): Buffer {
+  const key = Buffer.from(base64, "base64");
+  assertKey(key);
+  return key;
+}

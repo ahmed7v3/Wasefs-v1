@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { emailSendPayloadSchema } from "./email.js";
+
 /**
  * Queue registry shared by `apps/api` (producers) and `apps/worker` (consumers).
  * Every job a queue accepts is listed here with the zod schema of its payload, so a producer
@@ -14,6 +16,9 @@ export const heartbeatPayloadSchema = z.object({
 export const QUEUE_REGISTRY = {
   system: {
     "system.heartbeat": heartbeatPayloadSchema,
+  },
+  notifications: {
+    "email.send": emailSendPayloadSchema,
   },
 } as const;
 

@@ -6,8 +6,10 @@ import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createLogger } from "../src/logger.js";
+import { createEmailRuntime } from "../src/notifications/email.js";
 import { closeWorkers, registerSchedules, startWorkers, type WorkerSet } from "../src/queues.js";
 
+import { testEnv } from "./support/env.js";
 import { startRedis, type TestRedis } from "./support/redis.js";
 
 let redisInfra: TestRedis;
@@ -41,7 +43,12 @@ async function waitFor<T>(
 beforeAll(async () => {
   redisInfra = await startRedis();
   connection = new Redis(redisInfra.url, { maxRetriesPerRequest: null });
-  set = startWorkers(connection, { system: 2 }, { redis: connection, logger });
+  const email = createEmailRuntime(testEnv(redisInfra.url), connection, logger);
+  set = startWorkers(
+    connection,
+    { system: 2, notifications: 1 },
+    { redis: connection, logger, email },
+  );
   producer = new Queue("system", { connection });
   await registerSchedules(set.queues);
 });

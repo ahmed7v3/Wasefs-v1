@@ -2,6 +2,7 @@ import { Redis } from "ioredis";
 
 import { loadEnv, queueConcurrency } from "./config/env.js";
 import { createLogger } from "./logger.js";
+import { createEmailRuntime } from "./notifications/email.js";
 import { closeWorkers, registerSchedules, startWorkers } from "./queues.js";
 
 const env = loadEnv();
@@ -13,12 +14,17 @@ connection.on("error", (error: Error) => {
   logger.error({ reason: error.message }, "Redis connection error");
 });
 
+const email = createEmailRuntime(env, connection, logger);
 const { workers, queues } = startWorkers(connection, queueConcurrency(env), {
   redis: connection,
   logger,
+  email,
 });
 await registerSchedules(queues);
-logger.info({ queues: queues.map((queue) => queue.name) }, "Worker started");
+logger.info(
+  { queues: queues.map((queue) => queue.name), mailTransport: email.transport.kind },
+  "Worker started",
+);
 
 let shuttingDown = false;
 async function shutdown(signal: NodeJS.Signals): Promise<void> {
@@ -33,6 +39,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
     );
   }
   await Promise.all(queues.map((queue) => queue.close()));
+  email.transport.close();
   await connection.quit().catch(() => {
     connection.disconnect();
   });

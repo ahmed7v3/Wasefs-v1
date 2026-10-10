@@ -148,7 +148,7 @@ beforeAll(async () => {
   });
   handle = createDb({ url: infra.databaseUrl, max: 2 });
   await seedDefaults(handle.db);
-  app = await createApp(env, { extraImports: [MailerTestModule, MeTestModule] });
+  app = await createApp(env, { extraImports: [MailerTestModule, MeTestModule], authMailer: false });
   settings = app.get(AuthSettingsReader);
 });
 

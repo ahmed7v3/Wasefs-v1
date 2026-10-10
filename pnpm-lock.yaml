@@ -58,6 +58,9 @@ importers:
       better-auth:
         specifier: 1.7.7
         version: 1.7.7(drizzle-orm@0.45.4(kysely@0.29.6)(postgres@3.4.9))
+      bullmq:
+        specifier: ^5.81.5
+        version: 5.81.5
       drizzle-orm:
         specifier: ^0.45.4
         version: 0.45.4(kysely@0.29.6)(postgres@3.4.9)
@@ -151,7 +154,7 @@ importers:
         version: 1.54.0(@types/react@19.3.0)(react@19.3.0)
       next:
         specifier: ^16.4.0
-        version: 16.4.0(@babel/core@7.29.7)(@types/node@24.19.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        version: 16.4.0(@types/node@24.19.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       react:
         specifier: ^19.3.0
         version: 19.3.0
@@ -210,6 +213,9 @@ importers:
       ioredis:
         specifier: ^5.11.1
         version: 5.11.1
+      nodemailer:
+        specifier: ^10.1.0
+        version: 10.1.0
       pino:
         specifier: ^10.4.0
         version: 10.4.0
@@ -229,6 +235,9 @@ importers:
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.2
+      '@types/nodemailer':
+        specifier: ^8.0.2
+        version: 8.0.2
       '@wasfa/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -2220,6 +2229,9 @@ packages:
   '@types/node@24.19.2':
     resolution: {integrity: sha512-93d49wCWJkCyN87MxLpNN6KXPCwFw7bVUg79mGUV1OS40JGWwVCr8n61DXCSqz7CV6/VfPkb7xec7uP2M+QHWQ==}
 
+  '@types/nodemailer@8.0.2':
+    resolution: {integrity: sha512-c7M5ox8p0nEOfbJ2E9Qcmt8/QCu/VzsiAhzBiZbvky2PhKZDHpKB3sQHBM5MEZNkCfBOaS6S9//AGPRTNB7IaA==}
+
   '@types/proxy-addr@2.0.3':
     resolution: {integrity: sha512-TgAHHO4tNG3HgLTUhB+hM4iwW6JUNeQHCLnF1DjaDA9c69PN+IasoFu2MYDhubFc+ZIw5c5t9DMtjvrD6R3Egg==}
 
@@ -3625,6 +3637,10 @@ packages:
   node-releases@2.0.58:
     resolution: {integrity: sha512-BdiKAgbfRlvfMq/XzO/AF9NPmaA8a+YpLAyAFTVFBj3gARrAIfWvNq7Q7NE4se3KgFu0KkrvQMxTS0XVnsGzHg==}
     engines: {node: '>=18'}
+
+  nodemailer@10.1.0:
+    resolution: {integrity: sha512-fXW8AulB25aOTuwfRYV6lqHyfz2VM4rr4SGXH03mE7x5znEUpzL5mu6anARUpZN7744Ziwkmr4AxSLPJsBQspg==}
+    engines: {node: '>=20.0.0'}
 
   normalize-path@3.0.0:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
@@ -5733,6 +5749,10 @@ snapshots:
     dependencies:
       undici-types: 7.24.6
 
+  '@types/nodemailer@8.0.2':
+    dependencies:
+      '@types/node': 24.19.2
+
   '@types/proxy-addr@2.0.3':
     dependencies:
       '@types/node': 24.19.2
@@ -7017,7 +7037,7 @@ snapshots:
       pino-http: 11.0.0
       rxjs: 7.8.2
 
-  next@16.4.0(@babel/core@7.29.7)(@types/node@24.19.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
+  next@16.4.0(@types/node@24.19.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
     dependencies:
       '@next/env': 16.4.0
       '@swc/helpers': 0.5.23
@@ -7026,7 +7046,7 @@ snapshots:
       postcss: 8.5.23
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
-      styled-jsx: 5.1.6(@babel/core@7.29.7)(react@19.3.0)
+      styled-jsx: 5.1.6(react@19.3.0)
     optionalDependencies:
       '@next/swc-darwin-arm64': 16.4.0
       '@next/swc-darwin-x64': 16.4.0
@@ -7050,6 +7070,8 @@ snapshots:
     optional: true
 
   node-releases@2.0.58: {}
+
+  nodemailer@10.1.0: {}
 
   normalize-path@3.0.0: {}
 
@@ -7488,12 +7510,10 @@ snapshots:
     dependencies:
       '@tokenizer/token': 0.3.0
 
-  styled-jsx@5.1.6(@babel/core@7.29.7)(react@19.3.0):
+  styled-jsx@5.1.6(react@19.3.0):
     dependencies:
       client-only: 0.0.1
       react: 19.3.0
-    optionalDependencies:
-      '@babel/core': 7.29.7
 
   tagged-tag@1.0.0: {}
 

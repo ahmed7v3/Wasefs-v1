@@ -42,7 +42,7 @@ Visitor ──▶ Cloudflare (DDoS filter, WAF, TLS) ──▶ the server, port 
 | `caddy` | HTTPS, security headers, routes by domain | yes (it is the front door) | its certificates |
 | `web` | The website | yes (no need, but not blocked) | none |
 | `api` | All business logic | yes (will call AI/payment providers) | none |
-| `worker` | Background jobs | **no** (only talks to Redis) | none |
+| `worker` | Background jobs, outgoing email | outbound only, for the mail relay (nothing is published) | none |
 | `postgres` | The database | **no** | `postgres-data` volume |
 | `redis` | Queues and rate limits | **no** | `redis-data` volume |
 | `backup` | Nightly encrypted backup (runs for a minute, then exits) | yes (to reach R2) | none |
@@ -249,6 +249,18 @@ first two; see `.env.example` for what each one does):
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google Cloud console → APIs & Services → Credentials → OAuth client (Web). Authorized redirect URI: `https://api.wasfa.online/auth/callback/google`. Optional until you want Google sign-in; set both or neither. |
 | `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET` | Leave empty: Facebook ships as "coming soon". |
 | `ARGON2_MEMORY_KIB` | Optional, default 19456. |
+| `SMTP_USER`, `SMTP_PASS` | Brevo dashboard → **SMTP & API** → SMTP: the **login** shown there and an **SMTP key** you generate (not the API key). Both required: the worker will not start in production without them, and mail is never "captured" there. |
+| `SMTP_HOST`, `SMTP_PORT`, `MAIL_FROM`, `MAIL_DAILY_CAP` | Optional. Defaults: `smtp-relay.brevo.com`, `587`, `"وصفة AI" <no-reply@wasfa.online>`, `280` (a margin under Brevo's 300 a day). Changing provider is these variables only. |
+
+**Email deliverability (owner, once, Task 1.4).** In Brevo → **Senders, domains & dedicated IPs → Domains**,
+add `wasfa.online` and create the DNS records Brevo shows in Cloudflare (DNS only, not proxied): the
+Brevo verification code (TXT), the **DKIM** record(s), and an **SPF** record that includes Brevo
+(`v=spf1 include:spf.brevo.com ~all`, merged into the existing SPF record if there is one). Then add a
+**DMARC** record: TXT `_dmarc` = `v=DMARC1; p=quarantine; rua=mailto:dmarc@wasfa.online; adkim=s; aspf=s`.
+After the first deploy, send a verification mail to the address shown on <https://www.mail-tester.com>
+(register on the site with that address); the score should be **9/10 or better**. Also check on the
+Brevo dashboard whether the free plan adds Brevo branding to transactional mail, and tell the agent so
+it is recorded in `docs/phases/phase1.md`.
 
 Then `chmod 600 /opt/wasfa/.env.prod`. Never paste its content into chat, tickets or commits.
 

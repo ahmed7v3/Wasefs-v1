@@ -7,9 +7,11 @@ import {
   type JobPayload,
   type QueueName,
 } from "@wasfa/shared/queues";
-import { Queue, UnrecoverableError, Worker, type Job } from "bullmq";
+import { DelayedError, Queue, UnrecoverableError, Worker, type Job } from "bullmq";
 
+import { DeferJob } from "./defer.js";
 import { heartbeatJob } from "./jobs/health.job.js";
+import { emailSendJob, type EmailRuntime } from "./notifications/email.js";
 
 import type { Redis } from "ioredis";
 import type { Logger } from "pino";
@@ -17,6 +19,7 @@ import type { Logger } from "pino";
 export interface JobContext {
   redis: Redis;
   logger: Logger;
+  email: EmailRuntime;
 }
 
 type JobHandler<Q extends QueueName, J extends JobName<Q>> = (
@@ -31,22 +34,26 @@ export const HANDLERS: Handlers = {
   system: {
     "system.heartbeat": heartbeatJob,
   },
+  notifications: {
+    "email.send": emailSendJob,
+  },
 };
 
 /**
  * Builds the processor for one queue. The payload is validated against the shared schema BEFORE
  * any handler runs; an invalid or unknown job fails permanently (no retries) with a reason that
- * names the bad fields but never their values.
+ * names the bad fields but never their values. A handler may throw `DeferJob` to wait without
+ * using a retry (BullMQ's delayed-job protocol).
  */
 export function createProcessor(
   queue: QueueName,
   context: JobContext,
-): (job: Job) => Promise<void> {
+): (job: Job, token?: string) => Promise<void> {
   const handlers: Record<
     string,
     ((payload: never, context: JobContext) => Promise<void>) | undefined
   > = HANDLERS[queue];
-  return async (job) => {
+  return async (job, token) => {
     const handler = Object.hasOwn(handlers, job.name) ? handlers[job.name] : undefined;
     const parsed = parseJobPayload(queue, job.name as JobName<typeof queue>, job.data);
     if (handler === undefined || !parsed.ok) {
@@ -54,7 +61,15 @@ export function createProcessor(
         parsed.ok ? `Unknown job "${job.name}" for queue "${queue}"` : parsed.reason,
       );
     }
-    await handler(parsed.data as never, context);
+    try {
+      await handler(parsed.data as never, context);
+    } catch (error) {
+      if (error instanceof DeferJob && token !== undefined) {
+        await job.moveToDelayed(error.until, token);
+        throw new DelayedError();
+      }
+      throw error;
+    }
   };
 }
 

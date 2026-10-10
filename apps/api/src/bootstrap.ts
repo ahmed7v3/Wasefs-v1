@@ -30,6 +30,8 @@ function requestId(req: IncomingMessage): string {
 
 export interface CreateAppOptions {
   extraImports?: ModuleMetadata["imports"];
+  /** `false` when the test provides its own `AUTH_MAILER`. */
+  authMailer?: boolean;
 }
 
 /** Builds a fully configured (but not listening) API app. Shared by `main.ts` and tests. */
@@ -47,7 +49,7 @@ export async function createApp(
   });
 
   const app = await NestFactory.create<NestFastifyApplication>(
-    AppModule.register(env, options.extraImports),
+    AppModule.register(env, options.extraImports, { authMailer: options.authMailer ?? true }),
     adapter,
     { bufferLogs: true },
   );

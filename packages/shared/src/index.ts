@@ -1,4 +1,5 @@
 export * from "./auth-settings.js";
+export * from "./email.js";
 export * from "./env.js";
 export * from "./errors/index.js";
 export * from "./i18n/index.js";

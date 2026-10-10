@@ -7,7 +7,7 @@ import {
   decryptSecret,
   encryptSecret,
   maskSecret,
-} from "../src/common/crypto.js";
+} from "../src/crypto.js";
 
 const key = randomBytes(32);
 

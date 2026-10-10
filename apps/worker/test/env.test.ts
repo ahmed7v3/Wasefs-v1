@@ -1,30 +1,63 @@
+import { randomBytes } from "node:crypto";
+
 import { describe, expect, it } from "vitest";
 
 import { queueConcurrency, workerEnvSchema } from "../src/config/env.js";
 
+const base = {
+  REDIS_URL: "redis://localhost:6379",
+  ENCRYPTION_KEY: randomBytes(32).toString("base64"),
+};
+
 describe("workerEnvSchema", () => {
   it("applies defaults", () => {
-    const env = workerEnvSchema.parse({ REDIS_URL: "redis://localhost:6379" });
+    const env = workerEnvSchema.parse(base);
     expect(env.WORKER_SHUTDOWN_TIMEOUT_MS).toBe(30_000);
-    expect(queueConcurrency(env)).toEqual({ system: 1 });
+    expect(queueConcurrency(env)).toEqual({ system: 1, notifications: 1 });
+    expect(env.MAIL_DAILY_CAP).toBe(280);
+    expect(env.SMTP_PORT).toBe(587);
+    expect(env.MAIL_FROM).toContain("no-reply@wasfa.online");
   });
 
   it("reads concurrency per queue from the environment", () => {
     const env = workerEnvSchema.parse({
-      REDIS_URL: "redis://localhost:6379",
+      ...base,
       WORKER_CONCURRENCY_SYSTEM: "4",
+      WORKER_CONCURRENCY_NOTIFICATIONS: "2",
     });
-    expect(queueConcurrency(env).system).toBe(4);
+    expect(queueConcurrency(env)).toEqual({ system: 4, notifications: 2 });
   });
 
   it("rejects a missing or non-redis URL and out-of-range concurrency", () => {
-    expect(workerEnvSchema.safeParse({}).success).toBe(false);
-    expect(workerEnvSchema.safeParse({ REDIS_URL: "http://localhost" }).success).toBe(false);
-    expect(
-      workerEnvSchema.safeParse({
-        REDIS_URL: "redis://localhost",
-        WORKER_CONCURRENCY_SYSTEM: "0",
-      }).success,
-    ).toBe(false);
+    expect(workerEnvSchema.safeParse({ ENCRYPTION_KEY: base.ENCRYPTION_KEY }).success).toBe(false);
+    expect(workerEnvSchema.safeParse({ ...base, REDIS_URL: "http://localhost" }).success).toBe(
+      false,
+    );
+    expect(workerEnvSchema.safeParse({ ...base, WORKER_CONCURRENCY_SYSTEM: "0" }).success).toBe(
+      false,
+    );
+  });
+
+  it("requires a 32-byte encryption key", () => {
+    expect(workerEnvSchema.safeParse({ REDIS_URL: base.REDIS_URL }).success).toBe(false);
+    expect(workerEnvSchema.safeParse({ ...base, ENCRYPTION_KEY: "c2hvcnQ=" }).success).toBe(false);
+  });
+
+  it("never captures mail in production: SMTP settings are required there", () => {
+    expect(workerEnvSchema.safeParse({ ...base, NODE_ENV: "production" }).success).toBe(false);
+    const ok = workerEnvSchema.safeParse({
+      ...base,
+      NODE_ENV: "production",
+      SMTP_HOST: "smtp-relay.brevo.com",
+      SMTP_USER: "login",
+      SMTP_PASS: "key",
+    });
+    expect(ok.success).toBe(true);
+  });
+
+  it("needs SMTP_USER and SMTP_PASS together, and treats blanks as unset", () => {
+    expect(workerEnvSchema.safeParse({ ...base, SMTP_USER: "login" }).success).toBe(false);
+    const blank = workerEnvSchema.parse({ ...base, SMTP_HOST: "", SMTP_USER: "", SMTP_PASS: "" });
+    expect(blank.SMTP_HOST).toBeUndefined();
   });
 });
