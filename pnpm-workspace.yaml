@@ -1,3 +1,17 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# One copy of Fastify for the whole repo. @nestjs/platform-fastify pins 5.11.3, which has
+# high-severity advisories fixed in 5.12.2 (GHSA-9q9j-q6p8-xq58 and others). Drop this override
+# once a Nest release depends on a patched Fastify.
+overrides:
+  fastify: 5.12.5
+
+# Accepted advisories. Each entry needs a reason; review them whenever dependencies are updated.
+auditConfig:
+  ignoreGhsas:
+    # braces <=3.0.3 ReDoS on deeply nested patterns. Reached only through
+    # @next/eslint-plugin-next > fast-glob (dev-time linting of our own files); no patched
+    # version exists and it never ships in an image.
+    - GHSA-vfj7-8cjw-p6xm

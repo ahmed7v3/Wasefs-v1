@@ -1,0 +1,18 @@
+# gitleaks configuration (CI job `security`, and `gitleaks detect` locally).
+# Start from the maintained default rule set and only add narrow, explained exceptions.
+title = "wasfa"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Values that look like secrets but are not"
+paths = [
+  # Lockfile integrity hashes look like high-entropy tokens.
+  '''(^|/)pnpm-lock\.yaml$''',
+]
+regexes = [
+  # Throwaway password of the local development database in compose.dev.yml / .env.example.
+  # It protects a container bound to 127.0.0.1 and is never used outside a developer machine.
+  '''wasfa_dev_password''',
+]
