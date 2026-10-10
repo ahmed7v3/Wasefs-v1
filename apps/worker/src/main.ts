@@ -1,3 +1,4 @@
+import { createDb } from "@wasfa/db";
 import { Redis } from "ioredis";
 
 import { loadEnv, queueConcurrency } from "./config/env.js";
@@ -14,9 +15,12 @@ connection.on("error", (error: Error) => {
   logger.error({ reason: error.message }, "Redis connection error");
 });
 
+const { db, close: closeDb } = createDb({ url: env.DATABASE_URL, max: 3 });
+
 const email = createEmailRuntime(env, connection, logger);
 const { workers, queues } = startWorkers(connection, queueConcurrency(env), {
   redis: connection,
+  db,
   logger,
   email,
 });
@@ -39,6 +43,8 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
     );
   }
   await Promise.all(queues.map((queue) => queue.close()));
+  // After the workers: a job that was still running needs the pool until it settles.
+  await closeDb();
   email.transport.close();
   await connection.quit().catch(() => {
     connection.disconnect();

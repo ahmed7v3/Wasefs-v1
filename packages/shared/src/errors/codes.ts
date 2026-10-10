@@ -2,6 +2,7 @@ export const ErrorCode = {
   AUTH_REQUIRED: "AUTH_REQUIRED",
   FORBIDDEN: "FORBIDDEN",
   NOT_FOUND: "NOT_FOUND",
+  CONFLICT: "CONFLICT",
   VALIDATION_FAILED: "VALIDATION_FAILED",
   RATE_LIMITED: "RATE_LIMITED",
   QUOTA_EXCEEDED: "QUOTA_EXCEEDED",
@@ -37,6 +38,13 @@ export const ERROR_INFO: Record<ErrorCode, ErrorCodeInfo> = {
   NOT_FOUND: {
     httpStatus: 404,
     message: { ar: "لم نعثر على ما تبحث عنه.", en: "We could not find what you are looking for." },
+  },
+  CONFLICT: {
+    httpStatus: 409,
+    message: {
+      ar: "لا يمكن تنفيذ هذا الطلب في الحالة الحالية.",
+      en: "This request cannot be completed in the current state.",
+    },
   },
   VALIDATION_FAILED: {
     httpStatus: 400,

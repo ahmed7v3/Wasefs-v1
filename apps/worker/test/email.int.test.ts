@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { createDb } from "@wasfa/db";
 import { encryptSecret, decodeEncryptionKey } from "@wasfa/shared/crypto";
 import { emailSecretContext, type EmailSendInput } from "@wasfa/shared/email";
 import { DEFAULT_JOB_OPTIONS } from "@wasfa/shared/queues";
@@ -28,6 +29,8 @@ let redisInfra: TestRedis;
 let connection: Redis;
 let producer: Queue;
 let set: WorkerSet | undefined;
+// Email jobs never touch the database; the pool connects lazily, so this one never opens a socket.
+const unusedDatabase = createDb({ url: "postgres://unused:unused@127.0.0.1:1/unused", max: 1 });
 const logs: string[] = [];
 const logger = createLogger(
   { NODE_ENV: "test", LOG_LEVEL: "info" },
@@ -61,6 +64,7 @@ async function startWith(runtime: EmailRuntime): Promise<void> {
     { system: 1, notifications: 2 },
     {
       redis: connection,
+      db: unusedDatabase.db,
       logger,
       email: runtime,
     },
@@ -122,6 +126,7 @@ afterAll(async () => {
   }
   await producer.close();
   await connection.quit();
+  await unusedDatabase.close();
   await redisInfra.stop();
 });
 

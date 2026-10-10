@@ -6,6 +6,7 @@ import { queueConcurrency, workerEnvSchema } from "../src/config/env.js";
 
 const base = {
   REDIS_URL: "redis://localhost:6379",
+  DATABASE_URL: "postgres://wasfa_api:secret@postgres:5432/wasfa",
   ENCRYPTION_KEY: randomBytes(32).toString("base64"),
 };
 
@@ -34,6 +35,16 @@ describe("workerEnvSchema", () => {
       false,
     );
     expect(workerEnvSchema.safeParse({ ...base, WORKER_CONCURRENCY_SYSTEM: "0" }).success).toBe(
+      false,
+    );
+  });
+
+  it("requires a postgres DATABASE_URL", () => {
+    expect(
+      workerEnvSchema.safeParse({ REDIS_URL: base.REDIS_URL, ENCRYPTION_KEY: base.ENCRYPTION_KEY })
+        .success,
+    ).toBe(false);
+    expect(workerEnvSchema.safeParse({ ...base, DATABASE_URL: "http://localhost" }).success).toBe(
       false,
     );
   });

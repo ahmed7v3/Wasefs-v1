@@ -20,6 +20,8 @@ export const workerEnvSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     REDIS_URL: z.url({ protocol: /^rediss?$/ }),
+    /** Account maintenance jobs (anonymization, purge). In production: the restricted `wasfa_api` role. */
+    DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
     LOG_LEVEL: z
       .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
       .default("info"),

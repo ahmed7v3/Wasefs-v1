@@ -133,6 +133,9 @@ services:
     image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER}/wasfa-worker:${IMAGE_TAG:-latest}
     environment:
       NODE_ENV: production
+      # Account maintenance jobs (anonymization, expiry purge) need the database. Same restricted
+      # role as the api (no UPDATE/DELETE on audit_logs); no new secret.
+      DATABASE_URL: postgres://wasfa_api:${API_DB_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
       REDIS_URL: redis://:${REDIS_PASSWORD:?}@redis:6379
       LOG_LEVEL: ${LOG_LEVEL:-info}
       # Same key as the api: email links are encrypted by the api and decrypted here.
@@ -146,9 +149,11 @@ services:
       SMTP_PASS: ${SMTP_PASS:?}
       MAIL_FROM: ${MAIL_FROM:-"وصفة AI" <no-reply@wasfa.online>}
       MAIL_DAILY_CAP: ${MAIL_DAILY_CAP:-280}
-    # `internal` for Redis; `egress` (outbound only, nothing published) so mail can reach the SMTP relay.
+    # `internal` for Postgres and Redis; `egress` (outbound only, nothing published) so mail can reach the SMTP relay.
     networks: [internal, egress]
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     # Active jobs get 30 s to finish (WORKER_SHUTDOWN_TIMEOUT_MS); Docker must wait longer than that.

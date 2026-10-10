@@ -79,6 +79,21 @@
       "types": "./dist/schemas/auth.d.ts",
       "import": "./dist/schemas/auth.js",
       "default": "./dist/schemas/auth.js"
+    },
+    "./schemas/user": {
+      "types": "./dist/schemas/user.d.ts",
+      "import": "./dist/schemas/user.js",
+      "default": "./dist/schemas/user.js"
+    },
+    "./schemas/org": {
+      "types": "./dist/schemas/org.d.ts",
+      "import": "./dist/schemas/org.js",
+      "default": "./dist/schemas/org.js"
+    },
+    "./schemas/onboarding": {
+      "types": "./dist/schemas/onboarding.d.ts",
+      "import": "./dist/schemas/onboarding.js",
+      "default": "./dist/schemas/onboarding.js"
     }
   },
   "files": [

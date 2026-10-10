@@ -43,6 +43,25 @@ export const ONBOARDING_STEPS = [
 ] as const;
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
 
+/**
+ * Why someone uses Wasfa, chosen in onboarding (marketing segmentation). Stored in
+ * `user_profiles.usage_intent` (a text array checked by the api against this list).
+ */
+export const USAGE_INTENTS = [
+  "prescription_reading",
+  "drug_information",
+  "patient_counseling",
+  "pharmacy_work",
+  "clinical_practice",
+  "study",
+  "personal_health",
+  "other",
+] as const;
+export type UsageIntent = (typeof USAGE_INTENTS)[number];
+
+/** Onboarding steps the user may pass without answering. */
+export const OPTIONAL_ONBOARDING_STEPS = ["social_follow"] as const satisfies readonly OnboardingStep[];
+
 /** E.164: `+`, a non-zero first digit, 8-15 digits in total. Same rule as the DB CHECK on phones (written without backslashes so the DB can inline `.source`). */
 export const E164_PATTERN = /^[+][1-9][0-9]{7,14}$/;
 
@@ -55,6 +74,14 @@ export const COUNTRY_CODE_PATTERN = /^[A-Z]{2}$/;
  * with a real address. Never display it, never send to it.
  */
 export const PHONE_PLACEHOLDER_EMAIL_DOMAIN = "phone.wasfa.invalid";
+
+/**
+ * What an anonymized account looks like (DATABASE.md §5): the email becomes
+ * `deleted-<user id>@anonymized.invalid` (still unique) and the name this fixed marker, which the
+ * web app translates ("deleted user") wherever a name is shown.
+ */
+export const ANONYMIZED_EMAIL_DOMAIN = "anonymized.invalid";
+export const ANONYMIZED_USER_NAME = "deleted-user";
 
 export function isPlaceholderEmail(email: string): boolean {
   return email.toLowerCase().endsWith(`@${PHONE_PLACEHOLDER_EMAIL_DOMAIN}`);

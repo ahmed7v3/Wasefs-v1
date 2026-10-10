@@ -12,8 +12,11 @@ import { ZodValidationPipe } from "./common/validation.js";
 import { ConfigModule } from "./config/config.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { NotificationsModule } from "./notifications/notifications.module.js";
+import { OnboardingModule } from "./onboarding/onboarding.module.js";
+import { OrgsModule } from "./orgs/orgs.module.js";
 import { PhoneModule } from "./phone/phone.module.js";
 import { RbacModule } from "./rbac/rbac.module.js";
+import { UsersModule } from "./users/users.module.js";
 
 import type { ApiEnv } from "./config/env.js";
 
@@ -41,6 +44,9 @@ export class AppModule {
         AuthModule,
         AccessModule,
         PhoneModule,
+        OnboardingModule,
+        UsersModule,
+        OrgsModule,
         HealthModule,
         ...extraImports,
       ],

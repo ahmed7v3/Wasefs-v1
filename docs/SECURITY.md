@@ -97,6 +97,26 @@ Also required for every new route: an integration test for happy path, unauthent
 | `POST /auth/reauth` | cookie | — | the caller's own session | `reauthSchema` | 5/15 min per user + 20/15 min per IP, fail closed | 1 MB | — (the password is the proof) | — (not a change) | Done |
 | `POST /phone/verify/start` | cookie | — | the caller's own account | `startPhoneVerificationSchema` | 3/h per user, per number and per IP; 10/min global | 1 MB | always | — | Done |
 | `GET /phone/verify/status` | cookie | — | the caller's own account | none | 60/min | — | — | — | Done |
+| `GET /me` | cookie | — | the caller | none | 120/min | — | — | — | Done |
+| `PATCH /me` | cookie | — | the caller | `updateMeSchema` | 20/min | 1 MB | — | — (own profile, not a security event) | Done |
+| `GET /me/sessions` | cookie | — | `scopedRepo(sessions)` | none | 30/min | — | — | — | Done |
+| `DELETE /me/sessions/:id` | cookie | — | `scopedRepo(sessions)`; foreign = 404; current session = 409 | `idParamSchema` | 20/min | — | — | `session.revoke` | Done |
+| `DELETE /me/sessions` | cookie | — | the caller's other sessions | none | 10/min | — | — | `session.revoke_all` | Done |
+| `DELETE /me` | cookie + `@RequireFreshAuth(5)` | — | the caller; refused while sole `org_admin` of an org with members | none | 3/h | — | — | `user.delete_request` | Done |
+| `GET /onboarding` | cookie | — | the caller's progress row | none | 60/min | — | — | — | Done |
+| `PUT /onboarding/:step` | cookie | — | the caller (row locked `FOR UPDATE`) | `onboardingStepParamSchema` + `ONBOARDING_STEP_SCHEMAS[step]` | 30/min | 1 MB | — | `org.create` / `org.update` (organization step) | Done |
+| `GET /orgs` | cookie | — | the caller's memberships | none | 60/min | — | — | — | Done |
+| `GET /orgs/:id` | cookie | member | membership; non-member = 404 | `idParamSchema` | 60/min | — | — | — | Done |
+| `PATCH /orgs/:id` | cookie | `org_admin` | membership (403 for a plain member) | `updateOrgSchema` | 20/min | 1 MB | — | `org.update` | Done |
+| `GET /orgs/:id/members` | cookie | member | membership | `idParamSchema` | 60/min | — | — | — | Done |
+| `PATCH /orgs/:id/members/:userId` | cookie | `org_admin` | membership, org row locked; last admin kept | `updateMemberRoleSchema` | 20/min | 1 MB | — | `org.member_role_change` | Done |
+| `DELETE /orgs/:id/members/:userId` | cookie | `org_admin` | same | `orgMemberParamsSchema` | 20/min | — | — | `org.member_remove` | Done |
+| `POST /orgs/:id/leave` | cookie | member | same; sole member deletes the org | `idParamSchema` | 10/min | — | — | `org.leave` (+ `org.delete`) | Done |
+| `GET /orgs/:id/invites` | cookie | `org_admin` | membership; targets masked | `idParamSchema` | 60/min | — | — | — | Done |
+| `POST /orgs/:id/invites` | cookie | `org_admin` | membership; ≤ 20 pending per org | `createInviteSchema` | 10/min + 30/day per inviter (fail closed) | 1 MB | — (authenticated, capped) | `org.invite_create` (role, channel only) | Done |
+| `DELETE /orgs/:id/invites/:inviteId` | cookie | `org_admin` | `scopedRepo(invites, org_id)` | `orgInviteParamsSchema` | 20/min | — | — | `org.invite_revoke` | Done |
+| `GET /me/invites` | cookie | — | invites addressed to the caller's **verified** email or phone | none | 30/min | — | — | — | Done |
+| `POST /me/invites/:id/accept`, `POST /invites/accept` | cookie | — | invite must be pending and addressed to the caller's verified identifier, else 404 | `idParamSchema` / `acceptInviteTokenSchema` | 10/min | 1 MB | — | `org.invite_accept` | Done |
 
 Everything else under `/auth/*` answers 404 (§4). Tasks 1.5 to 1.11 add their rows here as each endpoint is written.
 
@@ -249,13 +269,14 @@ Open security items from Phase 0 and design decisions. Each has an owner task; n
 | Remove the Fastify 5.12.5 override when `@nestjs/platform-fastify` ships a patched dependency | Decision #13 | Ongoing |
 | Rotation: `BETTER_AUTH_SECRET` = replace it in `.env.prod` and redeploy (every session, verification link and reset link is invalidated; nothing else breaks). **Done (Task 1.3).** `ENCRYPTION_KEY` rotation needs a re-encryption script, written with its first stored secret (Task 1.4 stores email tokens, Phase 2 stores provider keys) | Phase 1 | Task 1.3 / 1.4 |
 | ~~OAuth tokens in `accounts` must be encrypted at rest~~ **Done (Task 1.3):** `account.encryptOAuthTokens`, asserted by a test | Task 1.2 review | Task 1.3 |
-| **Purge unverified accounts** older than N days (a squatted address blocks the real owner's Google sign-in until then), together with expired sessions and verifications | Task 1.3 | Task 1.7 |
+| ~~Purge unverified accounts~~ **Done (Task 1.7):** accounts with neither email nor phone verified are anonymized after 7 days by the worker's `account.anonymize_due` (hourly), which frees the squatted address. Decision #22 holds: they are anonymized, not deleted | Task 1.3 | Task 1.7 |
 | The breached-password check (Have I Been Pwned) **fails closed**: if that service is unreachable, registration and password changes return an error with a `WSF-` ref. Decide whether to fail open (and log) once real traffic shows how often it happens | Task 1.3 | Phase 4 launch review |
 | Better Auth's `sendOnSignIn` mails a fresh verification link on every correct-password sign-in to an unverified account (at most 5 per 15 min per account by the login limit). Acceptable; revisit if it is abused | Task 1.3 | — |
 | ~~The `AuthMailer` has no real implementation~~ **Done (Task 1.4):** `QueueMailer` + worker `email.send`. Still open for the owner: SPF/DKIM/DMARC in Cloudflare and the mail-tester check (DOCKER-GUIDE 3.7) | Task 1.3 | Task 1.4 |
 | Email addresses sit in clear in `email.send` job data (Redis, with the last 1000 failed jobs kept); only the links are encrypted. Encrypt `to` too if Redis ever leaves the private network or is snapshotted off-host | Task 1.4 | - |
 | The admin alert at 80 percent of the daily mail cap is a once-a-day warning log plus the `mail:alert:<day>` Redis key; the dashboard surface arrives with the admin panel | Task 1.4 | Phase 8 |
-| `sessions` / `verifications` purge job (expired rows hold IPs and token identifiers) | Task 1.2 review | Task 1.7 |
+| ~~`sessions` / `verifications` purge job~~ **Done (Task 1.7):** `auth.purge_expired` every 6 h | Task 1.2 review | Task 1.7 |
+| `DELETE /me`'s "sole org_admin" check does not lock membership rows, so a concurrent role change in the same instant could leave an organization without an admin; it is restored by any member's admin promotion from support. Lock if it ever happens | Task 1.7 | - |
 
 ---
 

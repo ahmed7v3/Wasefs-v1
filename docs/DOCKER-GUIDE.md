@@ -42,7 +42,7 @@ Visitor ──▶ Cloudflare (DDoS filter, WAF, TLS) ──▶ the server, port 
 | `caddy` | HTTPS, security headers, routes by domain | yes (it is the front door) | its certificates |
 | `web` | The website | yes (no need, but not blocked) | none |
 | `api` | All business logic | yes (will call AI/payment providers) | none |
-| `worker` | Background jobs, outgoing email | outbound only, for the mail relay (nothing is published) | none |
+| `worker` | Background jobs: outgoing email, account anonymization, expired-session purge. It needs the database too, as the same restricted role as the api (no new secret: it reuses `API_DB_PASSWORD`) | outbound only, for the mail relay (nothing is published) | none |
 | `postgres` | The database | **no** | `postgres-data` volume |
 | `redis` | Queues and rate limits | **no** | `redis-data` volume |
 | `backup` | Nightly encrypted backup (runs for a minute, then exits) | yes (to reach R2) | none |

@@ -2,7 +2,7 @@
 
 > PostgreSQL 18 + Drizzle ORM. The schema lives in `packages/db/src/schema/`, migrations in `packages/db/migrations/`. This file explains the conventions and indexes the code cannot say for itself.
 > **Update it in every task that adds or changes a table.** A table that is in the schema but not in the index below is a bug.
-> Status: reflects the code after Phase 1 Task 1.2. Tables marked *planned* are added by the task named next to them.
+> Status: reflects the code after Phase 1 Task 1.7. Tables marked *planned* are added by the task named next to them.
 
 ---
 
@@ -95,7 +95,7 @@ Only what is not obvious from the schema file. Constraint names are stable and a
 
 ### `accounts`, `sessions`, `verifications`, `two_factors`
 
-Better Auth's tables with UUIDv7 keys and `timestamptz`. `accounts_provider_account_key` makes a provider identity linkable to one user only. `sessions.token` is unique and never logged; `ip_address` and `user_agent` are PII (shown to the owner in "my sessions"). `verifications.identifier` can embed a token: never log it. `two_factors` has the TOTP brute-force counters (`failed_verification_count`, `locked_until`) Better Auth 1.7 expects. Expired `sessions` and `verifications` rows must be purged by a worker job (*planned*: scheduled next to the account-deletion job of Task 1.7; tracked in SECURITY.md §11).
+Better Auth's tables with UUIDv7 keys and `timestamptz`. `accounts_provider_account_key` makes a provider identity linkable to one user only. `sessions.token` is unique and never logged; `ip_address` and `user_agent` are PII (shown to the owner in "my sessions"). `verifications.identifier` can embed a token: never log it. `two_factors` has the TOTP brute-force counters (`failed_verification_count`, `locked_until`) Better Auth 1.7 expects. Expired `sessions` and `verifications` rows are purged every 6 hours by the worker job `auth.purge_expired` (Task 1.7). Better Auth 1.7 stores no row for email verification (signed link); reset tokens are `identifier = reset-password:<token>`, `value = <user id>`.
 
 ### `organizations`, `organization_members`, `organization_invites`
 
@@ -149,7 +149,11 @@ Not added yet, on purpose: a trigram index for admin user search by name/email/p
 - `email` → `deleted-<user id>@anonymized.invalid` (still unique), `name` → a fixed "deleted user" placeholder, `image`, `phone`, `phone_verified_at` (and so `phone_verified`), `suspended_reason` cleared. This frees the phone for another account.
 - Deleted outright: the user's `accounts`, `sessions`, `verifications` (matched by the old email), `two_factors`, `user_profiles`, `onboarding_progress`, `user_roles`, `organization_members`.
 - Kept: the `users` row itself and its id, so foreign keys from future payments, usage and audit history stay valid. `audit_logs` must never hold PII beyond ids (writers use a field allowlist, SECURITY.md §7).
-- A user who is the **last `org_admin`** of an organization with other members cannot be deleted until they hand over admin rights (service rule).
+- A user who is the **last `org_admin`** of an organization with other members cannot be deleted until they hand over admin rights (service rule, `CONFLICT last_org_admin`).
+- Also deleted: every `organization_invites` row addressed to the old email or phone (pending or accepted), and organizations the user was in that are left with no members.
+- **Never-verified accounts** (no verified email, no verified phone) are anonymized the same way 7 days after sign-up, with no grace period beyond that (`UNVERIFIED_ACCOUNT_TTL_DAYS`); this frees an address someone squatted.
+- Done by the worker job `account.anonymize_due` (hourly, batches of 100, one transaction per user that re-checks the due condition under a row lock, so a restore in between wins); each anonymization writes `audit_logs` `user.anonymize` with `actor_id = null` and `after = {reason}`. The worker connects as `wasfa_api`.
+- A deleted account keeps its verified phone until anonymized, which also stops delete-and-re-register farming of the free tier.
 
 ---
 

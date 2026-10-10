@@ -10,14 +10,17 @@ import {
 import { DelayedError, Queue, UnrecoverableError, Worker, type Job } from "bullmq";
 
 import { DeferJob } from "./defer.js";
+import { anonymizeDueJob, purgeExpiredJob } from "./jobs/accounts.job.js";
 import { heartbeatJob } from "./jobs/health.job.js";
 import { emailSendJob, type EmailRuntime } from "./notifications/email.js";
 
+import type { Database } from "@wasfa/db";
 import type { Redis } from "ioredis";
 import type { Logger } from "pino";
 
 export interface JobContext {
   redis: Redis;
+  db: Database;
   logger: Logger;
   email: EmailRuntime;
 }
@@ -33,6 +36,8 @@ type Handlers = { [Q in QueueName]: { [J in JobName<Q>]: JobHandler<Q, J> } };
 export const HANDLERS: Handlers = {
   system: {
     "system.heartbeat": heartbeatJob,
+    "account.anonymize_due": anonymizeDueJob,
+    "auth.purge_expired": purgeExpiredJob,
   },
   notifications: {
     "email.send": emailSendJob,
@@ -113,6 +118,9 @@ export function startWorkers(
   return { workers, queues };
 }
 
+const ANONYMIZE_INTERVAL_MS = 60 * 60 * 1000;
+const PURGE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
 /** Registers repeatable jobs. Upserting by id is idempotent, so restarts never duplicate them. */
 export async function registerSchedules(queues: readonly Queue[]): Promise<void> {
   const system = queues.find((queue) => queue.name === "system");
@@ -121,6 +129,16 @@ export async function registerSchedules(queues: readonly Queue[]): Promise<void>
     "system.heartbeat",
     { every: HEARTBEAT_INTERVAL_MS },
     { name: "system.heartbeat", data: { source: "scheduler" } },
+  );
+  await system.upsertJobScheduler(
+    "account.anonymize_due",
+    { every: ANONYMIZE_INTERVAL_MS },
+    { name: "account.anonymize_due", data: { source: "scheduler" } },
+  );
+  await system.upsertJobScheduler(
+    "auth.purge_expired",
+    { every: PURGE_INTERVAL_MS },
+    { name: "auth.purge_expired", data: { source: "scheduler" } },
   );
   // Beat once now so the API sees a live worker without waiting for the first interval.
   await system.add("system.heartbeat", { source: "manual" });

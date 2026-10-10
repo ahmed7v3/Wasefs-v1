@@ -7,8 +7,10 @@ import { RbacModule } from "../rbac/rbac.module.js";
 import { AccessGuard } from "./access.guard.js";
 import { AuthGuard } from "./auth.guard.js";
 import { FreshAuthGuard } from "./fresh-auth.js";
+import { OnboardingStatusRepo } from "./onboarding-status.repo.js";
 import { OriginGuard } from "./origin.guard.js";
 import { PermissionsGuard } from "./permissions.guard.js";
+import { VerifiedGuard } from "./verified.guard.js";
 
 /** Deny-by-default access control for the whole API (Task 1.6). */
 @Module({
@@ -18,6 +20,8 @@ import { PermissionsGuard } from "./permissions.guard.js";
     AuthGuard,
     PermissionsGuard,
     FreshAuthGuard,
+    OnboardingStatusRepo,
+    VerifiedGuard,
     { provide: APP_GUARD, useClass: AccessGuard },
   ],
 })

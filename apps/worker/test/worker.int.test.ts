@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { createDb } from "@wasfa/db";
 import { WORKER_HEARTBEAT_KEY, workerStatus } from "@wasfa/shared/queues";
 import { Queue, type Job } from "bullmq";
 import { Redis } from "ioredis";
@@ -7,12 +8,21 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createLogger } from "../src/logger.js";
 import { createEmailRuntime } from "../src/notifications/email.js";
-import { closeWorkers, registerSchedules, startWorkers, type WorkerSet } from "../src/queues.js";
+import {
+  HANDLERS,
+  closeWorkers,
+  registerSchedules,
+  startWorkers,
+  type WorkerSet,
+} from "../src/queues.js";
 
 import { testEnv } from "./support/env.js";
+import { startPostgres, type TestPostgres } from "./support/postgres.js";
 import { startRedis, type TestRedis } from "./support/redis.js";
 
 let redisInfra: TestRedis;
+let postgres: TestPostgres;
+let database: ReturnType<typeof createDb>;
 let connection: Redis;
 let set: WorkerSet;
 let producer: Queue;
@@ -41,13 +51,14 @@ async function waitFor<T>(
 }
 
 beforeAll(async () => {
-  redisInfra = await startRedis();
+  [redisInfra, postgres] = await Promise.all([startRedis(), startPostgres()]);
+  database = createDb({ url: postgres.apiUrl, max: 2 });
   connection = new Redis(redisInfra.url, { maxRetriesPerRequest: null });
   const email = createEmailRuntime(testEnv(redisInfra.url), connection, logger);
   set = startWorkers(
     connection,
     { system: 2, notifications: 1 },
-    { redis: connection, logger, email },
+    { redis: connection, db: database.db, logger, email },
   );
   producer = new Queue("system", { connection });
   await registerSchedules(set.queues);
@@ -57,7 +68,8 @@ afterAll(async () => {
   await closeWorkers(set.workers, 5_000);
   await Promise.all([producer.close(), ...set.queues.map((queue) => queue.close())]);
   await connection.quit();
-  await redisInfra.stop();
+  await database.close();
+  await Promise.all([redisInfra.stop(), postgres.stop()]);
 });
 
 describe("system.heartbeat", () => {
@@ -81,6 +93,34 @@ describe("system.heartbeat", () => {
     const heartbeat = schedulers.filter((scheduler) => scheduler.key === "system.heartbeat");
     expect(heartbeat).toHaveLength(1);
     expect(heartbeat[0]?.every).toBe(300_000);
+  });
+});
+
+describe("account maintenance schedules", () => {
+  it("has a handler for both jobs and schedules them hourly and every 6 hours, once each", async () => {
+    expect(Object.keys(HANDLERS.system)).toEqual(
+      expect.arrayContaining(["account.anonymize_due", "auth.purge_expired"]),
+    );
+    await registerSchedules(set.queues);
+    const schedulers = await producer.getJobSchedulers();
+    for (const [key, every] of [
+      ["account.anonymize_due", 3_600_000],
+      ["auth.purge_expired", 21_600_000],
+    ] as const) {
+      const matching = schedulers.filter((scheduler) => scheduler.key === key);
+      expect(matching).toHaveLength(1);
+      expect(matching[0]?.every).toBe(every);
+    }
+  });
+
+  it("runs both jobs against the database when they are queued", async () => {
+    await producer.add("account.anonymize_due", { source: "manual" }, { jobId: "t-anonymize" });
+    await producer.add("auth.purge_expired", { source: "manual" }, { jobId: "t-purge" });
+    await waitFor(async () => (await producer.getJob("t-anonymize"))?.isCompleted());
+    await waitFor(async () => (await producer.getJob("t-purge"))?.isCompleted());
+    const output = logs.join("");
+    expect(output).toContain("Account anonymization run finished");
+    expect(output).toContain("Expired sessions and verifications purged");
   });
 });
 

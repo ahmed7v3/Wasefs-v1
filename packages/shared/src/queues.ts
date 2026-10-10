@@ -13,9 +13,20 @@ export const heartbeatPayloadSchema = z.object({
   source: z.enum(["scheduler", "manual"]).default("scheduler"),
 });
 
+/**
+ * Scheduled account maintenance (Task 1.7). No payload: each run picks up whatever is due.
+ * `account.anonymize_due`: deletion requests older than the grace period, and never-verified
+ * accounts older than their TTL. `auth.purge_expired`: expired sessions and verification rows.
+ */
+export const maintenancePayloadSchema = z.object({
+  source: z.enum(["scheduler", "manual"]).default("scheduler"),
+});
+
 export const QUEUE_REGISTRY = {
   system: {
     "system.heartbeat": heartbeatPayloadSchema,
+    "account.anonymize_due": maintenancePayloadSchema,
+    "auth.purge_expired": maintenancePayloadSchema,
   },
   notifications: {
     "email.send": emailSendPayloadSchema,

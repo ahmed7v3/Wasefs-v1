@@ -201,8 +201,8 @@ Steps
 5. One-free-account-per-verified-phone: a phone can be verified on only one active account (DB constraint + friendly error).
 
 Acceptance
-- [ ] Integration tests for every endpoint: happy path, unauthenticated, wrong owner / non-member, invalid input, rate limit (AGENT §7).
-- [ ] Onboarding resume works after logout/login mid-wizard.
+- [x] Integration tests for every endpoint: happy path, unauthenticated, wrong owner / non-member, invalid input, rate limit (AGENT §7). *(`users.int` 35, `onboarding.int` 38, `orgs.int` 91, `onboarding.units` 26; worker `accounts.int` 11. Endpoints without an id or a body have no wrong-owner / invalid-input case.)*
+- [x] Onboarding resume works after logout/login mid-wizard. *(`onboarding.int.test.ts`: sign out mid-wizard, sign in, same step and answers.)*
 
 ---
 
@@ -367,6 +367,15 @@ Acceptance
   - **Lint convention**: ESLint (`apps/api/eslint.config.mjs`) rejects raw `db.select/insert/update/delete/execute/transaction` calls in `*.service.ts`, `*.controller.ts`, `*.guard.ts`, `*.interceptor.ts`. To satisfy it, the session and credential queries of `AuthService` moved to a new `AuthRepo`. `scopedRepo` (list/find/require/update/remove with a mandatory owner id, foreign row = `NOT_FOUND`) and `requireMembership` are in `common/scoped-repo.ts`.
   - **CSRF**: `OriginGuard` only judges requests that carry the session cookie (cookie name `...wasfa.session=`); `Origin`, else `Referer`, must be in `WEB_ORIGIN`; `null` and missing are refused. `@SkipOriginCheck()` exists for webhooks. Server-side calls from Next.js must set `Origin` (SECURITY.md 11).
   - **Verified**: workspace lint, typecheck and tests (api 141, worker 55, shared 62, db 27, web 11). The production API image (235 MB, up from 228 MB with BullMQ) was booted against Postgres and Redis: `migrate` created the role and set its password, the API connected as `wasfa_api` (confirmed in `pg_stat_activity`), `/health/ready` answered 200, an unauthenticated `/phone/verify/status` answered 401, a sign-up succeeded and queued its verification mail.
+
+- **Task 1.7 (users, organizations, onboarding)**
+  - **Built**: `apps/api/src/{users,onboarding,orgs}/*`, `common/verified.guard.ts` (5th step of `AccessGuard`), shared contracts `@wasfa/shared/schemas/{user,org,onboarding}`, worker jobs `account.anonymize_due` (hourly) and `auth.purge_expired` (6 h). Endpoint register: SECURITY.md 3.1.
+  - **New error code `CONFLICT` (409)**: valid request, state forbids it; `details.reason` names the rule (`last_org_admin`, `current_session`, `step_out_of_order`, `already_member`, ...).
+  - **Onboarding rules**: the server computes the applicable steps; a client may submit the current step or re-submit a passed one. The phone step is derived live (verified → completed; **skippable when phone verification is unavailable for any reason**, not only when switched off, provided the email is verified: a bridge outage must not block sign-ups). `account_type` is locked once the organization step is done. **Done is sticky** (`completed_at`), so re-enabling phone verification never pushes finished users back into the wizard. `USAGE_INTENTS` catalog added to `identity.ts`.
+  - **Organizations are created only by the onboarding step** (no `POST /orgs` in Phase 1). Invariant "at least one `org_admin`" is checked under a `FOR UPDATE` lock on the organization row; the sole member leaving deletes the organization.
+  - **Invites (deviation in delivery)**: email invites carry the token in the URL **fragment** (`/invite#<token>`), so it never reaches server or proxy logs; only its SHA-256 is stored. **Phone invites send nothing** (the WhatsApp number never starts a conversation): the invitee sees them in `GET /me/invites` once the phone is verified and accepts by id. Accepting always requires the caller's *verified* email or phone to match. Caps: 20 pending per org, 30 per inviter per day (fail closed).
+  - **Account deletion**: `DELETE /me` needs fresh auth (5 min), is refused for the sole `org_admin` of an organization with members, and sets `deleted` + kills sessions in one transaction. The worker anonymizes after 14 days as DATABASE.md §5 describes. **Unverified accounts are anonymized after 7 days** instead of being deleted (decision #22 holds), which frees squatted addresses (SECURITY.md §11 item closed). The worker now requires `DATABASE_URL` (restricted role `wasfa_api`, same `API_DB_PASSWORD`; compose updated, no new secret).
+  - **One verified account per phone** was already enforced by `users_phone_verified_key` with a friendly `phone_in_use` result (Task 1.5). A deleted account keeps its number until anonymized, which also stops delete-and-re-register farming.
 
 ## Open questions
 - Should admins be allowed to "act as user" (read-only, time-boxed) in Phase 1, or wait for Phase 4 support tooling? Planned: Phase 4.
