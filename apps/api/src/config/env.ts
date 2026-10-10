@@ -35,22 +35,86 @@ const encryptionKeySchema = z
     "must be 32 bytes, base64-encoded",
   );
 
-export const apiEnvSchema = z.object({
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  HOST: z.string().min(1).default("0.0.0.0"),
-  PORT: z.coerce.number().int().min(1).max(65_535).default(4000),
-  DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
-  REDIS_URL: z.url({ protocol: /^rediss?$/ }),
-  /** Comma-separated exact origins allowed to call the API with credentials. */
-  WEB_ORIGIN: z.string().transform(csv).pipe(z.array(originSchema).min(1)),
-  /** AES-256-GCM key for admin-stored secrets: `openssl rand -base64 32`. */
-  ENCRYPTION_KEY: encryptionKeySchema,
-  /** Comma-separated IPs/CIDRs of the reverse proxy (Caddy). Empty = trust no proxy. */
-  TRUST_PROXY: z.string().default("").transform(csv).pipe(z.array(proxyAddressSchema)),
-  /** Global per-IP requests per minute; stricter limits are set per route. */
-  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
-  LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
-});
+/** Blank values (`KEY=` in a compose file) count as "not set". */
+const optional = <T extends z.ZodType>(schema: T) =>
+  z.preprocess((value) => (value === "" ? undefined : value), schema.optional());
+
+/** `.wasfa.online` or `wasfa.online`: the Domain attribute of the session cookie. */
+const cookieDomainSchema = z
+  .string()
+  .toLowerCase()
+  .regex(/^\.?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/);
+
+const hostOf = (origin: string) => new URL(origin).hostname;
+
+export const apiEnvSchema = z
+  .object({
+    NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+    HOST: z.string().min(1).default("0.0.0.0"),
+    PORT: z.coerce.number().int().min(1).max(65_535).default(4000),
+    DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
+    REDIS_URL: z.url({ protocol: /^rediss?$/ }),
+    /** Comma-separated exact origins allowed to call the API with credentials. */
+    WEB_ORIGIN: z.string().transform(csv).pipe(z.array(originSchema).min(1)),
+    /** AES-256-GCM key for admin-stored secrets: `openssl rand -base64 32`. */
+    ENCRYPTION_KEY: encryptionKeySchema,
+    /** Comma-separated IPs/CIDRs of the reverse proxy (Caddy). Empty = trust no proxy. */
+    TRUST_PROXY: z.string().default("").transform(csv).pipe(z.array(proxyAddressSchema)),
+    /** Global per-IP requests per minute; stricter limits are set per route. */
+    RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
+    LOG_LEVEL: z
+      .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
+      .default("info"),
+
+    // --- Authentication (Better Auth) ---
+    /** Signs sessions' cookies and verification tokens: `openssl rand -base64 48`. Rotating it signs everyone out. */
+    BETTER_AUTH_SECRET: z.string().min(32),
+    /** Public origin of this API, used in links Better Auth generates (verification, OAuth callbacks). */
+    API_PUBLIC_URL: originSchema.default("http://localhost:4000"),
+    /** Domain of the session cookie so `wasfa.online` and `api.wasfa.online` share it. Unset = host-only (local dev). */
+    AUTH_COOKIE_DOMAIN: optional(cookieDomainSchema),
+    /** Argon2id memory cost in KiB (OWASP minimum 19456 with timeCost 2, parallelism 1). */
+    ARGON2_MEMORY_KIB: z.coerce.number().int().min(8_192).max(1_048_576).default(19_456),
+    /** Cloudflare Turnstile secret. Required in production; unset elsewhere disables the check. */
+    TURNSTILE_SECRET_KEY: optional(z.string().min(1)),
+    /** Social providers. A provider without both keys can never be enabled. */
+    GOOGLE_CLIENT_ID: optional(z.string().min(1)),
+    GOOGLE_CLIENT_SECRET: optional(z.string().min(1)),
+    FACEBOOK_CLIENT_ID: optional(z.string().min(1)),
+    FACEBOOK_CLIENT_SECRET: optional(z.string().min(1)),
+  })
+  .superRefine((env, ctx) => {
+    const issue = (key: keyof typeof env, message: string) =>
+      ctx.addIssue({ code: "custom", path: [key], message });
+
+    for (const [id, secret] of [
+      ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
+      ["FACEBOOK_CLIENT_ID", "FACEBOOK_CLIENT_SECRET"],
+    ] as const) {
+      if ((env[id] === undefined) !== (env[secret] === undefined)) {
+        issue(env[id] === undefined ? id : secret, "must be set together with its pair");
+      }
+    }
+
+    if (env.AUTH_COOKIE_DOMAIN) {
+      const domain = env.AUTH_COOKIE_DOMAIN.replace(/^\./, "");
+      const covered = (origin: string) => {
+        const host = hostOf(origin);
+        return host === domain || host.endsWith(`.${domain}`);
+      };
+      if (!env.WEB_ORIGIN.every(covered) || !covered(env.API_PUBLIC_URL)) {
+        issue("AUTH_COOKIE_DOMAIN", "must cover every WEB_ORIGIN host and the API_PUBLIC_URL host");
+      }
+    }
+
+    if (env.NODE_ENV === "production") {
+      if (!env.AUTH_COOKIE_DOMAIN) issue("AUTH_COOKIE_DOMAIN", "is required in production");
+      if (!env.TURNSTILE_SECRET_KEY) issue("TURNSTILE_SECRET_KEY", "is required in production");
+      if (!env.API_PUBLIC_URL.startsWith("https://")) {
+        issue("API_PUBLIC_URL", "must be https in production");
+      }
+    }
+  });
 
 export type ApiEnv = z.output<typeof apiEnvSchema>;
 

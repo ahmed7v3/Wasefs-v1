@@ -15,6 +15,7 @@ const validEnv = {
   REDIS_URL: "redis://localhost:6379",
   WEB_ORIGIN: "https://wasfa.online, http://localhost:3000",
   ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
+  BETTER_AUTH_SECRET: "s".repeat(40),
 };
 
 describe("apiEnvSchema", () => {
@@ -44,6 +45,68 @@ describe("apiEnvSchema", () => {
     ).toEqual(["172.18.0.0/16", "::1"]);
     expect(apiEnvSchema.safeParse({ ...validEnv, TRUST_PROXY: "caddy" }).success).toBe(false);
     expect(apiEnvSchema.safeParse({ ...validEnv, TRUST_PROXY: "10.0.0.0/40" }).success).toBe(false);
+  });
+});
+
+describe("apiEnvSchema: authentication", () => {
+  const prod = {
+    ...validEnv,
+    NODE_ENV: "production",
+    WEB_ORIGIN: "https://wasfa.online",
+    API_PUBLIC_URL: "https://api.wasfa.online",
+    AUTH_COOKIE_DOMAIN: ".wasfa.online",
+    TURNSTILE_SECRET_KEY: "secret",
+  };
+  const failing = (input: Record<string, unknown>) =>
+    apiEnvSchema.safeParse(input).error?.issues.map((issue) => issue.path[0]);
+
+  it("applies safe defaults and treats blank values as unset", () => {
+    const env = apiEnvSchema.parse({ ...validEnv, AUTH_COOKIE_DOMAIN: "", GOOGLE_CLIENT_ID: "" });
+    expect(env.API_PUBLIC_URL).toBe("http://localhost:4000");
+    expect(env.ARGON2_MEMORY_KIB).toBe(19_456);
+    expect(env.AUTH_COOKIE_DOMAIN).toBeUndefined();
+    expect(env.GOOGLE_CLIENT_ID).toBeUndefined();
+  });
+
+  it("refuses to boot without a long enough auth secret", () => {
+    const rest: Record<string, unknown> = { ...validEnv };
+    delete rest["BETTER_AUTH_SECRET"];
+    expect(failing(rest)).toContain("BETTER_AUTH_SECRET");
+    expect(failing({ ...validEnv, BETTER_AUTH_SECRET: "short" })).toContain("BETTER_AUTH_SECRET");
+  });
+
+  it("accepts a complete production env", () => {
+    expect(apiEnvSchema.safeParse(prod).success).toBe(true);
+  });
+
+  it("requires cookie domain, Turnstile and https in production", () => {
+    expect(failing({ ...prod, AUTH_COOKIE_DOMAIN: "" })).toContain("AUTH_COOKIE_DOMAIN");
+    expect(failing({ ...prod, TURNSTILE_SECRET_KEY: "" })).toContain("TURNSTILE_SECRET_KEY");
+    expect(
+      failing({
+        ...prod,
+        API_PUBLIC_URL: "http://api.wasfa.online",
+        AUTH_COOKIE_DOMAIN: ".wasfa.online",
+      }),
+    ).toContain("API_PUBLIC_URL");
+  });
+
+  it("rejects a cookie domain that does not cover every origin", () => {
+    expect(failing({ ...prod, AUTH_COOKIE_DOMAIN: ".example.com" })).toContain(
+      "AUTH_COOKIE_DOMAIN",
+    );
+    expect(failing({ ...prod, WEB_ORIGIN: "https://wasfa.online,https://evil.test" })).toContain(
+      "AUTH_COOKIE_DOMAIN",
+    );
+  });
+
+  it("requires OAuth keys in pairs", () => {
+    expect(failing({ ...validEnv, GOOGLE_CLIENT_ID: "id" })).toContain("GOOGLE_CLIENT_SECRET");
+    expect(failing({ ...validEnv, FACEBOOK_CLIENT_SECRET: "s" })).toContain("FACEBOOK_CLIENT_ID");
+    expect(
+      apiEnvSchema.safeParse({ ...validEnv, GOOGLE_CLIENT_ID: "id", GOOGLE_CLIENT_SECRET: "s" })
+        .success,
+    ).toBe(true);
   });
 });
 

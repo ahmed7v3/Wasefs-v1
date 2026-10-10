@@ -26,23 +26,23 @@ function schemaOf(metatype: ArgumentMetadata["metatype"]): ZodType | undefined {
 }
 
 /**
- * Global pipe: parses any `createZodDto` parameter. Failures become `VALIDATION_FAILED` with
- * field paths only; submitted values are never echoed back (they may be secrets or PII).
+ * Parses `value` with a shared schema. Failures become `VALIDATION_FAILED` with field paths only;
+ * submitted values are never echoed back (they may be secrets or PII).
  */
+export function parseWithSchema<T extends ZodType>(schema: T, value: unknown): z.output<T> {
+  const result = schema.safeParse(value);
+  if (result.success) {
+    return result.data;
+  }
+  const fields = [...new Set(result.error.issues.map((issue) => issue.path.join(".") || "(root)"))];
+  throw new AppError(ErrorCode.VALIDATION_FAILED, { details: { fields } });
+}
+
+/** Global pipe: parses any `createZodDto` parameter with `parseWithSchema`. */
 @Injectable()
 export class ZodValidationPipe implements PipeTransform {
   transform(value: unknown, metadata: ArgumentMetadata): unknown {
     const schema = schemaOf(metadata.metatype);
-    if (!schema) {
-      return value;
-    }
-    const result = schema.safeParse(value);
-    if (result.success) {
-      return result.data;
-    }
-    const fields = [
-      ...new Set(result.error.issues.map((issue) => issue.path.join(".") || "(root)")),
-    ];
-    throw new AppError(ErrorCode.VALIDATION_FAILED, { details: { fields } });
+    return schema ? parseWithSchema(schema, value) : value;
   }
 }

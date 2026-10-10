@@ -28,13 +28,13 @@ Phase 0 rows come from ARCHITECTURE.md §8. Rows marked **P1** are the identity 
 | Threat | Controls | Status |
 |---|---|---|
 | DDoS / floods | Cloudflare proxy, WAF, rate-limit rule; origin accepts only Cloudflare IPs; Caddy request limits | Done |
-| Credential stuffing / brute force **P1** | Turnstile after 3 failures per identifier; Redis rate limits (10/15 min per IP, 5/15 min per identifier); Argon2id; breached-password check; uniform responses (no "unknown user" vs "wrong password") | Task 1.3 |
-| Account enumeration **P1** | Login, register, reset and phone-verification responses are identical whether or not the identifier exists; timing is not a side channel for the same reason | Task 1.3 (asserted by tests) |
-| Session theft / fixation **P1** | `__Secure-` cookie, `HttpOnly; Secure; SameSite=Lax; Domain=.wasfa.online`; DB sessions with `cookieCache` off (instant revocation); a new session token on every sign-in; CSP with nonces; no tokens in URLs or logs | Task 1.3 / Task 1.6 |
+| Credential stuffing / brute force **P1** | Turnstile after 3 failures per identifier; Redis rate limits (10/15 min per IP, 5/15 min per identifier); Argon2id; breached-password check; uniform responses (no "unknown user" vs "wrong password") | **Done** (Task 1.3) |
+| Account enumeration **P1** | Login, register, reset and phone-verification responses are identical whether or not the identifier exists; timing is not a side channel for the same reason | **Done** for login, register, reset (Task 1.3, tested); phone start in Task 1.5 |
+| Session theft / fixation **P1** | `__Secure-` cookie, `HttpOnly; Secure; SameSite=Lax; Domain=.wasfa.online`; DB sessions with `cookieCache` off (instant revocation); a new session token on every sign-in; CSP with nonces; no tokens in URLs or logs | Cookie and sessions **Done** (Task 1.3); guards Task 1.6 |
 | CSRF **P1** | `SameSite=Lax` + `OriginGuard` (`Origin`/`Referer` must be in `WEB_ORIGIN` on non-GET cookie requests) + exact-origin CORS (Done) | Task 1.6 |
-| OAuth account takeover **P1** | Account linking only between **verified** identifiers; Google `email_verified` must be true; provider registry with per-provider status (a non-`enabled` provider's callback is rejected); OAuth tokens encrypted at rest | Task 1.3 |
+| OAuth account takeover **P1** | Account linking only between **verified** identifiers; Google `email_verified` must be true; provider registry with per-provider status (a non-`enabled` provider's callback is rejected); OAuth tokens encrypted at rest | **Done** (Task 1.3, tested) |
 | Privilege escalation / insider **P1** | Deny-by-default `AuthGuard`; typed permission catalog; the role-grant rules in §6 (no self-grant, no granting more than you hold); fresh re-auth for dangerous actions; mandatory TOTP for every admin route; 12 h admin sessions; audit on every admin write | Task 1.6 / 1.10 |
-| Admin account compromise **P1** | TOTP 2FA with backup codes (shown once) and lockout on repeated wrong codes; short sessions; suspending a user kills all sessions at once; audit trail they cannot edit (§7) | Task 1.3 / 1.6 |
+| Admin account compromise **P1** | TOTP 2FA with backup codes (shown once) and lockout on repeated wrong codes; **an account with 2FA cannot sign in through Google** (Better Auth runs the TOTP challenge for password sign-ins only); 12 h absolute admin sessions; suspending a user kills all sessions at once; audit trail they cannot edit (§7) | 2FA, session cap and Google rule **Done** (Task 1.3); admin-route enforcement Task 1.6 |
 | Audit tampering **P1** | The API's database role cannot `UPDATE`/`DELETE` `audit_logs`; `before`/`after` pass a field allowlist and `redactText` | Task 1.6 |
 | Free-tier farming / multi-accounting | One verified phone per active account (partial unique index, **Done** in schema); disposable-email blocklist; Turnstile on register | Task 1.2 / 1.3 |
 | Phone-verification abuse **P1** | The proof is an inbound WhatsApp message from the number (we never send first); 6-digit code is only a correlation token; 10 min TTL, single use, constant-time compare; 3 starts/hour per user, per phone and per IP; wrong-sender messages ignored and counted | Task 1.5 |
@@ -44,7 +44,7 @@ Phase 0 rows come from ARCHITECTURE.md §8. Rows marked **P1** are the identity 
 | Payment fraud | Server-side pricing, signed idempotent webhooks (Phase 3) | Phase 3 |
 | IDOR / data mixing | `scopedRepo` for every query on user-owned data; ownership checks in services; a wrong-owner integration test for every endpoint | Task 1.6 / 1.7 |
 | Injection (SQL / XSS / SSRF) | Drizzle parameterized queries only (a CHECK may inline **constants** from our own code, never input); strict nonce CSP; Markdown through a sanitizer; no user-controlled outbound URLs; `next` redirect targets are same-origin relative paths only | Done / Task 1.9 |
-| Open redirect **P1** | `?next=` accepts only a relative path starting with a single `/`; anything else falls back to `/dashboard` | Task 1.9 |
+| Open redirect **P1** | `?next=` accepts only a relative path starting with a single `/`; anything else falls back to `/dashboard` | **Done** in the api (Task 1.3, tested); web side Task 1.9 |
 | Malicious uploads | Direct-to-R2, magic bytes, re-encode (Phase 2) | Phase 2 |
 | Prompt injection | Isolated prompts, schema-validated output (Phase 2) | Phase 2 |
 | Secret leakage | Env validated at boot; encrypted keys in DB; log redaction; gitleaks in CI; tokens in emails are encrypted in the queue (`encryptSecret`) so Redis never holds a usable token | Done / Task 1.4 |
@@ -80,7 +80,21 @@ Also required for every new route: an integration test for happy path, unauthent
 | `GET /health/ready` | public (readiness probe; returns status only, no detail) | — | — | none | skipped (probe) | — | — | — | Done |
 | `GET /healthz` (web) | public (container probe) | — | — | none | Cloudflare | — | — | — | Done |
 
-Tasks 1.3 to 1.11 add their rows here as each endpoint is written.
+| `GET /auth/providers` | public (the login page needs it before anyone is signed in) | — | — | none | global 120/min | — | — | — | Done |
+| `POST /auth/sign-up/email` | public | — | creates the caller's own account | `signUpEmailSchema` | 5/h per IP | 1 MB | always | — (system event) | Done |
+| `POST /auth/sign-up/phone-number` | public | — | own account | `signUpPhoneSchema` | 5/h per IP (shared with email register) | 1 MB | always | — | Done |
+| `POST /auth/sign-in/email` | public | — | — | `signInEmailSchema` | 10/15 min per IP + 5/15 min per identifier | 1 MB | after 3 failures per identifier | — | Done |
+| `POST /auth/sign-in/phone-number` | public | — | — | `signInPhoneSchema` | same bucket as email sign-in | 1 MB | after 3 failures | — | Done |
+| `POST /auth/sign-in/social`, `GET /auth/callback/:id` | public | — | — | `signInSocialSchema`; provider must be `enabled` | 20 and 30 per 15 min per IP | 1 MB | — (the provider authenticates) | — | Done |
+| `POST /auth/sign-out` | cookie (Better Auth) | — | the caller's own session | none | 60/15 min per IP | 1 MB | — | — | Done |
+| `GET /auth/verify-email` | link token | — | the token's owner | token + `callbackURL` only | 20/15 min per IP | — | — | — | Done |
+| `POST /auth/send-verification-email` | public | — | — | `sendVerificationEmailSchema` | 3/h per identifier + 10/h per IP | 1 MB | always | — | Done |
+| `POST /auth/request-password-reset` | public | — | — | `requestPasswordResetSchema` | 3/h per identifier + 10/h per IP | 1 MB | always | — | Done |
+| `GET /auth/reset-password/:token`, `POST /auth/reset-password` | link token | — | the token's owner | `resetPasswordSchema` | 20 and 20 per 15 min per IP | 1 MB | — | — | Done |
+| `POST /auth/change-password` | cookie | — | the caller's own account | `changePasswordSchema` | 10/15 min per IP | 1 MB | — | — (add `@Audited` with Task 1.6) | Done |
+| `POST /auth/two-factor/{enable,disable,generate-backup-codes,verify-totp,verify-backup-code}` | cookie / 2FA challenge cookie | — | the caller's own account | one schema each | 20/15 min per IP (+ Better Auth's TOTP lockout) | 1 MB | — | — (add with Task 1.6) | Done |
+
+Everything else under `/auth/*` answers 404 (§4). Tasks 1.5 to 1.11 add their rows here as each endpoint is written.
 
 ---
 
@@ -99,7 +113,14 @@ Tasks 1.3 to 1.11 add their rows here as each endpoint is written.
 | Re-authentication | Required (password or TOTP within N minutes) for role changes, suspensions, settings that hold secrets, account deletion. Signalled as `AUTH_REQUIRED` with `details.reason = "reauth"`. |
 | Turnstile | Server-verified with the caller IP on register, reset request, phone verification start, and login after 3 failures per identifier (Redis counter, 15 min). |
 | Account linking | Only between verified identifiers; never auto-merge on an unverified email. |
-| Errors | Better Auth messages never reach the client; mapped to our `{ code, message }` (Arabic by default). |
+| Errors | Better Auth messages never reach the client; mapped to our `{ code, message }` (Arabic by default). Unknown credentials, a wrong password and an unverified phone are the same `AUTH_REQUIRED` answer. |
+| Reachable surface | **Allowlist** (`AUTH_ROUTES` in `apps/api/src/auth/auth.policy.ts`): only the routes in the endpoint register exist. Phone-OTP routes, user update/delete, change-email, account linking, session listing and admin routes of Better Auth answer 404. Bodies are re-parsed with the shared zod schemas, so unknown keys never reach Better Auth. |
+| Phone accounts | A phone-registered account has a placeholder email on a reserved `.invalid` domain (never mailed). Better Auth's `phone-number` plugin is **not used**: it checks "verified?" before the password (a phone-enumeration leak), looks up by a non-unique phone, and ships a second OTP path. Our endpoints match **verified** phones only and always spend one password verification. The sign-in path is named `/sign-in/phone-number` because Better Auth's two-factor hook is keyed on that path. |
+| Response bodies | The raw session token and full user rows are removed from every response (the cookie is HttpOnly; `/me` is the source of truth). |
+| IP address | Better Auth records the IP we computed from the trusted proxy header; a client-supplied header is discarded. |
+| Admin sessions | Created with 12 h expiry, and `AuthService.getSession` ends any admin session older than 12 h, whatever Better Auth's sliding refresh did. "Admin" = holds any platform role. |
+| Social sign-in | Linked only to an existing account whose email is verified (`requireLocalEmailVerified`), so squatting someone's address cannot take over their Google login. The cost: the real owner cannot use Google until the squatter's unverified account is removed (purge job, §11). |
+| Mail | Sent in the background (never awaited, so timing does not reveal whether an address exists). Verification and reset mails go through the `AuthMailer` interface; until Task 1.4 provides the worker-backed one, nothing is sent and an error is logged. |
 
 ---
 
@@ -196,14 +217,18 @@ Open security items from Phase 0 and design decisions. Each has an owner task; n
 | Live checks on the server: direct-IP request refused, `ssh root` and password logins fail, SSL Labs A+, securityheaders.com ≥ A, restore drill | Phase 0 | Task 1.12 |
 | Attach an Elastic IP; restrict SSH (22) in the security group to the owner's IP; rotate the Cloudflare token used for setup | Phase 0 notes | Task 1.12 |
 | **Bot Fight Mode on the API host may challenge payment webhooks** (the free plan cannot skip it per path) | Phase 0 notes | Phase 3 (Kashier webhooks) |
-| Requests to **unknown routes are not rate limited** (`@fastify/rate-limit` attaches only to registered routes). Cheap 404s today; revisit with the auth routes | Phase 0 | Task 1.3 |
-| The rate limiter is **fail-open when Redis is down** (`skipOnError`). Decide per route: login, register, reset and phone start must **fail closed** | Phase 0 | Task 1.3 |
+| ~~Requests to unknown routes are not rate limited~~ **Done (Task 1.3):** 20 per minute per IP on anything that falls through to the 404 handler (`common/not-found-limit.ts`) | Phase 0 | Task 1.3 |
+| The global rate limiter is **fail-open when Redis is down** (`skipOnError`). **Done for auth (Task 1.3):** the auth limits are separate counters that fail closed (`UPSTREAM_UNAVAILABLE`, tested). The phone-verification start (Task 1.5) and the contact form (Task 1.11) must do the same | Phase 0 | Task 1.3 / 1.5 / 1.11 |
 | `Cross-Origin-Opener-Policy: same-origin` breaks popup-based OAuth; Google uses a redirect flow, so keep redirect and re-check if a popup is ever added | Phase 0 | Task 1.9 |
 | Pages are rendered per request because of the CSP nonce, so HTML is not CDN-cacheable; decide nonce vs hash-based CSP for the SEO pages (landing, legal) | Decision #10 | Task 1.11 |
 | `.trivyignore.yaml` entries (age's Go standard library advisories) expire **2026-12-01**; re-evaluate then | Phase 0 | Before 2026-12-01 |
 | Remove the Fastify 5.12.5 override when `@nestjs/platform-fastify` ships a patched dependency | Decision #13 | Ongoing |
-| Rotation procedures for `ENCRYPTION_KEY` and `BETTER_AUTH_SECRET` | Phase 1 | Task 1.3 |
-| OAuth tokens in `accounts` must be encrypted at rest (`account.encryptOAuthTokens`) | Task 1.2 review | Task 1.3 |
+| Rotation: `BETTER_AUTH_SECRET` = replace it in `.env.prod` and redeploy (every session, verification link and reset link is invalidated; nothing else breaks). **Done (Task 1.3).** `ENCRYPTION_KEY` rotation needs a re-encryption script, written with its first stored secret (Task 1.4 stores email tokens, Phase 2 stores provider keys) | Phase 1 | Task 1.3 / 1.4 |
+| ~~OAuth tokens in `accounts` must be encrypted at rest~~ **Done (Task 1.3):** `account.encryptOAuthTokens`, asserted by a test | Task 1.2 review | Task 1.3 |
+| **Purge unverified accounts** older than N days (a squatted address blocks the real owner's Google sign-in until then), together with expired sessions and verifications | Task 1.3 | Task 1.7 |
+| The breached-password check (Have I Been Pwned) **fails closed**: if that service is unreachable, registration and password changes return an error with a `WSF-` ref. Decide whether to fail open (and log) once real traffic shows how often it happens | Task 1.3 | Phase 4 launch review |
+| Better Auth's `sendOnSignIn` mails a fresh verification link on every correct-password sign-in to an unverified account (at most 5 per 15 min per account by the login limit). Acceptable; revisit if it is abused | Task 1.3 | — |
+| The `AuthMailer` has no real implementation yet (logs an error); verification and reset mail work only after Task 1.4 | Task 1.3 | Task 1.4 |
 | `sessions` / `verifications` purge job (expired rows hold IPs and token identifiers) | Task 1.2 review | Task 1.7 |
 
 ---

@@ -10,6 +10,11 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./auth-settings": {
+      "types": "./dist/auth-settings.d.ts",
+      "import": "./dist/auth-settings.js",
+      "default": "./dist/auth-settings.js"
+    },
     "./env": {
       "types": "./dist/env.d.ts",
       "import": "./dist/env.js",
@@ -54,6 +59,11 @@
       "types": "./dist/redact.d.ts",
       "import": "./dist/redact.js",
       "default": "./dist/redact.js"
+    },
+    "./schemas/auth": {
+      "types": "./dist/schemas/auth.d.ts",
+      "import": "./dist/schemas/auth.js",
+      "default": "./dist/schemas/auth.js"
     }
   },
   "files": [

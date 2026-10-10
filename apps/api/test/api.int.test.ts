@@ -69,6 +69,7 @@ beforeAll(async () => {
     REDIS_URL: infra.redisUrl,
     WEB_ORIGIN: `${ALLOWED_ORIGIN},http://localhost:3000`,
     ENCRYPTION_KEY: randomBytes(32).toString("base64"),
+    BETTER_AUTH_SECRET: randomBytes(32).toString("base64"),
     TRUST_PROXY: PROXY_IP,
     LOG_LEVEL: "silent",
   });

@@ -16,6 +16,8 @@ RUN turbo prune @wasfa/worker --docker
 FROM tooling AS build
 COPY --from=prune /repo/out/json/ .
 COPY --from=prune /repo/out/pnpm-lock.yaml ./pnpm-lock.yaml
+# The lockfile records this file's checksum; without it `--frozen-lockfile` refuses to install.
+COPY .pnpmfile.cjs ./
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile
 COPY --from=prune /repo/out/full/ .

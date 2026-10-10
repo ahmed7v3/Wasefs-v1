@@ -36,6 +36,16 @@ export const DEFAULT_SITE_SETTINGS: readonly NewSiteSetting[] = [
     value: { signupOpen: true, maintenanceMode: false },
   },
   {
+    // Read by the auth module (Task 1.3). Facebook ships as "coming soon"; enabling it later is
+    // this value plus the keys in env, with no code change.
+    key: "auth",
+    value: {
+      providers: { google: "enabled", facebook: "coming_soon" },
+      blockedEmailDomains: [],
+      phoneVerification: "whatsapp_inbound",
+    },
+  },
+  {
     key: "free_tier",
     value: { monthlyAnalyses: 3 },
   },

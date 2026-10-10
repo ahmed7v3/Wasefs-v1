@@ -10,6 +10,7 @@ import { Logger } from "nestjs-pino";
 
 import { AppModule } from "./app.module.js";
 import { clientIp, compileTrust } from "./common/client-ip.js";
+import { limitUnknownRoutes } from "./common/not-found-limit.js";
 import { REDIS } from "./common/redis.js";
 
 import type { ApiEnv } from "./config/env.js";
@@ -88,6 +89,8 @@ export async function createApp(
         details: { retryAfterSeconds: Math.ceil(context.ttl / 1000) },
       }),
   });
+
+  limitUnknownRoutes(app.getHttpAdapter().getInstance(), app.get(REDIS), trust);
 
   // No custom Fastify error handler: Nest installs one at init that routes errors raised before
   // a handler runs (rate limit, body limit, bad JSON) through AllExceptionsFilter as well.

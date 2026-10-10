@@ -98,6 +98,17 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD:?}@redis:6379
       WEB_ORIGIN: ${WEB_ORIGIN:-https://wasfa.online}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?}
+      # Authentication (Better Auth). The api container reaches Cloudflare (Turnstile), Google and
+      # the breached-password service through the `edge` network.
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
+      API_PUBLIC_URL: https://${API_DOMAIN:-api.wasfa.online}
+      AUTH_COOKIE_DOMAIN: ${AUTH_COOKIE_DOMAIN:-.wasfa.online}
+      ARGON2_MEMORY_KIB: ${ARGON2_MEMORY_KIB:-19456}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:?}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      FACEBOOK_CLIENT_ID: ${FACEBOOK_CLIENT_ID:-}
+      FACEBOOK_CLIENT_SECRET: ${FACEBOOK_CLIENT_SECRET:-}
       # Caddy fixed address on the edge network: the only peer allowed to set CF-Connecting-IP.
       TRUST_PROXY: 172.30.0.2
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-120}

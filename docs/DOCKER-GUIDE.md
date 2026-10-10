@@ -236,7 +236,19 @@ On the server, as `deploy` (`sudo -u deploy -i`), open `/opt/wasfa/.env.prod` an
 ```bash
 openssl rand -hex 24        # POSTGRES_PASSWORD, REDIS_PASSWORD (hex only: they are placed inside URLs)
 openssl rand -base64 32     # ENCRYPTION_KEY
+openssl rand -base64 48     # BETTER_AUTH_SECRET (signs session cookies; rotating it signs everyone out)
 ```
+
+Authentication also needs these in `.env.prod` (the API refuses to start in production without the
+first two; see `.env.example` for what each one does):
+
+| Key | Where it comes from |
+|---|---|
+| `TURNSTILE_SECRET_KEY` | Cloudflare dashboard → Turnstile → your widget → **Secret key** (the **site key** is public and goes to the web app in Task 1.9). Required. |
+| `AUTH_COOKIE_DOMAIN` | `.wasfa.online` (the default). Must cover both `wasfa.online` and `api.wasfa.online`. |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google Cloud console → APIs & Services → Credentials → OAuth client (Web). Authorized redirect URI: `https://api.wasfa.online/auth/callback/google`. Optional until you want Google sign-in; set both or neither. |
+| `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET` | Leave empty: Facebook ships as "coming soon". |
+| `ARGON2_MEMORY_KIB` | Optional, default 19456. |
 
 Then `chmod 600 /opt/wasfa/.env.prod`. Never paste its content into chat, tickets or commits.
 

@@ -48,3 +48,14 @@ export const E164_PATTERN = /^[+][1-9][0-9]{7,14}$/;
 
 /** ISO 3166-1 alpha-2, upper case. Same rule as the DB CHECK on country codes. */
 export const COUNTRY_CODE_PATTERN = /^[A-Z]{2}$/;
+
+/**
+ * Phone-registered accounts have no real email, but `users.email` is required and unique. They get
+ * a placeholder on a reserved TLD (RFC 2606 `.invalid`), so it can never receive mail or collide
+ * with a real address. Never display it, never send to it.
+ */
+export const PHONE_PLACEHOLDER_EMAIL_DOMAIN = "phone.wasfa.invalid";
+
+export function isPlaceholderEmail(email: string): boolean {
+  return email.toLowerCase().endsWith(`@${PHONE_PLACEHOLDER_EMAIL_DOMAIN}`);
+}

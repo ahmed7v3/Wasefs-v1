@@ -33,7 +33,7 @@
 
 ### Seed policy
 
-`seedDefaults()` is **insert-only and idempotent**: existing rows are never touched. Site settings: existing keys are skipped. Roles: a role's permissions are seeded **only in the same transaction that creates the role**, so an admin who removes a permission from a role never sees it come back after a deploy. Consequence: a permission added to the catalog in a later phase reaches existing non-`super_admin` roles only through an explicit data migration or the role editor. (`super_admin` is a wildcard in the resolver, Task 1.6, so it always has everything.)
+`seedDefaults()` is **insert-only and idempotent**: existing rows are never touched. Site settings: existing keys are skipped. Roles: a role's permissions are seeded **only in the same transaction that creates the role**, so an admin who removes a permission from a role never sees it come back after a deploy. The `auth` setting (provider statuses, extra blocked email domains, the phone-verification kill switch) is seeded the same way. Consequence: a permission added to the catalog in a later phase reaches existing non-`super_admin` roles only through an explicit data migration or the role editor. (`super_admin` is a wildcard in the resolver, Task 1.6, so it always has everything.)
 
 ---
 

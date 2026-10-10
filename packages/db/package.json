@@ -26,6 +26,7 @@
   "dependencies": {
     "@wasfa/shared": "workspace:*",
     "drizzle-orm": "^0.45.4",
+    "kysely": "0.29.6",
     "postgres": "^3.4.9",
     "zod": "^4.6.5"
   },

@@ -1,6 +1,7 @@
 import { Module, type DynamicModule, type ModuleMetadata } from "@nestjs/common";
 import { APP_FILTER, APP_PIPE } from "@nestjs/core";
 
+import { AuthModule } from "./auth/auth.module.js";
 import { DatabaseModule } from "./common/database.js";
 import { AllExceptionsFilter, ErrorReporter } from "./common/errors.js";
 import { AppLoggerModule } from "./common/logger.js";
@@ -22,6 +23,7 @@ export class AppModule {
         AppLoggerModule,
         DatabaseModule,
         RedisModule,
+        AuthModule,
         HealthModule,
         ...extraImports,
       ],
