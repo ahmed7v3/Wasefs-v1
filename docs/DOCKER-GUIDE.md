@@ -1,0 +1,420 @@
+# DOCKER-GUIDE.md — Running Wasfa AI on a server
+
+A step-by-step guide for someone who has **never used Docker**. Every command can be copied as it
+is. If a step says "console", it is done with the mouse in the AWS / Cloudflare / GitHub website.
+
+> Related files: `infra/docker/` (the stack), `infra/scripts/` (provision, deploy, backup, restore),
+> `.github/workflows/` (CI/CD), `.env.example` (every setting). Rules and architecture:
+> `AGENT.md`, `ARCHITECTURE.md`.
+
+---
+
+## 1. The five words you need
+
+| Word | What it is | Everyday comparison |
+|---|---|---|
+| **Image** | A frozen, ready-to-run copy of a program with everything it needs. We build three of our own (`web`, `api`, `worker`), plus a `backup` tool image. | A recipe card |
+| **Container** | One running copy of an image. You can stop it, start it, delete it; the image stays. | A dish made from the recipe |
+| **Compose** | A text file (`compose.prod.yml`) that lists all containers and how they connect. One command starts them all. | The menu for the whole meal |
+| **Volume** | A folder that survives when a container is deleted. The database lives in one. | The fridge |
+| **Network** | A private road between containers. | The kitchen corridor |
+
+Containers are disposable. **Volumes (the database) and `.env.prod` (the secrets) are not**, and
+that is why backups exist (section 7).
+
+## 2. How the pieces fit
+
+```
+Visitor ──▶ Cloudflare (DDoS filter, WAF, TLS) ──▶ the server, port 443, only from Cloudflare
+                                                      │
+                                                  [ caddy ]      the only container with open ports
+                                                   │      │
+                                        wasfa.online│      │api.wasfa.online
+                                                [ web ]   [ api ] ────┐
+                                           (Next.js site)  (NestJS)   │   private network "internal"
+                                                                      ├──▶ [ postgres ]   database
+                                              [ worker ] ─────────────┴──▶ [ redis ]      queues, limits
+                                              (background jobs)
+```
+
+| Container | Job | Can reach the internet? | Data kept |
+|---|---|---|---|
+| `caddy` | HTTPS, security headers, routes by domain | yes (it is the front door) | its certificates |
+| `web` | The website | yes (no need, but not blocked) | none |
+| `api` | All business logic | yes (will call AI/payment providers) | none |
+| `worker` | Background jobs | **no** (only talks to Redis) | none |
+| `postgres` | The database | **no** | `postgres-data` volume |
+| `redis` | Queues and rate limits | **no** | `redis-data` volume |
+| `backup` | Nightly encrypted backup (runs for a minute, then exits) | yes (to reach R2) | none |
+
+Only Caddy publishes ports (80 and 443). Postgres and Redis publish **nothing**: nobody outside
+the server can even try to connect. Web, api and worker run as an unprivileged user with a
+**read-only** file system and no Linux capabilities.
+
+---
+
+## 3. One-time setup (do these in order)
+
+You need: a domain on Cloudflare, an AWS account, a GitHub account with this repository, a
+Cloudflare R2 bucket (for backups), and a laptop with `ssh`.
+
+### 3.1 AWS: the server
+
+**Console steps**
+
+1. **EC2 → Launch instance.** Name `wasfa-prod`. Image: **Ubuntu Server 24.04 LTS**. Type:
+   **t3.medium** (2 vCPU, 4 GB; the container limits in `compose.prod.yml` are sized for it).
+   Storage: **30 GB gp3**. Key pair: create one (`wasfa-prod.pem`), keep it safe.
+   Under *Advanced details* set **Metadata version = V2 only** and enable **Termination protection**.
+2. **Elastic IP.** EC2 → Elastic IPs → Allocate → Associate with the instance. This is the
+   server's permanent address (without it the address changes on every stop/start).
+3. **Security group** (the instance's firewall, outside the server). Replace the default rules:
+
+   | Type | Port | Source |
+   |---|---|---|
+   | SSH | 22 | **My IP** (your address as `x.x.x.x/32`) |
+   | HTTPS | 443 | Cloudflare ranges only (below) |
+   | HTTP | 80 | Cloudflare ranges only |
+
+   Outbound: allow all (default). **Never** open 5432 (Postgres) or 6379 (Redis).
+
+   Cloudflare publishes its ranges at <https://www.cloudflare.com/ips-v4> and `/ips-v6`. With the
+   AWS CLI (replace `sg-xxxx`):
+
+   ```bash
+   SG=sg-xxxx
+   for cidr in $(curl -fsS https://www.cloudflare.com/ips-v4); do
+     for port in 80 443; do
+       aws ec2 authorize-security-group-ingress --group-id "$SG" --protocol tcp --port "$port" --cidr "$cidr"
+     done
+   done
+   # IPv6 ranges: --ip-permissions "IpProtocol=tcp,FromPort=443,ToPort=443,Ipv6Ranges=[{CidrIpv6=$cidr}]"
+   ```
+
+   A home IP changes. If you lock yourself out of SSH, change the rule in the console. Better:
+   use **AWS Systems Manager Session Manager** (attach the `AmazonSSMManagedInstanceCore` role,
+   then close port 22 completely).
+4. **Billing alarm** (so a mistake never becomes a surprise bill). Billing → Billing preferences →
+   tick *Receive CloudWatch billing alerts*. Then, in region **us-east-1**:
+
+   ```bash
+   aws sns create-topic --name billing-alerts --region us-east-1
+   aws sns subscribe --region us-east-1 --topic-arn <ARN-from-above> --protocol email --notification-endpoint you@example.com
+   aws cloudwatch put-metric-alarm --region us-east-1 --alarm-name wasfa-monthly-bill \
+     --namespace AWS/Billing --metric-name EstimatedCharges --dimensions Name=Currency,Value=USD \
+     --statistic Maximum --period 21600 --evaluation-periods 1 --threshold 60 \
+     --comparison-operator GreaterThanThreshold --alarm-actions <ARN-from-above>
+   ```
+
+   Confirm the e-mail AWS sends you. Pick a threshold about 30% above what you expect to pay.
+
+### 3.2 The server: `provision.sh`
+
+From your laptop, copy the script and your **deploy keys** to the server. The *deploy key* is a
+key pair used only by GitHub Actions; create it now:
+
+```bash
+ssh-keygen -t ed25519 -N "" -C wasfa-deploy -f wasfa-deploy      # makes wasfa-deploy and wasfa-deploy.pub
+cat wasfa-deploy.pub ~/.ssh/id_ed25519.pub > deploy_keys.pub    # both may log in as `deploy`
+scp -i wasfa-prod.pem infra/scripts/provision.sh deploy_keys.pub ubuntu@<ELASTIC-IP>:~
+ssh -i wasfa-prod.pem ubuntu@<ELASTIC-IP>
+```
+
+On the server, first **look** at what it will do (changes nothing), then run it:
+
+```bash
+sudo OWNER_IP_CIDR=<your.ip>/32 DEPLOY_AUTHORIZED_KEYS_FILE=$HOME/deploy_keys.pub ./provision.sh --dry-run
+sudo OWNER_IP_CIDR=<your.ip>/32 DEPLOY_AUTHORIZED_KEYS_FILE=$HOME/deploy_keys.pub ./provision.sh
+```
+
+It does, in this order: UTC clock, updates; automatic **security updates** (reboots at 03:30 UTC if a
+kernel update needs it, set `AUTO_REBOOT=0` to disable); the `deploy` user (SSH key only, no sudo);
+**SSH hardening** (no root, no passwords, only `ubuntu` and `deploy`); the firewall (**UFW** plus
+Docker's own `DOCKER-USER` chain, ports 80/443 only from Cloudflare, refreshed weekly); **fail2ban**;
+a **swap file** sized to the RAM; **Docker Engine + Compose** from Docker's official repository (log
+rotation on); the folder layout; the **nightly backup timer**.
+
+> **Why two firewalls?** UFW alone does *not* protect Docker ports (Docker edits the firewall
+> itself). The script therefore also filters Docker's chain. The AWS security group is the main
+> wall, and Caddy additionally demands Cloudflare's certificate (section 3.3), so a request that
+> bypasses Cloudflare is stopped three times.
+
+**Before closing the terminal**, open a *second* terminal and check:
+
+```bash
+ssh -i wasfa-prod.pem ubuntu@<ELASTIC-IP>     # must still work
+ssh root@<ELASTIC-IP>                         # must be refused
+ssh -o PubkeyAuthentication=no ubuntu@<ELASTIC-IP>   # must be refused (no passwords)
+```
+
+The server now has `/opt/wasfa/` with `certs/` (700), `backups/` (700) and an empty `.env.prod` (600).
+
+### 3.3 Cloudflare
+
+All in the Cloudflare dashboard for your domain. Order matters a little: do DNS first, TLS next.
+
+1. **DNS → Records.** Three **A** records, **Proxied (orange cloud)**, all pointing to the Elastic IP:
+   `@` (wasfa.online), `www`, `api`. (Grey cloud would expose the real IP and skip every protection.)
+2. **SSL/TLS → Overview:** mode **Full (strict)**.
+3. **SSL/TLS → Origin Server → Create Certificate.** RSA, hostnames `wasfa.online` and
+   `*.wasfa.online`, 15 years. Copy the two boxes into files on the server:
+
+   ```bash
+   sudo -u deploy nano /opt/wasfa/certs/origin.pem     # paste "Origin Certificate"
+   sudo -u deploy nano /opt/wasfa/certs/origin.key     # paste "Private Key" (shown only once)
+   curl -fsS https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem \
+     | sudo -u deploy tee /opt/wasfa/certs/cloudflare-origin-pull-ca.pem >/dev/null
+   sudo chmod 600 /opt/wasfa/certs/origin.key
+   ```
+4. **SSL/TLS → Origin Server → Authenticated Origin Pulls: ON.** Cloudflare now presents a client
+   certificate and Caddy refuses everyone else (that is what `caddy/tls.prod.caddy` enforces).
+5. **SSL/TLS → Edge Certificates:** *Always Use HTTPS* ON; *Minimum TLS Version* 1.2; *TLS 1.3* ON;
+   *Automatic HTTPS Rewrites* ON; **HSTS** ON (max-age 12 months or more, include subdomains,
+   preload). Caddy sends the same header, so both agree.
+6. **Security → Bots → Bot Fight Mode:** ON.
+7. **Security → WAF → Managed rules:** enable the **Cloudflare Managed Ruleset** (free).
+8. **Security → WAF → Rate limiting rules.** The free plan allows **one** rule, so one combined rule:
+   - Expression (edit as text):
+     `http.host eq "api.wasfa.online" and (starts_with(http.request.uri.path, "/auth/") or starts_with(http.request.uri.path, "/ai/"))`
+   - Same IP; **30 requests per 10 seconds**; action **Block** for 10 seconds.
+   - On a paid plan, make two rules with their own limits (login attempts are much stricter than AI calls).
+9. **Caching → Cache Rules:**
+   - *Bypass cache* when `http.host eq "api.wasfa.online"`.
+   - *Eligible for cache* when `http.host eq "wasfa.online" and starts_with(http.request.uri.path, "/_next/static/")`, Edge TTL "Use cache-control header from origin".
+   - HTML pages are not cached on purpose: each response carries a one-time security token (the CSP nonce).
+
+### 3.4 Cloudflare R2: the backup bucket
+
+1. **R2 → Create bucket** `wasfa-backups`. Leave it **private**: never enable the public `r2.dev` URL or a custom domain.
+2. **R2 → Manage API tokens → Create API token:** permission *Object Read & Write*, **only** bucket
+   `wasfa-backups`. Write down *Access Key ID*, *Secret Access Key* and your *Account ID* (shown on the R2 page).
+3. Optional safety net: bucket → Settings → Object lifecycle → delete objects older than 70 days.
+
+### 3.5 The backup key (do this on your laptop, not the server)
+
+```bash
+age-keygen -o wasfa-backup.key        # install age first: https://github.com/FiloSottile/age
+# prints:  Public key: age1xxxxxxxx...
+```
+
+- The **public key** (`age1…`) goes into `.env.prod` as `BACKUP_AGE_PUBLIC_KEY`. It can only *lock*.
+- The file `wasfa-backup.key` is the **private key**. It is the only thing that can *unlock* a
+  backup. Keep it **offline**: a password manager *and* a printed copy somewhere safe. **Never put
+  it on the server.** If you lose it, every backup is unreadable garbage.
+- Also store `ENCRYPTION_KEY` (from `.env.prod`) in the same safe place: stored API keys in the
+  database cannot be decrypted without it, even after a perfect restore.
+
+### 3.6 GitHub
+
+1. **Settings → Environments → New environment `production`.** Optionally add yourself as a *required
+   reviewer* so every deploy needs a click. Add these **environment secrets**:
+
+   | Secret | Value |
+   |---|---|
+   | `DEPLOY_HOST` | the Elastic IP |
+   | `DEPLOY_USER` | `deploy` |
+   | `DEPLOY_SSH_KEY` | the content of the private file `wasfa-deploy` |
+   | `DEPLOY_KNOWN_HOSTS` | output of `ssh-keyscan -t ed25519 <ELASTIC-IP>` (pins the server, so nobody can impersonate it) |
+
+2. **Protect `main`** (once, needs the GitHub CLI logged in as an admin): `./infra/scripts/protect-main.sh`.
+   After that a pull request cannot be merged until both CI checks pass, and nobody can force-push.
+3. Packages (the images) are private by default, which is what we want. The deploy workflow logs the
+   server in to GHCR with its own short-lived token, so no password is stored on the server.
+
+### 3.7 The settings file `.env.prod`
+
+On the server, as `deploy` (`sudo -u deploy -i`), open `/opt/wasfa/.env.prod` and fill it from
+`.env.example` (the "Production stack" and "Backups" parts). Generate each secret with:
+
+```bash
+openssl rand -hex 24        # POSTGRES_PASSWORD, REDIS_PASSWORD (hex only: they are placed inside URLs)
+openssl rand -base64 32     # ENCRYPTION_KEY
+```
+
+Then `chmod 600 /opt/wasfa/.env.prod`. Never paste its content into chat, tickets or commits.
+
+### 3.8 First deploy
+
+Push to `main` (or **Actions → Deploy → Run workflow** with a commit SHA that has images). The
+workflow copies the config to `/opt/wasfa`, pulls the images, runs the database migrations, starts
+everything and waits up to 60 s for `/health/ready`. **If the new version is not healthy it puts the
+previous one back and the job fails.**
+
+Check it from your laptop:
+
+```bash
+curl -I https://wasfa.online/                     # 200, with security headers
+curl https://api.wasfa.online/health/live         # {"status":"ok"}
+curl https://api.wasfa.online/health/ready        # {"status":"ok"}
+curl -m 5 -k https://<ELASTIC-IP>/                # must FAIL: the server refuses direct access
+```
+
+Once, load the default site settings:
+`dc --profile tools run --rm migrate node node_modules/@wasfa/db/dist/seed.js` (it never overwrites
+values an admin has edited).
+
+---
+
+## 4. Everyday commands (on the server)
+
+Log in: `ssh deploy@<ELASTIC-IP>`. First define a short name for the long command (add it to `~/.bashrc`):
+
+```bash
+alias dc='docker compose --env-file /opt/wasfa/.env.prod -f /opt/wasfa/compose.prod.yml'
+```
+
+| I want to… | Command |
+|---|---|
+| See what is running and healthy | `dc ps` |
+| Read the logs of one service (live) | `dc logs -f --tail 100 api` (`web`, `worker`, `caddy`, `postgres`, `redis`) |
+| Read errors only, all services | `dc logs --since 1h \| grep -i error` |
+| Restart one service | `dc restart api` |
+| Stop everything (data is kept) | `dc stop` |
+| Start it again | `dc up -d` |
+| Which version is live? | `cat /opt/wasfa/.deployed-sha` |
+| How much memory/CPU is each container using? | `docker stats --no-stream` |
+| Disk space (system, Docker) | `df -h /` and `docker system df` |
+| Open a shell inside a container | `dc exec api sh` (`exit` to leave) |
+| Open a database console | `dc exec postgres sh -c 'psql -U "$POSTGRES_USER" "$POSTGRES_DB"'` |
+| Run database migrations by hand | `dc --profile tools run --rm migrate` |
+| Free space from unused old images | `docker image prune -af --filter "until=168h"` |
+
+**Updating** is automatic: merge to `main` → CI → images → Deploy workflow. Nothing is edited on the
+server by hand, except `.env.prod`. After changing `.env.prod`, apply it with `dc up -d` (compose
+recreates only the containers whose settings changed).
+
+**Rolling back** to an older release: *Actions → Deploy → Run workflow* with the SHA of the old
+commit (every merged commit has images). Or on the server, if GitHub is unreachable:
+`printf '%s' "$TOKEN" | /opt/wasfa/deploy.sh <old-sha> <your-github-username>`.
+
+> **Migrations are not undone by a rollback.** The old code then runs on the new database. That is
+> safe only if each migration is written to be compatible with the previous release (add columns and
+> tables first; remove old ones in a *later* release). Keep that rule.
+
+**Changing the Cloudflare IP list.** Cloudflare rarely adds ranges. The server firewall refreshes
+itself weekly; the list inside `infra/docker/Caddyfile` (`trusted_proxies`) is updated by hand: compare
+with <https://www.cloudflare.com/ips-v4> and `/ips-v6` a few times a year.
+
+---
+
+## 5. Running it on your own computer (development)
+
+You only need Docker Desktop for the database and Redis; the apps run directly with `pnpm dev`.
+
+```bash
+cp .env.example .env                     # then set ENCRYPTION_KEY=$(openssl rand -base64 32)
+docker compose -f infra/docker/compose.dev.yml up -d
+pnpm install
+pnpm db:migrate && pnpm db:seed
+pnpm dev                                 # web :3000, api :4000, worker
+```
+
+Postgres and Redis are published to `127.0.0.1` only. If ports 5432/6379 are taken by a program
+installed on your computer, start with `POSTGRES_PORT=55433 REDIS_PORT=56379 docker compose …` and put
+the same ports in `DATABASE_URL` / `REDIS_URL` in `.env`.
+
+To try the **production** stack on your computer (own certificates, no Cloudflare), see the
+"Local production run" box in `docs/phases/phase0.md`, task 0.7.
+
+---
+
+## 6. Troubleshooting
+
+| Symptom | Likely cause and fix |
+|---|---|
+| Deploy job red, "did not become ready" | Look at the log lines printed under it, or `dc logs --tail 100 api`. The previous version was restored automatically. Usually a missing/misspelled variable in `.env.prod`. |
+| `dc ps` shows a service `Restarting` | `dc logs --tail 50 <service>`. API refusing to start prints the **names** of invalid variables (never their values). |
+| `required variable X is missing` | `.env.prod` lacks X. Compare with `.env.example`. |
+| Site shows Cloudflare error 521 / 525 / 526 | 521: containers down or firewall closed (`dc ps`). 525/526: certificate files wrong or SSL mode not *Full (strict)* (section 3.3). |
+| Site shows 403 / handshake error from Cloudflare | *Authenticated Origin Pulls* is off in Cloudflare, or `cloudflare-origin-pull-ca.pem` is missing in `certs/`. |
+| API says `RATE_LIMITED` for everybody | The real client address is not reaching the API: check the Cloudflare IP list in the Caddyfile and that the proxy is on (orange cloud). |
+| `/health/ready` is 503 | Database or Redis is down: `dc ps`, `dc logs postgres`. The public body never says which; the API log does. |
+| "No space left on device" | `docker system df`, then `docker image prune -af --filter "until=168h"`. Logs are already capped (10 MB × 5 per container). |
+| Locked out of SSH | Your IP changed. Console → Security group → edit the SSH rule (or use Session Manager). |
+| Backup alert on Telegram | `sudo journalctl -u wasfa-backup -n 100` and section 7. |
+
+---
+
+## 7. Backups and restore
+
+### How it works
+
+Every night at about 02:30 UTC a systemd timer on the server runs the `backup` container:
+
+```
+database ──pg_dump──▶ age (public key) ──▶ Cloudflare R2  wasfa-backups/daily/wasfa-<time>.dump.age
+```
+
+- The data is **encrypted while it streams**; the readable dump never touches a disk.
+- Next to each dump, an encrypted list of **row counts for every table**, taken in the same instant,
+  lets the restore test prove nothing is missing.
+- Sundays the pair is also copied to `weekly/`. **Retention: 14 daily + 8 weekly**, older ones are deleted
+  (the script refuses to delete anything unless more than that many exist).
+- A partial upload (for example the database dies halfway) is deleted again and **never counts as a backup**.
+- **A failure sends a Telegram message** (set `BACKUP_ALERT_TELEGRAM_BOT_TOKEN` and `_CHAT_ID`: talk to
+  `@BotFather` for the token, send your bot a message, then read your chat id at
+  `https://api.telegram.org/bot<token>/getUpdates`). To also notice a backup that *never starts*, create a free
+  check at healthchecks.io and put its URL in `BACKUP_HEALTHCHECK_URL`: it is pinged after every success.
+- Why a host timer and not a worker job: it must keep working (and alerting) when the worker or API is broken.
+
+### Check that it works
+
+```bash
+systemctl list-timers wasfa-backup.timer              # next run time
+dc --profile tools run --rm -T backup                 # run one now (takes seconds)
+sudo journalctl -u wasfa-backup -n 50                 # what the timer did last night
+```
+
+In the R2 dashboard the bucket now shows `daily/wasfa-….dump.age`. Try downloading one and opening it:
+it is unreadable without the private key (it starts with `age-encryption.org/v1`).
+
+### Restore test (do it once now, then monthly)
+
+This copies a backup into a **scratch database**, compares every table's row count with the backup's
+list, and deletes the scratch database. It touches nothing else.
+
+```bash
+# 1. put the private key on the server just for this test (from your password manager)
+install -m 600 /dev/null /tmp/age-key.txt && nano /tmp/age-key.txt        # paste, save
+# 2. run the verification
+dc --profile tools run --rm -T -v /tmp/age-key.txt:/run/age-identity:ro backup restore.sh --verify latest
+# 3. ALWAYS remove the key again
+shred -u /tmp/age-key.txt
+```
+
+Success looks like a table of `ok` lines ending with `verification passed: N tables restored with
+identical row counts`. Any `MISMATCH` or error is a problem: fix it *now*, not on the day you need it.
+`restore.sh --verify weekly/<file>` tests an older one.
+
+### Disaster recovery (the server is gone)
+
+1. New EC2 instance, then sections 3.1 → 3.3 (same Elastic IP if you still have it; otherwise update the Cloudflare A records).
+2. Recreate `/opt/wasfa/.env.prod` with the **same** `ENCRYPTION_KEY` as before (from your safe place); new passwords are fine.
+3. Start only the database: `dc up -d postgres redis`.
+4. Restore the newest backup into the empty database:
+   `dc --profile tools run --rm -T -v /tmp/age-key.txt:/run/age-identity:ro backup restore.sh --into <POSTGRES_DB> --overwrite-live latest`
+   (`--overwrite-live` is required because that is the live database's name; it is empty on a new server.)
+5. `shred -u /tmp/age-key.txt`, then `dc up -d` (or run the Deploy workflow). Check `/health/ready`.
+
+The restore tool refuses to write into the live database unless you pass `--overwrite-live`, and it
+only accepts real backup object names.
+
+---
+
+## 8. Security notes in one place
+
+- Secrets live only in `/opt/wasfa/.env.prod` (600) and GitHub environment secrets. Never in git, never in chat.
+- The server accepts web traffic only from Cloudflare (AWS security group + firewall + mutual TLS), SSH only from you.
+- `deploy` can run Docker (which is root-equivalent) but has no `sudo` and cannot log in with a password; the CI key can do nothing else.
+- Rotate on suspicion: Postgres/Redis passwords (edit `.env.prod`, `dc up -d`; Postgres also needs `ALTER USER`),
+  the deploy key (replace in `authorized_keys` and the GitHub secret), the R2 token (R2 dashboard).
+- Security updates install themselves. Docker and the images: Dependabot opens weekly pull requests; merging one rebuilds and redeploys.
+
+## 9. Final verification checklist (Task 0.9)
+
+- [ ] `curl -m 5 -k https://<ELASTIC-IP>/` fails (direct access refused).
+- [ ] `ssh root@<ELASTIC-IP>` and password logins are refused.
+- [ ] <https://www.ssllabs.com/ssltest/> for `wasfa.online`: grade **A+**.
+- [ ] <https://securityheaders.com/> for `https://wasfa.online`: grade **A** or better.
+- [ ] `dc ps`: everything `healthy`; `systemctl list-timers` shows the backup timer.
+- [ ] One restore test passed (section 7).
