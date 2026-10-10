@@ -60,6 +60,11 @@
       "import": "./dist/permissions.js",
       "default": "./dist/permissions.js"
     },
+    "./settings": {
+      "types": "./dist/settings.d.ts",
+      "import": "./dist/settings.js",
+      "default": "./dist/settings.js"
+    },
     "./queues": {
       "types": "./dist/queues.d.ts",
       "import": "./dist/queues.js",

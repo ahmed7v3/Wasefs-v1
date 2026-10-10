@@ -4,52 +4,18 @@ import {
   type Permission,
   type SystemRoleKey,
 } from "@wasfa/shared/permissions";
+import { SETTING_KEYS, settingDefault } from "@wasfa/shared/settings";
 
 import { rolePermissions, roles, siteSettings, type NewSiteSetting } from "./schema/index.js";
 
 import type { Database } from "./client.js";
 
-// Safe defaults only. Admins edit these in the panel, so seeding never overwrites existing rows.
-export const DEFAULT_SITE_SETTINGS: readonly NewSiteSetting[] = [
-  {
-    key: "branding",
-    value: { nameAr: "وصفة AI", nameEn: "Wasfa AI", logoUrl: null },
-  },
-  {
-    key: "contact",
-    value: { whatsapp: null, telegram: null, phone: null, email: null },
-  },
-  {
-    key: "socials",
-    value: { facebook: null, instagram: null, tiktok: null, x: null, youtube: null },
-  },
-  {
-    key: "locale",
-    value: { defaultLocale: "ar", westernDigits: true, showHijriDates: false },
-  },
-  {
-    key: "currency",
-    value: { default: "EGP", enabled: ["EGP", "SAR", "AED", "USD"] },
-  },
-  {
-    key: "access",
-    value: { signupOpen: true, maintenanceMode: false },
-  },
-  {
-    // Read by the auth module (Task 1.3). Facebook ships as "coming soon"; enabling it later is
-    // this value plus the keys in env, with no code change.
-    key: "auth",
-    value: {
-      providers: { google: "enabled", facebook: "coming_soon" },
-      blockedEmailDomains: [],
-      phoneVerification: "whatsapp_inbound",
-    },
-  },
-  {
-    key: "free_tier",
-    value: { monthlyAnalyses: 3 },
-  },
-];
+// Safe defaults only, derived from the settings registry so code and seed cannot drift. Admins edit
+// these in the panel, so seeding never overwrites existing rows.
+export const DEFAULT_SITE_SETTINGS: readonly NewSiteSetting[] = SETTING_KEYS.map((key) => ({
+  key,
+  value: settingDefault(key),
+}));
 
 export interface SystemRoleSeed {
   key: SystemRoleKey;

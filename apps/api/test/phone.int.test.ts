@@ -1,6 +1,6 @@
 import { randomInt, randomUUID } from "node:crypto";
 
-import { createDb, seedDefaults, siteSettings, users } from "@wasfa/db";
+import { createDb, seedDefaults, users } from "@wasfa/db";
 import {
   WA_HEARTBEAT_KEY,
   WA_INBOUND_STREAM,
@@ -13,9 +13,9 @@ import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { AuthSettingsReader } from "../src/auth/auth-settings.reader.js";
 import { TURNSTILE_VERIFY_URL } from "../src/auth/turnstile.js";
 import { createApp } from "../src/bootstrap.js";
+import { SettingsService } from "../src/settings/settings.service.js";
 
 import { AuthHarness, pwnedHandlers, testApiEnv, type Jar } from "./support/auth-harness.js";
 import { startInfra, type TestInfra } from "./support/infra.js";
@@ -36,7 +36,7 @@ let infra: TestInfra;
 let app: NestFastifyApplication;
 let handle: ReturnType<typeof createDb>;
 let redis: Redis;
-let settings: AuthSettingsReader;
+let settings: SettingsService;
 const harness = new AuthHarness(
   () => app,
   () => handle.db,
@@ -52,7 +52,7 @@ beforeAll(async () => {
   handle = createDb({ url: infra.databaseUrl, max: 2 });
   await seedDefaults(handle.db);
   app = await createApp(env, { extraImports: [harness.mailerModule()], authMailer: false });
-  settings = app.get(AuthSettingsReader);
+  settings = app.get(SettingsService);
   redis = new Redis(infra.redisUrl, { maxRetriesPerRequest: null });
 });
 
@@ -76,15 +76,8 @@ async function bridgeIs(state: "connected" | "logged_out" | "gone"): Promise<voi
 }
 
 async function setPhoneVerification(mode: "whatsapp_inbound" | "disabled"): Promise<void> {
-  const current = (await settings.auth()) as Record<string, unknown>;
-  await handle.db
-    .insert(siteSettings)
-    .values({ key: "auth", value: { ...current, phoneVerification: mode } })
-    .onConflictDoUpdate({
-      target: siteSettings.key,
-      set: { value: { ...current, phoneVerification: mode } },
-    });
-  settings.invalidate();
+  const current = await settings.get("auth");
+  await settings.set("auth", { ...current, phoneVerification: mode }, { actorId: null });
 }
 
 const newPhone = () => `+2010${randomInt(10_000_000, 99_999_999)}`;

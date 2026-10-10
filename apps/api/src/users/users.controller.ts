@@ -3,6 +3,7 @@ import { Body, Controller, Delete, Get, HttpCode, Param, Patch } from "@nestjs/c
 import { Audited, AuditCtx, type AuditScope } from "../audit/audited.decorator.js";
 import { CurrentUser, type AuthenticatedUser } from "../common/current-user.js";
 import { RequireFreshAuth } from "../common/fresh-auth.js";
+import { AllowDuringMaintenance } from "../common/maintenance.guard.js";
 import { RateLimit } from "../common/rate-limit.js";
 
 import { IdParamDto, UpdateMeDto } from "./users.schemas.js";
@@ -13,7 +14,9 @@ import { UsersService } from "./users.service.js";
 export class UsersController {
   constructor(private readonly users: UsersService) {}
 
+  // The web app asks who is signed in while it draws the maintenance page.
   @Get()
+  @AllowDuringMaintenance()
   @RateLimit(120)
   me(@CurrentUser() user: AuthenticatedUser) {
     return this.users.me(user);

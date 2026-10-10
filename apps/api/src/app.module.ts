@@ -6,16 +6,19 @@ import { AuthModule } from "./auth/auth.module.js";
 import { AccessModule } from "./common/access.module.js";
 import { DatabaseModule } from "./common/database.js";
 import { AllExceptionsFilter, ErrorReporter } from "./common/errors.js";
+import { InvalidationModule } from "./common/invalidation-bus.js";
 import { AppLoggerModule } from "./common/logger.js";
 import { RedisModule } from "./common/redis.js";
 import { ZodValidationPipe } from "./common/validation.js";
 import { ConfigModule } from "./config/config.module.js";
+import { FlagsModule } from "./flags/flags.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { NotificationsModule } from "./notifications/notifications.module.js";
 import { OnboardingModule } from "./onboarding/onboarding.module.js";
 import { OrgsModule } from "./orgs/orgs.module.js";
 import { PhoneModule } from "./phone/phone.module.js";
 import { RbacModule } from "./rbac/rbac.module.js";
+import { SettingsModule } from "./settings/settings.module.js";
 import { UsersModule } from "./users/users.module.js";
 
 import type { ApiEnv } from "./config/env.js";
@@ -38,9 +41,12 @@ export class AppModule {
         AppLoggerModule,
         DatabaseModule,
         RedisModule,
+        InvalidationModule,
         NotificationsModule.register({ authMailer: options.authMailer ?? true }),
         RbacModule,
         AuditModule,
+        SettingsModule,
+        FlagsModule,
         AuthModule,
         AccessModule,
         PhoneModule,

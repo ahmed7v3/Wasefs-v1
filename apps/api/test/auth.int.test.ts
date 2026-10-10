@@ -1,29 +1,20 @@
 import { createHash, createHmac, randomBytes, randomInt } from "node:crypto";
 
 import { Controller, Get, Global, Module, Req } from "@nestjs/common";
-import {
-  accounts,
-  createDb,
-  roles,
-  seedDefaults,
-  sessions,
-  siteSettings,
-  userRoles,
-  users,
-} from "@wasfa/db";
+import { accounts, createDb, roles, seedDefaults, sessions, userRoles, users } from "@wasfa/db";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import { and, eq } from "drizzle-orm";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
-import { AuthSettingsReader } from "../src/auth/auth-settings.reader.js";
 import { AuthModule } from "../src/auth/auth.module.js";
 import { AuthService } from "../src/auth/auth.service.js";
 import { AUTH_MAILER, type AuthMailer } from "../src/auth/mailer.js";
 import { TURNSTILE_VERIFY_URL } from "../src/auth/turnstile.js";
 import { createApp } from "../src/bootstrap.js";
 import { apiEnvSchema, type ApiEnv } from "../src/config/env.js";
+import { SettingsService } from "../src/settings/settings.service.js";
 
 import { startInfra, type TestInfra } from "./support/infra.js";
 
@@ -122,7 +113,7 @@ let infra: TestInfra;
 let app: NestFastifyApplication;
 let env: ApiEnv;
 let handle: ReturnType<typeof createDb>;
-let settings: AuthSettingsReader;
+let settings: SettingsService;
 
 beforeAll(async () => {
   // Containers first: the Docker client talks HTTP, which msw would otherwise intercept.
@@ -149,7 +140,7 @@ beforeAll(async () => {
   handle = createDb({ url: infra.databaseUrl, max: 2 });
   await seedDefaults(handle.db);
   app = await createApp(env, { extraImports: [MailerTestModule, MeTestModule], authMailer: false });
-  settings = app.get(AuthSettingsReader);
+  settings = app.get(SettingsService);
 });
 
 afterEach(() => {
@@ -424,9 +415,8 @@ describe("email + password", () => {
   });
 
   it("blocks disposable and admin-listed email domains, and a closed sign-up", async () => {
-    const setSetting = async (key: string, value: Record<string, unknown>) => {
-      await handle.db.update(siteSettings).set({ value }).where(eq(siteSettings.key, key));
-      settings.invalidate();
+    const setSetting = async (key: "auth" | "access", value: Record<string, unknown>) => {
+      await settings.set(key, value, { actorId: null });
     };
     try {
       const disposable = await register(`someone@mailinator.com`);
@@ -850,11 +840,11 @@ describe("provider registry", () => {
     expect(callback.headers["location"]).toBe(`${WEB}/login?error=provider_unavailable`);
     expect(jar.size).toBe(0);
 
-    await handle.db
-      .update(siteSettings)
-      .set({ value: { providers: { google: "enabled", facebook: "enabled" } } })
-      .where(eq(siteSettings.key, "auth"));
-    settings.invalidate();
+    await settings.set(
+      "auth",
+      { providers: { google: "enabled", facebook: "enabled" } },
+      { actorId: null },
+    );
     try {
       expect((await call("GET", "/auth/providers")).json()).toContainEqual({
         id: "facebook",
@@ -867,11 +857,11 @@ describe("provider registry", () => {
       const live = await call("GET", "/auth/callback/facebook?code=x&state=y");
       expect(live.headers["location"]).not.toBe(`${WEB}/login?error=provider_unavailable`);
     } finally {
-      await handle.db
-        .update(siteSettings)
-        .set({ value: { providers: { google: "enabled", facebook: "coming_soon" } } })
-        .where(eq(siteSettings.key, "auth"));
-      settings.invalidate();
+      await settings.set(
+        "auth",
+        { providers: { google: "enabled", facebook: "coming_soon" } },
+        { actorId: null },
+      );
     }
   });
 

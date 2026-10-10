@@ -7,6 +7,7 @@ import { RbacModule } from "../rbac/rbac.module.js";
 import { AccessGuard } from "./access.guard.js";
 import { AuthGuard } from "./auth.guard.js";
 import { FreshAuthGuard } from "./fresh-auth.js";
+import { MaintenanceGuard } from "./maintenance.guard.js";
 import { OnboardingStatusRepo } from "./onboarding-status.repo.js";
 import { OriginGuard } from "./origin.guard.js";
 import { PermissionsGuard } from "./permissions.guard.js";
@@ -18,6 +19,7 @@ import { VerifiedGuard } from "./verified.guard.js";
   providers: [
     OriginGuard,
     AuthGuard,
+    MaintenanceGuard,
     PermissionsGuard,
     FreshAuthGuard,
     OnboardingStatusRepo,

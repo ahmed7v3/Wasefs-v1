@@ -3,11 +3,11 @@ import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import { WA_HEARTBEAT_KEY, waStatus, type WaStatus } from "@wasfa/shared/schemas/phone";
 import { Redis } from "ioredis";
 
-import { AuthSettingsReader } from "../auth/auth-settings.reader.js";
 import { AuthRateLimiter, identifierKey } from "../auth/rate-limiter.js";
 import { TurnstileService } from "../auth/turnstile.js";
 import { REDIS } from "../common/redis.js";
 import { API_ENV } from "../config/config.module.js";
+import { SettingsService } from "../settings/settings.service.js";
 
 import { PhoneRepo } from "./phone.repo.js";
 import { PHONE_VERIFIER } from "./phone.tokens.js";
@@ -43,14 +43,14 @@ export class PhoneService {
     @Inject(REDIS) private readonly redis: Redis,
     @Inject(PHONE_VERIFIER) private readonly verifier: PhoneVerifier,
     private readonly repo: PhoneRepo,
-    private readonly settings: AuthSettingsReader,
+    private readonly settings: SettingsService,
     private readonly limiter: AuthRateLimiter,
     private readonly turnstile: TurnstileService,
   ) {}
 
   async availability(): Promise<Availability> {
     const bridge = await this.bridgeStatus();
-    if ((await this.settings.auth()).phoneVerification !== "whatsapp_inbound") {
+    if ((await this.settings.get("auth")).phoneVerification !== "whatsapp_inbound") {
       return { available: false, unavailableReason: "disabled", bridge };
     }
     if (this.env.WHATSAPP_NUMBER === undefined) {

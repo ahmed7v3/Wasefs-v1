@@ -5,11 +5,12 @@ import { reauthSchema } from "@wasfa/shared/schemas/auth";
 import { AuditService } from "../audit/audit.service.js";
 import { Public } from "../common/auth.guard.js";
 import { compileTrust, clientIp, type TrustFn } from "../common/client-ip.js";
+import { AllowDuringMaintenance } from "../common/maintenance.guard.js";
 import { createZodDto, parseWithSchema } from "../common/validation.js";
 import { API_ENV } from "../config/config.module.js";
+import { SettingsService } from "../settings/settings.service.js";
 
 import { mapAuthError } from "./auth-errors.js";
-import { AuthSettingsReader } from "./auth-settings.reader.js";
 import { CLIENT_IP_HEADER } from "./auth.config.js";
 import { AuthPolicy, matchAuthRoute, type AuthRoute, type RouteMatch } from "./auth.policy.js";
 import { AUTH, AuthService } from "./auth.service.js";
@@ -57,6 +58,8 @@ class ReauthDto extends createZodDto(reauthSchema) {}
 
 // Public for the access guard: every route here applies its own checks (allowlist, limits, Turnstile).
 @Public()
+// Sign-in must work in maintenance so admins can get in; sign-up is refused by the user-creation hook.
+@AllowDuringMaintenance()
 @Controller("auth")
 export class AuthController {
   private readonly trust: TrustFn;
@@ -65,7 +68,7 @@ export class AuthController {
     @Inject(AUTH) private readonly auth: AuthInstance,
     @Inject(API_ENV) private readonly env: ApiEnv,
     private readonly policy: AuthPolicy,
-    private readonly settings: AuthSettingsReader,
+    private readonly settings: SettingsService,
     private readonly sessions: AuthService,
     private readonly audit: AuditService,
   ) {
@@ -76,7 +79,7 @@ export class AuthController {
   @Get("providers")
   async providers(@Res({ passthrough: true }) reply: FastifyReply) {
     reply.header("cache-control", "public, max-age=30");
-    return providerStates(this.env, await this.settings.auth());
+    return providerStates(this.env, await this.settings.get("auth"));
   }
 
   /**

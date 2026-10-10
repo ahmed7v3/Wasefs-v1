@@ -116,6 +116,8 @@ Also required for every new route: an integration test for happy path, unauthent
 | `POST /orgs/:id/invites` | cookie | `org_admin` | membership; ≤ 20 pending per org | `createInviteSchema` | 10/min + 30/day per inviter (fail closed) | 1 MB | — (authenticated, capped) | `org.invite_create` (role, channel only) | Done |
 | `DELETE /orgs/:id/invites/:inviteId` | cookie | `org_admin` | `scopedRepo(invites, org_id)` | `orgInviteParamsSchema` | 20/min | — | — | `org.invite_revoke` | Done |
 | `GET /me/invites` | cookie | — | invites addressed to the caller's **verified** email or phone | none | 30/min | — | — | — | Done |
+| `GET /settings/public` | public (the web shell, contact hub and maintenance banner need it before sign-in); allowed during maintenance | — | — | none; returns only `public` registry keys | 120/min | — | — | — | Done |
+| `GET /flags` | cookie | — | the caller's evaluated flags | none | 60/min | — | — | — | Done |
 | `POST /me/invites/:id/accept`, `POST /invites/accept` | cookie | — | invite must be pending and addressed to the caller's verified identifier, else 404 | `idParamSchema` / `acceptInviteTokenSchema` | 10/min | 1 MB | — | `org.invite_accept` | Done |
 
 Everything else under `/auth/*` answers 404 (§4). Tasks 1.5 to 1.11 add their rows here as each endpoint is written.
@@ -276,6 +278,8 @@ Open security items from Phase 0 and design decisions. Each has an owner task; n
 | Email addresses sit in clear in `email.send` job data (Redis, with the last 1000 failed jobs kept); only the links are encrypted. Encrypt `to` too if Redis ever leaves the private network or is snapshotted off-host | Task 1.4 | - |
 | The admin alert at 80 percent of the daily mail cap is a once-a-day warning log plus the `mail:alert:<day>` Redis key; the dashboard surface arrives with the admin panel | Task 1.4 | Phase 8 |
 | ~~`sessions` / `verifications` purge job~~ **Done (Task 1.7):** `auth.purge_expired` every 6 h | Task 1.2 review | Task 1.7 |
+| Settings writes delete the Redis copy; if Redis is down at that moment the old value can be served for up to 10 minutes after it returns (the DB is right). Re-save the setting once Redis is back | Task 1.8 | - |
+| Maintenance mode (`access.maintenanceMode`): every route answers 503 `maintenance` except health, `/auth/*`, `GET /settings/public` and `GET /me`; holders of any platform role bypass it. These 503s are expected and are not stored in `error_events` | Task 1.8 | - |
 | `DELETE /me`'s "sole org_admin" check does not lock membership rows, so a concurrent role change in the same instant could leave an organization without an admin; it is restored by any member's admin promotion from support. Lock if it ever happens | Task 1.7 | - |
 
 ---

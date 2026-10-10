@@ -7,7 +7,6 @@ import {
   organizationMembers,
   organizations,
   seedDefaults,
-  siteSettings,
   userProfiles,
   users,
 } from "@wasfa/db";
@@ -20,11 +19,11 @@ import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { AuthSettingsReader } from "../src/auth/auth-settings.reader.js";
 import { TURNSTILE_VERIFY_URL } from "../src/auth/turnstile.js";
 import { createApp } from "../src/bootstrap.js";
 import { RequireVerified } from "../src/common/verified.guard.js";
 import { RbacService } from "../src/rbac/rbac.service.js";
+import { SettingsService } from "../src/settings/settings.service.js";
 
 import {
   AuthHarness,
@@ -80,7 +79,7 @@ let infra: TestInfra;
 let app: NestFastifyApplication;
 let owner: ReturnType<typeof createDb>;
 let redis: Redis;
-let settings: AuthSettingsReader;
+let settings: SettingsService;
 const harness = new AuthHarness(
   () => app,
   () => owner.db,
@@ -98,7 +97,7 @@ beforeAll(async () => {
     }),
     { extraImports: [harness.mailerModule(), ToolsTestModule], authMailer: false },
   );
-  settings = app.get(AuthSettingsReader);
+  settings = app.get(SettingsService);
   redis = new Redis(infra.redisUrl, { maxRetriesPerRequest: null });
 }, 180_000);
 
@@ -122,13 +121,8 @@ async function bridge(state: "connected" | "gone"): Promise<void> {
 }
 
 async function setPhoneVerification(mode: "whatsapp_inbound" | "disabled"): Promise<void> {
-  const current = (await settings.auth()) as Record<string, unknown>;
-  const value = { ...current, phoneVerification: mode };
-  await owner.db
-    .insert(siteSettings)
-    .values({ key: "auth", value })
-    .onConflictDoUpdate({ target: siteSettings.key, set: { value } });
-  settings.invalidate();
+  const current = await settings.get("auth");
+  await settings.set("auth", { ...current, phoneVerification: mode }, { actorId: null });
 }
 
 const newPhone = () => `+2010${randomInt(10_000_000, 99_999_999)}`;

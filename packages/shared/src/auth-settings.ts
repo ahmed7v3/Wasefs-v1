@@ -1,9 +1,9 @@
 import { z } from "zod";
 
 /*
- * Typed shape of the `auth` and `access` site settings. Task 1.8 moves them into the full settings
- * registry; until then the auth module reads them through these schemas, and an unreadable or
- * missing row falls back to the safe defaults below (Facebook "coming soon", nothing blocked).
+ * Typed shape of the `auth` and `access` site settings, used by the settings registry
+ * (`settings.ts`). An unreadable or missing row falls back to the safe defaults below (Facebook
+ * "coming soon", nothing blocked).
  */
 
 /** Social sign-in providers we know about. Apple joins with the mobile app. */

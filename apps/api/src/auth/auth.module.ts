@@ -3,8 +3,8 @@ import { PinoLogger } from "nestjs-pino";
 
 import { DB, type DbHandle } from "../common/database.js";
 import { API_ENV } from "../config/config.module.js";
+import { SettingsService } from "../settings/settings.service.js";
 
-import { AuthSettingsReader } from "./auth-settings.reader.js";
 import { createAuth } from "./auth.config.js";
 import { AuthController } from "./auth.controller.js";
 import { AuthPolicy } from "./auth.policy.js";
@@ -24,7 +24,6 @@ import type { ApiEnv } from "../config/env.js";
 @Module({
   controllers: [AuthController],
   providers: [
-    AuthSettingsReader,
     AuthRateLimiter,
     TurnstileService,
     AuthPolicy,
@@ -40,7 +39,7 @@ import type { ApiEnv } from "../config/env.js";
       inject: [
         API_ENV,
         DB,
-        AuthSettingsReader,
+        SettingsService,
         PinoLogger,
         PASSWORD_HASHER,
         { token: AUTH_MAILER, optional: true },
@@ -48,7 +47,7 @@ import type { ApiEnv } from "../config/env.js";
       useFactory: (
         env: ApiEnv,
         handle: DbHandle,
-        settings: AuthSettingsReader,
+        settings: SettingsService,
         logger: PinoLogger,
         passwords: PasswordHasher,
         mailer: AuthMailer | null,
@@ -65,6 +64,6 @@ import type { ApiEnv } from "../config/env.js";
       },
     },
   ],
-  exports: [AUTH, AuthService, AuthSettingsReader, AuthRateLimiter, TurnstileService],
+  exports: [AUTH, AuthService, AuthRateLimiter, TurnstileService],
 })
 export class AuthModule {}

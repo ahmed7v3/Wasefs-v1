@@ -18,8 +18,8 @@ import {
 } from "@wasfa/shared/schemas/auth";
 
 import { API_ENV } from "../config/config.module.js";
+import { SettingsService } from "../settings/settings.service.js";
 
-import { AuthSettingsReader } from "./auth-settings.reader.js";
 import { isProviderEnabled } from "./providers.js";
 import { AuthRateLimiter, identifierKey } from "./rate-limiter.js";
 import { TurnstileService } from "./turnstile.js";
@@ -278,12 +278,12 @@ export class AuthPolicy {
     @Inject(API_ENV) private readonly env: ApiEnv,
     private readonly limiter: AuthRateLimiter,
     private readonly turnstile: TurnstileService,
-    private readonly settings: AuthSettingsReader,
+    private readonly settings: SettingsService,
   ) {}
 
   /** Is this provider enabled right now? Used by the controller to redirect callbacks of disabled ones. */
   async providerEnabled(id: string): Promise<boolean> {
-    return isProviderEnabled(this.env, await this.settings.auth(), id);
+    return isProviderEnabled(this.env, await this.settings.get("auth"), id);
   }
 
   async enforce(match: RouteMatch, facts: RequestFacts): Promise<void> {

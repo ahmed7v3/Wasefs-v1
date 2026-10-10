@@ -99,6 +99,14 @@ export class ErrorReporter {
   }
 }
 
+/**
+ * The maintenance 503 is an answer, not a failure: reporting it would write an `error_events` row
+ * (and a log line with a ref) for every request while the site is in maintenance.
+ */
+function isExpected(error: AppError): boolean {
+  return error.httpStatus < 500 || error.details?.["reason"] === "maintenance";
+}
+
 /** Single place that turns any error into the client-safe `{ code, message, details?, ref? }`. */
 export async function sendError(
   error: unknown,
@@ -108,7 +116,7 @@ export async function sendError(
 ): Promise<void> {
   const locale = requestLocale(request);
   const known = toAppError(error);
-  if (known && known.httpStatus < 500) {
+  if (known && isExpected(known)) {
     await reply.status(known.httpStatus).send(known.toResponse(locale));
     return;
   }

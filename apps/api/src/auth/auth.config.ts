@@ -19,10 +19,10 @@ import { isBlockedEmailDomain } from "./disposable-domains.js";
 import { phonePasswordPlugin } from "./phone-plugin.js";
 import { providerCredentials } from "./providers.js";
 
-import type { AuthSettingsReader } from "./auth-settings.reader.js";
 import type { AuthMailer } from "./mailer.js";
 import type { PasswordHasher } from "./password.js";
 import type { ApiEnv } from "../config/env.js";
+import type { SettingsService } from "../settings/settings.service.js";
 
 export const SESSION_COOKIE_PREFIX = "wasfa";
 /** Better Auth does not apply `cookiePrefix` to a custom cookie name, so the full name is spelled out. */
@@ -38,7 +38,7 @@ export interface AuthDeps {
   env: ApiEnv;
   db: Database;
   mailer: AuthMailer;
-  settings: AuthSettingsReader;
+  settings: SettingsService;
   passwords: PasswordHasher;
   log: (level: "debug" | "info" | "warn" | "error", message: string) => void;
 }
@@ -172,8 +172,9 @@ export function createAuth(deps: AuthDeps) {
       user: {
         create: {
           before: async (user) => {
-            const access = await settings.access();
-            if (!access.signupOpen) {
+            const access = await settings.get("access");
+            // Maintenance closes sign-up too: no new accounts while the site is being worked on.
+            if (!access.signupOpen || access.maintenanceMode) {
               // Not 403: Better Auth answers a 403 during sign-up with a fake success, to hide duplicates.
               throw APIError.from("BAD_REQUEST", {
                 code: AuthCode.SIGNUP_CLOSED,
@@ -181,7 +182,7 @@ export function createAuth(deps: AuthDeps) {
               });
             }
             if (!isPlaceholderEmail(user.email)) {
-              const auth = await settings.auth();
+              const auth = await settings.get("auth");
               if (isBlockedEmailDomain(user.email, auth.blockedEmailDomains)) {
                 throw APIError.from("BAD_REQUEST", {
                   code: AuthCode.EMAIL_DOMAIN_BLOCKED,

@@ -218,8 +218,8 @@ Steps
 5. Feature flags: rule evaluation `all | user | org | percentage` (stable hash of user id); `plan` targeting type defined and evaluated once plans exist (Phase 2). `GET /flags` returns flags for the current user.
 
 Acceptance
-- [ ] Invalid setting value is rejected with field paths; a write invalidates the cache (test reads new value immediately).
-- [ ] Percentage rollout is stable for the same user across calls.
+- [x] Invalid setting value is rejected with field paths; a write invalidates the cache (test reads new value immediately). *(`settings.int.test.ts`, including a second app instance on the same Redis seeing the change through pub/sub.)*
+- [x] Percentage rollout is stable for the same user across calls. *(`flags.units.test.ts`: stable per user, independent per flag key, proportional within 3 points over 10 000 ids.)*
 
 ---
 
@@ -376,6 +376,13 @@ Acceptance
   - **Invites (deviation in delivery)**: email invites carry the token in the URL **fragment** (`/invite#<token>`), so it never reaches server or proxy logs; only its SHA-256 is stored. **Phone invites send nothing** (the WhatsApp number never starts a conversation): the invitee sees them in `GET /me/invites` once the phone is verified and accepts by id. Accepting always requires the caller's *verified* email or phone to match. Caps: 20 pending per org, 30 per inviter per day (fail closed).
   - **Account deletion**: `DELETE /me` needs fresh auth (5 min), is refused for the sole `org_admin` of an organization with members, and sets `deleted` + kills sessions in one transaction. The worker anonymizes after 14 days as DATABASE.md §5 describes. **Unverified accounts are anonymized after 7 days** instead of being deleted (decision #22 holds), which frees squatted addresses (SECURITY.md §11 item closed). The worker now requires `DATABASE_URL` (restricted role `wasfa_api`, same `API_DB_PASSWORD`; compose updated, no new secret).
   - **One verified account per phone** was already enforced by `users_phone_verified_key` with a friendly `phone_in_use` result (Task 1.5). A deleted account keeps its number until anonymized, which also stops delete-and-re-register farming.
+
+- **Task 1.8 (settings and flags)**
+  - **Registry** in `@wasfa/shared/settings`: every key has a zod schema whose defaults are the safe default, and a visibility. `access` is **public** (the web shows maintenance / sign-up closed) and `free_tier` too; only `auth` is admin. The seed now derives from the registry (still insert-only).
+  - **Cache**: in-process 30 s → Redis 10 min → DB → default. Writes invalidate Redis and publish on `settings:invalidate` / `flags:invalidate`, which every replica's subscriber uses to drop its in-process copy. Only valid DB rows are cached in Redis, so a corrupt row cannot be pinned for 10 minutes. Known limit (SECURITY §11): a write during a Redis outage leaves the old Redis copy until its TTL.
+  - **Maintenance**: a step of `AccessGuard` after the session (deviation from "a global guard": it is the sixth step of the existing composite, for the ordering reason of decision #24). Exempt: health, `/auth/*`, `GET /settings/public`, `GET /me`; any platform role bypasses. Sign-up is refused during maintenance, like `signupOpen = false`. The 503 is **not** stored in `error_events` (it would write a row per request).
+  - **Flags**: rules `all | user | org | percentage | plan` (`{}` = all). Percentage bucket = first 4 bytes of sha256(`<flag key>:<user id>`) mod 100, so cohorts differ per flag. `plan` is false until plans exist. Admin write methods exist on the services; their HTTP routes are Task 1.10.
+  - `AuthSettingsReader` is deleted; tests switch settings through `SettingsService.set`.
 
 ## Open questions
 - Should admins be allowed to "act as user" (read-only, time-boxed) in Phase 1, or wait for Phase 4 support tooling? Planned: Phase 4.
