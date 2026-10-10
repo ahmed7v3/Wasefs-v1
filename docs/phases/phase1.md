@@ -120,7 +120,7 @@ Acceptance
 - [x] Worker integration test: an enqueued email lands in `CaptureTransport` with the correct RTL template; an invalid payload is rejected by schema. *(`apps/worker/test/email.int.test.ts`, real Redis 8; template unit tests in `email.units.test.ts`.)*
 - [x] No plaintext token in Redis job data, logs, or `error_events` (test greps for it). *(Greps `bull:notifications:*` including failed history, and the log output. The worker has no `error_events` writer. `apps/api/test/notifications.int.test.ts` proves the api side through a real sign-up.)*
 - [x] Cap guard test: the 281st non-critical mail of the day is delayed, and a verification mail still sends. *(Guard test with cap 280, and a job-level test with cap 2: the third invite is `delayed` with `attemptsMade = 0`, a verification mail still goes.)*
-- [ ] mail-tester.com score ≥ 9/10 from production. *(Owner action after the first deploy with Brevo: DNS records and the test are in DOCKER-GUIDE 3.7. Not verifiable from here.)*
+- [ ] mail-tester.com score ≥ 9/10 from production. *(Brevo domain authenticated (DKIM x2, SPF, DMARC, brevo-code), sender active, SMTP key tested from the workstation: `250 OK`. The mail-tester run itself still waits for the deploy of this branch.)*
 
 ---
 

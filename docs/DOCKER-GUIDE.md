@@ -255,9 +255,9 @@ first two; see `.env.example` for what each one does):
 
 **Brevo state (2026-10-10, set up through the Brevo MCP):** free plan, 299 sends/day; SMTP login
 `bd8752001@smtp-brevo.com` on `smtp-relay.brevo.com:587` (the SMTP **key** can only be created in the
-dashboard: SMTP & API > SMTP > Generate). Domain `wasfa.online` added (not yet authenticated) and sender
-`"وصفة AI" <no-reply@wasfa.online>` created (inactive until the DNS below exists and Brevo's confirmation
-mail to that address is clicked; Namecheap forwarding delivers it). DNS records Brevo requires, all
+dashboard: SMTP & API > SMTP > Generate). Domain `wasfa.online` **authenticated** and sender
+`"وصفة AI" <no-reply@wasfa.online>` **active**; a test mail through the relay with the production key
+was accepted (`250 2.0.0 OK`). The SMTP settings are in the server's `.env.prod`. DNS records Brevo requires, all
 **DNS only** in Cloudflare:
 
 | Type | Name | Value |
