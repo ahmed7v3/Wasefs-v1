@@ -43,6 +43,13 @@
       "when": 1791631154740,
       "tag": "0005_session_assurance_and_api_role",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791645263137,
+      "tag": "0006_contact_messages",
+      "breakpoints": true
     }
   ]
 }

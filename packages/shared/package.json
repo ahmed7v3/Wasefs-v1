@@ -95,6 +95,11 @@
       "import": "./dist/schemas/org.js",
       "default": "./dist/schemas/org.js"
     },
+    "./schemas/contact": {
+      "types": "./dist/schemas/contact.d.ts",
+      "import": "./dist/schemas/contact.js",
+      "default": "./dist/schemas/contact.js"
+    },
     "./schemas/onboarding": {
       "types": "./dist/schemas/onboarding.d.ts",
       "import": "./dist/schemas/onboarding.js",

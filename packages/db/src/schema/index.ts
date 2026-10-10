@@ -1,5 +1,6 @@
 export * from "./audit-logs.js";
 export * from "./auth.js";
+export * from "./contact-messages.js";
 export * from "./error-events.js";
 export * from "./feature-flags.js";
 export * from "./onboarding.js";

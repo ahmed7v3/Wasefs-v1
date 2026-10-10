@@ -1,6 +1,7 @@
 import {
   accounts,
   auditLogs,
+  contactMessages,
   onboardingProgress,
   organizationInvites,
   organizationMembers,
@@ -146,6 +147,17 @@ export async function anonymizeUser(
         or(
           eq(organizationInvites.email, user.email),
           user.phone === null ? undefined : eq(organizationInvites.phone, user.phone),
+        ),
+      );
+
+    // Messages they sent us through the contact form (signed in, or from the same address or number).
+    await tx
+      .delete(contactMessages)
+      .where(
+        or(
+          eq(contactMessages.userId, userId),
+          eq(contactMessages.email, user.email),
+          user.phone === null ? undefined : eq(contactMessages.phone, user.phone),
         ),
       );
 

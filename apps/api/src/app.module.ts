@@ -11,6 +11,7 @@ import { AppLoggerModule } from "./common/logger.js";
 import { RedisModule } from "./common/redis.js";
 import { ZodValidationPipe } from "./common/validation.js";
 import { ConfigModule } from "./config/config.module.js";
+import { ContactModule } from "./contact/contact.module.js";
 import { FlagsModule } from "./flags/flags.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { NotificationsModule } from "./notifications/notifications.module.js";
@@ -50,6 +51,7 @@ export class AppModule {
         AuthModule,
         AccessModule,
         PhoneModule,
+        ContactModule,
         OnboardingModule,
         UsersModule,
         OrgsModule,

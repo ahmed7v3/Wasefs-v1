@@ -117,6 +117,7 @@ Also required for every new route: an integration test for happy path, unauthent
 | `DELETE /orgs/:id/invites/:inviteId` | cookie | `org_admin` | `scopedRepo(invites, org_id)` | `orgInviteParamsSchema` | 20/min | — | — | `org.invite_revoke` | Done |
 | `GET /me/invites` | cookie | — | invites addressed to the caller's **verified** email or phone | none | 30/min | — | — | — | Done |
 | `GET /settings/public` | public (the web shell, contact hub and maintenance banner need it before sign-in); allowed during maintenance | — | — | none; returns only `public` registry keys | 120/min | — | — | — | Done |
+| `POST /contact` | public (visitors without an account); an optional session only sets `user_id` | — | insert only | `contactMessageSchema` | 10/min + fail-closed 5/h and 20/day per IP, 300/h global, all before Turnstile | message ≤ 4000 chars | always (when a secret is configured) | — | Done |
 | `GET /flags` | cookie | — | the caller's evaluated flags | none | 60/min | — | — | — | Done |
 | `POST /me/invites/:id/accept`, `POST /invites/accept` | cookie | — | invite must be pending and addressed to the caller's verified identifier, else 404 | `idParamSchema` / `acceptInviteTokenSchema` | 10/min | 1 MB | — | `org.invite_accept` | Done |
 
@@ -226,6 +227,7 @@ Design in phase1.md Task 1.5. The security properties that must hold:
 | Name, profession, country, city, usage intent | `users.name`, `user_profiles` | Product, segmentation | Deleted at anonymization. |
 | Password hash, OAuth tokens, TOTP secret | `accounts`, `two_factors` | Authentication | Deleted at anonymization. OAuth tokens and TOTP are encrypted. |
 | IP address and user agent | `sessions`, `audit_logs` | Session list, abuse investigation | Session rows purged with the session (expiry job); audit rows kept (admin actors only, no end-user PII beyond ids). |
+| Contact messages (name, email/phone, free text) | `contact_messages` | Answering the sender | Deleted when the sender's account is anonymized (matched by account, email or phone); otherwise kept until the Phase 4 ticket inbox defines a retention period. |
 | Error context | `error_events` | Support | Redacted at write; retention policy set when the Issues page ships (Task 1.10). |
 
 Health data does not exist in Phase 1. The privacy policy (Task 1.11) must describe all of the above, cite Egypt's Law 151/2020 and the KSA and UAE PDPL, and state the retention in this table. Data-retention consent follows decision #8 (consent in the policy; retained data is anonymized before storage).
@@ -264,7 +266,7 @@ Open security items from Phase 0 and design decisions. Each has an owner task; n
 | Attach an Elastic IP; restrict SSH (22) in the security group to the owner's IP; rotate the Cloudflare token used for setup | Phase 0 notes | Task 1.12 |
 | **Bot Fight Mode on the API host may challenge payment webhooks** (the free plan cannot skip it per path) | Phase 0 notes | Phase 3 (Kashier webhooks) |
 | ~~Requests to unknown routes are not rate limited~~ **Done (Task 1.3):** 20 per minute per IP on anything that falls through to the 404 handler (`common/not-found-limit.ts`) | Phase 0 | Task 1.3 |
-| The global rate limiter is **fail-open when Redis is down** (`skipOnError`). **Done for auth (Task 1.3):** the auth limits are separate counters that fail closed (`UPSTREAM_UNAVAILABLE`, tested). The phone-verification start (Task 1.5) and the contact form (Task 1.11) must do the same | Phase 0 | Task 1.3 / 1.5 / 1.11 |
+| The global rate limiter is **fail-open when Redis is down** (`skipOnError`). **Done for auth (Task 1.3), phone start (Task 1.5) and the contact form (Task 1.11):** separate counters that fail closed (`UPSTREAM_UNAVAILABLE`, tested) | Phase 0 | Task 1.3 / 1.5 / 1.11 |
 | `Cross-Origin-Opener-Policy: same-origin` breaks popup-based OAuth; Google uses a redirect flow, so keep redirect and re-check if a popup is ever added | Phase 0 | Task 1.9 |
 | Pages are rendered per request because of the CSP nonce, so HTML is not CDN-cacheable; decide nonce vs hash-based CSP for the SEO pages (landing, legal) | Decision #10 | Task 1.11 |
 | `.trivyignore.yaml` entries (age's Go standard library advisories) expire **2026-12-01**; re-evaluate then | Phase 0 | Before 2026-12-01 |

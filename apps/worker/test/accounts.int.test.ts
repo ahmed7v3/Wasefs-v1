@@ -3,6 +3,7 @@ import {
   auditLogs,
   createDb,
   onboardingProgress,
+  contactMessages,
   organizationInvites,
   organizationMembers,
   organizations,
@@ -285,11 +286,21 @@ describe("account.anonymize_due: deletion requests", () => {
       .insert(organizationInvites)
       .values([
         invite({ email: user.email }, "email"),
+        { ...invite({ email: user.email }, "accepted"), acceptedAt: new Date() },
         invite({ phone }, "phone"),
         invite({ email: "someone.else@example.com" }, "other"),
       ]);
+    await owner.db.insert(contactMessages).values([
+      { name: "Me", email: user.email, topic: "support", message: "hello from my email" },
+      { name: "Me", phone, topic: "support", message: "hello from my phone" },
+      { name: "Me", userId: user.id, email: "alias@example.com", topic: "other", message: "signed in" },
+      { name: "Them", email: "someone.else@example.com", topic: "general", message: "not mine" },
+    ]);
 
     await run();
+
+    const messages = await owner.db.select().from(contactMessages);
+    expect(messages.map((message) => message.email)).toEqual(["someone.else@example.com"]);
 
     const left = await owner.db
       .select()

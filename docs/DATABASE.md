@@ -68,13 +68,13 @@
 | `user_roles` | Which platform roles a user holds (the implicit `user` role has no row). | `user_id` for the user's own permission resolution; admin writes only. |
 | `onboarding_progress` | Resumable wizard state, 1:1 with `users`. | `user_id` |
 | `wa_sessions` | Encrypted Baileys auth state of the WhatsApp bridge (`session`, `key`, AES-256-GCM `value`, Task 1.5). | None: not user data; read only by the bridge. |
+| `contact_messages` | Contact-form submissions (Task 1.11): name, email and/or phone (`contact_messages_contact_check`), topic, message (≤ 4000), locale, optional `user_id` (`SET NULL`), status `new | read | archived`. Becomes the Phase 4 ticket inbox. | Platform; no read route yet (`contact.*` permission arrives with its admin view). Deleted by the anonymization job for the sender. |
 
 ### Phase 1 — later tasks (*planned*)
 
 | Table | Task | Purpose |
 |---|---|---|
 | `wa_sessions` | 1.5 | Encrypted Baileys auth state for the WhatsApp bridge. Platform; never exposed. |
-| `contact_messages` | 1.11 | Contact-form submissions (become tickets in Phase 4). Platform; `contact.*` permission arrives with its admin view. |
 
 Phase 2-4 tables (plans, credit ledger, AI usage, drugs, payments, blog, tickets, ...) are described in ARCHITECTURE.md and enter this file when they are built.
 
@@ -150,7 +150,7 @@ Not added yet, on purpose: a trigram index for admin user search by name/email/p
 - Deleted outright: the user's `accounts`, `sessions`, `verifications` (matched by the old email), `two_factors`, `user_profiles`, `onboarding_progress`, `user_roles`, `organization_members`.
 - Kept: the `users` row itself and its id, so foreign keys from future payments, usage and audit history stay valid. `audit_logs` must never hold PII beyond ids (writers use a field allowlist, SECURITY.md §7).
 - A user who is the **last `org_admin`** of an organization with other members cannot be deleted until they hand over admin rights (service rule, `CONFLICT last_org_admin`).
-- Also deleted: every `organization_invites` row addressed to the old email or phone (pending or accepted), and organizations the user was in that are left with no members.
+- Also deleted: the person's `contact_messages` (by `user_id`, old email or old phone), every `organization_invites` row addressed to the old email or phone (pending or accepted), and organizations the user was in that are left with no members.
 - **Never-verified accounts** (no verified email, no verified phone) are anonymized the same way 7 days after sign-up, with no grace period beyond that (`UNVERIFIED_ACCOUNT_TTL_DAYS`); this frees an address someone squatted.
 - Done by the worker job `account.anonymize_due` (hourly, batches of 100, one transaction per user that re-checks the due condition under a row lock, so a restore in between wins); each anonymization writes `audit_logs` `user.anonymize` with `actor_id = null` and `after = {reason}`. The worker connects as `wasfa_api`.
 - A deleted account keeps its verified phone until anonymized, which also stops delete-and-re-register farming of the free tier.
