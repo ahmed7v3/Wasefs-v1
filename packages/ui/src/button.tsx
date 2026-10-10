@@ -1,4 +1,5 @@
 import { cn } from "./cn";
+import { Spinner } from "./spinner";
 
 import type { ButtonHTMLAttributes } from "react";
 
@@ -39,8 +40,33 @@ export function buttonStyles({
 }
 
 export interface ButtonProps
-  extends ButtonHTMLAttributes<HTMLButtonElement>, Omit<ButtonStyleOptions, "className"> {}
+  extends ButtonHTMLAttributes<HTMLButtonElement>, Omit<ButtonStyleOptions, "className"> {
+  /** Shows a spinner and blocks clicks while the action runs (prevents double submit, DESIGN-SYSTEM §6.5). */
+  loading?: boolean | undefined;
+}
 
-export function Button({ variant, size, className, type = "button", ...props }: ButtonProps) {
-  return <button type={type} className={buttonStyles({ variant, size, className })} {...props} />;
+export function Button({
+  variant,
+  size,
+  className,
+  type = "button",
+  loading = false,
+  disabled,
+  children,
+  ...props
+}: ButtonProps) {
+  const isDisabled = disabled || loading;
+  return (
+    <button
+      type={type}
+      className={buttonStyles({ variant, size, className })}
+      disabled={isDisabled}
+      aria-disabled={isDisabled || undefined}
+      aria-busy={loading || undefined}
+      {...props}
+    >
+      {loading ? <Spinner decorative /> : null}
+      {children}
+    </button>
+  );
 }

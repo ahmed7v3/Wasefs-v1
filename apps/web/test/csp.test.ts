@@ -59,6 +59,31 @@ describe("buildCsp", () => {
     expect(directive(csp, "frame-src")).toEqual(["https://challenges.cloudflare.com"]);
   });
 
+  it("allows Cloudflare Turnstile only when a site key is configured", () => {
+    const off = buildCsp(base);
+    expect(off).not.toContain("challenges.cloudflare.com");
+    expect(directive(off, "frame-src")).toEqual(["'none'"]);
+
+    const on = buildCsp({ ...base, turnstile: true });
+    expect(directive(on, "script-src")).toContain("https://challenges.cloudflare.com");
+    expect(directive(on, "frame-src")).toEqual(["https://challenges.cloudflare.com"]);
+    // Nothing else widens: no inline scripts, no extra connect sources.
+    expect(on).not.toContain("unsafe-inline");
+    expect(directive(on, "connect-src")).toEqual(["'self'", "https://api.wasfa.online"]);
+  });
+
+  it("keeps env extras next to Turnstile in frame-src", () => {
+    const csp = buildCsp({
+      ...base,
+      turnstile: true,
+      extra: { frame: ["https://player.example"] },
+    });
+    expect(directive(csp, "frame-src")).toEqual([
+      "https://challenges.cloudflare.com",
+      "https://player.example",
+    ]);
+  });
+
   it("only upgrades insecure requests when asked", () => {
     expect(buildCsp(base)).toContain("upgrade-insecure-requests");
     expect(buildCsp({ ...base, upgradeInsecure: false })).not.toContain(

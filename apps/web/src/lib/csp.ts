@@ -3,6 +3,9 @@
  * `proxy.ts` calls it once per request with a fresh nonce.
  */
 
+/** Cloudflare Turnstile loads its script from here and renders the challenge in an iframe. */
+export const TURNSTILE_ORIGIN = "https://challenges.cloudflare.com";
+
 /** A host source such as `https://challenges.cloudflare.com` or `https://*.example.com`. */
 const SOURCE_PATTERN = /^https?:\/\/(\*\.)?[a-z0-9.-]+(:\d{1,5})?$/i;
 
@@ -30,6 +33,8 @@ export interface CspOptions {
   apiOrigin: string;
   /** Rewrites http subresources to https. Off outside production so local http still works. */
   upgradeInsecure: boolean;
+  /** A Turnstile site key is configured: allow Cloudflare's script and challenge frame. */
+  turnstile?: boolean;
   /** Extra sources, e.g. Turnstile (`https://challenges.cloudflare.com`) or analytics hosts. */
   extra?: {
     script?: readonly string[];
@@ -44,9 +49,11 @@ export function buildCsp({
   isDev,
   apiOrigin,
   upgradeInsecure,
+  turnstile = false,
   extra = {},
 }: CspOptions): string {
-  const frames = extra.frame ?? [];
+  const turnstileSources = turnstile ? [TURNSTILE_ORIGIN] : [];
+  const frames = [...turnstileSources, ...(extra.frame ?? [])];
   const directives: [string, string[]][] = [
     ["default-src", ["'self'"]],
     [
@@ -56,6 +63,7 @@ export function buildCsp({
         `'nonce-${nonce}'`,
         // Scripts loaded by a nonced script are trusted; host allow-lists are then ignored.
         "'strict-dynamic'",
+        ...turnstileSources,
         ...(extra.script ?? []),
         ...(isDev ? ["'unsafe-eval'"] : []),
       ],
