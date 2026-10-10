@@ -55,10 +55,18 @@ api_ready() {
     >/dev/null 2>&1
 }
 
+# The front door must be up too: a release whose Caddy cannot start (bad certificate, bad
+# Caddyfile) serves nothing, even though the API itself answers.
+caddy_healthy() {
+  local id
+  id="$(dc ps -q caddy 2>/dev/null | head -n 1)"
+  [[ -n "$id" && "$(docker inspect -f '{{.State.Health.Status}}' "$id" 2>/dev/null)" == "healthy" ]]
+}
+
 wait_ready() {
   local waited=0
   while (( waited < READY_TIMEOUT )); do
-    if api_ready; then return 0; fi
+    if api_ready && caddy_healthy; then return 0; fi
     sleep 2
     waited=$(( waited + 2 ))
   done
