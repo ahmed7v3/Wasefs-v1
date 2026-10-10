@@ -1,14 +1,9 @@
-import { fileURLToPath } from "node:url";
-
-import { migrate } from "drizzle-orm/postgres-js/migrator";
-
 import { createDb } from "./client.js";
-
-const migrationsFolder = fileURLToPath(new URL("../migrations", import.meta.url));
+import { runMigrations } from "./migrations.js";
 
 const { db, close } = createDb({ max: 1 });
 try {
-  await migrate(db, { migrationsFolder });
+  await runMigrations(db);
   process.stdout.write("Migrations applied.\n");
 } catch (error) {
   process.stderr.write(`Migration failed: ${error instanceof Error ? error.message : "unknown"}\n`);

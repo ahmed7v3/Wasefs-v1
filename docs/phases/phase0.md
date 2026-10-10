@@ -96,11 +96,11 @@ Steps
 11. Graceful shutdown (close Fastify, DB pool, Redis) on SIGTERM.
 
 Acceptance
-- [ ] `curl /health/ready` → 200 with DB + Redis up, 503 when Postgres is stopped.
-- [ ] Throwing an unknown error in a test route returns `{ code: 'INTERNAL', ref: 'WSF-…' }` and creates an `error_events` row; stack never appears in the response.
-- [ ] 121st request in a minute from same IP → 429 with `RATE_LIMITED`.
-- [ ] Request from a non-allowlisted Origin gets no CORS headers.
-- [ ] Integration tests (Testcontainers) cover the above.
+- [x] `curl /health/ready` → 200 with DB + Redis up, 503 when Postgres is stopped. *(verified on the built server: 200 → stop Postgres → 503 → start → 200)*
+- [x] Throwing an unknown error in a test route returns `{ code: 'INTERNAL', ref: 'WSF-…' }` and creates an `error_events` row; stack never appears in the response.
+- [x] 121st request in a minute from same IP → 429 with `RATE_LIMITED`.
+- [x] Request from a non-allowlisted Origin gets no CORS headers.
+- [x] Integration tests (Testcontainers) cover the above. *(38 API tests + 1 db seed test, all passing against `postgres:18-alpine` + `redis:8-alpine` containers.)*
 
 ---
 
@@ -262,6 +262,20 @@ Acceptance
   - `t()` substitutes only the caller's own params (`Object.hasOwn`), never inherited object properties.
   - Decisions recorded in the tasks: the API is ESM (Task 0.4), and the production `migrate` container runs `node packages/db/dist/migrate.js` (Task 0.7).
   - Deferred: seed-idempotency integration test (with Task 0.4 Testcontainers); DB role that blocks UPDATE/DELETE on `audit_logs` (SECURITY.md).
+
+- **Task 0.4 deviations**
+  - Nest pinned to **11.x** (11.2.7) as locked in AGENT.md, although 12.x is now `latest`. `fastify` is pinned to `5.11.3` and `@fastify/cors` to `11.3.0`, the exact versions `@nestjs/platform-fastify@11.2.7` uses, so there is only one copy of each type. `ioredis` is on 5.x, because 6.0 is only ~2 months old.
+  - Validation is a custom `ZodValidationPipe` + `createZodDto(schema)`, not `nestjs-zod`. It is about 40 lines, works with zod 4, and returns `details.fields` (paths only, never values).
+  - Extra env keys (all have defaults): `HOST` (0.0.0.0), `PORT` (4000), `RATE_LIMIT_MAX` (120), `LOG_LEVEL` (info). `WEB_ORIGIN` takes a comma-separated list of exact origins. `TRUST_PROXY` takes comma-separated IPs/CIDRs; empty means trust nobody.
+  - `CF-Connecting-IP` is used for rate-limit keys only when the TCP peer matches `TRUST_PROXY`. The request id is `cf-ray` only when it matches Cloudflare's format; otherwise it is a UUIDv7. It is echoed as `x-request-id`.
+  - Rate limiter uses `skipOnError: true`: if Redis is down the API keeps serving (readiness reports 503, and Cloudflare rules still apply). Revisit for AI/auth routes in their phases, where a fail-closed per-route limit may be preferable.
+  - Errors raised before a handler runs (rate limit, 1 MB body limit → 413, bad JSON) go through the same `AllExceptionsFilter`, via the Fastify error handler that Nest installs. 4xx statuses with no matching code map to `VALIDATION_FAILED`. Locale is `en` only when `Accept-Language` starts with `en`; otherwise `ar`.
+  - `error_events.message`/`stack` pass through `redactText` (emails, phones, bearer tokens, DSN passwords). `route` stores the route pattern, never the raw URL.
+  - `encryptSecret` format is `v1.<iv>.<tag>.<ciphertext>` (base64url), with an optional AAD `context` that binds a ciphertext to its row. `maskSecret` was added for admin display.
+  - `pnpm dev` (api) runs TS directly via `@swc-node/register` (esbuild/tsx cannot emit decorator metadata) and loads the repo-root `.env` if present (`--env-file-if-exists`). Tests use `unplugin-swc` for the same reason.
+  - `packages/db` gained `runMigrations()` / `MIGRATIONS_FOLDER` (used by the CLI and tests) and a `connectTimeoutSeconds` option. The deferred **seed-idempotency integration test** now exists (`packages/db/test/seed.int.test.ts`).
+  - Integration tests start `postgres:18-alpine` + `redis:8-alpine` with Testcontainers. If `TEST_DATABASE_URL` + `TEST_REDIS_URL` are set, they use those services instead (`turbo.json` passes these and `DOCKER_*`/`TESTCONTAINERS_*` through). Both paths are verified: first via the fallback (throwaway PostgreSQL 18.4 cluster + local Windows Redis 3.0.504) while Docker Desktop was down, then via Testcontainers (Docker 29.8.2) with all 64 workspace tests passing.
+  - Graceful shutdown: `enableShutdownHooks(SIGTERM, SIGINT)` closes Fastify, then the DB pool and Redis (`OnApplicationShutdown`). Covered by `app.close()` in tests; a real SIGTERM can't be sent on Windows, so it gets checked in the Docker setup (Task 0.7).
 
 ## Open questions
 - ~~Commit for Task 0.1 not made.~~ **Resolved:** `wasfa.online` is now its own git repo (remote `github.com/ahmed7v3/Wasefs-v1`); Task 0.1 is committed as `4d17aed`. Never commit from the `C:/Users/hp` home repo.
