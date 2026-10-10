@@ -6,6 +6,8 @@
 tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key {
 	client_auth {
 		mode require_and_verify
-		trusted_ca_cert_file /etc/caddy/certs/cloudflare-origin-pull-ca.pem
+		trust_pool file {
+			pem_file /etc/caddy/certs/cloudflare-origin-pull-ca.pem
+		}
 	}
 }

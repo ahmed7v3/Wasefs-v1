@@ -35,7 +35,9 @@ services:
     read_only: true
     tmpfs:
       - /tmp
-    cap_add: [NET_BIND_SERVICE]
+    # NET_BIND_SERVICE: ports 80/443. DAC_READ_SEARCH: read the 600 certificate key owned by `deploy`
+    # (Caddy runs as root inside the container but with every other capability dropped).
+    cap_add: [NET_BIND_SERVICE, DAC_READ_SEARCH]
     ports:
       # Overridable only so the stack can run next to other software on a developer machine.
       - "${HTTP_PORT:-80}:80"
