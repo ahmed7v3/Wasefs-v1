@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Provisions a fresh Ubuntu 24.04 LTS server (AWS EC2) for the Wasfa production stack.
+# Provisions a fresh Ubuntu 24.04 / 26.04 LTS server (AWS EC2) for the Wasfa production stack.
 # Idempotent: safe to run again after a failure or to pick up a changed setting.
 #
 #   sudo OWNER_IP_CIDR=203.0.113.7/32 \
@@ -59,7 +59,7 @@ write_file() {
 if [[ -r /etc/os-release ]]; then
   # shellcheck disable=SC1091
   . /etc/os-release
-  [[ "${ID:-}" == "ubuntu" && "${VERSION_ID:-}" == "24.04" ]] || die "Ubuntu 24.04 LTS required (found ${PRETTY_NAME:-unknown})"
+  [[ "${ID:-}" == "ubuntu" && ( "${VERSION_ID:-}" == "24.04" || "${VERSION_ID:-}" == "26.04" ) ]]     || die "Ubuntu 24.04 or 26.04 LTS required (found ${PRETTY_NAME:-unknown})"
 fi
 
 if [[ -z "${OWNER_IP_CIDR:-}" && "${ALLOW_SSH_FROM_ANYWHERE:-0}" != "1" ]]; then
