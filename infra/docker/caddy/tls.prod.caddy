@@ -1,0 +1,11 @@
+# Production TLS: Cloudflare Origin Certificate + Authenticated Origin Pulls (mTLS).
+# A request that did not come through Cloudflare has no Cloudflare client certificate, so the TLS
+# handshake fails: hitting the server IP directly gets nothing.
+#   origin.pem / origin.key              created in Cloudflare -> SSL/TLS -> Origin Server
+#   cloudflare-origin-pull-ca.pem        https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem
+tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key {
+	client_auth {
+		mode require_and_verify
+		trusted_ca_cert_file /etc/caddy/certs/cloudflare-origin-pull-ca.pem
+	}
+}

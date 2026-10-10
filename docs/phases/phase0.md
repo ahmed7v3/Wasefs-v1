@@ -165,11 +165,11 @@ Steps
 7. `.env.example` lists every variable with comments; no real values.
 
 Acceptance
-- [ ] `docker compose -f infra/docker/compose.prod.yml config` validates.
-- [ ] Locally, prod compose brings everything up healthy; `curl -k https://localhost/health/ready` (via Caddy with internal cert in local mode) → 200.
-- [ ] `docker exec api id` shows a non-root uid; root filesystem is read-only.
-- [ ] Postgres/Redis unreachable from the host network in prod compose.
-- [ ] Image sizes: web < 250 MB, api < 200 MB, worker < 200 MB.
+- [x] `docker compose -f infra/docker/compose.prod.yml config` validates. *(Needs the variables: `docker compose --env-file .env.example -f compose.prod.yml config -q` passes; without an env file it fails by design on the first missing required secret.)*
+- [x] Locally, prod compose brings everything up healthy; `curl -k https://localhost/health/ready` (via Caddy with internal cert in local mode) → 200. *(All 6 services healthy; `curl -sk --resolve api.wasfa.online:8443:127.0.0.1 https://api.wasfa.online:8443/health/ready` → 200 `{"status":"ok"}` through Caddy with `CADDY_TLS_FILE=./caddy/tls.local.caddy`. The Host header must match a site, hence `--resolve` instead of `localhost`.)*
+- [x] `docker exec api id` shows a non-root uid; root filesystem is read-only. *(api, web, worker: `uid=1000(node)`; `touch /probe` → "Read-only file system"; `/tmp` writable.)*
+- [x] Postgres/Redis unreachable from the host network in prod compose. *(No `ports:`; `docker ps` shows only `5432/tcp` / `6379/tcp` unpublished; connecting to 127.0.0.1:5432 and :6379 fails; the `internal` network is `internal: true`.)*
+- [ ] Image sizes: web < 250 MB, api < 200 MB, worker < 200 MB. *(`docker image ls` unpacked: web 231 MB ✓, worker 194 MB ✓, **api 214 MB ✗ (14 MB over)**. Compressed (what a server pulls): web 61 MB, api 52 MB, worker 51 MB. The Node 24 binary alone is 109 MB stripped; the API carries ~35 MB of dependencies. Left open rather than prune dependencies by hand.)*
 
 ---
 
@@ -296,6 +296,19 @@ Acceptance
   - **Fonts / performance**: with Plex 400/500/600 and Alexandria all preloaded the page scored 90. `next/font` preloads every weight × subset, so Plex is declared twice under the same family (400 preloaded; 500/600 `preload: false`), and the placeholder uses only Plex 400 on first paint. Result: 95-96. Lighthouse's simulated throttling counts non-preloaded fonts as render-blocking, which is why `preload: false` on everything was worse (91, FCP 2.0 s). `experimental.inlineCss` reached 97 but is rejected: its inline `<style>` gets no CSP nonce.
   - Added `/healthz` (container health probe) and `global-error.tsx` (root layout failures). OG image is deferred to Phase 1 (Satori does not shape Arabic reliably).
   - Error ref on `error.tsx`: shown only when the error object carries a well-formed `WSF-XXXX-XXXX` `ref` (`ApiRequestError`). Next.js strips server error details in production, so a ref survives only for errors thrown on the client from an API response.
+
+- **Task 0.7 deviations**
+  - **Images** are `alpine:3.24` + a *stripped* Node 24 binary + `libstdc++` (copied from the `node:24-alpine` build stage), not `node:24-alpine` itself: deleting npm/yarn from the official image does not shrink it (layers), and `strip` saves 17 MB. Both bases are pinned by digest; the Alpine release must match the Node image's (`cat /etc/alpine-release`). No npm, yarn, corepack or `apk` in the final image. Runs as `node` (uid 1000).
+  - Build is `turbo prune --docker` (pinned `turbo@2.11.7`, `pnpm@10.34.6`) then `pnpm install --frozen-lockfile`, `pnpm --filter "<app>..." build`, and `pnpm deploy --legacy --prod` for api/worker. `--legacy` is needed because pnpm 10 otherwise requires `inject-workspace-packages=true`, which would hurt the dev workflow. `apps/api` and `apps/worker` got `"files": ["dist"]` so the deployed copy holds no sources.
+  - The `migrate` service runs `node node_modules/@wasfa/db/dist/migrate.js` (the deployed layout has no `packages/db/` directory). Seed: same image, `node node_modules/@wasfa/db/dist/seed.js`.
+  - **Redis**: one instance, `maxmemory-policy noeviction` instead of `allkeys-lru` (reason and the upgrade path to a second `redis-cache` instance are in `redis.conf`). `requirepass` is injected through a compose `configs` entry from `REDIS_PASSWORD`, so it is neither in a committed file nor on a command line. `rename-command` disables FLUSHALL, FLUSHDB, KEYS, CONFIG, DEBUG; BullMQ and the rate limiter work with that (verified). Inline `#` comments are not allowed in `redis.conf` (they are parsed as arguments).
+  - **Networks**: `edge` has a fixed subnet and Caddy has a fixed address (`172.30.0.2`), which is what the API gets as `TRUST_PROXY`; other containers are allocated from the upper half (`ip_range`) so they can never take it. The worker is on `internal` only (no internet) until a job needs it. A third network `egress` (outbound only) is defined for the backup job (Task 0.10).
+  - **Caddy**: TLS comes from `/etc/caddy/tls.caddy`: `caddy/tls.prod.caddy` (Origin Certificate + Authenticated Origin Pulls with `client_auth require_and_verify`) or `caddy/tls.local.caddy` (`tls internal`). `CF-Connecting-IP` is overwritten with Caddy's `{client_ip}` before it reaches the API, so a forged header cannot dodge per-IP rate limits (verified: the API logged the real peer, not the forged value). HTTP/3 is disabled (UDP 443 is not published). `admin off`. Cloudflare's IP ranges are inlined in the Caddyfile and must be refreshed when Cloudflare changes them.
+  - Compose files are meant to be copied to `/opt/wasfa/` as a folder (`compose.prod.yml`, `Caddyfile`, `caddy/`, `postgres/`, `redis/`, `certs/`). `compose.build.yml` adds `build:` sections for CI/local use. `HTTP_PORT` / `HTTPS_PORT` (default 80/443) and `POSTGRES_PORT` / `REDIS_PORT` (dev compose) exist because this machine already has a PostgreSQL and a Redis listening on 5432/6379.
+  - The worker has `src/healthcheck.ts` (container HEALTHCHECK = heartbeat is fresh); web has `/healthz`.
+  - `db:migrate` / `db:seed` now read the repo-root `.env` (`tsx --env-file-if-exists`). `pnpm dev` was verified end to end against `compose.dev.yml`: web 200 with CSP nonce, `/health/ready` 200, worker heartbeat written.
+  - Verified: `docker stop` sends SIGTERM and api and worker exit 0 (worker logs "Shutting down" then "Worker stopped"); the Next.js standalone server exits 143 (it has no SIGTERM handler; acceptable, it holds no state).
+  - Known gap, not fixed here: requests to *unknown* routes are not rate limited (`@fastify/rate-limit` only attaches to registered routes). They are cheap 404s, but revisit with the auth/AI routes.
 
 ## Open questions
 - ~~Commit for Task 0.1 not made.~~ **Resolved:** `wasfa.online` is now its own git repo (remote `github.com/ahmed7v3/Wasefs-v1`); Task 0.1 is committed as `4d17aed`. Never commit from the `C:/Users/hp` home repo.

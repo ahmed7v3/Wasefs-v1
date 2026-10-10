@@ -1,0 +1,45 @@
+# Local development: Postgres + Redis only. The apps run on the host with `pnpm dev`.
+#   docker compose -f infra/docker/compose.dev.yml up -d
+# Credentials here are for a throwaway local database and must never be reused anywhere else.
+name: wasfa-dev
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: wasfa
+      POSTGRES_PASSWORD: wasfa_dev_password
+      POSTGRES_DB: wasfa
+    ports:
+      # 127.0.0.1 only: the database must never be reachable from other machines on the LAN.
+      # Set POSTGRES_PORT (and DATABASE_URL) if 5432 is taken by a locally installed PostgreSQL.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # PG 18 keeps its data under a versioned subdirectory of /var/lib/postgresql.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wasfa -d wasfa"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    # AOF so queued jobs survive a restart, like production.
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    ports:
+      # Set REDIS_PORT (and REDIS_URL) if 6379 is taken by a locally installed Redis.
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:
+  redis-data:

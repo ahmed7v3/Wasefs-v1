@@ -1,0 +1,2 @@
+# Local testing only (CADDY_TLS_FILE=./caddy/tls.local.caddy): Caddy's own CA, no Cloudflare.
+tls internal

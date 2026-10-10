@@ -1,0 +1,25 @@
+# Only what `turbo prune` needs should reach the build context.
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+**/coverage
+**/*.tsbuildinfo
+out
+
+# Never ship secrets, VCS history or local noise into an image layer.
+.git
+.github
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+*.key
+backups
+*.dump
+*.log
+.vscode
+.idea
+docs
+**/test
+**/*.test.ts
