@@ -1,0 +1,11 @@
+{
+  "extends": "@wasfa/config/tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"],
+    // Nest dependency injection reads constructor parameter types at runtime.
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  },
+  "include": ["src", "test", "vitest.config.ts"]
+}
