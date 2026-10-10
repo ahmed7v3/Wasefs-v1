@@ -47,3 +47,12 @@ Registry of every shared function/component. Search here before writing a helper
 | `workerEnvSchema` / `loadEnv` / `queueConcurrency` | `apps/worker/src/config/env.ts` | Worker env schema; per-queue concurrency from env. | `queueConcurrency(loadEnv())` |
 | `createLogger` (worker) | `apps/worker/src/logger.ts` | pino logger with shared redaction. | `createLogger(env)` |
 | `HANDLERS` / `createProcessor` / `startWorkers` / `registerSchedules` / `closeWorkers` | `apps/worker/src/queues.ts` | Job handler registry (exhaustive over the shared registry), schema-validating processor, worker start-up, idempotent schedules, graceful shutdown with timeout. | `HANDLERS.system["system.heartbeat"]` |
+| `Button` / `buttonStyles` | `packages/ui/src/button.tsx` | Primary / secondary / ghost button (44 px touch target, focus ring); `buttonStyles()` gives the same classes for links. | `<Link className={buttonStyles({ variant: "secondary" })}>` |
+| `Card` / `CardTitle` | `packages/ui/src/card.tsx` | Surface with `flat` / `card` / `raised` elevation. | `<Card elevation="raised">` |
+| `Container` | `packages/ui/src/container.tsx` | Centred page column with responsive gutters; `width="reading"` for prose. | `<Container width="reading">` |
+| `cn` | `packages/ui/src/cn.ts` | Class-name joiner (clsx). | `cn("a", cond && "b")` |
+| design tokens | `packages/ui/tokens.css` | Colours, radii, shadows, fonts, layout as Tailwind theme + CSS variables. | `bg-primary`, `rounded-lg`, `shadow-card`, `var(--color-text)` |
+| `alexandria` / `plexArabic` / `plexArabicStrong` | `apps/web/src/lib/fonts.ts` | `next/font` setup; only first-paint weights are preloaded. | `${alexandria.variable}` on `<html>` |
+| `publicEnv` / `isProduction` | `apps/web/src/lib/env.ts` | Validated `NEXT_PUBLIC_*` (env, site URL, API URL). | `publicEnv.NEXT_PUBLIC_SITE_URL` |
+| `buildCsp` / `parseSources` / `generateNonce` / `SECURITY_HEADERS` | `apps/web/src/lib/csp.ts` | Per-request CSP with nonce; env-driven extra sources are sanitised. | `buildCsp({ nonce, isDev, apiOrigin, upgradeInsecure })` |
+| `ApiRequestError` / `extractErrorRef` | `apps/web/src/lib/api-error.ts` | Carries the API's `WSF-` ref to `error.tsx`. | `throw new ApiRequestError(code, msg, ref)` |

@@ -7,12 +7,14 @@
   "exports": {
     "./tsconfig.base.json": "./tsconfig.base.json",
     "./eslint": "./eslint.config.mjs",
-    "./prettier": "./prettier.config.mjs"
+    "./prettier": "./prettier.config.mjs",
+    "./eslint-react": "./eslint.react.mjs"
   },
   "files": [
     "tsconfig.base.json",
     "eslint.config.mjs",
-    "prettier.config.mjs"
+    "prettier.config.mjs",
+    "eslint.react.mjs"
   ],
   "scripts": {
     "lint": "eslint .",
@@ -24,6 +26,7 @@
     "eslint": "^10.12.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-import-x": "^4.17.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.13.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.71.1"
