@@ -1,0 +1,75 @@
+@import "tailwindcss";
+@import "@wasfa/ui/tokens.css";
+
+/* Tailwind only scans this app by default; the design-system primitives live in another package. */
+@source "../../../../packages/ui/src";
+
+@layer base {
+  html {
+    color-scheme: light;
+    background-color: var(--color-bg);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    font-family: var(--font-body);
+    color: var(--color-text);
+    background-color: var(--color-bg);
+    /* Arabic needs more leading than Latin to keep diacritics and ascenders clear. */
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-heading);
+    line-height: 1.35;
+    text-wrap: balance;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Soft blue wash behind the page, like the reference screens; no images, so it costs nothing. */
+  .page-backdrop {
+    background-image:
+      radial-gradient(60rem 36rem at 85% -10%, var(--color-accent-soft), transparent 70%),
+      radial-gradient(44rem 30rem at 0% 0%, var(--color-primary-soft), transparent 65%);
+    background-repeat: no-repeat;
+  }
+
+  .skip-link {
+    position: absolute;
+    inset-inline-start: 1rem;
+    inset-block-start: -4rem;
+    z-index: 50;
+    border-radius: var(--radius-md);
+    background: var(--color-primary);
+    padding: 0.5rem 1rem;
+    color: var(--color-on-primary);
+    font-weight: 400;
+    transition: inset-block-start 0.15s;
+  }
+
+  .skip-link:focus {
+    inset-block-start: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

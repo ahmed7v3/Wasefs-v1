@@ -33,3 +33,6 @@ pnpm-debug.log*
 Thumbs.db
 .idea/
 .vscode/
+
+# Next.js generated
+next-env.d.ts

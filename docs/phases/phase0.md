@@ -138,9 +138,9 @@ Steps
 9. `packages/ui`: `Button`, `Card`, `Container` primitives using tokens + `lucide-react` icons — enough to prove the design system wiring.
 
 Acceptance
-- [ ] Page renders RTL at 360px and 1440px with Alexandria headings and Plex body (verify in devtools that fonts are self-hosted, no request to fonts.googleapis.com at runtime).
-- [ ] Response has a CSP header with a nonce; no CSP violations in console.
-- [ ] Lighthouse (mobile) on the placeholder: Performance ≥ 95, SEO 100, Best Practices 100, Accessibility ≥ 95.
+- [x] Page renders RTL at 360px and 1440px with Alexandria headings and Plex body (verify in devtools that fonts are self-hosted, no request to fonts.googleapis.com at runtime). *(Puppeteer at 360 and 1440: no horizontal overflow, fonts loaded from `/_next/static/media`, zero requests to googleapis/gstatic.)*
+- [x] Response has a CSP header with a nonce; no CSP violations in console. *(Empty console in Puppeteer and Lighthouse `errors-in-console` passes on the production build.)*
+- [x] Lighthouse (mobile) on the placeholder: Performance ≥ 95, SEO 100, Best Practices 100, Accessibility ≥ 95. *(Lighthouse 13.5, `next start`, built with `NEXT_PUBLIC_ENV=production`, 5 runs: Performance 95-96, Accessibility 100, Best Practices 100, SEO 100. Performance has little headroom, see the font notes below.)*
 
 ---
 
@@ -284,6 +284,18 @@ Acceptance
   - A stale worker does **not** make `/health/ready` return 503: the API still serves requests, and failing readiness would pull it out of rotation (and trip the deploy rollback in Task 0.8) for a background problem. The state is exposed as `ReadinessResult.worker` and logged on change only (probes poll every few seconds).
   - A missing heartbeat key counts as `stale`.
   - Graceful shutdown: `worker.close()` waits for active jobs; after `WORKER_SHUTDOWN_TIMEOUT_MS` the workers are force-closed (BullMQ re-queues the job as stalled). Unit-tested with fake workers; the real SIGTERM path is checked in Docker (Task 0.7) because Windows cannot send it.
+
+- **Task 0.6 deviations**
+  - **Next.js 16.4**: `middleware.ts` is now `proxy.ts` (`src/proxy.ts`, Node runtime), same behaviour. `next lint` no longer exists, so `lint` runs ESLint directly (flat config with `@next/eslint-plugin-next` + `react-hooks`, via the new `@wasfa/config/eslint-react`). `eslint-plugin-jsx-a11y` is not used: it does not support ESLint 10; accessibility is covered by Lighthouse (100).
+  - `packages/ui` ships **TypeScript source** (`transpilePackages`), not a build. Tokens are one file, `packages/ui/tokens.css`, using Tailwind v4 `@theme static`: Tailwind utilities (`bg-primary`) and plain CSS variables (`--color-primary`) both come from it. `globals.css` lives in `src/styles/`.
+  - Pages are rendered per request (`await connection()` in the root layout) because the CSP nonce is per request. Consequence: HTML is not cacheable at Cloudflare, and ISR/static pages are incompatible with nonce-based CSP. For the SEO pages in Phase 1+ decide between nonce (dynamic) and hash-based CSP; the placeholder is cheap either way.
+  - CSP also sets `style-src 'self' 'nonce-…'` (no `unsafe-inline`), `frame-src 'none'`, `object-src 'none'`, `base-uri`, `form-action`, `manifest-src`. `upgrade-insecure-requests` is only added when `NEXT_PUBLIC_ENV=production`, because on a local http server it would break every sub-resource. Extra hosts come from runtime env `CSP_SCRIPT_SRC_EXTRA`, `CSP_CONNECT_SRC_EXTRA`, `CSP_FRAME_SRC_EXTRA`, `CSP_IMG_SRC_EXTRA` (space or comma separated); entries that are not plain `http(s)://host` are dropped, so a typo cannot inject a directive. Example for Turnstile: `CSP_SCRIPT_SRC_EXTRA=https://challenges.cloudflare.com CSP_FRAME_SRC_EXTRA=https://challenges.cloudflare.com`.
+  - Extra headers on pages: `X-Frame-Options: DENY`, `Cross-Origin-Opener-Policy: same-origin` (revisit if a popup-based OAuth flow is added).
+  - `alternates.canonical` is set per page (the home page sets `/`), not in the layout: a layout-level canonical would point every route at the home page. Non-production builds also emit `<meta name="robots" content="noindex">` and `robots.txt` with `Disallow: /`.
+  - `NEXT_PUBLIC_ENV`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_API_URL` are inlined at **build** time, so they are Docker build args in Task 0.7. A build without `NEXT_PUBLIC_ENV=production` is noindex by design (and scores SEO 66 in Lighthouse for that reason).
+  - **Fonts / performance**: with Plex 400/500/600 and Alexandria all preloaded the page scored 90. `next/font` preloads every weight × subset, so Plex is declared twice under the same family (400 preloaded; 500/600 `preload: false`), and the placeholder uses only Plex 400 on first paint. Result: 95-96. Lighthouse's simulated throttling counts non-preloaded fonts as render-blocking, which is why `preload: false` on everything was worse (91, FCP 2.0 s). `experimental.inlineCss` reached 97 but is rejected: its inline `<style>` gets no CSP nonce.
+  - Added `/healthz` (container health probe) and `global-error.tsx` (root layout failures). OG image is deferred to Phase 1 (Satori does not shape Arabic reliably).
+  - Error ref on `error.tsx`: shown only when the error object carries a well-formed `WSF-XXXX-XXXX` `ref` (`ApiRequestError`). Next.js strips server error details in production, so a ref survives only for errors thrown on the client from an API response.
 
 ## Open questions
 - ~~Commit for Task 0.1 not made.~~ **Resolved:** `wasfa.online` is now its own git repo (remote `github.com/ahmed7v3/Wasefs-v1`); Task 0.1 is committed as `4d17aed`. Never commit from the `C:/Users/hp` home repo.

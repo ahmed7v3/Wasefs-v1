@@ -1,0 +1,72 @@
+/*
+ * Wasfa design tokens (single source of truth).
+ *
+ * `@theme static` makes Tailwind read these as its theme (so `bg-primary`, `text-text`,
+ * `rounded-lg`, `shadow-card` … exist) AND always emit every one as a plain CSS custom
+ * property on :root, so non-Tailwind CSS and a future dark theme can use / override them.
+ * Colours are brand-locked in docs/AGENT.md §3. Layout uses logical properties only (§5.10).
+ */
+@theme static {
+  /* Brand */
+  --color-primary: #1e3a8a;
+  --color-primary-hover: #172e6e;
+  --color-primary-soft: #e3eafb;
+  --color-accent: #60a5fa;
+  --color-accent-soft: #e6f1fe;
+  --color-on-primary: #ffffff;
+
+  /* Surfaces and text */
+  --color-bg: #f5f7fb;
+  --color-surface: #ffffff;
+  --color-text: #0b1220;
+  --color-text-muted: #4a5670;
+  --color-border: #d3dae6;
+
+  /* Neutral scale (cool grey-blue, tuned to sit next to the navy) */
+  --color-neutral-50: #f1f4f9;
+  --color-neutral-100: #e6eaf2;
+  --color-neutral-200: #d3dae6;
+  --color-neutral-300: #b4bdcf;
+  --color-neutral-400: #8792a8;
+  --color-neutral-500: #64708a;
+  --color-neutral-600: #4a5670;
+  --color-neutral-700: #364058;
+  --color-neutral-800: #1f2a40;
+  --color-neutral-900: #0b1220;
+
+  /* Status (text colours meet 4.5:1 on their soft backgrounds) */
+  --color-success: #15803d;
+  --color-success-soft: #dcfce7;
+  --color-warning: #b45309;
+  --color-warning-soft: #fef3c7;
+  --color-danger: #b91c1c;
+  --color-danger-soft: #fee2e2;
+
+  /* Focus ring */
+  --color-ring: #2563eb;
+
+  /* Typography: the variables are set by next/font in apps/web (see layout.tsx) */
+  --font-heading: var(--font-alexandria), "Segoe UI", Tahoma, system-ui, sans-serif;
+  --font-body: var(--font-plex-arabic), "Segoe UI", Tahoma, system-ui, sans-serif;
+
+  /* Radii */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-2xl: 2rem;
+
+  /* Shadows: navy-tinted so they feel soft on the light background */
+  --shadow-card: 0 1px 2px rgb(11 18 32 / 0.04), 0 8px 24px -8px rgb(30 58 138 / 0.12);
+  --shadow-raised: 0 2px 4px rgb(11 18 32 / 0.05), 0 18px 40px -12px rgb(30 58 138 / 0.22);
+  --shadow-focus: 0 0 0 3px rgb(37 99 235 / 0.35);
+
+  /* Spacing: Tailwind's 0.25rem step stays; these name the layout rhythm */
+  --spacing-gutter: 1rem;
+  --spacing-gutter-lg: 2rem;
+  --spacing-section: 4rem;
+
+  /* Layout */
+  --container-page: 72rem;
+  --container-reading: 40rem;
+}

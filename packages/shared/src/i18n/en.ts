@@ -13,5 +13,6 @@ export const en: Partial<Record<MessageKey, string>> = {
   "common.contactSupport": "Contact support",
   "common.retry": "Try again",
   "common.backHome": "Back to home",
+  "common.skipToContent": "Skip to main content",
   ...errorMessages,
 };
