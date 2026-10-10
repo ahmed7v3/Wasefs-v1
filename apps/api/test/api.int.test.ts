@@ -4,17 +4,21 @@ import { Body, Controller, Get, Module, Post } from "@nestjs/common";
 import { createDb, errorEvents } from "@wasfa/db";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import { ERROR_REF_PATTERN } from "@wasfa/shared/ids";
+import { HEARTBEAT_STALE_AFTER_MS, WORKER_HEARTBEAT_KEY } from "@wasfa/shared/queues";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { createApp } from "../src/bootstrap.js";
+import { REDIS } from "../src/common/redis.js";
 import { createZodDto } from "../src/common/validation.js";
 import { apiEnvSchema, type ApiEnv } from "../src/config/env.js";
+import { HealthService } from "../src/health/health.service.js";
 
 import { startInfra, type TestInfra } from "./support/infra.js";
 
 import type { NestFastifyApplication } from "@nestjs/platform-fastify";
+import type { Redis } from "ioredis";
 
 class EchoDto extends createZodDto(z.object({ name: z.string().min(2), age: z.number().int() })) {}
 
@@ -87,6 +91,27 @@ describe("health", () => {
     const res = await app.inject({ method: "GET", url: "/health/ready" });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ status: "ok" });
+  });
+
+  it("reports the worker as ok/stale internally while the public body stays minimal", async () => {
+    const redis = app.get<Redis>(REDIS);
+    const health = app.get(HealthService);
+    try {
+      await redis.set(WORKER_HEARTBEAT_KEY, String(Date.now()));
+      expect(await health.readiness()).toMatchObject({ ready: true, worker: "ok" });
+
+      await redis.set(WORKER_HEARTBEAT_KEY, String(Date.now() - HEARTBEAT_STALE_AFTER_MS - 1_000));
+      expect(await health.readiness()).toMatchObject({ ready: true, worker: "stale" });
+      // A dead worker must not take the API out of rotation, and must not be revealed publicly.
+      const res = await app.inject({ method: "GET", url: "/health/ready" });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ status: "ok" });
+
+      await redis.del(WORKER_HEARTBEAT_KEY);
+      expect(await health.readiness()).toMatchObject({ worker: "stale" });
+    } finally {
+      await redis.del(WORKER_HEARTBEAT_KEY);
+    }
   });
 
   it("health routes are not rate limited", async () => {

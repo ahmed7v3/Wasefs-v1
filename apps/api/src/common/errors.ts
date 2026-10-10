@@ -11,10 +11,10 @@ import {
 import { errorEvents } from "@wasfa/db";
 import { AppError, ErrorCode, isAppError, type ErrorLocale } from "@wasfa/shared/errors";
 import { newErrorRef } from "@wasfa/shared/ids";
+import { redactText } from "@wasfa/shared/redact";
 import { PinoLogger } from "nestjs-pino";
 
 import { DB, type DbHandle } from "./database.js";
-import { redactText } from "./redact.js";
 
 import type { FastifyReply, FastifyRequest } from "fastify";
 

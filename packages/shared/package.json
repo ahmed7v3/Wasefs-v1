@@ -28,6 +28,14 @@
     "./money": {
       "types": "./dist/money.d.ts",
       "import": "./dist/money.js"
+    },
+    "./queues": {
+      "types": "./dist/queues.d.ts",
+      "import": "./dist/queues.js"
+    },
+    "./redact": {
+      "types": "./dist/redact.d.ts",
+      "import": "./dist/redact.js"
     }
   },
   "files": [
