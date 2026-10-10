@@ -1,14 +1,16 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { sessions, users } from "@wasfa/db";
-import { eq } from "drizzle-orm";
+import { AppError, ErrorCode } from "@wasfa/shared/errors";
 
-import { DB, type DbHandle } from "../common/database.js";
-
-import { ADMIN_SESSION_SECONDS, holdsPlatformRole, type AuthInstance } from "./auth.config.js";
+import { ADMIN_SESSION_SECONDS, type AuthInstance } from "./auth.config.js";
+import { AuthRepo } from "./auth.repo.js";
+import { PASSWORD_HASHER, type PasswordHasher } from "./password.js";
+import { AuthRateLimiter } from "./rate-limiter.js";
 
 import type { IncomingHttpHeaders } from "node:http";
 
 export const AUTH = Symbol("AUTH");
+
+const REAUTH_WINDOW_SECONDS = 15 * 60;
 
 export interface SessionUser {
   id: string;
@@ -16,11 +18,17 @@ export interface SessionUser {
   email: string;
   emailVerified: boolean;
   twoFactorEnabled: boolean;
+  phoneVerified: boolean;
 }
 
 export interface ResolvedSession {
   sessionId: string;
   user: SessionUser;
+  createdAt: Date;
+  /** Last time the person proved who they are in this session (creation, or `POST /auth/reauth`). */
+  reauthAt: Date;
+  /** Set when the session came out of a completed two-factor challenge. */
+  mfaVerifiedAt: Date | null;
 }
 
 /** Converts Node request headers into the `Headers` Better Auth expects. */
@@ -37,15 +45,17 @@ export function toHeaders(source: IncomingHttpHeaders): Headers {
 }
 
 /**
- * The one place the rest of the API turns a cookie into a user (the auth guard of Task 1.6 and
- * `/me` of Task 1.7 build on it). Suspended and deleted users resolve to `null` and their session
- * rows are removed, so a suspension also ends sessions that were opened before it.
+ * The one place the rest of the API turns a cookie into a user (the global `AuthGuard` builds on
+ * it). Suspended and deleted users resolve to `null` and their session rows are removed, so a
+ * suspension also ends sessions that were opened before it.
  */
 @Injectable()
 export class AuthService {
   constructor(
     @Inject(AUTH) private readonly auth: AuthInstance,
-    @Inject(DB) private readonly handle: DbHandle,
+    private readonly repo: AuthRepo,
+    private readonly limiter: AuthRateLimiter,
+    @Inject(PASSWORD_HASHER) private readonly passwords: PasswordHasher,
   ) {}
 
   async getSession(headers: IncomingHttpHeaders): Promise<ResolvedSession | null> {
@@ -53,34 +63,68 @@ export class AuthService {
     if (!found) return null;
     const { session, user } = found;
 
-    // Better Auth does not expose our own columns, so read the status ourselves.
-    const [row] = await this.handle.db
-      .select({ status: users.status })
-      .from(users)
-      .where(eq(users.id, user.id));
+    // Better Auth does not expose our own columns, so read them ourselves.
+    const row = await this.repo.userRow(user.id);
     if (row?.status !== "active") {
-      await this.handle.db.delete(sessions).where(eq(sessions.userId, user.id));
+      await this.repo.deleteUserSessions(user.id);
       return null;
     }
 
     // Admin sessions are absolute: Better Auth's sliding refresh must not stretch them past 12 hours.
-    if (await holdsPlatformRole(this.handle.db, user.id)) {
+    if (await this.repo.holdsPlatformRole(user.id)) {
       const age = Date.now() - new Date(session.createdAt).getTime();
       if (age > ADMIN_SESSION_SECONDS * 1000) {
-        await this.handle.db.delete(sessions).where(eq(sessions.id, session.id));
+        await this.repo.deleteSession(session.id);
         return null;
       }
     }
 
+    const assurance = await this.repo.sessionRow(session.id);
+    if (!assurance) return null;
+
     return {
       sessionId: session.id,
+      createdAt: new Date(session.createdAt),
+      reauthAt: assurance.reauthAt,
+      mfaVerifiedAt: assurance.mfaVerifiedAt,
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
         emailVerified: user.emailVerified,
         twoFactorEnabled: (user as { twoFactorEnabled?: boolean | null }).twoFactorEnabled === true,
+        phoneVerified: row.phoneVerified,
       },
     };
+  }
+
+  /**
+   * "Confirm it is you": checks the password of the signed-in user and stamps the session, which is
+   * what `@RequireFreshAuth` looks at. Limited per user and per IP (failing closed). An account that
+   * has no password (Google only) cannot do this: it signs in again instead, which stamps a new session.
+   */
+  async reauthenticate(
+    headers: IncomingHttpHeaders,
+    password: string,
+    ip: string,
+  ): Promise<{ reauthAt: Date }> {
+    const session = await this.getSession(headers);
+    if (!session) throw new AppError(ErrorCode.AUTH_REQUIRED);
+
+    await this.limiter.hit(`reauth:user:${session.user.id}`, 5, REAUTH_WINDOW_SECONDS);
+    await this.limiter.hit(`reauth:ip:${ip}`, 20, REAUTH_WINDOW_SECONDS);
+
+    const stored = await this.repo.credentialHash(session.user.id);
+    // Always one verification, so "no password on this account" costs the same as a wrong one.
+    const matches = await this.passwords.verify({
+      hash: stored ?? (await this.passwords.dummyHash()),
+      password,
+    });
+    if (stored === undefined || !matches) {
+      throw new AppError(ErrorCode.AUTH_REQUIRED, { details: { reason: "invalid_credentials" } });
+    }
+    const reauthAt = new Date();
+    await this.repo.markReauthenticated(session.sessionId, reauthAt);
+    return { reauthAt };
   }
 }

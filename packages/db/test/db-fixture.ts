@@ -5,6 +5,8 @@ import { runMigrations } from "../src/migrations.js";
 
 export interface TestDb {
   handle: ReturnType<typeof createDb>;
+  /** Connection URL of the owner role (the one migrations run as). */
+  url: string;
   stop: () => Promise<void>;
 }
 
@@ -23,6 +25,7 @@ export async function startTestDb(): Promise<TestDb> {
   await runMigrations(handle.db);
   return {
     handle,
+    url,
     stop: async () => {
       await handle.close();
       await container?.stop();

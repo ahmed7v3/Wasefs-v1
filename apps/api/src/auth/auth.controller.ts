@@ -1,15 +1,18 @@
-import { All, Controller, Get, Inject, Req, Res } from "@nestjs/common";
+import { All, Body, Controller, Get, HttpCode, Inject, Post, Req, Res } from "@nestjs/common";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
+import { reauthSchema } from "@wasfa/shared/schemas/auth";
 
+import { AuditService } from "../audit/audit.service.js";
+import { Public } from "../common/auth.guard.js";
 import { compileTrust, clientIp, type TrustFn } from "../common/client-ip.js";
-import { parseWithSchema } from "../common/validation.js";
+import { createZodDto, parseWithSchema } from "../common/validation.js";
 import { API_ENV } from "../config/config.module.js";
 
 import { mapAuthError } from "./auth-errors.js";
 import { AuthSettingsReader } from "./auth-settings.reader.js";
 import { CLIENT_IP_HEADER } from "./auth.config.js";
 import { AuthPolicy, matchAuthRoute, type AuthRoute, type RouteMatch } from "./auth.policy.js";
-import { AUTH } from "./auth.service.js";
+import { AUTH, AuthService } from "./auth.service.js";
 import { providerStates } from "./providers.js";
 
 import type { AuthInstance } from "./auth.config.js";
@@ -50,6 +53,10 @@ export function sanitizeSuccess(body: unknown): unknown {
  * `auth.handler`. The answer is translated back: cookies and redirects pass through, errors become
  * our `{ code, message }` shape, and no Better Auth message reaches the client.
  */
+class ReauthDto extends createZodDto(reauthSchema) {}
+
+// Public for the access guard: every route here applies its own checks (allowlist, limits, Turnstile).
+@Public()
 @Controller("auth")
 export class AuthController {
   private readonly trust: TrustFn;
@@ -59,6 +66,8 @@ export class AuthController {
     @Inject(API_ENV) private readonly env: ApiEnv,
     private readonly policy: AuthPolicy,
     private readonly settings: AuthSettingsReader,
+    private readonly sessions: AuthService,
+    private readonly audit: AuditService,
   ) {
     this.trust = compileTrust(env.TRUST_PROXY);
   }
@@ -68,6 +77,26 @@ export class AuthController {
   async providers(@Res({ passthrough: true }) reply: FastifyReply) {
     reply.header("cache-control", "public, max-age=30");
     return providerStates(this.env, await this.settings.auth());
+  }
+
+  /**
+   * "Confirm it is you": the signed-in user sends their password and the session is stamped, which
+   * satisfies `@RequireFreshAuth` for the next few minutes. Ours, not Better Auth's.
+   */
+  @Post("reauth")
+  @HttpCode(200)
+  async reauth(
+    @Req() request: FastifyRequest,
+    @Body() body: ReauthDto,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    reply.header("cache-control", "no-store");
+    const { reauthAt } = await this.sessions.reauthenticate(
+      request.headers,
+      body.password,
+      clientIp(request, this.trust),
+    );
+    return { reauthAt: reauthAt.toISOString() };
   }
 
   @All("*")
@@ -97,10 +126,24 @@ export class AuthController {
     };
     await this.policy.enforce(match, facts);
 
+    // Security events are attributed to the signed-in caller, resolved before Better Auth acts.
+    const actorId = match.route.audit
+      ? ((await this.sessions.getSession(request.headers))?.user.id ?? null)
+      : null;
+
     const response = await this.auth.handler(
       this.toFetchRequest(request, url, match, body, facts.ip),
     );
     await this.policy.recordOutcome(match, facts, response.status);
+    if (match.route.audit && actorId !== null && response.status >= 200 && response.status < 300) {
+      // No before/after: these events change credentials, which the trail must never hold.
+      await this.audit.recordFor(request, {
+        actorId,
+        action: match.route.audit,
+        targetType: "user",
+        targetId: actorId,
+      });
+    }
     await this.relay(match.route, response, reply);
   }
 

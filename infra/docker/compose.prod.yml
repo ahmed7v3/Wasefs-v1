@@ -94,7 +94,9 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: "4000"
-      DATABASE_URL: postgres://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
+      # The restricted role (migration 0005): it can read and write every table but cannot UPDATE or
+      # DELETE audit_logs, and owns nothing. Migrations run as POSTGRES_USER (see `migrate`).
+      DATABASE_URL: postgres://wasfa_api:${API_DB_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
       REDIS_URL: redis://:${REDIS_PASSWORD:?}@redis:6379
       WEB_ORIGIN: ${WEB_ORIGIN:-https://wasfa.online}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?}
@@ -167,7 +169,7 @@ services:
     command: ["node", "dist/wa-bridge/main.js"]
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgres://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
+      DATABASE_URL: postgres://wasfa_api:${API_DB_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
       REDIS_URL: redis://:${REDIS_PASSWORD:?}@redis:6379
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?}
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -248,7 +250,10 @@ services:
     command: ["node", "node_modules/@wasfa/db/dist/migrate.js"]
     environment:
       NODE_ENV: production
+      # The owner role: it alone may change the schema.
       DATABASE_URL: postgres://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
+      # After migrating, lets the `wasfa_api` role log in with this password (rotate = change and re-run).
+      API_DB_PASSWORD: ${API_DB_PASSWORD:?}
     networks: [internal]
     depends_on:
       postgres:

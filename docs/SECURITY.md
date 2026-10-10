@@ -91,8 +91,12 @@ Also required for every new route: an integration test for happy path, unauthent
 | `POST /auth/send-verification-email` | public | — | — | `sendVerificationEmailSchema` | 3/h per identifier + 10/h per IP | 1 MB | always | — | Done |
 | `POST /auth/request-password-reset` | public | — | — | `requestPasswordResetSchema` | 3/h per identifier + 10/h per IP | 1 MB | always | — | Done |
 | `GET /auth/reset-password/:token`, `POST /auth/reset-password` | link token | — | the token's owner | `resetPasswordSchema` | 20 and 20 per 15 min per IP | 1 MB | — | — | Done |
-| `POST /auth/change-password` | cookie | — | the caller's own account | `changePasswordSchema` | 10/15 min per IP | 1 MB | — | — (add `@Audited` with Task 1.6) | Done |
-| `POST /auth/two-factor/{enable,disable,generate-backup-codes,verify-totp,verify-backup-code}` | cookie / 2FA challenge cookie | — | the caller's own account | one schema each | 20/15 min per IP (+ Better Auth's TOTP lockout) | 1 MB | — | — (add with Task 1.6) | Done |
+| `POST /auth/change-password` | cookie | — | the caller's own account | `changePasswordSchema` | 10/15 min per IP | 1 MB | — | `auth.password_change` (actor, no before/after) | Done |
+| `POST /auth/two-factor/{enable,disable,generate-backup-codes,verify-totp,verify-backup-code}` | cookie / 2FA challenge cookie | — | the caller's own account | one schema each | 20/15 min per IP (+ Better Auth's TOTP lockout) | 1 MB | — | `auth.two_factor_enable`, `auth.two_factor_disable`, `auth.backup_codes_regenerate` | Done |
+
+| `POST /auth/reauth` | cookie | — | the caller's own session | `reauthSchema` | 5/15 min per user + 20/15 min per IP, fail closed | 1 MB | — (the password is the proof) | — (not a change) | Done |
+| `POST /phone/verify/start` | cookie | — | the caller's own account | `startPhoneVerificationSchema` | 3/h per user, per number and per IP; 10/min global | 1 MB | always | — | Done |
+| `GET /phone/verify/status` | cookie | — | the caller's own account | none | 60/min | — | — | — | Done |
 
 Everything else under `/auth/*` answers 404 (§4). Tasks 1.5 to 1.11 add their rows here as each endpoint is written.
 
@@ -120,6 +124,10 @@ Everything else under `/auth/*` answers 404 (§4). Tasks 1.5 to 1.11 add their r
 | IP address | Better Auth records the IP we computed from the trusted proxy header; a client-supplied header is discarded. |
 | Admin sessions | Created with 12 h expiry, and `AuthService.getSession` ends any admin session older than 12 h, whatever Better Auth's sliding refresh did. "Admin" = holds any platform role. |
 | Social sign-in | Linked only to an existing account whose email is verified (`requireLocalEmailVerified`), so squatting someone's address cannot take over their Google login. The cost: the real owner cannot use Google until the squatter's unverified account is removed (purge job, §11). |
+| Access control (Task 1.6) | One global guard (`AccessGuard`) runs, in this order: **origin** (state-changing request with the session cookie must come from `WEB_ORIGIN`, by `Origin` or `Referer`; `null` and missing are refused), **session** (deny by default; `@Public()` opts out; suspended/deleted users get `AUTH_REQUIRED` and lose their sessions), **permissions** (`@RequirePermission`; `super_admin` holds the whole catalog), **freshness** (`@RequireFreshAuth(minutes)`). Each is a separate class; the composite exists because Nest does not guarantee the order of several global guards. |
+| Admin routes | Everything under `/admin/*` must declare `@RequirePermission` (a route that does not is refused with `admin_route_unprotected`), and the caller needs two-factor on (`FORBIDDEN`, `two_factor_required`) **and a session that went through the second factor** (`AUTH_REQUIRED`, `two_factor_session`, sign in again). The session marker is `sessions.mfa_verified_at`, set when the session is created by `/two-factor/verify-*`; a password-only session of an account that enabled 2FA later does not qualify. |
+| Re-authentication | `sessions.reauth_at` starts at creation and `POST /auth/reauth {password}` moves it. `@RequireFreshAuth(5)` answers `AUTH_REQUIRED` with `details.reason = "reauth"` when it is older. A Google-only account has no password to give, so it signs in again, which stamps a new session. |
+| Permission cache | `RbacService.resolve` keeps `{roles, permissions, orgIds}` in Redis for 5 minutes under an epoch-prefixed key. Whoever changes roles, role permissions or organization membership MUST call `bustUser`, `bustRole` or `bustAll` (tested). A Redis outage only costs speed. |
 | Mail | Sent in the background (never awaited, so timing does not reveal whether an address exists). Verification and reset mails go through the `AuthMailer` interface; `QueueMailer` puts an `email.send` job on the `notifications` queue and the worker sends it (Task 1.4). The link is encrypted in the job (`encryptSecret`, AAD `email:<template>`), so the token is never in Redis, failed-job history or logs in clear; the log line carries an HMAC of the recipient, never the address. SMTP must use TLS (STARTTLS, or implicit on 465). The capture transport (mail kept in Redis for 10 minutes) refuses to run in production, and the worker env schema requires `SMTP_*` there. |
 
 ---
@@ -142,6 +150,7 @@ Everything else under `/auth/*` answers 404 (§4). Tasks 1.5 to 1.11 add their r
 - Keys the admin edits (AI providers, gateways) are encrypted at rest with AES-256-GCM (`encryptSecret`, key from `ENCRYPTION_KEY`) with a context string that binds each ciphertext to its use, and are shown masked.
 - New in Phase 1 (added to `.env.example`, compose and the deploy-secrets doc by their tasks): `BETTER_AUTH_SECRET` (≥ 32 bytes), `AUTH_COOKIE_DOMAIN`, `GOOGLE_CLIENT_ID/SECRET`, `FACEBOOK_CLIENT_ID/SECRET` (optional, unused while Facebook is `coming_soon`), `TURNSTILE_SECRET_KEY`, `ARGON2_MEMORY_KIB`, `SMTP_HOST/PORT/USER/PASS`, `MAIL_FROM`, `MAIL_DAILY_CAP`.
 - The WhatsApp auth state is stored encrypted in Postgres (`wa_sessions`), never on disk.
+- `API_DB_PASSWORD` (Task 1.6): password of the restricted database role the API and the bridge use; hex only because it sits in a URL. Rotating it = change the variable and re-run the `migrate` step, then restart the api and the bridge.
 - Rotation: `ENCRYPTION_KEY` and `BETTER_AUTH_SECRET` rotation invalidate sessions / stored ciphertexts; a rotation procedure is written when each is first used in anger (Task 1.3 for the auth secret).
 - gitleaks runs in CI over full history; `docs/vps/` is git-ignored because it holds server credentials.
 
@@ -152,7 +161,7 @@ Everything else under `/auth/*` answers 404 (§4). Tasks 1.5 to 1.11 add their r
 - **What is audited:** every admin write; role and permission changes; user suspension and restoration; settings and feature-flag writes; 2FA enable/disable; password change; session revoke-all; account deletion and anonymization; bootstrap grants by the CLI (actor `system`).
 - **Row:** actor, action, target type and id, `before`/`after`, IP, user agent, time.
 - **No PII in `before`/`after`:** writers copy a **field allowlist** per entity, never the whole row, and values pass through `redactText`. Emails, phones, tokens, password hashes and secrets are never stored. This is also what lets a deleted user be anonymized without rewriting history.
-- **Append-only at the database:** the API connects as a role that has `INSERT` and `SELECT` on `audit_logs` but no `UPDATE`/`DELETE`; tested ("`UPDATE audit_logs` as the API DB role fails"). Migrations run as a separate owner role. Status: Task 1.6 (a carry-over from Phase 0).
+- **Append-only at the database:** the API connects as a role that has `INSERT` and `SELECT` on `audit_logs` but no `UPDATE`/`DELETE`; tested ("`UPDATE audit_logs` as the API DB role fails"). Migrations run as a separate owner role. **Done (Task 1.6)**: the API and the WhatsApp bridge connect as `wasfa_api` (migration 0005), which owns nothing and has only `SELECT`/`INSERT` on `audit_logs`; `UPDATE`, `DELETE` and `TRUNCATE` fail with `42501` (tested through the API's own connection). `AuditService.record` sanitizes `before`/`after` (secret-looking keys, contact fields, free text through `redactText`, depth/length/size limits); `@Audited` routes record after success and a failed audit write fails the request; failed actions write nothing. Auth security events (`auth.password_change`, `auth.two_factor_enable`, `auth.two_factor_disable`, `auth.backup_codes_regenerate`) are audited by the auth controller. The password of the role comes from `API_DB_PASSWORD`, applied by the `migrate` step, never from a migration.
 
 ---
 
@@ -221,7 +230,10 @@ Open security items from Phase 0 and design decisions. Each has an owner task; n
 
 | Item | Source | Owner task |
 |---|---|---|
-| Restricted API DB role that cannot `UPDATE`/`DELETE` `audit_logs` (migration + compose env) | Phase 0 review | Task 1.6 |
+| ~~Restricted API DB role that cannot `UPDATE`/`DELETE` `audit_logs`~~ **Done (Task 1.6).** Owner action: add `API_DB_PASSWORD` to `.env.prod` before the next deploy (DOCKER-GUIDE 3.7) | Phase 0 review | Task 1.6 |
+| Admin-route rules depend on `request.routeOptions.url` starting with `/admin`; a route registered under another prefix is not an admin route. Keep every admin endpoint under `/admin` (the guard test covers an unprotected one) | Task 1.6 | - |
+| `AuthService.getSession` costs three queries per request (user status, platform role, session assurance) plus the cached permission lookup. Fold into one query, or cache per session for a few seconds, when load shows it | Task 1.6 | Phase 4 |
+| Server-side (SSR) mutations from the Next.js server to the API carry the session cookie but no browser `Origin`; they must set `Origin` to the site origin explicitly or they are refused by the origin guard | Task 1.6 | Task 1.9 |
 | Baileys is a release candidate (`7.0.0-rc14`, pinned exactly); re-test the bridge before upgrading it, and treat the sender-number resolution (LID to phone) as unproven until the spike is done on the real number | Task 1.5 | Task 1.5 spike |
 | `wa:inbound` and `wa:replies` entries hold the sender's phone number and chat id in Redis until trimmed (`MAXLEN`); Redis is on the private network only. Encrypt the entries if that ever changes | Task 1.5 | - |
 | API image is 214 MB (target < 200 MB): audit `pnpm deploy --prod`, drop dev-only deps, or record an accepted size | Phase 0 | Task 1.12 |

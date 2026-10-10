@@ -8,9 +8,10 @@ import { AuthSettingsReader } from "./auth-settings.reader.js";
 import { createAuth } from "./auth.config.js";
 import { AuthController } from "./auth.controller.js";
 import { AuthPolicy } from "./auth.policy.js";
+import { AuthRepo } from "./auth.repo.js";
 import { AUTH, AuthService } from "./auth.service.js";
 import { AUTH_MAILER, UnconfiguredMailer, type AuthMailer } from "./mailer.js";
-import { createPasswordHasher } from "./password.js";
+import { PASSWORD_HASHER, createPasswordHasher, type PasswordHasher } from "./password.js";
 import { AuthRateLimiter } from "./rate-limiter.js";
 import { TurnstileService } from "./turnstile.js";
 
@@ -27,15 +28,29 @@ import type { ApiEnv } from "../config/env.js";
     AuthRateLimiter,
     TurnstileService,
     AuthPolicy,
+    AuthRepo,
     AuthService,
     {
+      provide: PASSWORD_HASHER,
+      inject: [API_ENV],
+      useFactory: (env: ApiEnv) => createPasswordHasher(env.ARGON2_MEMORY_KIB),
+    },
+    {
       provide: AUTH,
-      inject: [API_ENV, DB, AuthSettingsReader, PinoLogger, { token: AUTH_MAILER, optional: true }],
+      inject: [
+        API_ENV,
+        DB,
+        AuthSettingsReader,
+        PinoLogger,
+        PASSWORD_HASHER,
+        { token: AUTH_MAILER, optional: true },
+      ],
       useFactory: (
         env: ApiEnv,
         handle: DbHandle,
         settings: AuthSettingsReader,
         logger: PinoLogger,
+        passwords: PasswordHasher,
         mailer: AuthMailer | null,
       ) => {
         logger.setContext("Auth");
@@ -44,7 +59,7 @@ import type { ApiEnv } from "../config/env.js";
           db: handle.db,
           settings,
           mailer: mailer ?? new UnconfiguredMailer(logger),
-          passwords: createPasswordHasher(env.ARGON2_MEMORY_KIB),
+          passwords,
           log: (level, message) => logger[level](message),
         });
       },

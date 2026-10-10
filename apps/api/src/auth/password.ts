@@ -1,5 +1,8 @@
 import { hash, verify } from "@node-rs/argon2";
 
+/** DI token of the shared hasher (one instance, one dummy hash). */
+export const PASSWORD_HASHER = Symbol("PASSWORD_HASHER");
+
 export interface PasswordHasher {
   hash: (password: string) => Promise<string>;
   verify: (input: { hash: string; password: string }) => Promise<boolean>;

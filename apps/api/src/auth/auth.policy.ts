@@ -53,6 +53,8 @@ export interface AuthRoute {
   tracksFailures?: boolean;
   /** Social routes: the provider (from the body or the `:id` segment) must be `enabled`. */
   provider?: "body" | "param";
+  /** Security event written to `audit_logs` when this route succeeds (actor = the signed-in caller). */
+  audit?: string;
   /** Field a password complaint should point at. */
   passwordField?: string;
   /** Query parameters forwarded to Better Auth; everything else is dropped. `*` forwards all. */
@@ -185,6 +187,7 @@ export const AUTH_ROUTES: readonly AuthRoute[] = [
     method: "POST",
     pattern: "/change-password",
     bucket: "change-password",
+    audit: "auth.password_change",
     body: changePasswordSchema,
     perIp: { max: 10, windowSeconds: FIFTEEN_MINUTES },
     passwordField: "newPassword",
@@ -193,6 +196,7 @@ export const AUTH_ROUTES: readonly AuthRoute[] = [
     method: "POST",
     pattern: "/two-factor/enable",
     bucket: "2fa",
+    audit: "auth.two_factor_enable",
     body: twoFactorEnableSchema,
     perIp: IP_TOTP,
   },
@@ -200,6 +204,7 @@ export const AUTH_ROUTES: readonly AuthRoute[] = [
     method: "POST",
     pattern: "/two-factor/disable",
     bucket: "2fa",
+    audit: "auth.two_factor_disable",
     body: twoFactorDisableSchema,
     perIp: IP_TOTP,
   },
@@ -207,6 +212,7 @@ export const AUTH_ROUTES: readonly AuthRoute[] = [
     method: "POST",
     pattern: "/two-factor/generate-backup-codes",
     bucket: "2fa",
+    audit: "auth.backup_codes_regenerate",
     body: twoFactorGenerateBackupCodesSchema,
     perIp: IP_TOTP,
   },

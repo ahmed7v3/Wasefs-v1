@@ -1,9 +1,14 @@
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { RedisContainer, type StartedRedisContainer } from "@testcontainers/redis";
-import { createDb, runMigrations } from "@wasfa/db";
+import { API_DB_ROLE, createDb, runMigrations, setApiRolePassword } from "@wasfa/db";
+
+const API_DB_PASSWORD = "api-role-test-password";
 
 export interface TestInfra {
+  /** Owner role: runs migrations and seeds. */
   databaseUrl: string;
+  /** The restricted role the API really runs as in production (no UPDATE/DELETE on audit_logs). */
+  apiDatabaseUrl: string;
   redisUrl: string;
   /** Stops Postgres to simulate an outage; `undefined` when running against external services. */
   stopPostgres: (() => Promise<void>) | undefined;
@@ -23,6 +28,7 @@ export async function startInfra(): Promise<TestInfra> {
   if (externalDb && externalRedis) {
     infra = {
       databaseUrl: externalDb,
+      apiDatabaseUrl: externalDb,
       redisUrl: externalRedis,
       stopPostgres: undefined,
       stop: async () => undefined,
@@ -36,6 +42,7 @@ export async function startInfra(): Promise<TestInfra> {
     let postgresRunning = true;
     infra = {
       databaseUrl: postgres.getConnectionUri(),
+      apiDatabaseUrl: postgres.getConnectionUri(),
       redisUrl: redis.getConnectionUrl(),
       stopPostgres: async () => {
         postgresRunning = false;
@@ -50,8 +57,13 @@ export async function startInfra(): Promise<TestInfra> {
   const { db, close } = createDb({ url: infra.databaseUrl, max: 1 });
   try {
     await runMigrations(db);
+    await setApiRolePassword(db, API_DB_PASSWORD);
   } finally {
     await close();
   }
+  const apiUrl = new URL(infra.databaseUrl);
+  apiUrl.username = API_DB_ROLE;
+  apiUrl.password = API_DB_PASSWORD;
+  infra.apiDatabaseUrl = apiUrl.toString();
   return infra;
 }

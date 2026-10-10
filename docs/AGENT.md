@@ -121,7 +121,7 @@ Before writing a helper, search `docs/REUSE-INDEX.md` and `packages/`. If it exi
 Prices, plan limits, credit costs, discounts, roles, and ownership are always computed/checked on the server. The client only sends IDs and intent.
 
 ### 5.4 Tenant & ownership isolation
-Every query on user-owned data filters by `userId` (or `organizationId` + membership check). Use the shared `scopedRepo` helpers — never write an unscoped `select` on user data. Admin access goes through explicit admin routes with permission checks and audit logs.
+Every query on user-owned data filters by `userId` (or `organizationId` + membership check). Use the shared `scopedRepo` helpers (`apps/api/src/common/scoped-repo.ts`) — never write an unscoped `select` on user data. ESLint rejects `db.select/insert/update/delete/execute/transaction` in `*.service.ts`, `*.controller.ts`, `*.guard.ts` and `*.interceptor.ts`: queries live in `*.repo.ts`. Every route is authenticated unless it says `@Public()`; admin routes live under `/admin/*` with `@RequirePermission`; tests of owner-scoped endpoints use `wrongOwnerIsHidden`. Admin access goes through explicit admin routes with permission checks and audit logs.
 
 ### 5.5 Money and credits
 - Money is stored as **integer minor units** (`amountMinor`, e.g. piasters/halalas/cents) + `currency` (ISO 4217). Never floats.

@@ -96,6 +96,9 @@ export const resetPasswordSchema = z.object({
   token: z.string().min(1).max(512),
 });
 
+/** "Confirm it is you": the password of the signed-in account, to refresh the session's assurance. */
+export const reauthSchema = z.object({ password: currentPasswordSchema });
+
 export const changePasswordSchema = z.object({
   currentPassword: currentPasswordSchema,
   newPassword: newPasswordSchema,

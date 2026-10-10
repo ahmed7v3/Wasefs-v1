@@ -31,6 +31,12 @@ export const sessions = pgTable(
     // PII: shown to the owner in "my sessions", purged with the session.
     ipAddress: text(),
     userAgent: text(),
+    // Last time the person proved who they are in this session (password, TOTP, or the social
+    // login itself). Starts at creation; `POST /auth/reauth` moves it. `@RequireFreshAuth` reads it.
+    reauthAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    // Set when the session was created by a completed two-factor challenge (sign-in with a TOTP or
+    // backup code, or the code that switched 2FA on). `/admin/*` requires it.
+    mfaVerifiedAt: timestamp({ withTimezone: true }),
     ...timestamps(),
   },
   (table) => [index("sessions_user_id_idx").on(table.userId)],

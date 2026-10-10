@@ -1,7 +1,7 @@
-import { randomBytes, randomInt } from "node:crypto";
+import { createHmac, randomBytes, randomInt } from "node:crypto";
 
 import { Global, Module } from "@nestjs/common";
-import { users, type createDb } from "@wasfa/db";
+import { userRoles, users, type createDb } from "@wasfa/db";
 import { eq } from "drizzle-orm";
 import { http, HttpResponse } from "msw";
 
@@ -15,14 +15,14 @@ import type { LightMyRequestResponse } from "fastify";
 export const WEB = "https://wasfa.online";
 export const PASSWORD = "correct horse battery";
 
-/** Every test env is valid for production-like cookie settings; mail is captured by the harness. */
+/** Production-like cookie settings. The API connects as the restricted database role, like in production. */
 export function testApiEnv(
   infra: TestInfra,
   overrides: Record<string, string | number> = {},
 ): ApiEnv {
   return apiEnvSchema.parse({
     NODE_ENV: "test",
-    DATABASE_URL: infra.databaseUrl,
+    DATABASE_URL: infra.apiDatabaseUrl,
     REDIS_URL: infra.redisUrl,
     WEB_ORIGIN: WEB,
     ENCRYPTION_KEY: randomBytes(32).toString("base64"),
@@ -41,6 +41,22 @@ export const pwnedHandlers = () => [
     HttpResponse.text("0000000000000000000000000000000000A:1"),
   ),
 ];
+
+/** RFC 6238 code for a base32 secret (what an authenticator app would show). */
+export function totp(secretBase32: string, at = Date.now()): string {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let bits = "";
+  for (const char of secretBase32.replace(/=+$/, "").toUpperCase()) {
+    bits += alphabet.indexOf(char).toString(2).padStart(5, "0");
+  }
+  const key = Buffer.from(bits.match(/.{8}/g)?.map((byte) => parseInt(byte, 2)) ?? []);
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(Math.floor(at / 30_000)));
+  const digest = createHmac("sha1", key).update(counter).digest();
+  const offset = (digest.at(-1) ?? 0) & 0x0f;
+  const code = (digest.readUInt32BE(offset) & 0x7fffffff) % 1_000_000;
+  return String(code).padStart(6, "0");
+}
 
 export interface Mail {
   kind: "verify" | "reset";
@@ -155,5 +171,49 @@ export class AuthHarness {
       .where(eq(users.email, email));
     if (!row) throw new Error("user row missing");
     return { email, jar, userId: row.id };
+  }
+
+  /** Gives the user a platform role directly in the database (the admin UI arrives in Phase 8). */
+  async grantRole(userId: string, roleKey: string): Promise<void> {
+    await this.getDb().insert(userRoles).values({ userId, roleKey }).onConflictDoNothing();
+  }
+
+  /**
+   * Switches on TOTP for the signed-in user. Returns the secret, so tests can sign in with a code.
+   * `jar` is replaced by the session Better Auth issues once the first code is confirmed (the only
+   * kind `/admin/*` accepts).
+   */
+  async enableTwoFactor(user: { jar: Jar }, password = PASSWORD): Promise<{ secret: string }> {
+    const enable = await this.call("POST", "/auth/two-factor/enable", {
+      body: { password },
+      jar: user.jar,
+    });
+    if (enable.statusCode !== 200) throw new Error(`2FA enable failed: ${enable.body}`);
+    const { totpURI } = enable.json<{ totpURI: string }>();
+    const secret = new URL(totpURI).searchParams.get("secret") ?? "";
+    const confirm = await this.call("POST", "/auth/two-factor/verify-totp", {
+      body: { code: totp(secret) },
+      jar: user.jar,
+    });
+    if (confirm.statusCode !== 200) throw new Error(`2FA confirm failed: ${confirm.body}`);
+    return { secret };
+  }
+
+  /** Password sign-in followed by the TOTP challenge: a session with the second factor behind it. */
+  async signInWithTotp(email: string, secret: string, password = PASSWORD): Promise<Jar> {
+    const jar: Jar = new Map();
+    const first = await this.call("POST", "/auth/sign-in/email", {
+      body: { email, password },
+      jar,
+    });
+    if (first.json<{ twoFactorRedirect?: boolean }>().twoFactorRedirect !== true) {
+      throw new Error("expected a two-factor challenge");
+    }
+    const second = await this.call("POST", "/auth/two-factor/verify-totp", {
+      body: { code: totp(secret, Date.now() + 30_000) },
+      jar,
+    });
+    if (second.statusCode !== 200) throw new Error(`TOTP sign-in failed: ${second.body}`);
+    return jar;
   }
 }

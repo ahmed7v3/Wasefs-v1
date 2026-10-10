@@ -234,7 +234,7 @@ On the server, as `deploy` (`sudo -u deploy -i`), open `/opt/wasfa/.env.prod` an
 `.env.example` (the "Production stack" and "Backups" parts). Generate each secret with:
 
 ```bash
-openssl rand -hex 24        # POSTGRES_PASSWORD, REDIS_PASSWORD (hex only: they are placed inside URLs)
+openssl rand -hex 24        # POSTGRES_PASSWORD, REDIS_PASSWORD, API_DB_PASSWORD (hex only: they are placed inside URLs)
 openssl rand -base64 32     # ENCRYPTION_KEY
 openssl rand -base64 48     # BETTER_AUTH_SECRET (signs session cookies; rotating it signs everyone out)
 ```
@@ -248,6 +248,7 @@ first two; see `.env.example` for what each one does):
 | `AUTH_COOKIE_DOMAIN` | `.wasfa.online` (the default). Must cover both `wasfa.online` and `api.wasfa.online`. |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google Cloud console → APIs & Services → Credentials → OAuth client (Web). Authorized redirect URI: `https://api.wasfa.online/auth/callback/google`. Optional until you want Google sign-in; set both or neither. |
 | `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET` | Leave empty: Facebook ships as "coming soon". |
+| `API_DB_PASSWORD` | **New (Task 1.6), required.** Password of the restricted database role `wasfa_api` that the api and the WhatsApp bridge use. The deploy's `migrate` step creates the role and sets this password, so add it to `.env.prod` **before** the next deploy; compose refuses to start without it. |
 | `ARGON2_MEMORY_KIB` | Optional, default 19456. |
 | `SMTP_USER`, `SMTP_PASS` | Brevo dashboard → **SMTP & API** → SMTP: the **login** shown there and an **SMTP key** you generate (not the API key). Both required: the worker will not start in production without them, and mail is never "captured" there. |
 | `SMTP_HOST`, `SMTP_PORT`, `MAIL_FROM`, `MAIL_DAILY_CAP` | Optional. Defaults: `smtp-relay.brevo.com`, `587`, `"وصفة AI" <no-reply@wasfa.online>`, `280` (a margin under Brevo's 300 a day). Changing provider is these variables only. |

@@ -227,11 +227,19 @@ export function createAuth(deps: AuthDeps) {
             }
             return undefined;
           },
-          after: async (session) => {
+          after: async (session, context) => {
             await db
               .update(users)
               .set({ lastLoginAt: new Date() })
               .where(eq(users.id, session.userId));
+            // A session born from a completed two-factor challenge (sign-in with a TOTP or backup
+            // code, or the code that switches 2FA on) is the only kind `/admin/*` accepts.
+            if (context?.path?.startsWith("/two-factor/verify")) {
+              await db
+                .update(sessions)
+                .set({ mfaVerifiedAt: new Date() })
+                .where(eq(sessions.id, session.id));
+            }
           },
         },
       },

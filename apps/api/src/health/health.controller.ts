@@ -1,11 +1,13 @@
 import { Controller, Get, Res } from "@nestjs/common";
 
+import { Public } from "../common/auth.guard.js";
 import { SkipRateLimit } from "../common/rate-limit.js";
 
 import { HealthService } from "./health.service.js";
 
 import type { FastifyReply } from "fastify";
 
+@Public()
 @Controller("health")
 export class HealthController {
   constructor(private readonly health: HealthService) {}

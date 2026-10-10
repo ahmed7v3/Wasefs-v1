@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { createApp } from "../src/bootstrap.js";
+import { Public } from "../src/common/auth.guard.js";
 import { REDIS } from "../src/common/redis.js";
 import { createZodDto } from "../src/common/validation.js";
 import { apiEnvSchema, type ApiEnv } from "../src/config/env.js";
@@ -22,6 +23,8 @@ import type { Redis } from "ioredis";
 
 class EchoDto extends createZodDto(z.object({ name: z.string().min(2), age: z.number().int() })) {}
 
+// Deny-by-default access control would answer these probes with 401; they test other layers.
+@Public()
 @Controller("__test")
 class TestController {
   @Get("ping")
