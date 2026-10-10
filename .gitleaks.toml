@@ -15,4 +15,7 @@ regexes = [
   # Throwaway password of the local development database in compose.dev.yml / .env.example.
   # It protects a container bound to 127.0.0.1 and is never used outside a developer machine.
   '''wasfa_dev_password''',
+  # Fake verification token in the worker email tests (apps/worker/test/email.int.test.ts); the
+  # test proves this exact string never reaches Redis or the logs, so it must look like a token.
+  '''tok_9f8e7d6c5b4a39281706''',
 ]
