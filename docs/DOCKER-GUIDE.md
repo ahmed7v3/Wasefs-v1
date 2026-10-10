@@ -253,6 +253,21 @@ first two; see `.env.example` for what each one does):
 | `SMTP_USER`, `SMTP_PASS` | Brevo dashboard → **SMTP & API** → SMTP: the **login** shown there and an **SMTP key** you generate (not the API key). Both required: the worker will not start in production without them, and mail is never "captured" there. |
 | `SMTP_HOST`, `SMTP_PORT`, `MAIL_FROM`, `MAIL_DAILY_CAP` | Optional. Defaults: `smtp-relay.brevo.com`, `587`, `"وصفة AI" <no-reply@wasfa.online>`, `280` (a margin under Brevo's 300 a day). Changing provider is these variables only. |
 
+**Brevo state (2026-10-10, set up through the Brevo MCP):** free plan, 299 sends/day; SMTP login
+`bd8752001@smtp-brevo.com` on `smtp-relay.brevo.com:587` (the SMTP **key** can only be created in the
+dashboard: SMTP & API > SMTP > Generate). Domain `wasfa.online` added (not yet authenticated) and sender
+`"وصفة AI" <no-reply@wasfa.online>` created (inactive until the DNS below exists and Brevo's confirmation
+mail to that address is clicked; Namecheap forwarding delivers it). DNS records Brevo requires, all
+**DNS only** in Cloudflare:
+
+| Type | Name | Value |
+|---|---|---|
+| CNAME | `brevo1._domainkey` | `b1.wasfa-online.dkim.brevo.com` |
+| CNAME | `brevo2._domainkey` | `b2.wasfa-online.dkim.brevo.com` |
+| TXT | `@` | `brevo-code:8d0e2ab2236b6d1d5dd2fcead71d939f` |
+| TXT | `_dmarc` | `v=DMARC1; p=quarantine; rua=mailto:rua@dmarc.brevo.com` |
+| TXT | `@` (edit the existing SPF) | `v=spf1 include:spf.efwd.registrar-servers.com include:spf.brevo.com ~all` |
+
 **Email deliverability (owner, once, Task 1.4).** In Brevo → **Senders, domains & dedicated IPs → Domains**,
 add `wasfa.online` and create the DNS records Brevo shows in Cloudflare (DNS only, not proxied): the
 Brevo verification code (TXT), the **DKIM** record(s), and an **SPF** record that includes Brevo
