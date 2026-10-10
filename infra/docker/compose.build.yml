@@ -18,3 +18,7 @@ services:
     build:
       context: ../..
       dockerfile: infra/docker/worker.Dockerfile
+  backup:
+    build:
+      context: ../..
+      dockerfile: infra/docker/backup.Dockerfile
