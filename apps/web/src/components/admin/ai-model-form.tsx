@@ -170,6 +170,8 @@ export function ModelForm({
   const [formError, setFormError] = useState<ApiRequestError | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitCount, setSubmitCount] = useState(0);
+  // The prices were filled from an OpenRouter discovery item and not touched since.
+  const [pricesSynced, setPricesSynced] = useState(false);
 
   const { discovery, refresh } = useDiscovery(creating ? providerId : "");
   const items = discovery.status === "ready" ? discovery.items : [];
@@ -186,6 +188,11 @@ export function ModelForm({
     if (item.displayName) setDisplayName(item.displayName);
     if (item.contextTokens !== null) setContextTokens(String(item.contextTokens));
     setCapabilities([...item.capabilities]);
+    // Only OpenRouter's own prices are what price sync would write, so only those count as synced.
+    setPricesSynced(
+      item.pricing !== null &&
+        providers.find((candidate) => candidate.id === providerId)?.kind === "openrouter",
+    );
     if (item.pricing) {
       const { pricing } = item;
       const text = (micros: number | null) =>
@@ -203,6 +210,8 @@ export function ModelForm({
     clearError("modelId");
     const hit = items.find((item) => item.id === value.trim());
     if (hit) applyDiscovered(hit);
+    // The prices belonged to the model that was picked, not to whatever is typed now.
+    else setPricesSynced(false);
   };
 
   const toggleCapability = (capability: AiCapability, on: boolean) => {
@@ -274,6 +283,7 @@ export function ModelForm({
         priceSearchUsdMicros: search,
         creditMultiplierBp: bp,
         enabled,
+        priceSource: pricesSynced ? "openrouter_sync" : "manual",
       };
       const parsed = createModelSchema.safeParse(body);
       if (!parsed.success) {
@@ -364,6 +374,7 @@ export function ModelForm({
           onChange={(event) => {
             set(event.target.value);
             clearError(name);
+            setPricesSynced(false);
           }}
         />
       )}
@@ -389,6 +400,7 @@ export function ModelForm({
                 value={providerId}
                 onChange={(event) => {
                   setProviderId(event.target.value);
+                  setPricesSynced(false);
                   clearError("providerId");
                 }}
               >
@@ -579,6 +591,9 @@ export function ModelForm({
             false,
           )}
         </div>
+        {pricesSynced ? (
+          <p className="text-sm text-text-muted">{t("admin.ai.models.field.priceSynced")}</p>
+        ) : null}
       </div>
 
       <Field

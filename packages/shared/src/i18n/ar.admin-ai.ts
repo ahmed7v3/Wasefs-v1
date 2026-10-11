@@ -203,6 +203,8 @@ export const arAdminAi = {
   "admin.ai.models.field.priceCached": "سعر الإدخال المخزّن (اختياري)",
   "admin.ai.models.field.priceOutput": "سعر الإخراج (دولار لكل مليون رمز)",
   "admin.ai.models.field.priceSearch": "سعر البحث للطلب الواحد بالدولار (اختياري)",
+  "admin.ai.models.field.priceSynced":
+    "الأسعار من OpenRouter — تُحدَّث تلقائيًا بمزامنة الأسعار. تعديل أي سعر يجعلها يدوية.",
   "admin.ai.models.field.multiplier": "معامل الكريدت",
   "admin.ai.models.field.multiplierHint": "1 = بسعر التكلفة، و1.5 = أغلى بنصف. الناتج: {value}",
   "admin.ai.models.field.enabled": "مفعّل",

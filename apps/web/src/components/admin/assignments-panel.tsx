@@ -41,7 +41,17 @@ export function AssignmentsPanel({ plans, canWrite, canSearchUsers }: Assignment
       cell: (row) => (
         <span className="flex flex-col items-start gap-1">
           <Badge tone="neutral">{ownerTypeLabel(row.owner.type)}</Badge>
-          <Code title={row.owner.id}>{row.owner.id}</Code>
+          {row.ownerDisplay.name ? (
+            <span className="font-medium text-text wrap-anywhere">{row.ownerDisplay.name}</span>
+          ) : null}
+          {row.ownerDisplay.email ? (
+            <bdi dir="ltr" className="text-sm text-text-muted wrap-anywhere">
+              {row.ownerDisplay.email}
+            </bdi>
+          ) : null}
+          <span className="text-xs text-text-muted">
+            <Code title={row.owner.id}>{row.owner.id}</Code>
+          </span>
         </span>
       ),
     },
@@ -81,8 +91,17 @@ export function AssignmentsPanel({ plans, canWrite, canSearchUsers }: Assignment
     {
       id: "by",
       header: t("admin.plans.assignments.col.by"),
-      cell: (row) =>
-        row.assignedBy ? <Code title={row.assignedBy}>{row.assignedBy.slice(0, 8)}</Code> : "—",
+      cell: (row) => {
+        if (!row.assignedBy) return "—";
+        const name = row.assignedByDisplay?.name;
+        return name ? (
+          <span title={row.assignedBy} className="wrap-anywhere">
+            {name}
+          </span>
+        ) : (
+          <Code title={row.assignedBy}>{row.assignedBy.slice(0, 8)}</Code>
+        );
+      },
     },
   ];
 

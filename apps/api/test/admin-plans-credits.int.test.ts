@@ -22,7 +22,7 @@ import { CreditsService } from "../src/credits/credits.service.js";
 import { PlansService } from "../src/plans/plans.service.js";
 
 import { AdminTestContext, MISSING_ID, type Admin, type Person } from "./support/admin-context.js";
-import { auditRows, expectRateLimited } from "./support/identity-fixtures.js";
+import { auditRows, expectRateLimited, insertOrg } from "./support/identity-fixtures.js";
 
 import type { Permission } from "@wasfa/shared/permissions";
 import type { LightMyRequestResponse } from "fastify";
@@ -546,9 +546,16 @@ describe("plan assignments", () => {
       `/admin/plans/assignments?ownerType=user&ownerId=${owner.id}`,
       boss,
     );
-    expect(planAssignmentPageSchema.parse(history.json()).items.map((row) => row.id)).toEqual([
-      assignment.id,
-    ]);
+    const historyItems = planAssignmentPageSchema.parse(history.json()).items;
+    expect(historyItems.map((row) => row.id)).toEqual([assignment.id]);
+    expect(historyItems[0]).toMatchObject({
+      ownerDisplay: { name: "Credits Person", email: expect.stringMatching(/^c.+@example\.com$/) },
+      assignedByDisplay: { name: "Test User" },
+    });
+    expect(assignment).toMatchObject({
+      ownerDisplay: historyItems[0]?.ownerDisplay,
+      assignedByDisplay: { name: "Test User" },
+    });
 
     const ended = await call("POST", `/admin/plans/assignments/${assignment.id}/end`, boss);
     expect(ended.statusCode, ended.body).toBe(204);
@@ -563,6 +570,36 @@ describe("plan assignments", () => {
       "CONFLICT",
       "assignment_ended",
     );
+  });
+
+  it("shows the organization name, and no email, for an organization owner", async () => {
+    const plan = await createPlan();
+    const orgId = await insertOrg(ctx.owner.db, {
+      name: "Nile Pharmacy",
+      createdBy: boss.userId,
+      members: [{ userId: boss.userId, role: "org_admin" }],
+    });
+    const res = await call("POST", "/admin/plans/assignments", boss, {
+      owner: { type: "org", id: orgId },
+      planId: plan.id,
+      reason: REASON,
+    });
+    expect(res.statusCode, res.body).toBe(201);
+    expect(planAssignmentSchema.parse(res.json()).ownerDisplay).toEqual({
+      name: "Nile Pharmacy",
+      email: null,
+    });
+
+    const list = await call(
+      "GET",
+      `/admin/plans/assignments?ownerType=org&ownerId=${orgId}`,
+      boss,
+    );
+    const [row] = planAssignmentPageSchema.parse(list.json()).items;
+    expect(row).toMatchObject({
+      ownerDisplay: { name: "Nile Pharmacy", email: null },
+      assignedByDisplay: { name: "Test User" },
+    });
   });
 
   it("uses the newest open assignment, and ignores one that has not started or has ended", async () => {

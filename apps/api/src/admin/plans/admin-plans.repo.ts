@@ -1,9 +1,11 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
   isUniqueViolation,
+  organizations,
   planAssignments,
   planEntitlements,
   plans,
+  users,
   type NewPlan,
   type Plan,
   type PlanAssignment,
@@ -12,6 +14,7 @@ import {
 } from "@wasfa/db";
 import { RX_MAX_PAGES } from "@wasfa/shared/rx";
 import { and, asc, count, desc, eq, ne, sql, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 import { DB, type DbHandle } from "../../common/database.js";
 import { afterCursor, stamp, type Cursor } from "../common/keyset.js";
@@ -27,6 +30,12 @@ export interface AssignmentRow {
   planKey: string;
   planNameAr: string;
   planNameEn: string;
+  /** Set for a user owner (the other owner side is null). */
+  ownerUserName: string | null;
+  ownerUserEmail: string | null;
+  /** Set for an organization owner. */
+  ownerOrgName: string | null;
+  assignedByName: string | null;
   /** `created_at` as exact text, for the cursor. */
   cursorAt: string;
 }
@@ -57,6 +66,9 @@ export type RemoveOutcome =
   | { kind: "in_use" };
 
 const PLAN_KEY_CONSTRAINT = "plans_key_key";
+
+/** `users` a second time: the admin who made the assignment, next to the user who owns it. */
+const assigner = alias(users, "assigner");
 
 /** Plan editing and assignments (the writes). Reading what a plan allows is `PlansRepo`. */
 @Injectable()
@@ -239,20 +251,41 @@ export class AdminPlansRepo {
     if (cursor) {
       conditions.push(afterCursor(planAssignments.createdAt, planAssignments.id, cursor, "uuid"));
     }
-    const rows = await this.handle.db
+    const rows = await this.assignmentSelect()
+      .where(and(...conditions))
+      .orderBy(desc(planAssignments.createdAt), desc(planAssignments.id))
+      .limit(limit + 1);
+    return rows;
+  }
+
+  async findAssignment(id: string): Promise<AssignmentRow | undefined> {
+    const [row] = await this.assignmentSelect().where(eq(planAssignments.id, id));
+    return row;
+  }
+
+  /**
+   * Assignments with their plan and the names to show for owner and assigner, in one query. The
+   * joins are LEFT so a missing row never hides an assignment; an anonymized user keeps the
+   * (anonymized) values stored on the row.
+   */
+  private assignmentSelect() {
+    return this.handle.db
       .select({
         assignment: planAssignments,
         planKey: plans.key,
         planNameAr: plans.nameAr,
         planNameEn: plans.nameEn,
+        ownerUserName: users.name,
+        ownerUserEmail: users.email,
+        ownerOrgName: organizations.name,
+        assignedByName: assigner.name,
         cursorAt: stamp(planAssignments.createdAt),
       })
       .from(planAssignments)
       .innerJoin(plans, eq(plans.id, planAssignments.planId))
-      .where(and(...conditions))
-      .orderBy(desc(planAssignments.createdAt), desc(planAssignments.id))
-      .limit(limit + 1);
-    return rows;
+      .leftJoin(users, eq(users.id, planAssignments.ownerUserId))
+      .leftJoin(organizations, eq(organizations.id, planAssignments.ownerOrgId))
+      .leftJoin(assigner, eq(assigner.id, planAssignments.assignedBy));
   }
 
   /**

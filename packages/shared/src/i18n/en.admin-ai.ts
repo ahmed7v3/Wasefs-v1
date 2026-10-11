@@ -208,6 +208,8 @@ export const enAdminAi: Partial<Record<keyof typeof arAdminAi, string>> = {
   "admin.ai.models.field.priceCached": "Cached input price (optional)",
   "admin.ai.models.field.priceOutput": "Output price (USD per 1M tokens)",
   "admin.ai.models.field.priceSearch": "Search price per request in USD (optional)",
+  "admin.ai.models.field.priceSynced":
+    "Prices from OpenRouter — kept up to date by price sync. Editing a price makes it manual.",
   "admin.ai.models.field.multiplier": "Credit multiplier",
   "admin.ai.models.field.multiplierHint": "1 = at cost, 1.5 = half again. Result: {value}",
   "admin.ai.models.field.enabled": "Enabled",

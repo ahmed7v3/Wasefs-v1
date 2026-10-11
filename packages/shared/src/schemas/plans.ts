@@ -140,10 +140,13 @@ export type AssignPlanInput = z.output<typeof assignPlanSchema>;
 export const planAssignmentSchema = z.object({
   id: z.uuid(),
   owner: walletOwnerSchema,
+  /** What to show instead of the owner's UUID; org owners have no email. */
+  ownerDisplay: z.object({ name: z.string().nullable(), email: z.string().nullable() }),
   plan: planSummarySchema,
   startsAt: isoDate,
   endsAt: isoDate.nullable(),
   assignedBy: z.uuid().nullable(),
+  assignedByDisplay: z.object({ name: z.string().nullable() }).nullable(),
   reason: z.string().nullable(),
   createdAt: isoDate,
 });

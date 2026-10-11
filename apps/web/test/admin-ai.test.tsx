@@ -237,6 +237,74 @@ describe("ModelForm (add)", () => {
     );
   });
 
+  describe("price source", () => {
+    const discovered = () =>
+      json({
+        items: [
+          {
+            id: "google/gemini-x",
+            displayName: "Gemini X",
+            contextTokens: 1_000_000,
+            capabilities: ["vision"],
+            pricing: {
+              inputUsdMicrosPerM: 750_000,
+              cachedInputUsdMicrosPerM: null,
+              outputUsdMicrosPerM: 3_000_000,
+              searchUsdMicros: null,
+            },
+            alreadyAdded: false,
+          },
+        ],
+        fetchedAt: NOW,
+        cached: false,
+      });
+
+    it("marks a model added from OpenRouter discovery as synced", async () => {
+      const { onSaved } = setup(discovered);
+      expect(
+        await screen.findByText(t("admin.ai.models.discover.ready", { count: 1 })),
+      ).toBeTruthy();
+      await userEvent.type(control("modelId"), "google/gemini-x");
+      expect(screen.getByText(t("admin.ai.models.field.priceSynced"))).toBeTruthy();
+      await userEvent.click(screen.getByRole("button", { name: t("common.save") }));
+
+      await waitFor(() => {
+        expect(onSaved).toHaveBeenCalled();
+      });
+      expect(bodyOf(writes("POST")[0])).toMatchObject({ priceSource: "openrouter_sync" });
+    });
+
+    it("sends manual once a price is edited by hand", async () => {
+      const { onSaved } = setup(discovered);
+      expect(
+        await screen.findByText(t("admin.ai.models.discover.ready", { count: 1 })),
+      ).toBeTruthy();
+      await userEvent.type(control("modelId"), "google/gemini-x");
+      await userEvent.type(control("priceOutput"), "1");
+      expect(screen.queryByText(t("admin.ai.models.field.priceSynced"))).toBeNull();
+      await userEvent.click(screen.getByRole("button", { name: t("common.save") }));
+
+      await waitFor(() => {
+        expect(onSaved).toHaveBeenCalled();
+      });
+      expect(bodyOf(writes("POST")[0])).toMatchObject({ priceSource: "manual" });
+    });
+
+    it("sends manual for a typed id with no discovery item", async () => {
+      const { onSaved } = setup(() => json({ items: [], fetchedAt: NOW, cached: false }));
+      await userEvent.type(control("modelId"), "vendor/m");
+      await userEvent.type(control("displayName"), "M");
+      await userEvent.type(control("priceInput"), "1");
+      await userEvent.type(control("priceOutput"), "2");
+      await userEvent.click(screen.getByRole("button", { name: t("common.save") }));
+
+      await waitFor(() => {
+        expect(onSaved).toHaveBeenCalled();
+      });
+      expect(bodyOf(writes("POST")[0])).toMatchObject({ priceSource: "manual" });
+    });
+  });
+
   it("shows an error under an invalid price and does not submit", async () => {
     setup(() => json({ items: [], fetchedAt: NOW, cached: false }));
     await userEvent.type(control("modelId"), "vendor/m");

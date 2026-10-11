@@ -86,6 +86,10 @@ function assignmentView(row: AssignmentRow): PlanAssignmentView {
   return {
     id: assignment.id,
     owner,
+    ownerDisplay:
+      owner.type === "user"
+        ? { name: row.ownerUserName, email: row.ownerUserEmail }
+        : { name: row.ownerOrgName, email: null },
     plan: {
       id: assignment.planId,
       key: row.planKey,
@@ -95,6 +99,7 @@ function assignmentView(row: AssignmentRow): PlanAssignmentView {
     startsAt: assignment.startsAt.toISOString(),
     endsAt: assignment.endsAt?.toISOString() ?? null,
     assignedBy: assignment.assignedBy,
+    assignedByDisplay: assignment.assignedBy === null ? null : { name: row.assignedByName },
     reason: assignment.reason,
     createdAt: assignment.createdAt.toISOString(),
   };
@@ -192,13 +197,9 @@ export class AdminPlansService {
     });
     audit.targetId = created.id;
     audit.after = { ownerType: input.owner.type, planKey: plan.key, reason: input.reason };
-    return assignmentView({
-      assignment: created,
-      planKey: plan.key,
-      planNameAr: plan.nameAr,
-      planNameEn: plan.nameEn,
-      cursorAt: "",
-    });
+    const row = await this.repo.findAssignment(created.id);
+    if (!row) throw new Error("Assignment was not stored");
+    return assignmentView(row);
   }
 
   async endAssignment(id: string, audit: AuditScope): Promise<void> {
