@@ -20,8 +20,101 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
   "admin.nav.roles.description": "Roles and the permissions each one grants.",
   "admin.nav.settings": "Site settings",
   "admin.nav.settings.description": "Branding, contact, currencies and access.",
+  "admin.nav.branding": "Brand identity",
+  "admin.nav.branding.description": "Logo, favicon and the platform names.",
   "admin.nav.flags": "Feature flags",
   "admin.nav.flags.description": "Turn features on or off for chosen groups.",
+  "admin.nav.whatsapp": "WhatsApp number",
+  "admin.nav.whatsapp.description": "Link and monitor the phone-verification number.",
+  "admin.reason.whatsapp_already_linked":
+    "A number is already linked. Unlink it first to link another.",
+  "admin.reason.bridge_down":
+    "The WhatsApp bridge is not answering. Make sure it is running and try again.",
+  "admin.reason.queue_unavailable":
+    "The command could not be sent to the bridge. Try again shortly.",
+  "admin.settings.whatsapp.title": "WhatsApp verification number",
+  "admin.settings.whatsapp.description":
+    "The number users message to verify. Managed from the WhatsApp number page.",
+  "admin.settings.field.whatsapp.number": "Number (international, e.g. +201001234567)",
+  "admin.whatsapp.readOnlyNote": "This page is read-only: you cannot change settings.",
+  "admin.whatsapp.status.title": "Connection status",
+  "admin.whatsapp.status.connected": "Connected",
+  "admin.whatsapp.status.connecting": "Connecting",
+  "admin.whatsapp.status.disconnected": "Briefly disconnected",
+  "admin.whatsapp.status.logged_out": "Not linked",
+  "admin.whatsapp.status.down": "Bridge down",
+  "admin.whatsapp.status.help.connected":
+    "The number is linked and receiving verification messages.",
+  "admin.whatsapp.status.help.connecting": "The bridge is connecting to WhatsApp.",
+  "admin.whatsapp.status.help.disconnected":
+    "The connection dropped and will be restored automatically.",
+  "admin.whatsapp.status.help.logged_out": "No number is linked. Link one with the form below.",
+  "admin.whatsapp.status.help.down":
+    "The bridge is not sending heartbeats. Make sure the wa-bridge service is running on the server.",
+  "admin.whatsapp.status.number": "Configured number",
+  "admin.whatsapp.status.noNumber": "No number configured",
+  "admin.whatsapp.status.source.setting": "from this page",
+  "admin.whatsapp.status.source.env": "from the server environment",
+  "admin.whatsapp.status.lastBeat": "Last bridge heartbeat",
+  "admin.whatsapp.status.noBeat": "No heartbeat from the bridge.",
+  "admin.whatsapp.status.available": "WhatsApp verification is available to users now.",
+  "admin.whatsapp.status.unavailable.disabled":
+    "WhatsApp verification is unavailable to users: it is switched off.",
+  "admin.whatsapp.status.unavailable.not_configured":
+    "WhatsApp verification is unavailable to users: no number is configured.",
+  "admin.whatsapp.status.unavailable.bridge_down":
+    "WhatsApp verification is unavailable to users: the number is not connected.",
+  "admin.whatsapp.link.title": "Link a number",
+  "admin.whatsapp.link.lead":
+    "Use a number dedicated to verification, running WhatsApp Business. We never start a conversation from it and only reply to people who wrote first.",
+  "admin.whatsapp.link.numberLabel": "Dedicated WhatsApp number",
+  "admin.whatsapp.link.numberHint": "Type it the way you dial locally and pick the country.",
+  "admin.whatsapp.link.submit": "Request a pairing code",
+  "admin.whatsapp.link.blockedLinked":
+    "A number is already linked. Unlink it first to link another.",
+  "admin.whatsapp.link.blockedDown":
+    "A number cannot be linked while the bridge is down. Start the bridge first.",
+  "admin.whatsapp.pairing.title": "Linking {number}",
+  "admin.whatsapp.pairing.requested": "Requesting a pairing code from WhatsApp…",
+  "admin.whatsapp.pairing.codeLabel": "Pairing code",
+  "admin.whatsapp.pairing.copy": "Copy code",
+  "admin.whatsapp.pairing.expiresIn": "The code expires in {time}",
+  "admin.whatsapp.pairing.expired": "The code expired. Request a new one.",
+  "admin.whatsapp.pairing.stepsTitle": "Enter the code on the dedicated phone",
+  "admin.whatsapp.pairing.step1": "Open WhatsApp Business on the phone that holds this number.",
+  "admin.whatsapp.pairing.step2": "Tap Settings, then Linked devices.",
+  "admin.whatsapp.pairing.step3": "Tap Link a device.",
+  "admin.whatsapp.pairing.step4": "Choose “Link with phone number instead”.",
+  "admin.whatsapp.pairing.step5": "Type the code shown above.",
+  "admin.whatsapp.pairing.linked": "The number is linked and now receives verification messages.",
+  "admin.whatsapp.pairing.alreadyLinked":
+    "A number is already linked. Unlink it first to link another.",
+  "admin.whatsapp.pairing.unlinked":
+    "Unlinked. WhatsApp verification is unavailable until you link a new number.",
+  "admin.whatsapp.pairing.error.pairing_request_failed":
+    "WhatsApp refused the pairing request. Check the number and try again.",
+  "admin.whatsapp.pairing.error.connection_closed":
+    "The connection to WhatsApp dropped before linking finished. Try again.",
+  "admin.whatsapp.pairing.error.timeout":
+    "Time ran out before the code was entered. Request a new one.",
+  "admin.whatsapp.pairing.error.unlink_failed": "Unlinking failed. Try again.",
+  "admin.whatsapp.pairing.dismiss": "Close",
+  "admin.whatsapp.unlink.button": "Unlink",
+  "admin.whatsapp.unlink.title": "Unlink the WhatsApp number?",
+  "admin.whatsapp.unlink.body":
+    "The bridge will log out of WhatsApp and forget the session. Phone verification stops until you link a number again.",
+  "admin.whatsapp.unlink.confirm": "Unlink",
+  "admin.whatsapp.unlink.sent": "The unlink request was sent.",
+  "admin.whatsapp.verification.title": "Phone verification by WhatsApp",
+  "admin.whatsapp.verification.label": "Phone verification by WhatsApp is on",
+  "admin.whatsapp.verification.hint":
+    "When off, users are not offered WhatsApp verification; email verification continues.",
+  "admin.whatsapp.verification.offTitle": "Turn phone verification off?",
+  "admin.whatsapp.verification.offBody":
+    "Users cannot verify their phones through WhatsApp until you turn it back on.",
+  "admin.whatsapp.verification.offConfirm": "Turn off",
+  "admin.whatsapp.verification.onDone": "Phone verification is on.",
+  "admin.whatsapp.verification.offDone": "Phone verification is off.",
   "admin.nav.audit": "Audit log",
   "admin.nav.audit.description": "Who did what, and when.",
   "admin.nav.issues": "Errors and issues",
@@ -140,6 +233,49 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
   "admin.users.sessionExpires": "Expires: {date}",
   "admin.users.noActivity": "No recorded activity.",
 
+  "admin.branding.lead":
+    "Upload the platform logo and favicon and edit its name. Changes reach the whole site within about a minute.",
+  "admin.branding.readOnlyNote":
+    "This page is read-only: you do not have permission to edit site settings.",
+  "admin.branding.logo.title": "Logo",
+  "admin.branding.logo.description":
+    "Shown in the site header, the sign-in pages, the app and the admin panel. A file that includes the platform name works best.",
+  "admin.branding.favicon.title": "Favicon",
+  "admin.branding.favicon.description":
+    "The small icon in the browser tab. Square and at least 64×64 pixels works best.",
+  "admin.branding.hint.logo": "PNG, WebP or SVG, up to 512 KB.",
+  "admin.branding.hint.favicon": "PNG, WebP, SVG or ICO, up to 512 KB.",
+  "admin.branding.current": "Current file",
+  "admin.branding.none": "Nothing uploaded yet, so the built-in default is shown.",
+  "admin.branding.currentAlt": "Current {name}",
+  "admin.branding.picked": "Selected file: {name}",
+  "admin.branding.pickedAlt": "Preview of the selected file",
+  "admin.branding.choose": "Choose a file",
+  "admin.branding.chooseFor": "Choose a file for “{name}”",
+  "admin.branding.upload": "Upload file",
+  "admin.branding.delete": "Delete file",
+  "admin.branding.uploaded": "“{name}” was uploaded.",
+  "admin.branding.deleted": "“{name}” was deleted.",
+  "admin.branding.deleteTitle": "Delete “{name}”",
+  "admin.branding.deleteBody":
+    "The site goes back to the built-in default. You can upload a new file at any time.",
+  "admin.branding.error.type": "This file type is not supported.",
+  "admin.branding.error.size": "The file is larger than 512 KB.",
+  "admin.branding.error.read": "The file could not be read. Try another file.",
+  "admin.branding.reason.unsupported_type": "This file type is not supported.",
+  "admin.branding.reason.type_mismatch":
+    "The file's content does not match its type. Make sure it is a real image with the right extension.",
+  "admin.branding.reason.too_large": "The file is larger than 512 KB.",
+  "admin.branding.reason.invalid_data": "The file could not be read. Try uploading it again.",
+  "admin.branding.reason.invalid_svg":
+    "This SVG is not valid. Export it from your design tool as a plain SVG.",
+  "admin.branding.reason.unsafe_svg":
+    "This SVG contains elements that are not allowed (scripts or external links). Export it as a plain SVG without them.",
+  "admin.branding.names.title": "Platform name",
+  "admin.branding.names.description":
+    "Shown on the site and in search results. If the logo is a symbol without a name, show the name next to it.",
+  "admin.branding.names.saved": "The platform name was saved.",
+
   "admin.orgs.empty": "No organizations",
   "admin.orgs.detail": "Organization details",
   "admin.orgs.filter.q": "Search by name",
@@ -218,6 +354,11 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
   "admin.settings.field.branding.nameAr": "Platform name in Arabic",
   "admin.settings.field.branding.nameEn": "Platform name in English",
   "admin.settings.field.branding.logoUrl": "Logo URL (https)",
+  "admin.settings.field.branding.logoWidth": "Logo width (pixels)",
+  "admin.settings.field.branding.logoHeight": "Logo height (pixels)",
+  "admin.settings.field.branding.logoDarkUrl": "Dark logo URL (https)",
+  "admin.settings.field.branding.faviconUrl": "Favicon URL (https)",
+  "admin.settings.field.branding.showNameWithLogo": "Show the platform name next to the logo",
   "admin.settings.field.contact.whatsapp": "WhatsApp (international number like +201001234567)",
   "admin.settings.field.contact.telegram": "Telegram (username without @)",
   "admin.settings.field.contact.phone": "Phone",

@@ -22,8 +22,8 @@ type StreamBatch = [string, [string, string[]][]][] | null;
 /**
  * Reads `wa:inbound` (written by the WhatsApp bridge) in the consumer group `api` and resolves
  * verification challenges. Any number of api replicas can run: each entry goes to one of them, and
- * the single-use code makes a re-delivered entry harmless. Only started when a WhatsApp number is
- * configured.
+ * the single-use code makes a re-delivered entry harmless. Always started: the number can be linked
+ * from the admin at any time, and without a bridge the stream is simply empty.
  */
 @Injectable()
 export class InboundConsumer implements OnModuleInit, OnApplicationShutdown {
@@ -41,7 +41,6 @@ export class InboundConsumer implements OnModuleInit, OnApplicationShutdown {
   }
 
   async onModuleInit(): Promise<void> {
-    if (this.env.WHATSAPP_NUMBER === undefined) return;
     // A blocking read needs its own connection, without the shared one's command timeout.
     this.connection = new Redis(this.env.REDIS_URL, { maxRetriesPerRequest: null });
     this.connection.on("error", (error: Error) => {

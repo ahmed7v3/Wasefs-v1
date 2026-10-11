@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { navItemFor } from "../../lib/admin-nav";
-import { BrandMark } from "../brand-mark";
+import { BrandMark, type Branding } from "../brand-mark";
 import { AccountMenu } from "../shell/account-menu";
 import { Drawer } from "../shell/drawer";
 
@@ -17,6 +17,8 @@ import type { ReactNode } from "react";
 export interface AdminShellProps {
   user: { name: string; image: string | null };
   permissions: readonly string[];
+  /** The `branding` public setting, for the logo. */
+  branding?: Branding;
   children: ReactNode;
 }
 
@@ -26,7 +28,7 @@ export interface AdminShellProps {
  * account menu, and the page below. Under `lg` the sidebar is a drawer. The top bar holds the page's
  * single `h1`, taken from the navigation entry of the current path.
  */
-export function AdminShell({ user, permissions, children }: AdminShellProps) {
+export function AdminShell({ user, permissions, branding, children }: AdminShellProps) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const closeDrawer = useCallback(() => {
@@ -39,7 +41,7 @@ export function AdminShell({ user, permissions, children }: AdminShellProps) {
       <aside className="hidden w-64 shrink-0 border-e border-border bg-surface lg:block">
         <div className="sticky top-0 flex h-dvh flex-col gap-4 overflow-y-auto p-3">
           <div className="flex min-h-16 items-center">
-            <BrandMark />
+            <BrandMark branding={branding} />
           </div>
           <AdminNav permissions={permissions} />
         </div>

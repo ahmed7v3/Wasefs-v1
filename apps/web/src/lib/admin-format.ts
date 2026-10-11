@@ -36,6 +36,18 @@ export function formatNumber(value: number): string {
   return numbers.format(value);
 }
 
+const relative = new Intl.RelativeTimeFormat("ar-EG-u-nu-latn", { numeric: "auto" });
+
+/** "قبل 12 ثانية" style distance between `value` and `now` (both in the past or the future). */
+export function formatRelativeTime(value: string | Date, now: number = Date.now()): string {
+  const seconds = Math.round(((typeof value === "string" ? Date.parse(value) : value.getTime()) - now) / 1_000);
+  const magnitude = Math.abs(seconds);
+  if (magnitude < 60) return relative.format(seconds, "second");
+  if (magnitude < 3_600) return relative.format(Math.round(seconds / 60), "minute");
+  if (magnitude < 86_400) return relative.format(Math.round(seconds / 3_600), "hour");
+  return relative.format(Math.round(seconds / 86_400), "day");
+}
+
 /**
  * Translates a key built at run time (`admin.issue.explain.${code}`): a key the dictionary does not
  * have (a code added later) shows `fallback` instead of a hole.

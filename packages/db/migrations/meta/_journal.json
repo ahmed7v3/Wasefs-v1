@@ -50,6 +50,13 @@
       "when": 1791645263137,
       "tag": "0006_contact_messages",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791719707917,
+      "tag": "0007_site_assets",
+      "breakpoints": true
     }
   ]
 }

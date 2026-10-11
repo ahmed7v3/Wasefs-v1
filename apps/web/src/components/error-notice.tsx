@@ -33,8 +33,18 @@ const REASON_MESSAGES: Record<string, MessageKey> = {
   system_role: "admin.reason.system_role",
   invalid_status: "admin.reason.invalid_status",
   role_exists: "admin.reason.role_exists",
+  whatsapp_already_linked: "admin.reason.whatsapp_already_linked",
+  bridge_down: "admin.reason.bridge_down",
+  queue_unavailable: "admin.reason.queue_unavailable",
   two_factor_required: "admin.access.twoFactorRequired.body",
   two_factor_session: "admin.access.twoFactorSession.body",
+  // Logo and favicon uploads.
+  unsupported_type: "admin.branding.reason.unsupported_type",
+  type_mismatch: "admin.branding.reason.type_mismatch",
+  too_large: "admin.branding.reason.too_large",
+  invalid_data: "admin.branding.reason.invalid_data",
+  invalid_svg: "admin.branding.reason.invalid_svg",
+  unsafe_svg: "admin.branding.reason.unsafe_svg",
 };
 
 /** The friendly sentence for an error: a specific reason first, else the message of its code. */

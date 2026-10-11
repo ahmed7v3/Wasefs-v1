@@ -38,7 +38,9 @@ describe("visibleNavGroups", () => {
       "/admin/orgs",
       "/admin/roles",
       "/admin/settings",
+      "/admin/branding",
       "/admin/flags",
+      "/admin/whatsapp",
       "/admin/audit",
       "/admin/issues",
     ]);

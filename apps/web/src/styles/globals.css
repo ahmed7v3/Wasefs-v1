@@ -9,6 +9,8 @@
     color-scheme: light;
     background-color: var(--color-bg);
     -webkit-text-size-adjust: 100%;
+    /* The public header is sticky: in-page anchors must not land underneath it. */
+    scroll-padding-top: 5rem;
   }
 
   body {
@@ -21,12 +23,14 @@
     text-rendering: optimizeLegibility;
   }
 
+  /* Plex Bold is preloaded for the headings; no letter-spacing, which breaks Arabic joining. */
   h1,
   h2,
   h3,
   h4 {
     font-family: var(--font-heading);
-    line-height: 1.35;
+    font-weight: 700;
+    line-height: 1.3;
     text-wrap: balance;
   }
 
@@ -37,12 +41,39 @@
 }
 
 @layer components {
-  /* Soft blue wash behind the page, like the reference screens; no images, so it costs nothing. */
+  /* Soft blue wash behind the app and auth pages; no images, so it costs nothing. */
   .page-backdrop {
     background-image:
       radial-gradient(60rem 36rem at 85% -10%, var(--color-accent-soft), transparent 70%),
       radial-gradient(44rem 30rem at 0% 0%, var(--color-primary-soft), transparent 65%);
     background-repeat: no-repeat;
+  }
+
+  /* The warm off-white of the public pages (landing, legal, contact). */
+  .marketing-type {
+    background-color: var(--color-bg-warm);
+  }
+
+  /*
+   * Islamic lattice: an eight-pointed star (two overlapped squares) with a ring at each tile corner,
+   * drawn as an SVG data URI (img-src allows `data:`). Decorative only; it fades out towards the
+   * bottom of its box so it never competes with the content.
+   */
+  .lattice,
+  .lattice-light {
+    background-size: 88px 88px;
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 45%, transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 0%, #000 45%, transparent 100%);
+    pointer-events: none;
+  }
+
+  .lattice {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80' fill='none' stroke='%231e3a8a' stroke-opacity='.055'%3E%3Cpath d='M40 12 68 40 40 68 12 40Z'/%3E%3Crect x='20' y='20' width='40' height='40'/%3E%3Cpath d='M68 40h12M0 40h12M40 0v12M40 68v12'/%3E%3Ccircle cx='40' cy='40' r='5'/%3E%3Ccircle cx='0' cy='0' r='9'/%3E%3Ccircle cx='80' cy='0' r='9'/%3E%3Ccircle cx='0' cy='80' r='9'/%3E%3Ccircle cx='80' cy='80' r='9'/%3E%3C/svg%3E");
+  }
+
+  /* The same lattice in white, for the dark navy band. */
+  .lattice-light {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80' fill='none' stroke='%23ffffff' stroke-opacity='.08'%3E%3Cpath d='M40 12 68 40 40 68 12 40Z'/%3E%3Crect x='20' y='20' width='40' height='40'/%3E%3Cpath d='M68 40h12M0 40h12M40 0v12M40 68v12'/%3E%3Ccircle cx='40' cy='40' r='5'/%3E%3Ccircle cx='0' cy='0' r='9'/%3E%3Ccircle cx='80' cy='0' r='9'/%3E%3Ccircle cx='0' cy='80' r='9'/%3E%3Ccircle cx='80' cy='80' r='9'/%3E%3C/svg%3E");
   }
 
   /* The navigation drawer slides in from the inline-start edge: the left in LTR, the right in RTL. */
@@ -55,9 +86,9 @@
   }
 
   /*
-   * Landing hero motion (DESIGN-SYSTEM §3.7): the result card rises once, the two floating chips
-   * drift slowly. Only transform and opacity animate, so nothing shifts layout; the global
-   * reduced-motion rule below collapses the rise, and the drift is switched off explicitly.
+   * Landing motion (DESIGN-SYSTEM §3.7). Only transform and opacity animate, so nothing shifts
+   * layout. Every looping animation is switched off explicitly under reduced motion (see the end of
+   * the file); the static state of each one is a meaningful "finished" picture.
    */
   .reveal-up {
     animation: reveal-up var(--motion-slow) var(--ease-standard) 200ms both;
@@ -65,6 +96,48 @@
 
   .float-slow {
     animation: float-y 6s ease-in-out infinite alternate;
+  }
+
+  /* Hero scene: the light curtain sweeping over the prescription sheet (travels along the scene's depth axis). */
+  .iso-scan {
+    animation: iso-scan 4.5s ease-in-out infinite;
+  }
+
+  /* Hero scene: small data blocks flowing from the sheet to the result bars. */
+  .iso-packet {
+    animation: iso-packet 4.5s ease-in-out infinite both;
+  }
+
+  /* Hero scene: the mascot breathes and blinks. */
+  .mascot-bob {
+    animation: float-y 3.4s ease-in-out infinite alternate;
+  }
+
+  .mascot-eyes {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: mascot-blink 5.5s ease-in-out infinite;
+  }
+
+  /* Speed and precision demo: one 6 s loop, the four stages light in turn (delays set per step). */
+  .pipe-scan {
+    animation: pipe-scan 6s ease-in-out infinite;
+  }
+
+  .pipe-step {
+    animation: pipe-step 6s ease-in-out infinite both;
+  }
+
+  .pipe-result-1 {
+    animation: pipe-result-1 6s ease-in-out infinite both;
+  }
+
+  .pipe-result-2 {
+    animation: pipe-result-2 6s ease-in-out infinite both;
+  }
+
+  .pipe-result-3 {
+    animation: pipe-result-3 6s ease-in-out infinite both;
   }
 
   .skip-link {
@@ -83,6 +156,16 @@
   .skip-link:focus {
     inset-block-start: 1rem;
   }
+}
+
+/*
+ * Public pages: `font-semibold` renders as Bold, so they only need the two preloaded weights (400
+ * and 700); Plex 500/600 would be two more downloads before first paint, which cost the landing page
+ * about 10 Lighthouse performance points (the Phase 0 font notes). Unlayered on purpose: it must beat
+ * Tailwind's utility. The app and admin keep the real semibold for dense UI text.
+ */
+.marketing-type :where(.font-semibold) {
+  font-weight: 700;
 }
 
 @keyframes drawer-in {
@@ -110,9 +193,143 @@
   }
 }
 
+/* 104 / 52 is 5.8 plan units along the scene's depth axis (see iso-scene.tsx). */
+@keyframes iso-scan {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  10%,
+  86% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-104px, 52px);
+  }
+}
+
+@keyframes iso-packet {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  18%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-126px, 63px);
+  }
+}
+
+@keyframes mascot-blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  95% {
+    transform: scaleY(0.12);
+  }
+}
+
+@keyframes pipe-scan {
+  0% {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  3% {
+    opacity: 1;
+  }
+  22% {
+    opacity: 1;
+    transform: translateY(480%);
+  }
+  26%,
+  100% {
+    opacity: 0;
+    transform: translateY(480%);
+  }
+}
+
+@keyframes pipe-step {
+  0%,
+  2% {
+    opacity: 0;
+  }
+  6%,
+  22% {
+    opacity: 1;
+  }
+  28%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes pipe-result-1 {
+  0%,
+  58% {
+    transform: translateY(0.5rem);
+  }
+  66%,
+  94% {
+    transform: none;
+  }
+  100% {
+    transform: translateY(0.5rem);
+  }
+}
+
+@keyframes pipe-result-2 {
+  0%,
+  66% {
+    transform: translateY(0.5rem);
+  }
+  74%,
+  94% {
+    transform: none;
+  }
+  100% {
+    transform: translateY(0.5rem);
+  }
+}
+
+@keyframes pipe-result-3 {
+  0%,
+  74% {
+    transform: translateY(0.5rem);
+  }
+  82%,
+  94% {
+    transform: none;
+  }
+  100% {
+    transform: translateY(0.5rem);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .float-slow {
+  .float-slow,
+  .iso-scan,
+  .iso-packet,
+  .mascot-bob,
+  .mascot-eyes,
+  .pipe-scan,
+  .pipe-step,
+  .pipe-result-1,
+  .pipe-result-2,
+  .pipe-result-3 {
     animation: none;
+  }
+
+  /* The scan has nothing to sweep over without motion: the beam and the packets are hidden. */
+  .iso-scan,
+  .iso-packet,
+  .pipe-scan {
+    display: none;
   }
 
   *,
@@ -123,14 +340,4 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-}
-
-/*
- * Public pages: medium, semibold and bold text uses Alexandria (already preloaded in 500-700 for the
- * headings) instead of the lazily loaded Plex 500/600 files. Those two extra downloads before first
- * paint cost the landing page about 10 Lighthouse performance points on a simulated mobile link
- * (same trade-off as the Phase 0 font notes). The app and admin keep Plex for dense UI text.
- */
-.marketing-type :where(.font-medium, .font-semibold, .font-bold) {
-  font-family: var(--font-heading);
 }

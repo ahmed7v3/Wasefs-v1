@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { PHONE_VERIFICATION_MODES } from "../auth-settings.js";
 import { LOCALES } from "../i18n/index.js";
 import { ACCOUNT_TYPES, ORG_MEMBER_ROLES, ORG_TYPES, USER_STATUSES } from "../identity.js";
 import {
@@ -11,6 +12,8 @@ import {
 } from "../permissions.js";
 import { SETTING_VISIBILITIES, flagKeySchema } from "../settings.js";
 
+import { phoneNumberSchema } from "./auth.js";
+import { WA_PAIRING_ERRORS, WA_PAIRING_STATES, waPairingCodeSchema } from "./phone.js";
 import { meResponseSchema } from "./user.js";
 
 /*
@@ -378,3 +381,46 @@ export const adminStatsSchema = z.object({
   issues: z.object({ open: z.number().int().nonnegative() }),
 });
 export type AdminStats = z.output<typeof adminStatsSchema>;
+
+// ---------------------------------------------------------------------------------------------
+// WhatsApp verification number (/admin/whatsapp)
+// ---------------------------------------------------------------------------------------------
+
+/** `POST /admin/whatsapp/link`: the number to pair, as E.164. */
+export const linkWhatsappSchema = z.object({ number: phoneNumberSchema });
+
+/** `PUT /admin/whatsapp/verification`: the phone-verification kill switch. */
+export const setPhoneVerificationSchema = z.object({ enabled: z.boolean() });
+
+export const adminWhatsappPairingSchema = z.object({
+  id: z.string(),
+  cmd: z.enum(["link", "unlink"]),
+  state: z.enum(WA_PAIRING_STATES),
+  /** Only with `state: "code"`: a short-lived secret for the admin who asked for it. */
+  code: waPairingCodeSchema.optional(),
+  /** Masked to the last four digits. */
+  number: z.string().optional(),
+  expiresAt: isoDate.optional(),
+  reason: z.enum(WA_PAIRING_ERRORS).optional(),
+});
+export type AdminWhatsappPairing = z.output<typeof adminWhatsappPairingSchema>;
+
+export const adminWhatsappStatusSchema = z.object({
+  /** The number users send their code to: the saved setting, else `WHATSAPP_NUMBER`. E.164. */
+  number: phoneNumberSchema.nullable(),
+  numberSource: z.enum(["setting", "env"]).nullable(),
+  bridge: z.object({
+    status: z.enum(["connecting", "connected", "disconnected", "logged_out", "down"]),
+    /** When the bridge last reported; null if it never did (or the heartbeat expired). */
+    lastBeatAt: isoDate.nullable(),
+  }),
+  /** The bridge's answer to the last link/unlink command, while it is still relevant. */
+  pairing: adminWhatsappPairingSchema.nullable(),
+  phoneVerification: z.enum(PHONE_VERIFICATION_MODES),
+  available: z.boolean(),
+  unavailableReason: z.enum(["disabled", "not_configured", "bridge_down"]).optional(),
+});
+export type AdminWhatsappStatus = z.output<typeof adminWhatsappStatusSchema>;
+
+/** `POST /admin/whatsapp/link|unlink`: the command was queued; poll the status for the outcome. */
+export const adminWhatsappCommandResponseSchema = z.object({ id: z.string() });

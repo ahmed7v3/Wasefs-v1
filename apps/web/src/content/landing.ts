@@ -2,11 +2,17 @@
  * Landing page copy (Arabic). Components render this; they never contain their own text.
  *
  * Voice rules (AGENT.md §5.11 and the product phase): the product assists and never diagnoses; the
- * analyzer is not live yet, so every call to action is "create a free account", never "try it now";
- * no invented numbers, ratings or testimonials.
+ * analyzer is not live yet, so every call to action is "create a free account" or "get early
+ * access", never "try it now"; no invented numbers, ratings, testimonials or certifications.
+ * "In seconds" is the product goal, not a measured figure, so it carries no number.
  */
 
-export type FeatureIcon = "scan" | "sparkles" | "building";
+/** The mascot family (components/marketing/mascot.tsx draws one symbol per name). */
+export type MascotName = "star" | "capsule" | "hexagon" | "droplet" | "tablet" | "blob" | "clover";
+/** Colour family of a skill or audience card; the component maps it to token classes. */
+export type Tone = "navy" | "coral" | "teal" | "amber" | "olive" | "indigo";
+export type AudienceIcon = "patient" | "pharmacist" | "doctor" | "organization";
+export type PipelineIcon = "scan" | "read" | "database" | "gauge";
 export type TrustIcon = "shield" | "lock" | "stethoscope" | "languages";
 
 export interface LandingStep {
@@ -14,12 +20,28 @@ export interface LandingStep {
   body: string;
 }
 
-export interface LandingFeature {
-  icon: FeatureIcon;
+export interface LandingSkill {
+  mascot: MascotName;
+  tone: Tone;
   title: string;
   body: string;
   /** Shown as a "coming soon" badge when the capability is not live yet. */
   soon: boolean;
+}
+
+export interface LandingAudience {
+  icon: AudienceIcon;
+  tone: Tone;
+  title: string;
+  body: string;
+  points: string[];
+  soon: boolean;
+}
+
+export interface LandingPipelineStep {
+  icon: PipelineIcon;
+  title: string;
+  body: string;
 }
 
 export interface LandingTrustItem {
@@ -42,19 +64,19 @@ export interface FaqItem {
 
 export const landing = {
   hero: {
-    eyebrow: "قريبًا · سجّل الآن لتكون من أوائل المستخدمين",
-    title: "افهم روشتتك في ثوانٍ",
-    lead: "وصفة AI مساعد عربي يقرأ صورة الروشتة المكتوبة بخط اليد أو المطبوعة، ويحوّلها إلى بطاقة واضحة بأسماء الأدوية والجرعات ومرات الاستخدام والتحذيرات، لتراجعها مع طبيبك أو صيدلي.",
+    pill: "صُمِّم للمريض والصيدلي والطبيب العربي",
+    titleLines: ["افهم روشتتك في ثوانٍ.", "بدقة تراجع نفسها."],
+    lead: "وصفة AI مساعد عربي يقرأ صورة الروشتة المكتوبة بخط اليد أو المطبوعة، ويحوّلها إلى بطاقة واضحة بأسماء الأدوية والجرعات ومرات الاستخدام والتحذيرات. وما لا نتأكد منه نضعه أمامك لتراجعه مع طبيبك أو صيدلي.",
     primaryCta: "أنشئ حسابك المجاني",
     secondaryCta: "كيف تعمل؟",
-    reassurance: "إنشاء الحساب مجاني ولا يحتاج إلى بطاقة بنكية.",
+    reassurance: "قريبًا · إنشاء الحساب مجاني ولا يحتاج إلى بطاقة بنكية.",
     haveAccount: "لديك حساب بالفعل؟",
     signIn: "تسجيل الدخول",
   },
 
   /** The illustration beside the hero headline: a sample, not a real result. */
   visual: {
-    alt: "مثال توضيحي: روشتة مكتوبة بخط اليد تتحول إلى بطاقة نتيجة منظمة بأسماء الأدوية والجرعات.",
+    alt: "مثال توضيحي: روشتة مكتوبة بخط اليد يمسحها شعاع ضوئي فتتحول إلى بنود منظمة بأسماء الأدوية والجرعات، وبند غير واضح مُعلَّم للمراجعة.",
     sampleBadge: "مثال توضيحي",
     paperTitle: "الروشتة",
     resultTitle: "النتيجة المنظمة",
@@ -69,8 +91,96 @@ export const landing = {
     note: "وصفة AI تساعد ولا تشخّص",
   },
 
+  skills: {
+    id: "features",
+    eyebrow: "مهارات وصفة",
+    title: "فريق من المهارات، لكل مهارة وجهها ومهمتها",
+    lead: "تتوسع وصفة AI بمهارات متخصصة تُضاف تباعًا، وكلها تساعدك على الفهم ولا تحل محل الطبيب أو الصيدلي.",
+    items: [
+      {
+        mascot: "capsule",
+        tone: "navy",
+        title: "قراءة الروشتة",
+        body: "تحوّل صورة الروشتة، بخط اليد أو المطبوعة، إلى بطاقة عربية منظمة.",
+        soon: true,
+      },
+      {
+        mascot: "hexagon",
+        tone: "coral",
+        title: "التداخلات الدوائية",
+        body: "تنبّهك إلى الأدوية التي قد يتعارض بعضها مع بعض لتسأل عنها الصيدلي.",
+        soon: true,
+      },
+      {
+        mascot: "droplet",
+        tone: "teal",
+        title: "الجرعات والتعليمات",
+        body: "الجرعة وعدد المرات والمدة وتعليمات الاستخدام في سطر واحد واضح.",
+        soon: true,
+      },
+      {
+        mascot: "tablet",
+        tone: "amber",
+        title: "شرح الدواء للمريض",
+        body: "اسأل بالعربية عن أي دواء واحصل على شرح مبسّط بلغة قريبة منك.",
+        soon: true,
+      },
+      {
+        mascot: "blob",
+        tone: "olive",
+        title: "مساعد الصيدلية",
+        body: "سير عمل منظم للصيدلي: مراجعة الروشتات وتجهيز الشرح لكل مريض.",
+        soon: true,
+      },
+      {
+        mascot: "clover",
+        tone: "indigo",
+        title: "الأشعة والتحاليل (تعليمي)",
+        body: "قراءة تعليمية مبسّطة لتقارير التحاليل والأشعة، ولا تغني عن الطبيب.",
+        soon: true,
+      },
+    ] satisfies LandingSkill[],
+  },
+
+  precision: {
+    id: "precision",
+    eyebrow: "السرعة والدقة معًا",
+    title: "تقرأ بسرعة، وتتحقق قبل أن تعرض",
+    lead: "في ثوانٍ تمر كل روشتة بأربع مراحل تحقق. وما لا تتأكد منه وصفة AI تضعه أمامك للمراجعة بدل أن تخمّن.",
+    sampleBadge: "مثال توضيحي",
+    paperTitle: "الروشتة",
+    pipelineTitle: "أربع مراحل تحقق",
+    speedBadge: "في ثوانٍ",
+    resultTitle: "النتيجة",
+    steps: [
+      {
+        icon: "scan",
+        title: "مسح الصورة",
+        body: "نحسّن الصورة ونحدد أماكن النص المكتوب بخط اليد أو المطبوع.",
+      },
+      {
+        icon: "read",
+        title: "قراءة مرتين",
+        body: "قراءتان مستقلتان للنص، وأي اختلاف بينهما يُعلَّم ولا يُتجاهل.",
+      },
+      {
+        icon: "database",
+        title: "مطابقة مع قاعدة الأدوية",
+        body: "نقارن كل اسم بقاعدة بيانات الأدوية لنتحقق من الاسم والتركيز.",
+      },
+      {
+        icon: "gauge",
+        title: "فحص الثقة",
+        body: "لكل بند درجة ثقة، وما ينخفض عن الحد نوجّهه إلى مراجعتك.",
+      },
+    ] satisfies LandingPipelineStep[],
+    reviewNote: "البند الثالث غير واضح، فعلّمناه للمراجعة بدل أن نخمّن.",
+    guarantee: "نفضّل أن نقول «راجع هذا البند» على أن نخطئ بثقة.",
+  },
+
   how: {
     id: "how-it-works",
+    eyebrow: "كيف تعمل",
     title: "كيف تعمل وصفة AI؟",
     lead: "ثلاث خطوات من الصورة إلى نتيجة واضحة بالعربية.",
     steps: [
@@ -89,45 +199,60 @@ export const landing = {
     ] satisfies LandingStep[],
   },
 
-  features: {
-    id: "features",
-    title: "ما الذي تقدمه لك؟",
-    lead: "أدوات مصممة للمرضى والصيادلة والأطباء والمؤسسات الصحية.",
+  audiences: {
+    id: "audiences",
+    eyebrow: "لمن صُمِّمت",
+    title: "لكل من يتعامل مع الروشتة",
+    lead: "المريض الذي يريد أن يفهم، والصيدلي والطبيب اللذان يريدان الوقت، والمؤسسة التي تريد نظامًا.",
     items: [
       {
-        icon: "scan",
-        title: "تحليل الروشتات",
-        body: "من صورة الروشتة إلى بيانات مرتبة: أسماء الأدوية والجرعات والمدة والتنبيهات. تُميَّز البنود منخفضة الثقة لتراجعها بنفسك.",
+        icon: "patient",
+        tone: "teal",
+        title: "للمرضى وأسرهم",
+        body: "افهم أدويتك وجرعاتها بلغتك قبل أن تغادر الصيدلية.",
+        points: ["بطاقة واضحة بأسماء الأدوية والجرعات", "اسأل عن أي دواء واحصل على شرح مبسّط"],
         soon: true,
       },
       {
-        icon: "sparkles",
-        title: "مساعد ذكي بمهارات متخصصة",
-        body: "اسأل بالعربية عن دواء أو تحليل واحصل على شرح مبسّط. تُضاف المهارات تباعًا، مثل معلومات الأدوية وقراءة تعليمية للتحاليل والأشعة.",
+        icon: "pharmacist",
+        tone: "navy",
+        title: "للصيادلة",
+        body: "اقرأ الخط الصعب بسرعة، وابدأ بمراجعة ما يحتاج إلى انتباه.",
+        points: ["البنود منخفضة الثقة مميزة لتراجعها أولًا", "شرح جاهز تشاركه مع المريض"],
         soon: true,
       },
       {
-        icon: "building",
+        icon: "doctor",
+        tone: "indigo",
+        title: "للأطباء",
+        body: "نسخة منظمة من الروشتات تسهّل مراجعة الأدوية مع المريض.",
+        points: ["الأدوية والجرعات في بطاقة واحدة مرتبة", "تساعد ولا تحل محل حكمك الطبي"],
+        soon: true,
+      },
+      {
+        icon: "organization",
+        tone: "amber",
         title: "للصيدليات والعيادات",
-        body: "أنشئ مؤسستك وادعُ فريقك بأدوار وصلاحيات واضحة، وأدر العمل كله من مكان واحد.",
+        body: "أنشئ مؤسستك وادعُ فريقك بأدوار وصلاحيات واضحة.",
+        points: ["أدوار وصلاحيات لكل عضو في الفريق", "إدارة العمل كله من مكان واحد"],
         soon: false,
       },
-    ] satisfies LandingFeature[],
+    ] satisfies LandingAudience[],
   },
 
   trust: {
-    title: "تصميمنا يبدأ من ثقتك",
+    title: "خصوصيتك قبل أي ميزة",
     lead: "نتعامل مع بيانات حساسة، ولذلك نضع الخصوصية والوضوح قبل أي ميزة.",
     items: [
-      {
-        icon: "shield",
-        title: "خصوصيتك أولًا",
-        body: "نجمع أقل قدر من البيانات اللازمة لتشغيل الخدمة، ونشرح في سياسة الخصوصية ما نجمعه ولماذا ومدة الاحتفاظ به.",
-      },
       {
         icon: "lock",
         title: "تخزين خاص ومشفّر",
         body: "تُحفظ ملفاتك في مساحة تخزين خاصة لا تُفتح إلا برابط مؤقت يخصك، وتُحمى بياناتك الحساسة بالتشفير.",
+      },
+      {
+        icon: "shield",
+        title: "أنت المتحكم في بياناتك",
+        body: "نجمع أقل قدر لازم من البيانات، ونشرح في سياسة الخصوصية ما نجمعه ولماذا، وتستطيع حذف حسابك في أي وقت.",
       },
       {
         icon: "stethoscope",
@@ -146,8 +271,11 @@ export const landing = {
 
   faq: {
     id: "faq",
-    title: "أسئلة شائعة",
+    eyebrow: "أسئلة شائعة",
+    title: "نجيبك قبل أن تسأل",
     lead: "إجابات سريعة عن أكثر ما يسألنا عنه الناس.",
+    moreTitle: "لم تجد إجابتك؟",
+    moreLink: "تواصل معنا",
     items: [
       {
         question: "ما هي وصفة AI؟",
@@ -195,8 +323,13 @@ export const landing = {
   cta: {
     title: "ابدأ بفهم روشتتك بثقة",
     body: "أنشئ حسابك المجاني الآن، وكن من أوائل من يجرّبون وصفة AI فور إتاحتها.",
-    primary: "أنشئ حسابك المجاني",
+    primary: "احصل على وصول مبكر",
     secondary: "تواصل معنا",
+  },
+
+  footer: {
+    tagline: "مساعد طبي عربي يقرأ الروشتة بسرعة، ويراجع نفسه بدقة.",
+    product: "المنتج",
   },
 
   notices: {

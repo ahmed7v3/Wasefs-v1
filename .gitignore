@@ -44,6 +44,6 @@ docs/vps/
 apps/web/playwright-report/
 apps/web/test-results/
 apps/web/e2e/.logs/
-apps/web/.next-e2e-*/
+apps/web/.next*/
 
 apps/web/.lighthouseci/

@@ -69,7 +69,8 @@ export function buildCsp({
       ],
     ],
     ["style-src", ["'self'", `'nonce-${nonce}'`]],
-    ["img-src", ["'self'", "blob:", "data:", ...(extra.img ?? [])]],
+    // The API origin serves the uploaded logo and favicon (`/assets/<key>`).
+    ["img-src", ["'self'", "blob:", "data:", apiOrigin, ...(extra.img ?? [])]],
     ["font-src", ["'self'"]],
     ["connect-src", ["'self'", apiOrigin, ...(extra.connect ?? [])]],
     ["frame-src", frames.length > 0 ? [...frames] : ["'none'"]],

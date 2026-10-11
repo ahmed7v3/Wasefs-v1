@@ -53,7 +53,7 @@ export class PhoneService {
     if ((await this.settings.get("auth")).phoneVerification !== "whatsapp_inbound") {
       return { available: false, unavailableReason: "disabled", bridge };
     }
-    if (this.env.WHATSAPP_NUMBER === undefined) {
+    if ((await this.whatsappNumber()) === undefined) {
       return { available: false, unavailableReason: "not_configured", bridge };
     }
     if (bridge !== "connected")
@@ -101,7 +101,7 @@ export class PhoneService {
     }
 
     const started = await this.verifier.start({ userId: user.id, phone, locale: account.locale });
-    const number = this.env.WHATSAPP_NUMBER ?? "";
+    const number = (await this.whatsappNumber())?.digits ?? "";
     return {
       status: "pending",
       code: started.code,
@@ -117,6 +117,18 @@ export class PhoneService {
       this.availability(),
     ]);
     return { ...state, ...availability };
+  }
+
+  /**
+   * The number users send their code to: the admin's setting first, `WHATSAPP_NUMBER` as the
+   * fallback. Digits with country code, no `+` (what `wa.me` takes).
+   */
+  async whatsappNumber(): Promise<{ digits: string; source: "setting" | "env" } | undefined> {
+    const configured = (await this.settings.get("whatsapp")).number;
+    if (configured !== null) return { digits: configured.replace(/^\+/, ""), source: "setting" };
+    return this.env.WHATSAPP_NUMBER === undefined
+      ? undefined
+      : { digits: this.env.WHATSAPP_NUMBER, source: "env" };
   }
 
   private async bridgeStatus(): Promise<WaStatus> {

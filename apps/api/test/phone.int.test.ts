@@ -15,6 +15,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { TURNSTILE_VERIFY_URL } from "../src/auth/turnstile.js";
 import { createApp } from "../src/bootstrap.js";
+import { PhoneService } from "../src/phone/phone.service.js";
 import { SettingsService } from "../src/settings/settings.service.js";
 
 import { AuthHarness, pwnedHandlers, testApiEnv, type Jar } from "./support/auth-harness.js";
@@ -159,6 +160,39 @@ describe("access", () => {
     expect(missing.json()).toMatchObject({ details: { reason: "turnstile_required" } });
     const wrong = await start(jar, newPhone(), "fail");
     expect(wrong.json()).toMatchObject({ details: { reason: "turnstile_failed" } });
+  });
+});
+
+describe("which number users are told to message", () => {
+  const SAVED_NUMBER = "201777000222";
+
+  it("uses the admin's saved number over WHATSAPP_NUMBER, and falls back to the env one", async () => {
+    const { jar } = await harness.signedInUser();
+
+    // Nothing saved: the environment's number.
+    const fromEnv = (await start(jar, newPhone())).json<{ waNumber: string; waLink: string }>();
+    expect(fromEnv.waNumber).toBe(`+${OUR_NUMBER}`);
+
+    try {
+      await settings.set("whatsapp", { number: `+${SAVED_NUMBER}` }, { actorId: null });
+      const phone = newPhone();
+      const fromSetting = (await start(jar, phone)).json<{ waNumber: string; waLink: string }>();
+      expect(fromSetting.waNumber).toBe(`+${SAVED_NUMBER}`);
+      expect(new URL(fromSetting.waLink).pathname).toBe(`/${SAVED_NUMBER}`);
+    } finally {
+      await settings.set("whatsapp", { number: null }, { actorId: null });
+    }
+  });
+
+  it("reports where the number comes from", async () => {
+    const phone = app.get(PhoneService);
+    expect(await phone.whatsappNumber()).toEqual({ digits: OUR_NUMBER, source: "env" });
+    try {
+      await settings.set("whatsapp", { number: `+${SAVED_NUMBER}` }, { actorId: null });
+      expect(await phone.whatsappNumber()).toEqual({ digits: SAVED_NUMBER, source: "setting" });
+    } finally {
+      await settings.set("whatsapp", { number: null }, { actorId: null });
+    }
   });
 });
 

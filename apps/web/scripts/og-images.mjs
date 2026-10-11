@@ -7,8 +7,8 @@
  *   pnpm --filter @wasfa/web og:images
  *
  * Needs a Chromium for Playwright (`pnpm exec playwright install chromium` once) and network access
- * for the Alexandria webfont (Google Fonts), because the Arabic headline must be set in the brand
- * heading face. Chromium shapes the Arabic text itself, so letters join correctly.
+ * for the IBM Plex Sans Arabic webfont (Google Fonts), the only typeface of the product, so the
+ * images match the site. Chromium shapes the Arabic text itself, so letters join correctly.
  */
 import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -35,12 +35,12 @@ const PILL =
 
 const FONT_LINK =
   '<link rel="preconnect" href="https://fonts.googleapis.com">' +
-  '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alexandria:wght@500;700&display=block">';
+  '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@500;700&display=block">';
 
 const BASE_CSS = `
   * { box-sizing: border-box; margin: 0; }
   html, body { width: 100%; height: 100%; }
-  body { font-family: "Alexandria", "Segoe UI", Tahoma, sans-serif; }
+  body { font-family: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif; }
 `;
 
 function ogHtml({ title, subtitle }) {
@@ -108,8 +108,8 @@ async function renderFonts(page) {
   // `display=block` waits for the face; this makes sure both weights are really loaded before the shot.
   await page.evaluate(async () => {
     await Promise.all([
-      document.fonts.load('700 96px "Alexandria"', "افهم"),
-      document.fonts.load('500 40px "Alexandria"', "مساعدك"),
+      document.fonts.load('700 96px "IBM Plex Sans Arabic"', "افهم"),
+      document.fonts.load('500 40px "IBM Plex Sans Arabic"', "مساعدك"),
     ]);
     await document.fonts.ready;
   });

@@ -3,7 +3,8 @@ import { ToastProvider } from "@wasfa/ui";
 import { connection } from "next/server";
 
 import { isProduction, publicEnv } from "../lib/env";
-import { alexandria, plexArabic, plexArabicStrong } from "../lib/fonts";
+import { plexArabic, plexArabicStrong } from "../lib/fonts";
+import { getPublicSettings } from "../lib/public-settings";
 
 import "../styles/globals.css";
 
@@ -12,7 +13,7 @@ import type { ReactNode } from "react";
 
 const brand = t("brand.name");
 
-export const metadata: Metadata = {
+const baseMetadata: Metadata = {
   metadataBase: new URL(publicEnv.NEXT_PUBLIC_SITE_URL),
   title: { default: t("meta.title"), template: `%s | ${brand}` },
   description: t("meta.description"),
@@ -30,10 +31,21 @@ export const metadata: Metadata = {
   ...(isProduction ? {} : { robots: { index: false, follow: false } }),
 };
 
+/**
+ * The favicon uploaded in the admin panel replaces the bundled `icon.svg`: an explicit `icons`
+ * entry wins over the file convention. Without an upload (or with the API down) nothing changes.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const { branding } = await getPublicSettings();
+  return branding.faviconUrl === null
+    ? baseMetadata
+    : { ...baseMetadata, icons: { icon: branding.faviconUrl } };
+}
+
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#F5F7FB",
+  themeColor: "#F6F6F4",
   colorScheme: "light",
 };
 
@@ -41,11 +53,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // The CSP nonce is generated per request in proxy.ts, so pages must render per request.
   await connection();
   return (
-    <html
-      lang="ar"
-      dir="rtl"
-      className={`${alexandria.variable} ${plexArabic.variable} ${plexArabicStrong.variable}`}
-    >
+    <html lang="ar" dir="rtl" className={`${plexArabic.variable} ${plexArabicStrong.variable}`}>
       <body className="font-body">
         <a href="#main" className="skip-link">
           {t("common.skipToContent")}

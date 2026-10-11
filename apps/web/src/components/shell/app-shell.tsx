@@ -6,7 +6,7 @@ import { Menu, PanelLeft } from "lucide-react";
 import { useCallback, useState } from "react";
 
 import { useSidebarCollapsed } from "../../lib/use-sidebar-collapsed";
-import { BrandMark } from "../brand-mark";
+import { BrandMark, type Branding } from "../brand-mark";
 
 import { AccountMenu, type AccountMenuProps } from "./account-menu";
 import { Drawer } from "./drawer";
@@ -18,6 +18,8 @@ export interface AppShellProps {
   user: AccountMenuProps;
   /** Show the admin entry (the caller holds at least one permission; the API still decides). */
   showAdmin?: boolean;
+  /** The `branding` public setting, for the logo. */
+  branding?: Branding;
   children: ReactNode;
 }
 
@@ -26,7 +28,7 @@ export interface AppShellProps {
  * raised panel (like `2.png`) holding the sidebar and the page. The sidebar sits on the inline-start
  * side (right in RTL) at 256 px, or a 72 px icon rail when collapsed; below `lg` it is a drawer.
  */
-export function AppShell({ user, showAdmin = false, children }: AppShellProps) {
+export function AppShell({ user, showAdmin = false, branding, children }: AppShellProps) {
   const [collapsed, setCollapsed] = useSidebarCollapsed();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const closeDrawer = useCallback(() => {
@@ -48,7 +50,7 @@ export function AppShell({ user, showAdmin = false, children }: AppShellProps) {
           >
             <Menu aria-hidden className="size-6" />
           </button>
-          <BrandMark />
+          <BrandMark branding={branding} />
         </div>
         <AccountMenu {...user} />
       </header>

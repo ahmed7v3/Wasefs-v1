@@ -24,7 +24,7 @@ export default [
     ignores: [
       "next-env.d.ts",
       // Extra web builds and reports of the end-to-end suite.
-      ".next-e2e-*/**",
+      ".next*/**",
       "playwright-report/**",
       "test-results/**",
     ],

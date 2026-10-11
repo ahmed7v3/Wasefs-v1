@@ -1,32 +1,39 @@
 import { t } from "@wasfa/shared/i18n";
 import { Container, buttonStyles } from "@wasfa/ui";
+import { ArrowRight, HeartHandshake } from "lucide-react";
 import Link from "next/link";
 
 import { landing } from "../../content/landing";
 
-import { HeroVisual } from "./hero-visual";
+import { IsoScene } from "./iso-scene";
 
 const { hero, visual } = landing;
 
-/** Flagship section: Display headline, value proposition, the two calls to action and the product visual. */
+/**
+ * Flagship section: trust pill, the two-line Display headline, value proposition, the two calls to
+ * action and the isometric scan scene (the faint Islamic lattice behind it is the layout's).
+ */
 export function LandingHero() {
   return (
-    <section aria-labelledby="hero-title" className="overflow-x-clip">
-      <Container className="grid items-center gap-10 py-10 sm:py-16 lg:grid-cols-2 lg:gap-14">
+    <section aria-labelledby="hero-title" className="relative overflow-x-clip">
+      <Container className="relative grid items-center gap-8 pt-10 pb-12 sm:pt-16 lg:grid-cols-[1.05fr_1fr] lg:gap-8 lg:pb-20">
         <div>
-          <p className="inline-flex rounded-full bg-accent-soft px-4 py-1 font-heading text-sm font-semibold text-primary">
-            {hero.eyebrow}
+          <p className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-1.5 text-sm font-semibold text-text shadow-card">
+            <HeartHandshake aria-hidden="true" className="size-4 shrink-0 text-primary" />
+            {hero.pill}
           </p>
-          <h1
-            id="hero-title"
-            className="mt-5 font-heading text-4xl font-bold text-primary sm:text-5xl"
-          >
-            {hero.title}
+          <h1 id="hero-title" className="mt-6 text-3xl font-bold text-text sm:text-5xl xl:text-6xl">
+            <span className="block">{hero.titleLines[0]}</span>
+            <span className="block text-primary">{hero.titleLines[1]}</span>
           </h1>
-          <p className="mt-5 max-w-xl text-lg text-text-muted">{hero.lead}</p>
+          <p className="mt-6 max-w-xl text-lg text-text-muted">{hero.lead}</p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link href="/register" className={buttonStyles({ size: "lg" })}>
+            <Link
+              href="/register"
+              className={buttonStyles({ size: "lg", className: "shadow-raised" })}
+            >
               {hero.primaryCta}
+              <ArrowRight aria-hidden="true" className="size-5 rtl:-scale-x-100" />
             </Link>
             <a href="#how-it-works" className={buttonStyles({ size: "lg", variant: "secondary" })}>
               {hero.secondaryCta}
@@ -37,15 +44,15 @@ export function LandingHero() {
             {hero.haveAccount}{" "}
             <Link
               href="/login"
-              className="inline-flex min-h-11 items-center rounded-sm font-heading font-semibold text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:shadow-focus"
+              className="inline-flex min-h-11 items-center rounded-sm font-bold text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:shadow-focus"
             >
               {t("marketing.nav.signIn")}
             </Link>
           </p>
         </div>
-        <div>
-          <HeroVisual />
-          <p className="text-center text-sm text-text-muted">{visual.sampleBadge}</p>
+        <div className="lg:-me-16 xl:-me-24">
+          <IsoScene />
+          <p className="mt-2 text-center text-sm text-text-muted">{visual.sampleBadge}</p>
         </div>
       </Container>
     </section>

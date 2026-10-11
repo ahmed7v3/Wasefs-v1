@@ -66,9 +66,9 @@ Do not replace any of these without an explicit decision recorded in `ARCHITECTU
 | Hosting | One Linux server running **Docker Compose** (AWS EC2 to start; upgrade by resizing) |
 | CI/CD | **GitHub Actions** → images on **GHCR** → server pulls |
 | Icons | **lucide-react** (single library; no hand-drawn icons) |
-| Fonts | **Alexandria** (headings) + **IBM Plex Sans Arabic** (body), self-hosted via `next/font` |
+| Fonts | **IBM Plex Sans Arabic** only (headings 700, body 400), self-hosted via `next/font` |
 | Theme | Light by default; dark mode is secondary/optional |
-| Brand colors | Primary navy `#1E3A8A`, accent soft blue `#60A5FA`, bg `#F5F7FB`, surface `#FFFFFF`, text `#0B1220` |
+| Brand colors | Primary navy `#1E3A8A`, accent soft blue `#60A5FA`, bg `#F5F7FB` (public pages: warm `#F6F6F4`), surface `#FFFFFF`, text `#0B1220` |
 | Mobile (later) | Expo (React Native) reusing `packages/shared` and the same API |
 
 ### Explicitly NOT used

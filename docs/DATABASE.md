@@ -49,6 +49,7 @@
 | `feature_flags` | Flag key, `enabled`, targeting `rules` jsonb. | Platform. |
 | `audit_logs` | Append-only record of admin writes (actor, action, target, before/after, ip, user agent). | Platform; `audit.read`. No FK on `actor_id`/`target_id` on purpose: history must outlive its subjects. |
 | `error_events` | One row per unexpected error, keyed by the user-visible `WSF-XXXX-XXXX` ref. | Platform; `issues.read`. `user_id` is informational. |
+| `site_assets` | Brand images uploaded from the admin panel: `key` (`logo`, `logo_dark`, `favicon`), `content_type`, `data` (`bytea`, ≤ 512 KB), `sha256`, optional pixel `width`/`height`, `updated_by` (`SET NULL`). One row per key. | Platform; written by `PUT/DELETE /admin/branding/assets/:key` (`settings.write`), read by the public `GET /assets/:key`. |
 
 ### Phase 1 — Task 1.2 (identity and organizations)
 
@@ -105,6 +106,13 @@ Better Auth's tables with UUIDv7 keys and `timestamptz`. `accounts_provider_acco
 - System roles (seeded, undeletable): `user`, `support`, `marketing`, `finance`, `admin`, `super_admin`. `user` is implicit for everyone.
 - `user_roles.role_key` is `RESTRICT`: deleting a role that is still granted needs an explicit, audited revoke first. The PK starts with `user_id`, so a separate `user_id` index would be redundant; `user_roles_role_key_idx` serves "who holds this role" (protects the last `super_admin`).
 
+### `site_assets`
+
+- Migration `0007_site_assets`. The primary key is the asset `key`, so a re-upload replaces the row (`INSERT … ON CONFLICT DO UPDATE`); there is no history, the audit row `branding.asset_upload` records key, type, size and digest.
+- CHECKs (names asserted by `packages/db/test/site-assets-schema.int.test.ts`): `site_assets_key_check`, `site_assets_content_type_check` (`image/png | image/webp | image/svg+xml | image/x-icon`; built locally because `inList()` refuses `/` and `+`), `site_assets_size_check` (`octet_length(data) between 1 and 524288`), `site_assets_sha256_check` (64 lower-case hex).
+- The database does not look inside the file: the api verifies magic bytes and SVG content before inserting (SECURITY.md §3.1, note under the register). The public URL stored in `site_settings.branding` carries `?v=<first 12 of sha256>`, which is what lets `GET /assets/:key` be cached for a year.
+- Why a table and not R2: two files of at most 512 KB each, edited a handful of times in the life of the site, and the web app needs them before any storage credentials exist. Move them to object storage if a media library is ever added.
+
 ### `onboarding_progress`
 
 `current_step` and `completed_steps` are constrained to `ONBOARDING_STEPS`; `data` is a jsonb **object** (`onboarding_progress_data_check`) whose per-step shape is validated by the api before every write; `completed_at` is set exactly when `current_step = 'done'`.
@@ -156,5 +164,5 @@ Not added yet, on purpose: a trigram index for admin user search by name/email/p
 - Every query on user-owned tables goes through `scopedRepo` (Task 1.6); services never call `db.select` on them directly.
 - User-owned (`user_id`): `user_profiles`, `accounts`, `sessions`, `two_factors`, `onboarding_progress`, `user_roles`.
 - Organization-owned (`org_id` **and** a membership check): `organizations`, `organization_members`, `organization_invites`.
-- Platform data (no owner): `roles`, `role_permissions`, `site_settings`, `feature_flags`, `audit_logs`, `error_events`, `wa_sessions`. Reachable only through permission-checked admin routes (public subset of settings excepted).
+- Platform data (no owner): `roles`, `role_permissions`, `site_settings`, `site_assets`, `feature_flags`, `audit_logs`, `error_events`, `wa_sessions`. Reachable only through permission-checked admin routes (public subset of settings excepted).
 - The test pattern for "wrong owner" access is created in Task 1.6 and used by every endpoint of Task 1.7.

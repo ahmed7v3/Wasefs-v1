@@ -115,5 +115,71 @@ export const replyRequestSchema = z.object({
 });
 export type ReplyRequest = z.output<typeof replyRequestSchema>;
 
-export const PHONE_VERIFY_STATUSES = ["none", "pending", "verified", "failed"] as const;
+// ---------------------------------------------------------------------------------------------
+// Control channel: the admin (api) tells the long-running bridge to link or unlink the number.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Redis list the api `LPUSH`es commands onto (`LTRIM`med and given a short expiry, so a command
+ * issued while the bridge was down cannot fire minutes later) and the bridge `BRPOP`s (FIFO).
+ */
+export const WA_COMMANDS_KEY = "wa:commands";
+export const WA_COMMANDS_MAXLEN = 20;
+export const WA_COMMANDS_TTL_SECONDS = 5 * 60;
+/** The bridge's answer to the last command, read by `GET /admin/whatsapp`. Expires with the pairing code. */
+export const WA_PAIRING_KEY = "wa:pairing";
+/** A pairing code is valid for about this long; the key and the bridge's pairing window match it. */
+export const WA_PAIRING_TTL_SECONDS = 180;
+
+const commandId = z.string().min(1).max(64);
+/** Digits with country code, no `+`: what WhatsApp's pairing endpoint takes. */
+export const waNumberDigitsSchema = z.string().regex(/^[1-9]\d{7,14}$/);
+
+export const waCommandSchema = z.discriminatedUnion("cmd", [
+  z.object({ id: commandId, cmd: z.literal("link"), number: waNumberDigitsSchema }),
+  z.object({ id: commandId, cmd: z.literal("unlink") }),
+]);
+export type WaCommand = z.output<typeof waCommandSchema>;
+
+export const WA_PAIRING_STATES = [
+  "requested",
+  "code",
+  "linked",
+  "already_linked",
+  "unlinked",
+  "error",
+] as const;
+export type WaPairingState = (typeof WA_PAIRING_STATES)[number];
+
+/** Machine reasons the bridge puts on `state: "error"` (fixed strings: never an upstream error message). */
+export const WA_PAIRING_ERRORS = [
+  "pairing_request_failed",
+  "connection_closed",
+  "timeout",
+  "unlink_failed",
+] as const;
+export type WaPairingError = (typeof WA_PAIRING_ERRORS)[number];
+
+/** Pairing codes are 8 characters from A-Z and 0-9. A short-lived secret: only ever in `wa:pairing`. */
+export const waPairingCodeSchema = z.string().regex(/^[A-Z0-9]{8}$/);
+
+/** The value of `wa:pairing`. `expiresAt` is epoch milliseconds, present with `state: "code"`. */
+export const waPairingSchema = z.object({
+  id: commandId,
+  cmd: z.enum(["link", "unlink"]),
+  state: z.enum(WA_PAIRING_STATES),
+  code: waPairingCodeSchema.optional(),
+  /** Masked: only the last four digits. */
+  number: z.string().max(32).optional(),
+  expiresAt: z.number().int().positive().optional(),
+  reason: z.enum(WA_PAIRING_ERRORS).optional(),
+});
+export type WaPairing = z.output<typeof waPairingSchema>;
+
+/** `••••1234`: enough for the admin to recognise the number, nothing more. */
+export function maskWaNumber(digits: string): string {
+  return `••••${digits.slice(-4)}`;
+}
+
+export const PHONE_VERIFY_STATUSES =["none", "pending", "verified", "failed"] as const;
 export type PhoneVerifyStatus = (typeof PHONE_VERIFY_STATUSES)[number];

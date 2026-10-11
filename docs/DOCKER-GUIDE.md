@@ -309,19 +309,26 @@ dedicated WhatsApp (Business) number, **never your personal one**, with a comple
 (name, logo, description, website) and an auto-greeting set in the phone app. Use the number for a few
 days like a normal business line before linking it.
 
-1. Put the number in `.env.prod` as `WHATSAPP_NUMBER=2015XXXXXXXX` (digits, with country code) and
-   redeploy, so the API knows where to send users.
-2. On the server, run the one-off linking command with the same number:
-   `dc run --rm wa-bridge node dist/wa-bridge/main.js link 2015XXXXXXXX`
-   It prints a pairing code. On the phone: WhatsApp > Linked devices > Link a device > **Link with
-   phone number instead**, and type the code. The phone stays the primary device. The command stops by
-   itself a few seconds after it connects; the `wa-bridge` service then picks the session up.
-3. `dc up -d wa-bridge` (it is part of the stack and idles, reporting "logged out", until step 2 is done).
-   Check with `dc logs --tail 20 wa-bridge` ("WhatsApp connected").
-4. If WhatsApp ever logs the device out, the bridge stops and says so; phone verification hides itself
-   and email verification keeps working. To link again: `... run --rm wa-bridge node dist/wa-bridge/main.js unlink`,
-   then step 2. The bridge never re-pairs by itself.
-5. Kill switch: set `auth.phoneVerification` to `disabled` (admin settings) to hide phone verification
+Linking is done from the admin panel; no env var or server command is needed any more.
+
+1. Make sure the `wa-bridge` service is running (`dc up -d wa-bridge`). It idles and reports
+   "logged out" until a number is linked. Check with `dc logs --tail 20 wa-bridge`.
+2. Sign in to `/admin` (two-factor on), open **رقم واتساب** (`/admin/whatsapp`), pick the country, type
+   the dedicated number and press **اطلب رمز الربط**. Re-enter your password if asked.
+3. The page shows an 8-character pairing code with a countdown (about 3 minutes). On the phone:
+   WhatsApp Business > Settings > Linked devices > Link a device > **Link with phone number instead**,
+   and type the code. The phone stays the primary device. The page turns to "linked" by itself and the
+   status card shows **متصل** (connected). The number is saved as the `whatsapp` site setting.
+4. If WhatsApp ever logs the device out, the bridge stops and says so (status **غير مرتبط**); phone
+   verification hides itself and email verification keeps working. Link again from the same page (a
+   logged-out session is replaced). To switch numbers while one is linked, press **فك الربط** first. The
+   bridge never re-pairs by itself.
+   Fallback if the admin is unreachable: `dc run --rm wa-bridge node dist/wa-bridge/main.js link 2015XXXXXXXX`
+   prints the code in the terminal, and `... unlink` forgets the session; the number still has to be
+   saved on the admin page (or as `WHATSAPP_NUMBER=2015XXXXXXXX` in `.env.prod`, which is now only the
+   fallback when no number is saved there).
+5. Kill switch: the **التحقق من الهاتف عبر واتساب** switch on the same page (or `auth.phoneVerification` in
+   admin settings) hides phone verification
    without touching the bridge.
 
 ### 3.10 Create the first super admin (Task 1.10)

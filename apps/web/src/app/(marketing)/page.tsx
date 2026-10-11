@@ -1,12 +1,15 @@
 import { t } from "@wasfa/shared/i18n";
 import { Container } from "@wasfa/ui";
 
+import { Audiences } from "../../components/marketing/audiences";
 import { FaqSection } from "../../components/marketing/faq-section";
-import { FeatureCards } from "../../components/marketing/feature-cards";
 import { FinalCta } from "../../components/marketing/final-cta";
 import { HowItWorks } from "../../components/marketing/how-it-works";
 import { JsonLd } from "../../components/marketing/json-ld";
 import { LandingHero } from "../../components/marketing/landing-hero";
+import { MascotSprite } from "../../components/marketing/mascot";
+import { PrecisionDemo } from "../../components/marketing/precision-demo";
+import { SkillsGrid } from "../../components/marketing/skills-grid";
 import { TrustSection } from "../../components/marketing/trust-section";
 import { Notice } from "../../components/notice";
 import { landing } from "../../content/landing";
@@ -55,9 +58,12 @@ export default async function HomePage({
           <Notice>{landing.notices.accountDeleted}</Notice>
         </Container>
       ) : null}
+      <MascotSprite />
       <LandingHero />
+      <SkillsGrid />
+      <PrecisionDemo />
       <HowItWorks />
-      <FeatureCards />
+      <Audiences />
       <TrustSection />
       <FaqSection />
       <FinalCta />

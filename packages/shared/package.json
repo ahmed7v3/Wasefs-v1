@@ -100,6 +100,11 @@
       "import": "./dist/schemas/org.js",
       "default": "./dist/schemas/org.js"
     },
+    "./schemas/branding": {
+      "types": "./dist/schemas/branding.d.ts",
+      "import": "./dist/schemas/branding.js",
+      "default": "./dist/schemas/branding.js"
+    },
     "./schemas/contact": {
       "types": "./dist/schemas/contact.d.ts",
       "import": "./dist/schemas/contact.js",

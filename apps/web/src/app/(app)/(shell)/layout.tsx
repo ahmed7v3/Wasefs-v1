@@ -23,7 +23,11 @@ export default async function ShellLayout({ children }: { children: ReactNode })
   ]);
   return (
     <>
-      <AppShell user={{ name: me.name, image: me.image }} showAdmin={me.permissions.length > 0}>
+      <AppShell
+        user={{ name: me.name, image: me.image }}
+        showAdmin={me.permissions.length > 0}
+        branding={settings.branding}
+      >
         {children}
       </AppShell>
       <ContactHub contact={settings.contact} />

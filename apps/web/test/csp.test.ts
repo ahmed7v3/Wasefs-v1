@@ -45,6 +45,18 @@ describe("buildCsp", () => {
     ]);
   });
 
+  it("lets images load from self, blobs, data URLs and the API (the uploaded logo), nowhere else", () => {
+    expect(directive(buildCsp(base), "img-src")).toEqual([
+      "'self'",
+      "blob:",
+      "data:",
+      "https://api.wasfa.online",
+    ]);
+    expect(
+      directive(buildCsp({ ...base, extra: { img: ["https://cdn.example.com"] } }), "img-src"),
+    ).toContain("https://cdn.example.com");
+  });
+
   it("adds env-driven extras (Turnstile, analytics) to the right directives", () => {
     const csp = buildCsp({
       ...base,

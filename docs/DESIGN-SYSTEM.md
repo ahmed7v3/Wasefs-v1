@@ -43,7 +43,9 @@ Common to all three: generous radii (16-32 px), soft shadows tinted toward the b
 | `accent` | `#60a5fa` | Highlights, chart accents, decorative gradients. **Never as text colour or as the only boundary of a control** (contrast 2.5:1 on white). |
 | `accent-soft` | `#e6f1fe` | Badges, backdrop wash. |
 | `on-primary` | `#ffffff` | Text/icons on `primary`. |
-| `bg` | `#f5f7fb` | Page background. |
+| `bg` | `#f5f7fb` | Page background (app, auth, admin). |
+| `bg-warm` | `#f6f6f4` | Page background of the public pages (landing, legal, contact); `text` / `text-muted` on it are 17.3 / 6.8; `primary` 9.6. |
+| `mascot-navy/blue/indigo/teal/coral/amber/olive` | `#1e3a8a` `#3b82f6` `#3e4ea8` `#2a6f77` `#c65a4a` `#d4902e` `#5f7f3b` | Landing illustrations only (mascots, accent bars, tints via `/10`). Decorative; **never as text colour**. |
 | `surface` | `#ffffff` | Cards, panels, inputs. |
 | `text` | `#0b1220` | Body text. |
 | `text-muted` | `#4a5670` | Secondary text, hints, captions. |
@@ -71,7 +73,7 @@ Common to all three: generous radii (16-32 px), soft shadows tinted toward the b
 
 ### 3.3 Typography
 
-Fonts (self-hosted by `next/font`, `apps/web/src/lib/fonts.ts`): **Alexandria** for headings (`font-heading`, weights 500-700), **IBM Plex Sans Arabic** for everything else (`font-body`, 400; 500/600 load on demand). Only Plex 400 is preloaded: it is a measured Lighthouse trade-off (Phase 0 notes). Do not preload more weights.
+Font (self-hosted by `next/font`, `apps/web/src/lib/fonts.ts`): **IBM Plex Sans Arabic is the only typeface** (owner decision 2026-10-11, ARCHITECTURE #26). `font-heading` and `font-body` both resolve to it: headings are weight **700** (the base `h1`-`h4` rule, line-height 1.3, never letter-spaced), body is 400. Plex 400 and 700 are preloaded; 500 and 600 load on demand, so do not use `font-medium` above the fold. On the public pages (`.marketing-type`) `font-semibold` renders as 700, so those pages need only the two preloaded weights. Do not preload more weights.
 
 Type scale (Tailwind sizes; mobile → `sm:` ≥ 640 px):
 

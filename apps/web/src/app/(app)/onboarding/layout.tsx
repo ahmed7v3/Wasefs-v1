@@ -1,6 +1,6 @@
 import { Card, Container } from "@wasfa/ui";
 
-import { BrandMark } from "../../../components/brand-mark";
+import { SiteBrandMark } from "../../../components/site-brand-mark";
 
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
@@ -17,7 +17,7 @@ export default function OnboardingLayout({ children }: { children: ReactNode }) 
         width="reading"
         className="flex min-h-dvh flex-col items-center gap-6 py-8 sm:justify-center"
       >
-        <BrandMark />
+        <SiteBrandMark />
         <main id="main" className="w-full">
           <Card elevation="raised">{children}</Card>
         </main>

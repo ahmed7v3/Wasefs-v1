@@ -3,6 +3,7 @@ import { t } from "@wasfa/shared/i18n";
 import { AdminAccessState } from "../../components/admin/access-state";
 import { AdminShell } from "../../components/admin/admin-shell";
 import { probeAdminAccess } from "../../lib/admin-server";
+import { getPublicSettings } from "../../lib/public-settings";
 import { ReauthProvider } from "../../lib/reauth";
 import { getRequestPath } from "../../lib/request-path";
 import { requireMe } from "../../lib/session";
@@ -30,9 +31,15 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const access = await probeAdminAccess(me);
   if (access !== "ok") return <AdminAccessState reason={access} />;
 
+  const { branding } = await getPublicSettings();
+
   return (
     <ReauthProvider>
-      <AdminShell user={{ name: me.name, image: me.image }} permissions={me.permissions}>
+      <AdminShell
+        user={{ name: me.name, image: me.image }}
+        permissions={me.permissions}
+        branding={branding}
+      >
         {children}
       </AdminShell>
     </ReauthProvider>

@@ -6,6 +6,7 @@ export * from "./feature-flags.js";
 export * from "./onboarding.js";
 export * from "./organizations.js";
 export * from "./rbac.js";
+export * from "./site-assets.js";
 export * from "./site-settings.js";
 export * from "./users.js";
 export * from "./wa-sessions.js";

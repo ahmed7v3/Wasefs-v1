@@ -12,7 +12,9 @@ import type { ReactNode } from "react";
 export default async function MarketingLayout({ children }: { children: ReactNode }) {
   const settings = await getPublicSettings();
   return (
-    <div className="marketing-type page-backdrop flex min-h-dvh flex-col">
+    <div className="marketing-type relative isolate flex min-h-dvh flex-col">
+      {/* One faint lattice behind the top of every public page (the landing hero included). */}
+      <div aria-hidden="true" className="lattice absolute inset-x-0 top-0 -z-10 h-176" />
       <SiteHeader />
       <main id="main" className="flex-1">
         {children}

@@ -19,10 +19,34 @@ const httpsUrl = z
 
 const currencyCode = z.string().regex(/^[A-Z]{3}$/);
 
+/**
+ * A brand image URL: https, or http for a local api only (dev and tests serve `/assets/<key>` from
+ * `http://localhost:4000`). Uploaded assets get `${API_PUBLIC_URL}/assets/<key>?v=<sha>` here.
+ */
+const brandAssetUrl = z
+  .url({ protocol: /^https?$/ })
+  .max(2_048)
+  .refine(
+    (value) =>
+      value.startsWith("https://") || /^http:\/\/(localhost|127[.]0[.]0[.]1)(:\d+)?\//.test(value),
+    "https or a local address",
+  )
+  .nullable()
+  .default(null);
+
+const imageSide = z.number().int().min(1).max(8_192).nullable().default(null);
+
 export const brandingSettingsSchema = z.object({
   nameAr: z.string().trim().min(1).max(60).default("وصفة AI"),
   nameEn: z.string().trim().min(1).max(60).default("Wasfa AI"),
-  logoUrl: httpsUrl,
+  logoUrl: brandAssetUrl,
+  /** Pixel size of the logo (read from the file at upload) so pages reserve its space: no layout shift. */
+  logoWidth: imageSide,
+  logoHeight: imageSide,
+  logoDarkUrl: brandAssetUrl,
+  faviconUrl: brandAssetUrl,
+  /** The uploaded logo is assumed to carry the wordmark; set this when it is the symbol alone. */
+  showNameWithLogo: z.boolean().default(false),
 });
 
 /** Floating contact hub (DESIGN-SYSTEM §5.3): each channel is hidden while it is `null`. */
@@ -67,6 +91,14 @@ export const freeTierSettingsSchema = z.object({
   monthlyAnalyses: z.number().int().min(0).max(1_000).default(3),
 });
 
+/**
+ * The WhatsApp number users send their verification code to (the one the bridge is linked to).
+ * Set from /admin/whatsapp; `WHATSAPP_NUMBER` in the environment is only the fallback.
+ */
+export const whatsappSettingsSchema = z.object({
+  number: phoneNumberSchema.nullable().default(null),
+});
+
 export const SETTING_VISIBILITIES = ["public", "admin"] as const;
 export type SettingVisibility = (typeof SETTING_VISIBILITIES)[number];
 
@@ -81,6 +113,7 @@ export const SETTINGS_REGISTRY = {
   free_tier: { schema: freeTierSettingsSchema, visibility: "public" },
   /** Blocked email domains and the phone-verification kill switch: admin only. */
   auth: { schema: authSettingsSchema, visibility: "admin" },
+  whatsapp: { schema: whatsappSettingsSchema, visibility: "admin" },
 } as const satisfies Record<string, { schema: z.ZodType; visibility: SettingVisibility }>;
 
 export type SettingsRegistry = typeof SETTINGS_REGISTRY;

@@ -17,6 +17,8 @@
 
   /* Surfaces and text */
   --color-bg: #f5f7fb;
+  /* Warm off-white of the public pages (landing, legal, contact); text and muted text stay >= 6.9:1. */
+  --color-bg-warm: #f6f6f4;
   --color-surface: #ffffff;
   --color-text: #0b1220;
   --color-text-muted: #4a5670;
@@ -45,8 +47,21 @@
   /* Focus ring */
   --color-ring: #2563eb;
 
-  /* Typography: the variables are set by next/font in apps/web (see layout.tsx) */
-  --font-heading: var(--font-alexandria), "Segoe UI", Tahoma, system-ui, sans-serif;
+  /*
+   * Mascot palette (landing illustrations): flat fills for decorative shapes, harmonised with the
+   * navy and blue brand colours. Never used for text; soft tints come from opacity modifiers
+   * (`bg-mascot-teal/10`), and text on a tint stays `text` or `text-muted`.
+   */
+  --color-mascot-navy: #1e3a8a;
+  --color-mascot-blue: #3b82f6;
+  --color-mascot-indigo: #3e4ea8;
+  --color-mascot-teal: #2a6f77;
+  --color-mascot-coral: #c65a4a;
+  --color-mascot-amber: #d4902e;
+  --color-mascot-olive: #5f7f3b;
+
+  /* Typography: the variables are set by next/font in apps/web (see layout.tsx). One family only. */
+  --font-heading: var(--font-plex-arabic), "Segoe UI", Tahoma, system-ui, sans-serif;
   --font-body: var(--font-plex-arabic), "Segoe UI", Tahoma, system-ui, sans-serif;
 
   /* Radii */
