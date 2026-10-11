@@ -54,6 +54,19 @@
     animation-name: drawer-in-rtl;
   }
 
+  /*
+   * Landing hero motion (DESIGN-SYSTEM §3.7): the result card rises once, the two floating chips
+   * drift slowly. Only transform and opacity animate, so nothing shifts layout; the global
+   * reduced-motion rule below collapses the rise, and the drift is switched off explicitly.
+   */
+  .reveal-up {
+    animation: reveal-up var(--motion-slow) var(--ease-standard) 200ms both;
+  }
+
+  .float-slow {
+    animation: float-y 6s ease-in-out infinite alternate;
+  }
+
   .skip-link {
     position: absolute;
     inset-inline-start: 1rem;
@@ -84,7 +97,24 @@
   }
 }
 
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+}
+
+@keyframes float-y {
+  to {
+    transform: translateY(-0.375rem);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .float-slow {
+    animation: none;
+  }
+
   *,
   *::before,
   *::after {

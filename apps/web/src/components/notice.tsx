@@ -1,5 +1,5 @@
 import { cn } from "@wasfa/ui";
-import { CircleCheck, Info } from "lucide-react";
+import { CircleCheck, Info, TriangleAlert } from "lucide-react";
 
 import type { ReactNode } from "react";
 
@@ -10,6 +10,12 @@ const tones = {
     iconColor: "text-success",
   },
   info: { icon: Info, style: "border-primary/20 bg-primary-soft", iconColor: "text-primary" },
+  // Needs attention but is not an error (e.g. draft legal text); the icon carries the meaning, not only the colour.
+  warning: {
+    icon: TriangleAlert,
+    style: "border-warning/30 bg-warning-soft",
+    iconColor: "text-warning",
+  },
 } as const;
 
 export interface NoticeProps {

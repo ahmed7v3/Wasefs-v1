@@ -12,7 +12,7 @@ export function BrandMark() {
       <span className="grid size-11 place-items-center rounded-lg bg-primary text-on-primary shadow-card">
         <Pill className="size-6" aria-hidden="true" />
       </span>
-      <span className="font-heading text-2xl font-bold text-primary">{t("brand.name")}</span>
+      <span className="whitespace-nowrap font-heading text-2xl font-bold text-primary">{t("brand.name")}</span>
     </Link>
   );
 }

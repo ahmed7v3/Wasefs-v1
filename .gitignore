@@ -39,3 +39,11 @@ next-env.d.ts
 
 # Server credentials (SSH key, tokens): never committed
 docs/vps/
+
+# Playwright end-to-end suite (apps/web/e2e): reports, traces, service logs, extra web builds
+apps/web/playwright-report/
+apps/web/test-results/
+apps/web/e2e/.logs/
+apps/web/.next-e2e-*/
+
+apps/web/.lighthouseci/

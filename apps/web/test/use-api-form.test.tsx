@@ -161,10 +161,14 @@ describe("ErrorNotice", () => {
     expect(screen.getByRole("alert").textContent).toContain(t("auth.error.invalidCredentials"));
   });
 
-  it("offers retry and support only when given", async () => {
+  it("offers retry only when given, and support (the contact page by default) unless hidden", async () => {
     const onRetry = vi.fn();
     const { rerender } = render(<ErrorNotice error={new Error("x")} />);
     expect(screen.queryByRole("button")).toBeNull();
+    expect(
+      screen.getByRole("link", { name: t("common.contactSupport") }).getAttribute("href"),
+    ).toBe("/contact");
+    rerender(<ErrorNotice error={new Error("x")} supportHref={null} />);
     expect(screen.queryByRole("link")).toBeNull();
     rerender(
       <ErrorNotice

@@ -50,8 +50,8 @@ export function errorMessage(error: unknown): string {
 export interface ErrorNoticeProps {
   error: unknown;
   onRetry?: (() => void) | undefined;
-  /** Where "contact support" leads; the link is hidden when there is none (never a dead link). */
-  supportHref?: string | undefined;
+  /** Where "contact support" leads: the contact page by default. `null` hides the link (the contact form itself). */
+  supportHref?: string | null | undefined;
   className?: string | undefined;
 }
 
@@ -59,7 +59,12 @@ export interface ErrorNoticeProps {
  * Recoverable error state (DESIGN-SYSTEM §7): friendly message, the `WSF-` reference when the API
  * supplied one, a retry button and a support link. Never shows provider, SQL or stack details.
  */
-export function ErrorNotice({ error, onRetry, supportHref, className }: ErrorNoticeProps) {
+export function ErrorNotice({
+  error,
+  onRetry,
+  supportHref = "/contact",
+  className,
+}: ErrorNoticeProps) {
   const ref = extractErrorRef(error);
   return (
     <div
