@@ -2,7 +2,7 @@
 
 > PostgreSQL 18 + Drizzle ORM. The schema lives in `packages/db/src/schema/`, migrations in `packages/db/migrations/`. This file explains the conventions and indexes the code cannot say for itself.
 > **Update it in every task that adds or changes a table.** A table that is in the schema but not in the index below is a bug.
-> Status: reflects the code after Phase 1 Task 1.11.
+> Status: reflects the code after Phase 2 Task 2.1.
 
 ---
 
@@ -73,7 +73,7 @@
 
 ### Phase 2 — Task 2.1 (AI product)
 
-Migration `0008_ai_product.sql`. Schema files `packages/db/src/schema/{plans,credits,ai,files,rx,chats,drugs,evals}.ts`; value sets in `@wasfa/shared` `plans.ts`, `ai.ts`, `rx.ts`.
+Migration `0008_ai_product.sql` (it also revokes `UPDATE, DELETE, TRUNCATE` on `credit_ledger` from `wasfa_api`, mirroring `audit_logs` in 0005). Schema files `packages/db/src/schema/{plans,credits,ai,files,rx,chats,drugs,evals}.ts`; value sets in `@wasfa/shared` `plans.ts`, `ai.ts`, `rx.ts`.
 
 **Owner pattern (all owned Phase 2 tables).** Two nullable columns `owner_user_id` (FK `users`, `RESTRICT`) and `owner_org_id` (FK `organizations`, `CASCADE`) with `<table>_owner_check: num_nonnulls(owner_user_id, owner_org_id) = 1`. Two declared FKs instead of a polymorphic `(owner_type, owner_id)`, which could not have an FK. Scoped queries filter on whichever one the actor's context selects (Decision 5). `created_by` / `user_id` = the acting user (`SET NULL`), never the owner.
 
@@ -109,9 +109,16 @@ Migration `0008_ai_product.sql`. Schema files `packages/db/src/schema/{plans,cre
 | `ai_eval_runs` | `set_id` (`RESTRICT`), `route_snapshot jsonb`, `status` (`queued|running|done|failed|cancelled`), `metrics jsonb`, `cost_usd_micros`, `started_by` (`SET NULL`), `started_at`, `finished_at`. | Platform. |
 | `ai_eval_results` | PK `(run_id, item_id)` (both `CASCADE`), `output jsonb`, `scores jsonb`, `cost_usd_micros`, `latency_ms`, `error`. | Platform. |
 
+**Details the table above does not say.**
+- `ai_task_routes.models[].modelId` is the `ai_models.id` (uuid) of the model, not the provider's own model string, which is only unique per provider. The seed resolves the ids after inserting the models.
+- `ai_spend_daily.provider_id` / `model_id` are `RESTRICT` (they are in the primary key, so they cannot be nulled; spend history is kept). `chat_summaries.through_message_id` is `CASCADE` (a summary of a deleted message is stale). `chats.user_id` is nullable (`SET NULL`) like every acting-user column.
+- `files.sha256` / `dhash`, `rx_analyses.input_sha256` / `route_version` and most `drugs` text columns are nullable (known only after processing or absent in the source list); `drugs.brand_en` and `normalized_en` are required.
+- `credit_ledger.ai_usage_id` is `SET NULL`: Postgres runs that referential action with the table owner's rights, so pruning old `ai_usage` rows (13-month retention, run by the owner role) clears the link without giving `wasfa_api` UPDATE on the ledger.
+- `plans_one_default_idx` can reject re-seeding `free` after an admin made another plan the default; the seed inserts plans without a conflict target so that case is skipped, not an error.
+
 **Retention.** `files` objects: `uploads.retentionDays` (default 30), row kept with `status = 'deleted'`. `rx_analyses`, `chats`: until the owner deletes them or the account is anonymized (§5: user-owned rows are hard-deleted; org-owned rows stay with the org). `ai_usage`: 13 months, then rolled into `ai_spend_daily`. `credit_ledger`: forever (financial record). `rx_corrections` with `consent_for_eval = false`: deleted with the analysis.
 
-**Seed (insert-only).** Plans `free` (default, 30 credits, `rx` 3/day, modes `fast,balanced`, no web search) and `pro` (hidden); providers `gemini`, `openrouter` disabled with no key; models and default routes from phase2.md Decision 3; permissions `ai.read, ai.write, ai.killswitch, plans.read, plans.write, credits.adjust, drugs.read, drugs.write, evals.run, usage.read`.
+**Seed (insert-only).** Plans `free` (default, 30 credits, `rx_extract` 3/day and `chat`, modes `fast,balanced`, no web search; the internal steps `rx_verify`, `title_gen`, `classify`, `summarize` are allowed because the feature price covers them) and `pro` (hidden); providers `gemini`, `openrouter` disabled with no key; models and default routes from phase2.md Decision 3; permissions `ai.read, ai.write, ai.killswitch, plans.read, plans.write, credits.adjust, drugs.read, drugs.write, evals.run, usage.read` (catalog groups `ai`, `plans`, `credits`, `drugs`, `evals`, `usage`; existing roles other than the `super_admin` wildcard receive them only through the role editor or a data migration, per the seed policy above). Entitlements are seeded only in the transaction that creates their plan; the 24 default routes (8 tasks x 3 modes, `plan_id` null) start identical for every mode and use provider-neutral `params` (`thinking`, `mediaResolution`, `temperature`, `jsonSchema`, `tool`, `plugin`) that the adapter maps (Task 2.3). `gemini-3.1-pro-preview` is seeded `enabled = false`. Code: `packages/db/src/seed-ai.ts`.
 
 Phase 3-4 tables (payments, blog, tickets, ...) are described in ARCHITECTURE.md and enter this file when they are built.
 
@@ -181,6 +188,24 @@ Better Auth's tables with UUIDv7 keys and `timestamptz`. `accounts_provider_acco
 | `user_roles_role_key_idx` | `user_roles (role_key)` | "Who holds this role". |
 | `audit_logs_target_idx`, `audit_logs_actor_created_idx` | `audit_logs` | Audit queries by target and by actor. |
 | `error_events_fingerprint_idx`, `error_events_created_at_idx` | `error_events` | Issues grouping and recency. |
+| `plans_one_default_idx` | `plans (is_default)` unique, where `is_default` | At most one default plan. |
+| `plan_assignments_owner_user_starts_idx`, `plan_assignments_owner_org_starts_idx` | `plan_assignments (owner_*, starts_at)` | The plan an owner is on right now. |
+| `credit_wallets_owner_user_key`, `credit_wallets_owner_org_key` | `credit_wallets (owner_user_id)`, `(owner_org_id)` unique | One wallet per owner; wallet lookup under `FOR UPDATE`. |
+| `credit_reservations_open_expires_idx` | `credit_reservations (expires_at)` where `status = 'open'` | The sweeper that releases expired reservations. |
+| `credit_ledger_idempotency_key_key` | `credit_ledger (idempotency_key)` unique | A retried operation is a no-op. |
+| `credit_ledger_wallet_created_idx` | `credit_ledger (wallet_id, created_at)` | A wallet's history and the nightly reconciliation. |
+| `ai_task_routes_key` | `ai_task_routes (task, coalesce(plan_id, nil-uuid), mode)` unique (expression) | One route per task, plan and mode; the default plan (null) counts as one value. |
+| `ai_usage_created_at_idx`, `ai_usage_owner_user_created_idx`, `ai_usage_owner_org_created_idx` | `ai_usage` | Admin cost views, an owner's usage and quota counting, 13-month pruning. |
+| `files_sha256_idx` | `files (sha256)` | Global exact-match cache lookup. |
+| `files_owner_user_dhash_idx`, `files_owner_org_dhash_idx` | `files (owner_*, dhash)` | Near-duplicate hint, same owner only. |
+| `files_expires_at_idx` | `files (expires_at)` where `status <> 'deleted'` | The retention job. |
+| `rx_analyses_owner_user_created_idx`, `rx_analyses_owner_org_created_idx` | `rx_analyses (owner_*, created_at desc)` | An owner's history list. |
+| `rx_analyses_cache_idx` | `rx_analyses (input_sha256, skill_version, route_version)` where `status = 'done'` | The global exact-match result cache. |
+| `chats_user_updated_idx` | `chats (user_id, updated_at desc)` | The chat list. |
+| `chat_messages_chat_created_idx` | `chat_messages (chat_id, created_at)` | Loading a conversation in order. |
+| `active_ingredients_normalized_key`, `active_ingredients_normalized_trgm_idx` | `active_ingredients (normalized)` unique + GIN trigram | Exact and fuzzy ingredient match. |
+| `drugs_normalized_en_trgm_idx`, `drugs_normalized_ar_trgm_idx` | `drugs (normalized_en)`, `(normalized_ar)` GIN trigram | Fuzzy brand-name match. |
+| `drug_aliases_drug_normalized_key`, `drug_aliases_normalized_trgm_idx` | `drug_aliases (drug_id, normalized)` unique; `(normalized)` GIN trigram | One alias per drug; fuzzy alias match. |
 
 Not added yet, on purpose: a trigram index for admin user search by name/email/phone (Task 1.10, once the volume justifies it).
 

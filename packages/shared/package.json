@@ -10,6 +10,11 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./ai": {
+      "types": "./dist/ai.d.ts",
+      "import": "./dist/ai.js",
+      "default": "./dist/ai.js"
+    },
     "./auth-settings": {
       "types": "./dist/auth-settings.d.ts",
       "import": "./dist/auth-settings.js",
@@ -60,6 +65,11 @@
       "import": "./dist/permissions.js",
       "default": "./dist/permissions.js"
     },
+    "./plans": {
+      "types": "./dist/plans.d.ts",
+      "import": "./dist/plans.js",
+      "default": "./dist/plans.js"
+    },
     "./settings": {
       "types": "./dist/settings.d.ts",
       "import": "./dist/settings.js",
@@ -74,6 +84,11 @@
       "types": "./dist/redact.d.ts",
       "import": "./dist/redact.js",
       "default": "./dist/redact.js"
+    },
+    "./rx": {
+      "types": "./dist/rx.d.ts",
+      "import": "./dist/rx.js",
+      "default": "./dist/rx.js"
     },
     "./schemas/admin": {
       "types": "./dist/schemas/admin.d.ts",

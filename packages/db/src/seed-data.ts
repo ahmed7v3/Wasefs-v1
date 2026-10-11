@@ -7,6 +7,7 @@ import {
 import { SETTING_KEYS, settingDefault } from "@wasfa/shared/settings";
 
 import { rolePermissions, roles, siteSettings, type NewSiteSetting } from "./schema/index.js";
+import { seedAiProduct, type AiSeedResult } from "./seed-ai.js";
 
 import type { Database } from "./client.js";
 
@@ -72,7 +73,7 @@ export const SYSTEM_ROLE_SEEDS: readonly SystemRoleSeed[] = [
   { key: "super_admin", name: { ar: "مدير عام", en: "Super admin" }, permissions: PERMISSION_KEYS },
 ];
 
-export interface SeedResult {
+export interface SeedResult extends AiSeedResult {
   /** Site settings inserted by this run. */
   settings: number;
   /** System roles created by this run. */
@@ -117,9 +118,12 @@ export async function seedDefaults(db: Database): Promise<SeedResult> {
     return { insertedRoles: created.length, insertedPermissions: grants.length };
   });
 
+  const aiProduct = await seedAiProduct(db);
+
   return {
     settings: insertedSettings.length,
     roles: insertedRoles,
     rolePermissions: insertedPermissions,
+    ...aiProduct,
   };
 }

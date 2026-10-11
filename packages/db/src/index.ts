@@ -1,4 +1,5 @@
 export * from "./client.js";
 export * from "./migrations.js";
 export * from "./schema/index.js";
+export * from "./seed-ai.js";
 export * from "./seed-data.js";

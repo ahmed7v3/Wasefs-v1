@@ -12,7 +12,19 @@
  */
 
 export type PermissionGroup =
-  "users" | "orgs" | "roles" | "settings" | "flags" | "audit" | "issues";
+  | "users"
+  | "orgs"
+  | "roles"
+  | "settings"
+  | "flags"
+  | "audit"
+  | "issues"
+  | "ai"
+  | "plans"
+  | "credits"
+  | "drugs"
+  | "evals"
+  | "usage";
 
 export interface Label {
   ar: string;
@@ -32,6 +44,12 @@ export const PERMISSION_GROUPS: Record<PermissionGroup, Label> = {
   flags: { ar: "مفاتيح الميزات", en: "Feature flags" },
   audit: { ar: "سجل التدقيق", en: "Audit log" },
   issues: { ar: "الأخطاء والمشاكل", en: "Issues" },
+  ai: { ar: "الذكاء الاصطناعي", en: "AI" },
+  plans: { ar: "الباقات", en: "Plans" },
+  credits: { ar: "الرصيد", en: "Credits" },
+  drugs: { ar: "قاعدة الأدوية", en: "Drug database" },
+  evals: { ar: "تقييم الدقة", en: "Accuracy evaluation" },
+  usage: { ar: "الاستهلاك والتكلفة", en: "Usage and cost" },
 };
 
 export const PERMISSIONS = {
@@ -90,6 +108,49 @@ export const PERMISSIONS = {
   "issues.write": {
     group: "issues",
     label: { ar: "تغيير حالة الأخطاء", en: "Change the status of errors" },
+  },
+  "ai.read": {
+    group: "ai",
+    label: {
+      ar: "عرض مزودي الذكاء الاصطناعي والنماذج والمسارات",
+      en: "View AI providers, models and routes",
+    },
+  },
+  "ai.write": {
+    group: "ai",
+    label: { ar: "تعديل المزودين والنماذج والمسارات", en: "Edit AI providers, models and routes" },
+  },
+  "ai.killswitch": {
+    group: "ai",
+    label: { ar: "إيقاف الذكاء الاصطناعي فورًا", en: "Switch AI off immediately" },
+  },
+  "plans.read": {
+    group: "plans",
+    label: { ar: "عرض الباقات وتعييناتها", en: "View plans and their assignments" },
+  },
+  "plans.write": {
+    group: "plans",
+    label: { ar: "إنشاء الباقات وتعديلها وتعيينها", en: "Create, edit and assign plans" },
+  },
+  "credits.adjust": {
+    group: "credits",
+    label: { ar: "تعديل أرصدة المستخدمين يدويًا", en: "Adjust user credit balances manually" },
+  },
+  "drugs.read": {
+    group: "drugs",
+    label: { ar: "عرض قاعدة الأدوية", en: "View the drug database" },
+  },
+  "drugs.write": {
+    group: "drugs",
+    label: { ar: "استيراد الأدوية وتعديلها", en: "Import and edit drugs" },
+  },
+  "evals.run": {
+    group: "evals",
+    label: { ar: "تشغيل تقييمات الدقة وعرضها", en: "Run and view accuracy evaluations" },
+  },
+  "usage.read": {
+    group: "usage",
+    label: { ar: "عرض الاستهلاك والتكلفة", en: "View usage and cost" },
   },
 } as const satisfies Record<string, PermissionInfo>;
 

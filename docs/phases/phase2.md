@@ -156,8 +156,8 @@ Seed (insert-only; Phase 1 rules):
 - New permissions: `ai.read`, `ai.write`, `ai.killswitch`, `plans.read`, `plans.write`, `credits.adjust`, `drugs.read`, `drugs.write`, `evals.run`, `usage.read`.
 
 Acceptance
-- [ ] Migration applies on Postgres 18. Integration tests assert every CHECK and FK by name, the append-only ledger (the `wasfa_api` role has no UPDATE/DELETE on `credit_ledger`, like `audit_logs`), and that the idempotency key is unique.
-- [ ] `DATABASE.md` documents each table, its owner rules, and retention.
+- [x] Migration applies on Postgres 18. Integration tests assert every CHECK and FK by name, the append-only ledger (the `wasfa_api` role has no UPDATE/DELETE on `credit_ledger`, like `audit_logs`), and that the idempotency key is unique.  *(`packages/db/test/ai-product-schema.int.test.ts`; db suite 80/80 on PG 18.)*
+- [x] `DATABASE.md` documents each table, its owner rules, and retention.
 
 ---
 
