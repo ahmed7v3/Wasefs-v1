@@ -90,6 +90,11 @@
       "import": "./dist/rx.js",
       "default": "./dist/rx.js"
     },
+    "./schemas/admin-ai": {
+      "types": "./dist/schemas/admin-ai.d.ts",
+      "import": "./dist/schemas/admin-ai.js",
+      "default": "./dist/schemas/admin-ai.js"
+    },
     "./schemas/admin": {
       "types": "./dist/schemas/admin.d.ts",
       "import": "./dist/schemas/admin.js",

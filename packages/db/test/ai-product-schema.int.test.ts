@@ -1,3 +1,4 @@
+import { routeModelsSchema } from "@wasfa/shared/schemas/admin-ai";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -1190,7 +1191,14 @@ describe("seed", () => {
     const freeEntitlements = await db().execute<Record<string, unknown>>(
       sql`select e.* from plan_entitlements e join plans p on p.id = e.plan_id where p.key = 'free' order by e.task`,
     );
-    expect(freeEntitlements.map((row) => row.task)).toEqual(["chat", "classify", "rx_extract", "rx_verify", "summarize", "title_gen"]);
+    expect(freeEntitlements.map((row) => row.task)).toEqual([
+      "chat",
+      "classify",
+      "rx_extract",
+      "rx_verify",
+      "summarize",
+      "title_gen",
+    ]);
     expect(freeEntitlements.find((row) => row.task === "rx_extract")).toMatchObject({
       allowed: true,
       daily_cap: 3,
@@ -1245,6 +1253,20 @@ describe("seed", () => {
     expect(routes).toHaveLength(24);
     expect(routes.every((row) => row.plan_id === null && row.resolved === row.total)).toBe(true);
     expect(new Set(routes.map((row) => `${row.task}/${row.mode}`)).size).toBe(24);
+
+    // The seeded params are the admin API's own vocabulary: an admin can open and re-save any route.
+    const stored = await db().execute<{ models: unknown }>(
+      sql`select models from ai_task_routes where plan_id is null`,
+    );
+    expect(stored).toHaveLength(24);
+    for (const row of stored) expect(routeModelsSchema.safeParse(row.models).success).toBe(true);
+    const webSearch = await db().execute<{ models: { params: unknown }[] }>(
+      sql`select models from ai_task_routes where task = 'web_search' and mode = 'fast'`,
+    );
+    expect(webSearch[0]?.models.map((entry) => entry.params)).toEqual([
+      { search: true },
+      { search: true },
+    ]);
   });
 
   it("never brings back what an admin changed or removed", async () => {

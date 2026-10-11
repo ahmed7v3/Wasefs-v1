@@ -207,7 +207,7 @@ const FLASH_OR = "google/gemini-3.8-flash";
 /*
  * Default routes (phase2.md, Decision 3), one per task; every mode starts with the same list and an
  * admin tunes them per mode and per plan. `params` are provider-neutral hints that the adapter
- * maps to the provider's own fields (Task 2.3 pins the exact names).
+ * maps to the provider's own fields; the keys are exactly `routeModelParamsSchema`'s (shared).
  */
 const EXTRACT_PARAMS = {
   thinking: "low",
@@ -255,8 +255,8 @@ export const DEFAULT_ROUTE_SEEDS: Readonly<Record<AiTask, readonly RouteEntrySee
     { provider: G, modelId: LITE_35, params: { thinking: "minimal" } },
   ],
   web_search: [
-    { provider: G, modelId: FLASH, params: { tool: "google_search" } },
-    { provider: O, modelId: FLASH_OR, params: { plugin: "web" } },
+    { provider: G, modelId: FLASH, params: { search: true } },
+    { provider: O, modelId: FLASH_OR, params: { search: true } },
   ],
 };
 

@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 
+import { AdminAiModule } from "./ai/admin-ai.module.js";
 import { AdminAuditModule } from "./audit/admin-audit.module.js";
 import { AdminBrandingModule } from "./branding/admin-branding.module.js";
 import { AdminCreditsModule } from "./credits/admin-credits.module.js";
@@ -31,6 +32,7 @@ import { AdminWhatsappModule } from "./whatsapp/admin-whatsapp.module.js";
     AdminWhatsappModule,
     AdminPlansModule,
     AdminCreditsModule,
+    AdminAiModule,
   ],
 })
 export class AdminModule {}
