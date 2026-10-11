@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatMoney, fromMinor, toMinor } from "../src/money.js";
+import { formatMoney, fromMinor, microsToUsd, toMinor, usdToMicros } from "../src/money.js";
 
 describe("toMinor", () => {
   it("converts decimal strings without float error", () => {
@@ -70,5 +70,29 @@ describe("currencyExponent fallback", () => {
     expect(currencyExponent("mad")).toBe(2);
     expect(() => currencyExponent("QQQ")).toThrow(RangeError);
     expect(() => currencyExponent("EGPX")).toThrow(RangeError);
+  });
+});
+
+describe("usdToMicros / microsToUsd", () => {
+  it.each([
+    ["0.75", 750_000],
+    ["3.75", 3_750_000],
+    ["12", 12_000_000],
+    ["0.000125", 125],
+    [" 0.1 ", 100_000],
+  ])("parses %s exactly", (input, micros) => {
+    expect(usdToMicros(input)).toBe(micros);
+    expect(usdToMicros(microsToUsd(micros))).toBe(micros);
+  });
+
+  it.each(["", "-1", "1.0000001", "1e3", "abc", "1,5"])("rejects %j", (input) => {
+    expect(usdToMicros(input)).toBeNull();
+  });
+
+  it("formats the shortest exact string", () => {
+    expect(microsToUsd(750_000)).toBe("0.75");
+    expect(microsToUsd(10_000)).toBe("0.01");
+    expect(microsToUsd(0)).toBe("0");
+    expect(() => microsToUsd(-1)).toThrow(RangeError);
   });
 });

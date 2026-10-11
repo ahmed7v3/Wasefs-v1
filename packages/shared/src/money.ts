@@ -89,3 +89,27 @@ export function formatMoney(
     currency: currency.toUpperCase(),
   }).format(fromMinor(amountMinor, currency) as unknown as number);
 }
+
+const USD_INPUT = /^(\d{1,9})(?:\.(\d{1,6}))?$/;
+
+/**
+ * Admin-typed USD amount ("0.75", "12", "0.000125") -> integer USD micros, exactly (no floats).
+ * Returns null for anything that is not a plain non-negative decimal with at most 6 fraction digits.
+ */
+export function usdToMicros(input: string): number | null {
+  const match = USD_INPUT.exec(input.trim());
+  if (!match) return null;
+  const [, whole = "0", fraction = ""] = match;
+  return Number(whole) * 1_000_000 + Number(fraction.padEnd(6, "0"));
+}
+
+/** Integer USD micros -> the shortest exact decimal string: 750000 -> "0.75", 3750000 -> "3.75". */
+export function microsToUsd(micros: number): string {
+  if (!Number.isSafeInteger(micros) || micros < 0)
+    throw new RangeError("micros must be a non-negative integer");
+  const whole = Math.floor(micros / 1_000_000);
+  const fraction = String(micros % 1_000_000)
+    .padStart(6, "0")
+    .replace(/0+$/, "");
+  return fraction ? `${whole}.${fraction}` : String(whole);
+}
