@@ -348,6 +348,12 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
   "admin.settings.access.description": "Open sign-up and maintenance mode.",
   "admin.settings.free_tier.title": "Free tier",
   "admin.settings.free_tier.description": "Limits of free use.",
+  "admin.settings.ai.title": "AI control",
+  "admin.settings.ai.description":
+    "Daily spend cap, kill switches and credit value. Edited from the AI page.",
+  "admin.settings.rx.title": "Prescription analysis",
+  "admin.settings.rx.description":
+    "Price per page in credits and analysis limits. Shown to users before they analyse.",
   "admin.settings.auth.title": "Authentication",
   "admin.settings.auth.description":
     "Social sign-in providers, blocked email domains and phone verification.",
@@ -377,6 +383,19 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
   "admin.settings.field.access.maintenanceMode":
     "Maintenance mode (takes the site down for visitors)",
   "admin.settings.field.free_tier.monthlyAnalyses": "Free analyses per month",
+  "admin.settings.field.ai.dailyCapUsdMicros": "Daily spend cap (USD x 1,000,000)",
+  "admin.settings.field.ai.alertPercent": "Alert at percent of the cap",
+  "admin.settings.field.ai.killSwitch": "Kill switches",
+  "admin.settings.field.ai.killSwitch.all": "All AI features",
+  "admin.settings.field.ai.killSwitch.rx": "Prescription analysis",
+  "admin.settings.field.ai.killSwitch.chat": "Chat",
+  "admin.settings.field.ai.killSwitch.search": "Web search",
+  "admin.settings.field.ai.creditValueUsdMicros": "Value of one credit (USD x 1,000,000)",
+  "admin.settings.field.ai.allowPreviewModels": "Allow preview models",
+  "admin.settings.field.rx.creditsPerPage": "Price per page (credits)",
+  "admin.settings.field.rx.maxPages": "Maximum pages per prescription",
+  "admin.settings.field.rx.modelWarnings": "Model-written warnings",
+  "admin.settings.field.rx.verifyMaxItems": "Maximum items re-read by verification",
   "admin.settings.field.auth.providers": "Sign-in providers",
   "admin.settings.field.auth.providers.google": "Google",
   "admin.settings.field.auth.providers.facebook": "Facebook",

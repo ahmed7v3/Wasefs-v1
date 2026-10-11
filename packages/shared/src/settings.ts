@@ -99,6 +99,42 @@ export const whatsappSettingsSchema = z.object({
   number: phoneNumberSchema.nullable().default(null),
 });
 
+/**
+ * AI spend control (Phase 2, Task 2.2). Admin only: it holds the daily spend cap and the kill
+ * switches. Written through `/admin/ai/settings` (`ai.write` + `ai.killswitch`), never through the
+ * generic settings route. Money is integer USD micros (1 USD = 1,000,000).
+ */
+export const aiSettingsSchema = z.object({
+  /** Daily provider spend at which new AI work is refused (UTC day). */
+  dailyCapUsdMicros: z.number().int().min(0).default(10_000_000),
+  /** Percent of the cap at which the admins are alerted, once per day. */
+  alertPercent: z.number().int().min(1).max(100).default(80),
+  /** `all` stops everything; the others stop one feature. */
+  killSwitch: z
+    .object({
+      all: z.boolean().default(false),
+      rx: z.boolean().default(false),
+      chat: z.boolean().default(false),
+      search: z.boolean().default(false),
+    })
+    .default({ all: false, rx: false, chat: false, search: false }),
+  /** What one credit is worth in USD micros (default $0.01). */
+  creditValueUsdMicros: z.number().int().min(1).default(10_000),
+  /** Preview models can disappear without notice: off unless an admin allows them. */
+  allowPreviewModels: z.boolean().default(false),
+});
+
+/** Prescription analysis: what users are shown before pressing Analyze, and its limits. */
+export const rxSettingsSchema = z.object({
+  /** Credits charged per page of a prescription. */
+  creditsPerPage: z.number().int().min(0).max(100).default(1),
+  maxPages: z.number().int().min(1).max(4).default(4),
+  /** Model-written warnings are off: warnings come from code (phase2.md, Decision 8). */
+  modelWarnings: z.boolean().default(false),
+  /** Items re-read by the verification pass. */
+  verifyMaxItems: z.number().int().min(0).max(20).default(5),
+});
+
 export const SETTING_VISIBILITIES = ["public", "admin"] as const;
 export type SettingVisibility = (typeof SETTING_VISIBILITIES)[number];
 
@@ -114,6 +150,9 @@ export const SETTINGS_REGISTRY = {
   /** Blocked email domains and the phone-verification kill switch: admin only. */
   auth: { schema: authSettingsSchema, visibility: "admin" },
   whatsapp: { schema: whatsappSettingsSchema, visibility: "admin" },
+  ai: { schema: aiSettingsSchema, visibility: "admin" },
+  /** Public: the price per page and the page limit are shown before a prescription is analysed. */
+  rx: { schema: rxSettingsSchema, visibility: "public" },
 } as const satisfies Record<string, { schema: z.ZodType; visibility: SettingVisibility }>;
 
 export type SettingsRegistry = typeof SETTINGS_REGISTRY;
@@ -148,6 +187,7 @@ export const publicSettingsSchema = z.object({
   currency: currencySettingsSchema,
   access: accessSettingsSchema,
   free_tier: freeTierSettingsSchema,
+  rx: rxSettingsSchema,
 }) satisfies z.ZodType<{ [K in PublicSettingKey]: SettingValue<K> }>;
 export type PublicSettings = z.output<typeof publicSettingsSchema>;
 

@@ -14,7 +14,7 @@ describe("workerEnvSchema", () => {
   it("applies defaults", () => {
     const env = workerEnvSchema.parse(base);
     expect(env.WORKER_SHUTDOWN_TIMEOUT_MS).toBe(30_000);
-    expect(queueConcurrency(env)).toEqual({ system: 1, notifications: 1 });
+    expect(queueConcurrency(env)).toEqual({ system: 1, notifications: 1, credits: 1 });
     expect(env.MAIL_DAILY_CAP).toBe(280);
     expect(env.SMTP_PORT).toBe(587);
     expect(env.MAIL_FROM).toContain("no-reply@wasfa.online");
@@ -25,8 +25,9 @@ describe("workerEnvSchema", () => {
       ...base,
       WORKER_CONCURRENCY_SYSTEM: "4",
       WORKER_CONCURRENCY_NOTIFICATIONS: "2",
+      WORKER_CONCURRENCY_CREDITS: "3",
     });
-    expect(queueConcurrency(env)).toEqual({ system: 4, notifications: 2 });
+    expect(queueConcurrency(env)).toEqual({ system: 4, notifications: 2, credits: 3 });
   });
 
   it("rejects a missing or non-redis URL and out-of-range concurrency", () => {

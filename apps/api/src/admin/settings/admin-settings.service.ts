@@ -39,6 +39,11 @@ export class AdminSettingsService {
     value: unknown,
   ): Promise<AdminSetting> {
     if (!isSettingKey(key)) throw new AppError(ErrorCode.NOT_FOUND);
+    // AI spend control has its own endpoint with its own permissions (`ai.write`, `ai.killswitch`):
+    // a `settings.write` holder must not be able to raise the daily cap or switch a kill switch off.
+    if (key === "ai") {
+      throw new AppError(ErrorCode.FORBIDDEN, { details: { reason: "use_admin_ai" } });
+    }
     await this.settings.set(key, value, { actorId, request });
     return this.item(key, (await this.repo.meta()).get(key));
   }

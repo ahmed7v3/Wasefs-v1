@@ -14,6 +14,7 @@ import { RedisModule } from "./common/redis.js";
 import { ZodValidationPipe } from "./common/validation.js";
 import { ConfigModule } from "./config/config.module.js";
 import { ContactModule } from "./contact/contact.module.js";
+import { CreditsModule } from "./credits/credits.module.js";
 import { FlagsModule } from "./flags/flags.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { NotificationsModule } from "./notifications/notifications.module.js";
@@ -57,6 +58,7 @@ export class AppModule {
         BrandingModule,
         OnboardingModule,
         UsersModule,
+        CreditsModule,
         AdminModule,
         OrgsModule,
         HealthModule,

@@ -57,7 +57,7 @@ beforeAll(async () => {
   const email = createEmailRuntime(testEnv(redisInfra.url), connection, logger);
   set = startWorkers(
     connection,
-    { system: 2, notifications: 1 },
+    { system: 2, notifications: 1, credits: 1 },
     { redis: connection, db: database.db, logger, email },
   );
   producer = new Queue("system", { connection });
@@ -168,5 +168,34 @@ describe("closeWorkers", () => {
     };
     await expect(closeWorkers([stuck], 100)).resolves.toBe("forced");
     expect(calls).toEqual([undefined, true]);
+  });
+});
+
+describe("credits maintenance", () => {
+  it("has a handler for both jobs and schedules them every 5 minutes and daily at 00:10 UTC, once each", async () => {
+    expect(Object.keys(HANDLERS.credits)).toEqual(
+      expect.arrayContaining(["credits.sweep_reservations", "credits.grant_monthly"]),
+    );
+    await registerSchedules(set.queues);
+    await registerSchedules(set.queues);
+    const credits = set.queues.find((queue) => queue.name === "credits");
+    const schedulers = (await credits?.getJobSchedulers()) ?? [];
+    const sweep = schedulers.filter((scheduler) => scheduler.key === "credits.sweep_reservations");
+    const grant = schedulers.filter((scheduler) => scheduler.key === "credits.grant_monthly");
+    expect(sweep).toHaveLength(1);
+    expect(sweep[0]?.every).toBe(300_000);
+    expect(grant).toHaveLength(1);
+    expect(grant[0]).toMatchObject({ pattern: "10 0 * * *", tz: "UTC" });
+  });
+
+  it("runs both jobs against the database when they are queued", async () => {
+    const credits = set.queues.find((queue) => queue.name === "credits");
+    await credits?.add("credits.sweep_reservations", {}, { jobId: "t-sweep" });
+    await credits?.add("credits.grant_monthly", {}, { jobId: "t-grant" });
+    await waitFor(async () => (await credits?.getJob("t-sweep"))?.isCompleted());
+    await waitFor(async () => (await credits?.getJob("t-grant"))?.isCompleted());
+    const output = logs.join("");
+    expect(output).toContain("Expired credit reservations released");
+    expect(output).toContain("Monthly credit grants finished");
   });
 });

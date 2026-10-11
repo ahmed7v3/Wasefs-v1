@@ -31,6 +31,8 @@ export const workerEnvSchema = z
     WORKER_CONCURRENCY_SYSTEM: concurrency,
     /** ... and on the `notifications` queue (email). */
     WORKER_CONCURRENCY_NOTIFICATIONS: concurrency,
+    /** ... and on the `credits` queue (reservation sweeper, monthly grants). */
+    WORKER_CONCURRENCY_CREDITS: concurrency,
     /** How long shutdown waits for active jobs before force-closing. */
     WORKER_SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).default(30_000),
 
@@ -77,5 +79,6 @@ export function queueConcurrency(env: WorkerEnv): Record<QueueName, number> {
   return {
     system: env.WORKER_CONCURRENCY_SYSTEM,
     notifications: env.WORKER_CONCURRENCY_NOTIFICATIONS,
+    credits: env.WORKER_CONCURRENCY_CREDITS,
   };
 }

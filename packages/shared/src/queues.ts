@@ -22,6 +22,13 @@ export const maintenancePayloadSchema = z.object({
   source: z.enum(["scheduler", "manual"]).default("scheduler"),
 });
 
+/**
+ * Credit maintenance (Phase 2, Task 2.2). No payload: each run works out what is due.
+ * `credits.sweep_reservations`: releases reservations whose job crashed. `credits.grant_monthly`:
+ * gives every user the monthly credits of their plan for the current UTC month (once per period).
+ */
+export const creditsMaintenancePayloadSchema = z.object({});
+
 export const QUEUE_REGISTRY = {
   system: {
     "system.heartbeat": heartbeatPayloadSchema,
@@ -30,6 +37,10 @@ export const QUEUE_REGISTRY = {
   },
   notifications: {
     "email.send": emailSendPayloadSchema,
+  },
+  credits: {
+    "credits.sweep_reservations": creditsMaintenancePayloadSchema,
+    "credits.grant_monthly": creditsMaintenancePayloadSchema,
   },
 } as const;
 

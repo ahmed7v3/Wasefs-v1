@@ -150,6 +150,7 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?}
       WORKER_CONCURRENCY_SYSTEM: ${WORKER_CONCURRENCY_SYSTEM:-1}
       WORKER_CONCURRENCY_NOTIFICATIONS: ${WORKER_CONCURRENCY_NOTIFICATIONS:-1}
+      WORKER_CONCURRENCY_CREDITS: ${WORKER_CONCURRENCY_CREDITS:-1}
       # Outgoing mail through Brevo's SMTP relay. Another provider is an env change only.
       SMTP_HOST: ${SMTP_HOST:-smtp-relay.brevo.com}
       SMTP_PORT: ${SMTP_PORT:-587}

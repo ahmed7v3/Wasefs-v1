@@ -11,6 +11,8 @@ import { DelayedError, Queue, UnrecoverableError, Worker, type Job } from "bullm
 
 import { DeferJob } from "./defer.js";
 import { anonymizeDueJob, purgeExpiredJob } from "./jobs/accounts.job.js";
+import { grantMonthlyJob } from "./jobs/credits.grant.job.js";
+import { sweepReservationsJob } from "./jobs/credits.sweep.job.js";
 import { heartbeatJob } from "./jobs/health.job.js";
 import { emailSendJob, type EmailRuntime } from "./notifications/email.js";
 
@@ -41,6 +43,10 @@ export const HANDLERS: Handlers = {
   },
   notifications: {
     "email.send": emailSendJob,
+  },
+  credits: {
+    "credits.sweep_reservations": sweepReservationsJob,
+    "credits.grant_monthly": grantMonthlyJob,
   },
 };
 
@@ -120,6 +126,9 @@ export function startWorkers(
 
 const ANONYMIZE_INTERVAL_MS = 60 * 60 * 1000;
 const PURGE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const SWEEP_RESERVATIONS_INTERVAL_MS = 5 * 60 * 1000;
+/** Daily at 00:10 UTC: just after the month turns, and every day after for late joiners and retries. */
+export const GRANT_MONTHLY_PATTERN = "10 0 * * *";
 
 /** Registers repeatable jobs. Upserting by id is idempotent, so restarts never duplicate them. */
 export async function registerSchedules(queues: readonly Queue[]): Promise<void> {
@@ -139,6 +148,18 @@ export async function registerSchedules(queues: readonly Queue[]): Promise<void>
     "auth.purge_expired",
     { every: PURGE_INTERVAL_MS },
     { name: "auth.purge_expired", data: { source: "scheduler" } },
+  );
+  const credits = queues.find((queue) => queue.name === "credits");
+  if (credits === undefined) throw new Error("credits queue is not registered");
+  await credits.upsertJobScheduler(
+    "credits.sweep_reservations",
+    { every: SWEEP_RESERVATIONS_INTERVAL_MS },
+    { name: "credits.sweep_reservations", data: {} },
+  );
+  await credits.upsertJobScheduler(
+    "credits.grant_monthly",
+    { pattern: GRANT_MONTHLY_PATTERN, tz: "UTC" },
+    { name: "credits.grant_monthly", data: {} },
   );
   // Beat once now so the API sees a live worker without waiting for the first interval.
   await system.add("system.heartbeat", { source: "manual" });

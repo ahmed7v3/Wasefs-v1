@@ -125,10 +125,20 @@
       "import": "./dist/schemas/contact.js",
       "default": "./dist/schemas/contact.js"
     },
+    "./schemas/credits": {
+      "types": "./dist/schemas/credits.d.ts",
+      "import": "./dist/schemas/credits.js",
+      "default": "./dist/schemas/credits.js"
+    },
     "./schemas/onboarding": {
       "types": "./dist/schemas/onboarding.d.ts",
       "import": "./dist/schemas/onboarding.js",
       "default": "./dist/schemas/onboarding.js"
+    },
+    "./schemas/plans": {
+      "types": "./dist/schemas/plans.d.ts",
+      "import": "./dist/schemas/plans.js",
+      "default": "./dist/schemas/plans.js"
     }
   },
   "files": [
