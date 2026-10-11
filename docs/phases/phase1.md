@@ -254,7 +254,7 @@ Steps
 3. Bootstrap the first super admin with a one-off CLI (`pnpm --filter @wasfa/api admin:grant <email>`), run via the `migrate`-style tools container in production and audited as `system`.
 
 Acceptance
-- [ ] Integration tests per admin endpoint (permission denied, 2FA missing, audit row written, fresh-auth enforced where marked).
+- [x] Integration tests per admin endpoint (permission denied, 2FA missing, audit row written, fresh-auth enforced where marked). *(`admin.int` 118, `admin-roles.int` 14, `admin-grant.int` 6: a table over all 23 routes for 401, 403 without permission, 403 `two_factor_required`, 401 `reauth` exactly where marked, 429.)*
 - [ ] Playwright: admin suspends a user → that user's open session gets 401 on the next request.
 - [ ] Issues page groups a thrown test error and lets the admin mark it resolved (audited).
 
@@ -383,6 +383,11 @@ Acceptance
   - **Maintenance**: a step of `AccessGuard` after the session (deviation from "a global guard": it is the sixth step of the existing composite, for the ordering reason of decision #24). Exempt: health, `/auth/*`, `GET /settings/public`, `GET /me`; any platform role bypasses. Sign-up is refused during maintenance, like `signupOpen = false`. The 503 is **not** stored in `error_events` (it would write a row per request).
   - **Flags**: rules `all | user | org | percentage | plan` (`{}` = all). Percentage bucket = first 4 bytes of sha256(`<flag key>:<user id>`) mod 100, so cohorts differ per flag. `plan` is false until plans exist. Admin write methods exist on the services; their HTTP routes are Task 1.10.
   - `AuthSettingsReader` is deleted; tests switch settings through `SettingsService.set`.
+
+- **Task 1.10 (admin v1)**
+  - **API**: 23 routes under `/admin/*` (SECURITY.md 3.1), shared contract `@wasfa/shared/schemas/admin`, keyset pagination `{ items, nextCursor }` (max 100). Every SECURITY §5 rule is enforced and tested, including concurrent last-`super_admin` revokes (row lock on the role) and stale permission caches. Suspending or unsuspending a `super_admin` needs a `super_admin` (unsuspend added in review, so a plain admin cannot restore a super admin another super admin suspended). Role grant/revoke and suspend need fresh auth (10 min) and a written reason; idempotent grants/revokes write no audit row.
+  - **Issues** are `error_events` grouped by fingerprint (no new table); the group's status is its latest event's status, so an event after "resolved" shows as `new` again (a regression). Marking a status updates every event of the fingerprint (audited `issue.status`). Fingerprint parameter capped at 100 chars (Fastify's path limit).
+  - **Bootstrap**: `admin:grant <email>` (`apps/api/src/cli/`) grants `super_admin` to an active, email-verified account, audited with `actor_id = null`; run in production through the `migrate` service (DOCKER-GUIDE 3.10). The account must then enable 2FA before `/admin` answers.
 
 ## Open questions
 - Should admins be allowed to "act as user" (read-only, time-boxed) in Phase 1, or wait for Phase 4 support tooling? Planned: Phase 4.

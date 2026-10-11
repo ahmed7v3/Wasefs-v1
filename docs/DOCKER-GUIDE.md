@@ -324,6 +324,25 @@ days like a normal business line before linking it.
 5. Kill switch: set `auth.phoneVerification` to `disabled` (admin settings) to hide phone verification
    without touching the bridge.
 
+### 3.10 Create the first super admin (Task 1.10)
+
+Nobody can grant the first `super_admin` from the admin panel, so it is done once from the server.
+
+1. Register on the site with the email you will use as admin and click the verification link (the
+   command refuses accounts that are not **active** with a **verified** email).
+2. On the server:
+   `dc --profile tools run --rm migrate node dist/cli/admin-grant.js you@example.com`
+   The `migrate` service uses the api image (the compiled command is at `/app/dist/cli/admin-grant.js`)
+   and the database owner role, and needs no other settings. It prints `granted` (or
+   `already super_admin`) and exits 0; any problem prints one line and exits 1 without changing anything.
+   The grant is written to the audit log as the system (`via: cli`).
+3. Sign in on the site, then **turn on two-factor authentication**. `/admin` is
+   refused until the account has 2FA and the session went through the 2FA code. The permission cache
+   lasts up to 5 minutes, so the new role may take that long to show up.
+
+On your own computer: `pnpm --filter @wasfa/api admin:grant:dev you@example.com` (reads `DATABASE_URL`
+from `.env`), or after `pnpm build`, `pnpm --filter @wasfa/api admin:grant you@example.com`.
+
 ## 4. Everyday commands (on the server)
 
 Log in: `ssh deploy@<ELASTIC-IP>`. First define a short name for the long command (add it to `~/.bashrc`):

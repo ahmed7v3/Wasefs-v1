@@ -118,6 +118,29 @@ Also required for every new route: an integration test for happy path, unauthent
 | `GET /me/invites` | cookie | — | invites addressed to the caller's **verified** email or phone | none | 30/min | — | — | — | Done |
 | `GET /settings/public` | public (the web shell, contact hub and maintenance banner need it before sign-in); allowed during maintenance | — | — | none; returns only `public` registry keys | 120/min | — | — | — | Done |
 | `POST /contact` | public (visitors without an account); an optional session only sets `user_id` | — | insert only | `contactMessageSchema` | 10/min + fail-closed 5/h and 20/day per IP, 300/h global, all before Turnstile | message ≤ 4000 chars | always (when a secret is configured) | — | Done |
+| `GET /admin/stats` | cookie + 2FA session | users.read | platform data (no owner) | shared `schemas/admin` | 120/min | 1 MB; lists cursor-paged, max 100 | — | — | Done |
+| `GET /admin/users` | cookie + 2FA session | users.read | platform data (no owner) | shared `schemas/admin` | 120/min | 1 MB; lists cursor-paged, max 100 | — | — | Done |
+| `GET /admin/users/:id` | cookie + 2FA session | users.read | platform data (no owner) | shared `schemas/admin` | 120/min | 1 MB; lists cursor-paged, max 100 | — | — | Done |
+| `POST /admin/users/:id/suspend` | cookie + 2FA session + fresh auth 10 min | users.suspend; a `super_admin` target only by a `super_admin`; never yourself | platform data (no owner) | shared `schemas/admin` | 30/min | 1 MB; lists cursor-paged, max 100 | — | `user.suspend` | Done |
+| `POST /admin/users/:id/unsuspend` | cookie + 2FA session + fresh auth 10 min | users.suspend; same target rules | platform data (no owner) | shared `schemas/admin` | 30/min | 1 MB; lists cursor-paged, max 100 | — | `user.unsuspend` | Done |
+| `PUT /admin/users/:id/roles/:roleKey` | cookie + 2FA session + fresh auth 10 min | users.roles.write; SECURITY §5 grant rules | platform data (no owner) | shared `schemas/admin` | 30/min | 1 MB; lists cursor-paged, max 100 | — | `role.grant` (only when changed) | Done |
+| `DELETE /admin/users/:id/roles/:roleKey` | cookie + 2FA session + fresh auth 10 min | users.roles.write; §5 rules, last `super_admin` kept | platform data (no owner) | shared `schemas/admin` | 30/min | 1 MB; lists cursor-paged, max 100 | — | `role.revoke` (only when changed) | Done |
+| `GET /admin/orgs` | cookie + 2FA session | orgs.read | platform data (no owner) | shared `schemas/admin` | 120/min | 1 MB; lists cursor-paged, max 100 | — | — | Done |
+| `GET /admin/orgs/:id` | cookie + 2FA session | orgs.read | platform data (no owner) | shared `schemas/admin` | 120/min | 1 MB; lists cursor-paged, max 100 | — | — | Done |
+| `GET /admin/roles` | cookie + 2FA session | roles.read | platform data (no owner) | shared `schemas/admin` | 120/min | 1 MB; lists cursor-paged, max 100 | — | — | Done |
+| `GET /admin/permissions` | cookie + 2FA session | roles.read | platform data (no owner) | shared `schemas/admin` | 120/min | 1 MB; lists cursor-paged, max 100 | — | — | Done |
+| `POST /admin/roles` | cookie + 2FA session + fresh auth 10 min | roles.write + `super_admin` | platform data (no owner) | shared `schemas/admin` | 30/min | 1 MB; lists cursor-paged, max 100 | — | `role.create` | Done |
+| `PATCH /admin/roles/:key` | cookie + 2FA session + fresh auth 10 min | roles.write + `super_admin`; `super_admin` role read-only | platform data (no owner) | shared `schemas/admin` | 30/min | 1 MB; lists cursor-paged, max 100 | — | `role.update` | Done |
+| `DELETE /admin/roles/:key` | cookie + 2FA session + fresh auth 10 min | roles.write + `super_admin`; not system, not held | platform data (no owner) | shared `schemas/admin` | 30/min | 1 MB; lists cursor-paged, max 100 | — | `role.delete` | Done |
+| `GET /admin/settings` | cookie + 2FA session | settings.read | platform data (no owner) | shared `schemas/admin` | 120/min | 1 MB; lists cursor-paged, max 100 | — | — | Done |
+| `PUT /admin/settings/:key` | cookie + 2FA session + fresh auth 10 min | settings.write | platform data (no owner) | shared `schemas/admin` | 30/min | 1 MB; lists cursor-paged, max 100 | — | `setting.update` (by `SettingsService`) | Done |
+| `GET /admin/flags` | cookie + 2FA session | flags.read | platform data (no owner) | shared `schemas/admin` | 120/min | 1 MB; lists cursor-paged, max 100 | — | — | Done |
+| `PUT /admin/flags/:key` | cookie + 2FA session | flags.write | platform data (no owner) | shared `schemas/admin` | 30/min | 1 MB; lists cursor-paged, max 100 | — | `flag.update` | Done |
+| `DELETE /admin/flags/:key` | cookie + 2FA session | flags.write | platform data (no owner) | shared `schemas/admin` | 30/min | 1 MB; lists cursor-paged, max 100 | — | `flag.delete` | Done |
+| `GET /admin/audit` | cookie + 2FA session | audit.read | platform data (no owner) | shared `schemas/admin` | 120/min | 1 MB; lists cursor-paged, max 100 | — | — | Done |
+| `GET /admin/issues` | cookie + 2FA session | issues.read | platform data (no owner) | shared `schemas/admin` | 120/min | 1 MB; lists cursor-paged, max 100 | — | — | Done |
+| `GET /admin/issues/:fingerprint` | cookie + 2FA session | issues.read | platform data (no owner) | shared `schemas/admin` | 120/min | 1 MB; lists cursor-paged, max 100 | — | — | Done |
+| `PATCH /admin/issues/:fingerprint` | cookie + 2FA session | issues.write | platform data (no owner) | shared `schemas/admin` | 30/min | 1 MB; lists cursor-paged, max 100 | — | `issue.status` | Done |
 | `GET /flags` | cookie | — | the caller's evaluated flags | none | 60/min | — | — | — | Done |
 | `POST /me/invites/:id/accept`, `POST /invites/accept` | cookie | — | invite must be pending and addressed to the caller's verified identifier, else 404 | `idParamSchema` / `acceptInviteTokenSchema` | 10/min | 1 MB | — | `org.invite_accept` | Done |
 

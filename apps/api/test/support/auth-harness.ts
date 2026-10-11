@@ -138,7 +138,10 @@ export class AuthHarness {
           : {}),
         ...options.headers,
       },
-      ...(method === "GET" || method === "DELETE" ? {} : { payload: options.body ?? {} }),
+      // DELETE carries a body only when the test gives one (admin role revocation needs a reason).
+      ...(method === "GET" || (method === "DELETE" && options.body === undefined)
+        ? {}
+        : { payload: options.body ?? {} }),
     });
     this.absorb(jar, res);
     return res;

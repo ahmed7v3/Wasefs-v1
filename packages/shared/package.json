@@ -75,6 +75,11 @@
       "import": "./dist/redact.js",
       "default": "./dist/redact.js"
     },
+    "./schemas/admin": {
+      "types": "./dist/schemas/admin.d.ts",
+      "import": "./dist/schemas/admin.js",
+      "default": "./dist/schemas/admin.js"
+    },
     "./schemas/phone": {
       "types": "./dist/schemas/phone.d.ts",
       "import": "./dist/schemas/phone.js",
