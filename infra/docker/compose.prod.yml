@@ -79,11 +79,18 @@ services:
       CSP_CONNECT_SRC_EXTRA: ${CSP_CONNECT_SRC_EXTRA:-}
       CSP_FRAME_SRC_EXTRA: ${CSP_FRAME_SRC_EXTRA:-}
       CSP_IMG_SRC_EXTRA: ${CSP_IMG_SRC_EXTRA:-}
+      # Server-side calls (session, login providers, public settings) go straight to the api over
+      # the edge network, not out through Cloudflare and back.
+      API_INTERNAL_URL: http://api:4000
     tmpfs:
       - /tmp
       # Next.js writes its runtime cache here.
       - /app/apps/web/.next/cache
-    networks: [edge]
+    networks:
+      edge:
+        # Fixed, like Caddy's, because the api trusts the client IP this container forwards
+        # (TRUST_PROXY): every server-side render would otherwise count against one address.
+        ipv4_address: 172.30.0.3
     mem_limit: 512m
     cpus: 1.0
 
@@ -115,7 +122,8 @@ services:
       FACEBOOK_CLIENT_ID: ${FACEBOOK_CLIENT_ID:-}
       FACEBOOK_CLIENT_SECRET: ${FACEBOOK_CLIENT_SECRET:-}
       # Caddy fixed address on the edge network: the only peer allowed to set CF-Connecting-IP.
-      TRUST_PROXY: 172.30.0.2
+      # Caddy, and the web server for its server-side calls (it forwards CF-Connecting-IP from Caddy).
+      TRUST_PROXY: 172.30.0.2,172.30.0.3
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-120}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     # `edge` so Caddy can reach it (and it can call AI/payment providers); `internal` for the data stores.

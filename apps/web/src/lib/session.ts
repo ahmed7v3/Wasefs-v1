@@ -30,9 +30,13 @@ async function forwardedHeaders(): Promise<Record<string, string>> {
   };
   const cookie = incoming.get("cookie");
   if (cookie) forwarded["Cookie"] = cookie;
-  // The API rate-limits per client IP; without this every page view would count against the web server's address.
-  const clientIp = incoming.get("x-forwarded-for");
-  if (clientIp) forwarded["X-Forwarded-For"] = clientIp;
+  // The API rate-limits per client IP; without this every page view would count against the web
+  // server's address. The API honours CF-Connecting-IP only from addresses in its TRUST_PROXY (Caddy
+  // and, in production, this server), and this server is reachable only through Caddy.
+  const clientIp = incoming.get("cf-connecting-ip");
+  if (clientIp) forwarded["CF-Connecting-IP"] = clientIp;
+  const forwardedFor = incoming.get("x-forwarded-for");
+  if (forwardedFor) forwarded["X-Forwarded-For"] = forwardedFor;
   return forwarded;
 }
 
