@@ -38,6 +38,14 @@ const REASON_MESSAGES: Record<string, MessageKey> = {
   queue_unavailable: "admin.reason.queue_unavailable",
   two_factor_required: "admin.access.twoFactorRequired.body",
   two_factor_session: "admin.access.twoFactorSession.body",
+  // AI routes, plans and credits (Task 2.5).
+  stale_version: "admin.routes.reason.stale_version",
+  default_route: "admin.routes.reason.default_route",
+  plan_key_exists: "admin.plans.reason.plan_key_exists",
+  plan_in_use: "admin.plans.reason.plan_in_use",
+  default_plan_required: "admin.plans.reason.default_plan_required",
+  assignment_ended: "admin.plans.reason.assignment_ended",
+  insufficient_balance: "admin.credits.reason.insufficient_balance",
   // Logo and favicon uploads.
   unsupported_type: "admin.branding.reason.unsupported_type",
   type_mismatch: "admin.branding.reason.type_mismatch",
@@ -45,6 +53,19 @@ const REASON_MESSAGES: Record<string, MessageKey> = {
   invalid_data: "admin.branding.reason.invalid_data",
   invalid_svg: "admin.branding.reason.invalid_svg",
   unsafe_svg: "admin.branding.reason.unsafe_svg",
+  // AI providers, models and price sync (Phase 2).
+  missing_key: "admin.ai.reason.missing_key",
+  key_taken: "admin.ai.reason.key_taken",
+  provider_in_use: "admin.ai.reason.provider_in_use",
+  fake_in_production: "admin.ai.reason.fake_in_production",
+  insecure_base_url: "admin.ai.reason.insecure_base_url",
+  missing_base_url: "admin.ai.reason.missing_base_url",
+  model_exists: "admin.ai.reason.model_exists",
+  model_in_use: "admin.ai.reason.model_in_use",
+  model_is_primary: "admin.ai.reason.model_is_primary",
+  no_price_source: "admin.ai.reason.no_price_source",
+  sync_expired: "admin.ai.reason.sync_expired",
+  killswitch_permission: "admin.ai.reason.killswitch_permission",
 };
 
 /** The friendly sentence for an error: a specific reason first, else the message of its code. */

@@ -1,6 +1,8 @@
 import { ERROR_CODES, ERROR_INFO, type ErrorCode } from "../errors/codes.js";
 
 import { arAdmin } from "./ar.admin.js";
+import { arAdminAi } from "./ar.admin-ai.js";
+import { arAdminBilling } from "./ar.admin-billing.js";
 
 type ErrorMessageKey = `error.${ErrorCode}`;
 
@@ -498,6 +500,8 @@ export const ar = {
   "contact.success.again": "إرسال رسالة أخرى",
   "contact.channels.title": "قنوات أخرى للتواصل",
   ...arAdmin,
+  ...arAdminAi,
+  ...arAdminBilling,
   ...errorMessages,
 } as const;
 

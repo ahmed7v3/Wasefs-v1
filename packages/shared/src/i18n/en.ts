@@ -1,6 +1,8 @@
 import { ERROR_CODES, ERROR_INFO } from "../errors/codes.js";
 
 import { enAdmin } from "./en.admin.js";
+import { enAdminAi } from "./en.admin-ai.js";
+import { enAdminBilling } from "./en.admin-billing.js";
 
 import type { MessageKey } from "./ar.js";
 
@@ -488,5 +490,7 @@ export const en: Partial<Record<MessageKey, string>> = {
   "contact.submit": "Send message",
   "contact.success.title": "We received your message",
   ...enAdmin,
+  ...enAdminAi,
+  ...enAdminBilling,
   ...errorMessages,
 };

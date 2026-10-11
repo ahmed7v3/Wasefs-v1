@@ -6,7 +6,13 @@ import { PERMISSION_KEYS } from "@wasfa/shared/permissions";
 import { describe, expect, it, vi } from "vitest";
 
 import { AdminNav } from "../src/components/admin/admin-nav";
-import { ADMIN_NAV, canAccess, navItemFor, visibleNavGroups } from "../src/lib/admin-nav";
+import {
+  ADMIN_NAV,
+  canAccess,
+  isNavActive,
+  navItemFor,
+  visibleNavGroups,
+} from "../src/lib/admin-nav";
 
 let pathname = "/admin/users";
 vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
@@ -41,9 +47,33 @@ describe("visibleNavGroups", () => {
       "/admin/branding",
       "/admin/flags",
       "/admin/whatsapp",
+      "/admin/ai",
+      "/admin/ai/providers",
+      "/admin/ai/models",
+      "/admin/ai/routes",
+      "/admin/plans",
+      "/admin/credits",
       "/admin/audit",
       "/admin/issues",
     ]);
+  });
+
+  it("shows the AI group only for the permissions of its pages", () => {
+    expect(hrefs(["ai.read"])).toEqual([
+      "/admin",
+      "/admin/ai",
+      "/admin/ai/providers",
+      "/admin/ai/models",
+      "/admin/ai/routes",
+    ]);
+    expect(hrefs(["plans.read", "usage.read"])).toEqual([
+      "/admin",
+      "/admin/plans",
+      "/admin/credits",
+    ]);
+    expect(hrefs(["users.read"])).not.toContain("/admin/ai");
+    expect(visibleNavGroups(["ai.read"]).map((group) => group.id)).toContain("ai");
+    expect(visibleNavGroups(["users.read"]).map((group) => group.id)).not.toContain("ai");
   });
 
   it("canAccess treats a missing permission as denied and null as open", () => {
@@ -55,6 +85,16 @@ describe("visibleNavGroups", () => {
   it("finds the nav entry of a nested path", () => {
     expect(navItemFor("/admin/issues/abcdef1234")?.href).toBe("/admin/issues");
     expect(navItemFor("/admin")?.href).toBe("/admin");
+  });
+
+  it("marks only the longest matching entry as active (/admin/ai vs /admin/ai/models)", () => {
+    expect(isNavActive("/admin/ai", "/admin/ai")).toBe(true);
+    expect(isNavActive("/admin/ai", "/admin/ai/models")).toBe(false);
+    expect(isNavActive("/admin/ai/models", "/admin/ai/models")).toBe(true);
+    expect(isNavActive("/admin/ai/models", "/admin/ai/models/anything")).toBe(true);
+    expect(isNavActive("/admin/ai", "/admin/ai/unknown")).toBe(true);
+    expect(isNavActive("/admin", "/admin/ai")).toBe(false);
+    expect(navItemFor("/admin/ai/models")?.href).toBe("/admin/ai/models");
   });
 });
 
@@ -71,6 +111,20 @@ describe("AdminNav", () => {
     expect(screen.queryByRole("link", { name: t("admin.nav.settings") })).toBeNull();
     expect(screen.queryByRole("link", { name: t("admin.nav.flags") })).toBeNull();
     expect(screen.getAllByRole("link")).toHaveLength(3);
+  });
+});
+
+describe("AdminNav AI group", () => {
+  it("does not mark AI settings as the current page on the models page", () => {
+    pathname = "/admin/ai/models";
+    render(<AdminNav permissions={["ai.read"]} />);
+    expect(
+      screen.getByRole("link", { name: t("admin.nav.aiModels") }).getAttribute("aria-current"),
+    ).toBe("page");
+    expect(
+      screen.getByRole("link", { name: t("admin.nav.ai") }).getAttribute("aria-current"),
+    ).toBeNull();
+    expect(screen.getByText(t("admin.nav.group.ai"))).toBeTruthy();
   });
 });
 
