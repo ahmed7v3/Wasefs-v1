@@ -409,6 +409,15 @@ Acceptance
   - **Bugs the suite found, fixed in review**: a NUL character in any string reached Postgres as a 500 that could not even be recorded (now refused for every route by `parseWithSchema`, and `redactText` strips NUL); a year-0 date in the audit filter was a 500 (filters now accept years 1970-9999); Zod's `new Function` probe raised a CSP violation (now `jitless`, imported from `zod/v4/core` only so public pages do not load all of Zod).
   - **Lighthouse (deviation)**: `/` scores SEO, Best Practices and Accessibility 100; Performance 86-93 locally (it was 81-90 before review). Review cut what loads before first paint: public pages render medium/semibold text in Alexandria (already preloaded) so the lazy Plex 500/600 files are not fetched (`.marketing-type`), buttons use the heading face, and the global Zod import is gone. What is left is the Next.js App Router baseline (~180 KB of framework JS plus the inline page data in the HTML) under Lighthouse's simulated slow 4G, with per-request rendering forced by the nonce CSP (decision #10). The CI gate is 0.90, the AGENT §7 public-page standard, instead of the phase's 0.95.
 
+- **Carry-overs at Phase 1 close (Task 2.0, owners named).** Open checkboxes above, each moved out of Phase 1 with its owner:
+  - Real Google sign-in check in production (Task 1.3): **owner**, needs the OAuth client and the deployed API.
+  - mail-tester.com score ≥ 9/10 from production (Task 1.4): **owner**, after the deploy of this branch.
+  - WhatsApp sender-number spike and the two-number production check (Task 1.5): **owner**, DOCKER-GUIDE 3.9; the fallback is `auth.phoneVerification = disabled`, so email carries sign-up until then.
+  - Lighthouse Performance 95 on `/` (Task 1.11): **owner decision**, see Open questions (current gate 0.90).
+  - Rich Results Test for FAQPage and Organization (Task 1.11): **owner**, online tool, on production.
+  - API image under 200 MB (Task 1.12): **open**, now 235 MB; no owner sign-off recorded yet.
+  - Owner TODOs from Task 1.11: final legal texts.
+
 ## Open questions
 - **Landing performance 95 vs 90.** Reaching 95 reliably needs static (cacheable) HTML for the public pages, which means a hash-based CSP instead of the per-request nonce (decision #10, SECURITY §11). Options: (a) accept 90 for Phase 1 (current CI gate); (b) build hash-based CSP for the `(marketing)` routes in a follow-up task. Recommendation: (a) now, (b) before the marketing push in Phase 4.
 - Should admins be allowed to "act as user" (read-only, time-boxed) in Phase 1, or wait for Phase 4 support tooling? Planned: Phase 4.

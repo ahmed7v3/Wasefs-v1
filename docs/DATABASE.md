@@ -13,7 +13,7 @@
 | Names | `snake_case` tables (plural) and columns. TypeScript keeps camelCase; `casing: "snake_case"` in both `drizzle.config.ts` and `createDb` maps them. |
 | Primary keys | `uuid` with the database default `uuidv7()` (time-sortable, PostgreSQL 18 native). Use `idColumn()` from `schema/columns.ts`. Join tables use a composite primary key instead. |
 | Timestamps | `timestamptz`. `created_at` and `updated_at` via `timestamps()`. Drizzle refreshes `updated_at` on ORM updates; **raw SQL updates must set it themselves.** |
-| Money | Integer **minor units** (`amount_minor`) plus an ISO 4217 `currency`. Never `numeric` or float. (No money tables yet: Phase 3.) |
+| Money | Integer **minor units** (`amount_minor`) plus an ISO 4217 `currency`. Never `numeric` or float. (Credits and plans arrive in Phase 2; payments in Phase 3.) |
 | Closed value sets | `text` + a `CHECK (col IN (...))`, never a Postgres `ENUM` (adding a value is then a one-line migration, not `ALTER TYPE`). The list is a `const` tuple in `@wasfa/shared` (`identity.ts`, `permissions.ts`) and **the same tuple** types the column and builds the CHECK (`inList()`), so TypeScript and the database cannot drift. |
 | Emails | `citext` (case-insensitive), unique. |
 | Phones | E.164 (`+201001234567`), enforced by a CHECK that reuses `E164_PATTERN.source`. |

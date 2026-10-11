@@ -7,8 +7,8 @@
 | Phase | Name | A user can… | Status |
 |---|---|---|---|
 | 0 | Foundation & security baseline | open the placeholder site; the platform runs, deploys, and backs up | ✅ done (environment-bound carry-overs listed in Phase 1) |
-| 1 | Identity, admin core & public front door | sign up (email / Google / phone), finish onboarding, see the dashboard shell; admins manage users, roles, settings, and errors; visitors see the real landing page | ⏳ next — `phase1.md` |
-| 2 | The AI product | analyze a prescription, chat with the AI assistant and its skills, all metered by credits under plan limits; admins control providers, models, routing, skills, plans, and the drug database | planned |
+| 1 | Identity, admin core & public front door | sign up (email / Google / phone), finish onboarding, see the dashboard shell; admins manage users, roles, settings, and errors; visitors see the real landing page | ✅ closed — open items carried over in `phase1.md` Notes |
+| 2 | The AI product | analyze a prescription, chat with the AI assistant and its skills, all metered by credits under plan limits; admins control providers, models, routing, skills, plans, and the drug database | ⏳ next — `phase2.md` (Task 2.0 close-out done) |
 | 3 | Payments & growth | pay (Kashier / manual transfer), subscribe and renew, use coupons, earn referral and partner rewards; marketing sees attribution and pixel conversions | planned |
 | 4 | Content, SEO/GEO & support | read the blog and drug pages, find the site on Google and AI answers, open support tickets and get push and email replies; the launch checklist passes | planned |
 
