@@ -185,9 +185,9 @@ Acceptance
 6. Settings: register `ai` (admin) as `{dailyCapUsd, alertPercent, killSwitch: {rx, chat, search}, creditValueUsdMicros, allowPreviewModels}` and `rx` as `{creditsPerPage, maxPages, modelWarnings, verifyMaxItems}`. The public part of `rx` (price per page, max pages) is visible.
 
 Acceptance
-- [ ] Integration tests: 50 concurrent reserves on a wallet with credits for 10 → exactly 10 succeed, and the balance is never negative. Settle with actual > reserved is capped at the reservation, and the overage is logged as a warning. A crashed job's reservation is released by the sweeper. A retried settle is a no-op.
-- [ ] The reconcile job reports zero drift after the concurrency test.
-- [ ] Spend guard: a forced cost over the cap refuses the next call with `ai_paused`, and the alert fires once.
+- [x] Integration tests: 50 concurrent reserves on a wallet with credits for 10 → exactly 10 succeed, and the balance is never negative. Settle with actual > reserved is capped at the reservation, and the overage is logged as a warning. A crashed job's reservation is released by the sweeper. A retried settle is a no-op. *(`apps/api/test/credits.int.test.ts`, d41e8d8.)*
+- [ ] The reconcile job reports zero drift after the concurrency test. *(Open: reconcile job not built yet.)*
+- [ ] Spend guard: a forced cost over the cap refuses the next call with `ai_paused`, and the alert fires once. *(Open: spend guard not built yet; the `ai` setting holds the cap and kill switch.)*
 
 ---
 
@@ -221,9 +221,9 @@ Acceptance
 7. Prompt-injection hygiene: user text and image-derived text are wrapped in delimited blocks marked as data. Tools have no side effects. Every structured output is zod-validated with one repair retry (AGENT §5.2).
 
 Acceptance
-- [ ] Unit + fixture tests per adapter: text, thinking, search sources, JSON, usage/cost, each error class, abort mid-stream (no further events; usage still recorded).
-- [ ] Router tests: fallback order, no fallback on non-retryable (400/schema), circuit breaker opens and closes, kill switch honoured.
-- [ ] Pricing tests reproduce the reference prices exactly in micros.
+- [x] Unit + fixture tests per adapter: text, thinking, search sources, JSON, usage/cost, each error class, abort mid-stream (no further events; usage still recorded). *(`packages/ai/test/*`, 580e172. On abort, usage is recorded only if the provider already sent it.)*
+- [ ] Router tests: fallback order, no fallback on non-retryable (400/schema), circuit breaker opens and closes, kill switch honoured. *(Partly: fallback order, no fallback on 400 and breaker skip are tested in `runWithFallbacks`; Redis breaker and kill switch come with the DB-backed router.)*
+- [x] Pricing tests reproduce the reference prices exactly in micros. *(`packages/ai/test/pricing.test.ts`.)*
 
 ---
 
@@ -255,8 +255,8 @@ Pages (all `/admin/ai/*`, permission-gated, every write audited, key and kill-sw
 9. **Skills**: list with version, enable per plan.
 
 Acceptance
-- [ ] Every route and page has a permission, and the 403 states render. E2E: admin adds a provider (fake), a model and a route, runs the playground, flips the kill switch, and a user's next analysis is refused with the friendly message.
-- [ ] API keys never appear in any response, log, or audit row (test greps responses and audit `after`).
+- [ ] Every route and page has a permission, and the 403 states render. E2E: admin adds a provider (fake), a model and a route, runs the playground, flips the kill switch, and a user's next analysis is refused with the friendly message. *(Partly: every admin AI route and page is permission-gated with 403 states (64bfcf6, 9ba1c86); the E2E needs the playground and the rx pipeline.)*
+- [x] API keys never appear in any response, log, or audit row (test greps responses and audit `after`). *(`apps/api/test/admin-ai.int.test.ts` scans responses and every audit row.)*
 
 ---
 
