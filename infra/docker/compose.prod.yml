@@ -260,7 +260,8 @@ services:
     image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER}/wasfa-api:${IMAGE_TAG:-latest}
     profiles: [tools]
     restart: "no"
-    command: ["node", "node_modules/@wasfa/db/dist/migrate.js"]
+    # Migrations, then the insert-only seed (roles, default settings): safe on every deploy.
+    command: ["sh", "-c", "node node_modules/@wasfa/db/dist/migrate.js && node node_modules/@wasfa/db/dist/seed.js"]
     environment:
       NODE_ENV: production
       # The owner role: it alone may change the schema.
