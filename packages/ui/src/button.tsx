@@ -7,7 +7,7 @@ export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 export type ButtonSize = "md" | "lg";
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-lg font-body font-semibold " +
+  "inline-flex items-center justify-center gap-2 rounded-lg font-heading font-semibold " +
   "transition-colors duration-150 select-none " +
   "focus-visible:outline-none focus-visible:shadow-focus " +
   "disabled:pointer-events-none disabled:opacity-50";

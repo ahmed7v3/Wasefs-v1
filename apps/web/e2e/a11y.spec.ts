@@ -1,0 +1,135 @@
+import { t } from "@wasfa/shared/i18n";
+
+import {
+  enableTwoFactor,
+  finishOnboarding,
+  grantSuperAdmin,
+  newAccount,
+  newPhone,
+  registerVerified,
+  signInContext,
+  signedInAccount,
+} from "./support/accounts";
+import { expectAccessible } from "./support/axe";
+import { expect, test } from "./support/fixtures";
+import {
+  answerAccountType,
+  answerName,
+  answerOrganization,
+  answerPlan,
+  answerProfession,
+  stepHeading,
+} from "./support/onboarding-ui";
+import { bridgeConnected, bridgeGone } from "./support/whatsapp";
+
+// Task 1.9 / 1.10 / 1.11 acceptance: no serious or critical axe violations on the auth, onboarding,
+// dashboard, account, admin and public pages. Runs in the `desktop` (1440 px) and `mobile` (360 px)
+// projects, so every page is checked at both widths.
+
+const PUBLIC_PAGES = ["/login", "/register", "/forgot-password", "/verify-email"];
+/** Pages another part of the product adds; they are checked as soon as they exist. */
+const MARKETING_PAGES = ["/", "/contact", "/privacy"];
+
+for (const path of PUBLIC_PAGES) {
+  test(`public page ${path}`, async ({ page }) => {
+    await page.goto(path);
+    await expectAccessible(page, path);
+  });
+}
+
+for (const path of MARKETING_PAGES) {
+  test(`public page ${path}`, async ({ page, urls }) => {
+    const probe = await page.request.get(`${urls.web}${path}`);
+    test.skip(!probe.ok(), `${path} does not exist yet`);
+    await page.goto(path);
+    await expectAccessible(page, path);
+  });
+}
+
+test("login and register: phone tabs and the two-factor screen", async ({ page }) => {
+  await page.goto("/register");
+  await page.locator('[data-value="phone"]').click();
+  await expectAccessible(page, "/register (phone)");
+  await page.goto("/login");
+  await page.locator('[data-value="phone"]').click();
+  await expectAccessible(page, "/login (phone)");
+  await page.goto("/login/two-factor");
+  await expectAccessible(page, "/login/two-factor");
+});
+
+test("every onboarding step (organization path, with the phone step)", async ({
+  context,
+  page,
+  urls,
+  redis,
+}) => {
+  await bridgeConnected(redis);
+  const account = await signedInAccount(context, urls, redis, newAccount("A11y"));
+
+  await page.goto("/onboarding");
+  await expectAccessible(page, "onboarding: account type");
+  await answerAccountType(page, "organization");
+
+  // The bridge is up, so the phone step asks for a number...
+  await expect(stepHeading(page, "phone")).toBeVisible();
+  await expectAccessible(page, "onboarding: phone form");
+  await page.locator("input[name=phoneNumber]").fill(newPhone().national);
+  await page.locator("button[name=start-verification]").click();
+  // ...and then shows the code to send.
+  await expect(page.getByText(t("phone.waiting.status"))).toBeVisible();
+  await expectAccessible(page, "onboarding: phone waiting");
+
+  // With the bridge gone and a verified email the phone step can be passed.
+  await bridgeGone(redis);
+  await page.reload();
+  await answerName(page, account.name);
+  await expectAccessible(page, "onboarding: organization");
+  await answerOrganization(page, "A11y Pharmacy");
+  await expectAccessible(page, "onboarding: profession and intent");
+  await answerProfession(page);
+  await expectAccessible(page, "onboarding: plan");
+  await answerPlan(page);
+  await expect(stepHeading(page, "social_follow")).toBeVisible();
+  await expectAccessible(page, "onboarding: social");
+});
+
+test("onboarding steps of an individual: name step", async ({ context, page, urls, redis }) => {
+  await signedInAccount(context, urls, redis, newAccount("A11y"));
+  await page.goto("/onboarding");
+  await answerAccountType(page, "individual");
+  await expect(stepHeading(page, "name")).toBeVisible();
+  await expectAccessible(page, "onboarding: name");
+});
+
+test("signed-in pages: dashboard and account", async ({ context, page, urls, redis }) => {
+  const account = await signedInAccount(context, urls, redis, newAccount("A11y"));
+  await finishOnboarding(page.request, urls, account.name);
+
+  for (const path of ["/dashboard", "/account", "/account/security", "/account/delete"]) {
+    await page.goto(path);
+    await expectAccessible(page, path);
+  }
+});
+
+test("admin pages", async ({ context, page, urls, redis }) => {
+  const admin = newAccount("A11yAdmin");
+  await registerVerified(urls, redis, admin);
+  grantSuperAdmin(admin.email);
+  await signInContext(context, urls, admin);
+  await finishOnboarding(page.request, urls, admin.name);
+  await enableTwoFactor(context, urls, admin);
+
+  for (const path of [
+    "/admin",
+    "/admin/users",
+    "/admin/orgs",
+    "/admin/roles",
+    "/admin/settings",
+    "/admin/flags",
+    "/admin/audit",
+    "/admin/issues",
+  ]) {
+    await page.goto(path);
+    await expectAccessible(page, path);
+  }
+});

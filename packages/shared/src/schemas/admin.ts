@@ -20,6 +20,15 @@ import { meResponseSchema } from "./user.js";
 
 const isoDate = z.iso.datetime({ offset: true });
 
+/**
+ * A date FILTER sent by the client: an ISO datetime whose year Postgres accepts. Year 0 parses as
+ * ISO but makes the query fail (found by the E2E suite).
+ */
+const isoDateFilter = isoDate.refine((value) => {
+  const year = Number(value.slice(0, 4));
+  return year >= 1970 && year <= 9999;
+}, "out of range");
+
 export const ADMIN_PAGE_DEFAULT = 25;
 export const ADMIN_PAGE_MAX = 100;
 
@@ -283,8 +292,8 @@ export const auditQuerySchema = cursorQuerySchema.extend({
     .regex(/^[a-z_.]{1,64}$/)
     .optional(),
   targetId: z.string().min(1).max(100).optional(),
-  from: isoDate.optional(),
-  to: isoDate.optional(),
+  from: isoDateFilter.optional(),
+  to: isoDateFilter.optional(),
 });
 
 export type AuditQuery = z.output<typeof auditQuerySchema>;

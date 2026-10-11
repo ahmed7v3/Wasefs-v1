@@ -1,4 +1,6 @@
-import { z } from "zod";
+// Only the core `config` (one small module), not the whole `zod` package: this file runs on every
+// page, including the public ones that never build a schema.
+import { config } from "zod/v4/core";
 
 /*
  * Runs in the browser before any other application code (Next.js "instrumentation-client").
@@ -9,4 +11,4 @@ import { z } from "zod";
  * compiler off skips the probe: parsing is marginally slower and the console stays clean. It must run
  * before the first schema is created, which is why it lives here and not in a component.
  */
-z.config({ jitless: true });
+config({ jitless: true });

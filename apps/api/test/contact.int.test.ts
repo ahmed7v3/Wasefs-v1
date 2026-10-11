@@ -188,6 +188,14 @@ describe("input", () => {
   it("rejects a name that is too short", async () => {
     expect(await fieldsRejected(payload({ name: "A" }))).toContain("name");
   });
+
+  // Regression: Postgres cannot store NUL, which used to surface as a 500 that could not even be
+  // recorded. The global validation now refuses it on every route.
+  it("rejects a NUL character instead of failing with a server error", async () => {
+    expect(
+      await fieldsRejected(payload({ message: "hello there\u0000 friend, a long message" })),
+    ).toContain("message");
+  });
 });
 
 describe("limits", () => {

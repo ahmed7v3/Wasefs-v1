@@ -2,7 +2,7 @@
 
 > PostgreSQL 18 + Drizzle ORM. The schema lives in `packages/db/src/schema/`, migrations in `packages/db/migrations/`. This file explains the conventions and indexes the code cannot say for itself.
 > **Update it in every task that adds or changes a table.** A table that is in the schema but not in the index below is a bug.
-> Status: reflects the code after Phase 1 Task 1.7. Tables marked *planned* are added by the task named next to them.
+> Status: reflects the code after Phase 1 Task 1.11.
 
 ---
 
@@ -69,12 +69,6 @@
 | `onboarding_progress` | Resumable wizard state, 1:1 with `users`. | `user_id` |
 | `wa_sessions` | Encrypted Baileys auth state of the WhatsApp bridge (`session`, `key`, AES-256-GCM `value`, Task 1.5). | None: not user data; read only by the bridge. |
 | `contact_messages` | Contact-form submissions (Task 1.11): name, email and/or phone (`contact_messages_contact_check`), topic, message (≤ 4000), locale, optional `user_id` (`SET NULL`), status `new | read | archived`. Becomes the Phase 4 ticket inbox. | Platform; no read route yet (`contact.*` permission arrives with its admin view). Deleted by the anonymization job for the sender. |
-
-### Phase 1 — later tasks (*planned*)
-
-| Table | Task | Purpose |
-|---|---|---|
-| `wa_sessions` | 1.5 | Encrypted Baileys auth state for the WhatsApp bridge. Platform; never exposed. |
 
 Phase 2-4 tables (plans, credit ledger, AI usage, drugs, payments, blog, tickets, ...) are described in ARCHITECTURE.md and enter this file when they are built.
 

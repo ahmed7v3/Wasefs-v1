@@ -37,7 +37,7 @@ export function LandingHero() {
             {hero.haveAccount}{" "}
             <Link
               href="/login"
-              className="inline-flex min-h-11 items-center rounded-sm font-semibold text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:shadow-focus"
+              className="inline-flex min-h-11 items-center rounded-sm font-heading font-semibold text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:shadow-focus"
             >
               {t("marketing.nav.signIn")}
             </Link>

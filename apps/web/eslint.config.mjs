@@ -11,5 +11,22 @@ export default [
       ...next.configs["core-web-vitals"].rules,
     },
   },
-  { ignores: ["next-env.d.ts"] },
+  {
+    // Playwright fixtures: `use(...)` is Playwright's callback, not a React hook, and a fixture
+    // that needs no other fixture must destructure an empty object (Playwright reads that list).
+    files: ["e2e/**/*.ts"],
+    rules: {
+      "react-hooks/rules-of-hooks": "off",
+      "no-empty-pattern": "off",
+    },
+  },
+  {
+    ignores: [
+      "next-env.d.ts",
+      // Extra web builds and reports of the end-to-end suite.
+      ".next-e2e-*/**",
+      "playwright-report/**",
+      "test-results/**",
+    ],
+  },
 ];

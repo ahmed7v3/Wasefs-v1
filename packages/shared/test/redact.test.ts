@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest";
 import { LOG_REDACT_PATHS, redactText } from "../src/redact.js";
 
 describe("redactText", () => {
+  it("drops NUL characters, which Postgres cannot store", () => {
+    expect(redactText("a\u0000b")).toBe("ab");
+  });
+
   it("removes emails, phones, bearer tokens and connection-string passwords", () => {
     const text =
       "user ahmed@example.com phone +20 100 123 4567 auth Bearer abc.def.ghi db postgres://u:secret@h/db";

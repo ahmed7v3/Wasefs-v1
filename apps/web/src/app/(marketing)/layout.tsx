@@ -12,7 +12,7 @@ import type { ReactNode } from "react";
 export default async function MarketingLayout({ children }: { children: ReactNode }) {
   const settings = await getPublicSettings();
   return (
-    <div className="page-backdrop flex min-h-dvh flex-col">
+    <div className="marketing-type page-backdrop flex min-h-dvh flex-col">
       <SiteHeader />
       <main id="main" className="flex-1">
         {children}

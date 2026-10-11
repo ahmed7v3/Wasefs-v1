@@ -25,11 +25,32 @@ function schemaOf(metatype: ArgumentMetadata["metatype"]): ZodType | undefined {
   return candidate instanceof ZodType ? candidate : undefined;
 }
 
+/** Paths of every string (key or value) holding a NUL character, which no Postgres text column accepts. */
+function nulPaths(value: unknown, path: (string | number)[] = [], found: string[] = []): string[] {
+  if (typeof value === "string") {
+    if (value.includes("\u0000")) found.push(path.join(".") || "(root)");
+  } else if (Array.isArray(value)) {
+    value.forEach((item, index) => nulPaths(item, [...path, index], found));
+  } else if (value !== null && typeof value === "object") {
+    for (const [key, item] of Object.entries(value)) {
+      if (key.includes("\u0000")) found.push([...path, key].join("."));
+      nulPaths(item, [...path, key], found);
+    }
+  }
+  return found;
+}
+
 /**
  * Parses `value` with a shared schema. Failures become `VALIDATION_FAILED` with field paths only;
  * submitted values are never echoed back (they may be secrets or PII).
  */
 export function parseWithSchema<T extends ZodType>(schema: T, value: unknown): z.output<T> {
+  // Rejected here, for every route, instead of reaching Postgres as a 500 (found by the E2E suite
+  // on POST /contact).
+  const withNul = nulPaths(value);
+  if (withNul.length > 0) {
+    throw new AppError(ErrorCode.VALIDATION_FAILED, { details: { fields: withNul } });
+  }
   const result = schema.safeParse(value);
   if (result.success) {
     return result.data;

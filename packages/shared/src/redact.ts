@@ -25,5 +25,7 @@ const PATTERNS: [RegExp, string][] = [
 
 /** Scrubs secrets and personal data from free text (error messages, stacks) before storing it. */
 export function redactText(text: string): string {
-  return PATTERNS.reduce((acc, [pattern, replacement]) => acc.replace(pattern, replacement), text);
+  // NUL first: Postgres cannot store it, and a redacted text usually ends up in a text column.
+  const clean = text.replaceAll("\u0000", "");
+  return PATTERNS.reduce((acc, [pattern, replacement]) => acc.replace(pattern, replacement), clean);
 }

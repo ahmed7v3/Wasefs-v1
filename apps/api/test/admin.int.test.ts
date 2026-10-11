@@ -1025,6 +1025,8 @@ describe("GET /admin/audit", () => {
       `action=${"a".repeat(65)}`,
       "from=yesterday",
       "to=2026-13-45",
+      // Valid ISO, but Postgres has no year 0: used to be a 500.
+      "from=0000-01-01T00:00:00Z",
       "limit=1000",
       `targetId=${"x".repeat(101)}`,
       "cursor=%25",

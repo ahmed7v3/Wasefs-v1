@@ -124,3 +124,13 @@
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * Public pages: medium, semibold and bold text uses Alexandria (already preloaded in 500-700 for the
+ * headings) instead of the lazily loaded Plex 500/600 files. Those two extra downloads before first
+ * paint cost the landing page about 10 Lighthouse performance points on a simulated mobile link
+ * (same trade-off as the Phase 0 font notes). The app and admin keep Plex for dense UI text.
+ */
+.marketing-type :where(.font-medium, .font-semibold, .font-bold) {
+  font-family: var(--font-heading);
+}
