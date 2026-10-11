@@ -1,4 +1,5 @@
 import { t } from "@wasfa/shared/i18n";
+import { ToastProvider } from "@wasfa/ui";
 import { connection } from "next/server";
 
 import { isProduction, publicEnv } from "../lib/env";
@@ -49,7 +50,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <a href="#main" className="skip-link">
           {t("common.skipToContent")}
         </a>
-        {children}
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );

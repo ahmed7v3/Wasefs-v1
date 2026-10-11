@@ -13,4 +13,5 @@ export * from "./select";
 export * from "./skeleton";
 export * from "./spinner";
 export * from "./tabs";
+export * from "./textarea";
 export * from "./toast";

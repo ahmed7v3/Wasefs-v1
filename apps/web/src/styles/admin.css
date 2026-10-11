@@ -1,0 +1,24 @@
+/*
+ * Admin-only styles. The detail drawer slides in from the inline-END edge (the left in RTL, the
+ * right in LTR), the opposite of the navigation drawer. Reduced motion is handled globally in
+ * globals.css (animations collapse to ~0 ms).
+ */
+.admin-drawer[open] {
+  animation: admin-drawer-in var(--motion-slow) var(--ease-standard);
+}
+
+[dir="rtl"] .admin-drawer[open] {
+  animation-name: admin-drawer-in-rtl;
+}
+
+@keyframes admin-drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes admin-drawer-in-rtl {
+  from {
+    transform: translateX(-100%);
+  }
+}

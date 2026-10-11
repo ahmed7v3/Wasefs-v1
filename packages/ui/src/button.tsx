@@ -3,7 +3,7 @@ import { Spinner } from "./spinner";
 
 import type { ButtonHTMLAttributes } from "react";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost";
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 export type ButtonSize = "md" | "lg";
 
 const base =
@@ -16,6 +16,8 @@ const variants: Record<ButtonVariant, string> = {
   primary: "bg-primary text-on-primary hover:bg-primary-hover",
   secondary: "bg-surface text-primary border border-border hover:bg-primary-soft",
   ghost: "text-primary hover:bg-primary-soft",
+  // The verb button of a destructive confirmation (delete account, end every session).
+  danger: "bg-danger text-on-primary hover:bg-danger/90",
 };
 
 // 44px minimum touch target (WCAG 2.5.8 / Lighthouse tap targets).

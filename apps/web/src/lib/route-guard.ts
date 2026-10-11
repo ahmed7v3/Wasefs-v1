@@ -5,7 +5,7 @@
  */
 
 /** Page trees that need a signed-in user. */
-export const PROTECTED_PREFIXES = ["/dashboard", "/onboarding", "/account"] as const;
+export const PROTECTED_PREFIXES = ["/dashboard", "/onboarding", "/account", "/admin"] as const;
 
 /**
  * Better Auth prefixes the cookie with `__Secure-` when it is served over https, so the name is only

@@ -23,6 +23,18 @@ const REASON_MESSAGES: Record<string, MessageKey> = {
   phone_verification_disabled: "phone.unavailable.disabled",
   phone_verification_not_configured: "phone.unavailable.notConfigured",
   phone_verification_bridge_down: "phone.unavailable.bridgeDown",
+  // Admin panel (Task 1.10).
+  self_action: "admin.reason.self_action",
+  super_admin_only: "admin.reason.super_admin_only",
+  not_enough_permissions: "admin.reason.not_enough_permissions",
+  last_super_admin: "admin.reason.last_super_admin",
+  role_in_use: "admin.reason.role_in_use",
+  role_read_only: "admin.reason.role_read_only",
+  system_role: "admin.reason.system_role",
+  invalid_status: "admin.reason.invalid_status",
+  role_exists: "admin.reason.role_exists",
+  two_factor_required: "admin.access.twoFactorRequired.body",
+  two_factor_session: "admin.access.twoFactorSession.body",
 };
 
 /** The friendly sentence for an error: a specific reason first, else the message of its code. */

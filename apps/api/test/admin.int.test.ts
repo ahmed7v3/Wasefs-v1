@@ -814,7 +814,8 @@ describe("settings", () => {
     );
     expect(await ctx.auditRowsFor("setting.update", "contact")).toEqual([]);
 
-    const nameEn = `Wasfa ${tag()}`;
+    // Letters only: a long digit run would (rightly) be redacted as a phone number in the audit row.
+    const nameEn = `Wasfa ${tag().replace(/[0-9]/g, (d) => "abcdefghij"[Number(d)] ?? "x")}`;
     const res = await call("PUT", "/admin/settings/branding", admin, {
       value: { nameEn, nameAr: "وصفة" },
     });

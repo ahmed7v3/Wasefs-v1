@@ -49,6 +49,8 @@ export function proxy(request: NextRequest): NextResponse {
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
+  // Layouts cannot see the URL; the shell layout needs it for the `?next=` of a late sign-in redirect.
+  requestHeaders.set("x-pathname", `${pathname}${search}`);
   requestHeaders.set("Content-Security-Policy", csp);
 
   return withSecurityHeaders(NextResponse.next({ request: { headers: requestHeaders } }), csp);
