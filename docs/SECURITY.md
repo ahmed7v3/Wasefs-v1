@@ -280,7 +280,7 @@ Open security items from Phase 0 and design decisions. Each has an owner task; n
 | ~~Restricted API DB role that cannot `UPDATE`/`DELETE` `audit_logs`~~ **Done (Task 1.6).** Owner action: add `API_DB_PASSWORD` to `.env.prod` before the next deploy (DOCKER-GUIDE 3.7) | Phase 0 review | Task 1.6 |
 | Admin-route rules depend on `request.routeOptions.url` starting with `/admin`; a route registered under another prefix is not an admin route. Keep every admin endpoint under `/admin` (the guard test covers an unprotected one) | Task 1.6 | - |
 | `AuthService.getSession` costs three queries per request (user status, platform role, session assurance) plus the cached permission lookup. Fold into one query, or cache per session for a few seconds, when load shows it | Task 1.6 | Phase 4 |
-| Server-side (SSR) mutations from the Next.js server to the API carry the session cookie but no browser `Origin`; they must set `Origin` to the site origin explicitly or they are refused by the origin guard | Task 1.6 | Task 1.9 |
+| ~~Server-side (SSR) calls must set `Origin`~~ **Done (Task 1.9):** `serverApi`/`getMe` always send `Origin: NEXT_PUBLIC_SITE_URL` | Task 1.6 | Task 1.9 |
 | Baileys is a release candidate (`7.0.0-rc14`, pinned exactly); re-test the bridge before upgrading it, and treat the sender-number resolution (LID to phone) as unproven until the spike is done on the real number | Task 1.5 | Task 1.5 spike |
 | `wa:inbound` and `wa:replies` entries hold the sender's phone number and chat id in Redis until trimmed (`MAXLEN`); Redis is on the private network only. Encrypt the entries if that ever changes | Task 1.5 | - |
 | API image is 214 MB (target < 200 MB): audit `pnpm deploy --prod`, drop dev-only deps, or record an accepted size | Phase 0 | Task 1.12 |
@@ -291,7 +291,7 @@ Open security items from Phase 0 and design decisions. Each has an owner task; n
 | ~~Requests to unknown routes are not rate limited~~ **Done (Task 1.3):** 20 per minute per IP on anything that falls through to the 404 handler (`common/not-found-limit.ts`) | Phase 0 | Task 1.3 |
 | The global rate limiter is **fail-open when Redis is down** (`skipOnError`). **Done for auth (Task 1.3), phone start (Task 1.5) and the contact form (Task 1.11):** separate counters that fail closed (`UPSTREAM_UNAVAILABLE`, tested) | Phase 0 | Task 1.3 / 1.5 / 1.11 |
 | `Cross-Origin-Opener-Policy: same-origin` breaks popup-based OAuth; Google uses a redirect flow, so keep redirect and re-check if a popup is ever added | Phase 0 | Task 1.9 |
-| Pages are rendered per request because of the CSP nonce, so HTML is not CDN-cacheable; decide nonce vs hash-based CSP for the SEO pages (landing, legal) | Decision #10 | Task 1.11 |
+| ~~Decide nonce vs hash-based CSP for the SEO pages~~ **Decided (Task 1.11):** keep the per-request nonce for Phase 1; HTML is not CDN-cached. Revisit with hash-based CSP when traffic justifies it | Decision #10 | Task 1.11 |
 | `.trivyignore.yaml` entries (age's Go standard library advisories) expire **2026-12-01**; re-evaluate then | Phase 0 | Before 2026-12-01 |
 | Remove the Fastify 5.12.5 override when `@nestjs/platform-fastify` ships a patched dependency | Decision #13 | Ongoing |
 | Rotation: `BETTER_AUTH_SECRET` = replace it in `.env.prod` and redeploy (every session, verification link and reset link is invalidated; nothing else breaks). **Done (Task 1.3).** `ENCRYPTION_KEY` rotation needs a re-encryption script, written with its first stored secret (Task 1.4 stores email tokens, Phase 2 stores provider keys) | Phase 1 | Task 1.3 / 1.4 |

@@ -2,7 +2,7 @@
 
 > The visual and interaction contract for `apps/web` and `packages/ui`. Brand colours, fonts and the light theme are locked in AGENT.md §3; this file says how they are used.
 > **Source of truth for values: `packages/ui/tokens.css`.** This document explains the *why* and the *rules*; if the two disagree, fix the document or change the token, never hard-code a value in a component.
-> Status: **built** = exists in the code today (Phase 0); **spec** = designed here, built by the task named (mostly Task 1.9). Dark mode is deliberately out of scope for Phase 1; the tokens are CSS variables so a dark theme can override them later.
+> Status: everything in §5 is **built** as of Phase 1 Tasks 1.9-1.11. Dark mode is deliberately out of scope for Phase 1; the tokens are CSS variables so a dark theme can override them later.
 
 ---
 
@@ -161,7 +161,7 @@ Rules: animate only `opacity` and `transform` (and colour); no layout-shifting a
 | `Container` | Page column with responsive gutters; `width="reading"`. |
 | `cn` | Class-name joiner. |
 
-### 5.2 Spec for Task 1.9 (to be built, registered in REUSE-INDEX.md when they exist)
+### 5.2 Primitives — built in Task 1.9 (registered in REUSE-INDEX.md; `Textarea` and `Card padding` added in Task 1.10)
 
 All primitives: accessible name on every control, visible `focus-visible` ring, disabled state at 50 % opacity **plus** `aria-disabled`, minimum 44 px hit area, tokens only, logical properties, forward `ref` and native props.
 
