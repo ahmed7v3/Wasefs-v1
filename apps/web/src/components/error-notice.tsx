@@ -18,6 +18,12 @@ const REASON_MESSAGES: Record<string, MessageKey> = {
   invalid_token: "auth.error.invalidToken",
   provider_unavailable: "auth.error.providerUnavailable",
   social_failed: "auth.error.socialFailed",
+  // AI limits (Task 2.2).
+  ai_paused: "ai.reason.ai_paused",
+  plan_feature: "ai.reason.plan_feature",
+  daily_cap: "ai.reason.daily_cap",
+  busy: "ai.reason.busy",
+  insufficient_credits: "ai.reason.insufficient_credits",
   password_compromised: "form.passwordCompromised",
   email_domain_blocked: "form.emailDomainBlocked",
   phone_verification_disabled: "phone.unavailable.disabled",
@@ -66,6 +72,20 @@ const REASON_MESSAGES: Record<string, MessageKey> = {
   no_price_source: "admin.ai.reason.no_price_source",
   sync_expired: "admin.ai.reason.sync_expired",
   killswitch_permission: "admin.ai.reason.killswitch_permission",
+  // Drug database and import (Task 2.7).
+  alias_exists: "admin.drugs.reason.alias_exists",
+  name_empty: "admin.drugs.reason.name_empty",
+  dry_run_required: "admin.drugs.reason.dry_run_required",
+  file_expired: "admin.drugs.reason.file_expired",
+  not_committed: "admin.drugs.reason.not_committed",
+  already_committed: "admin.drugs.reason.already_committed",
+  already_rolled_back: "admin.drugs.reason.already_rolled_back",
+  file_required: "admin.drugs.reason.file_required",
+  file_too_large: "admin.drugs.reason.file_too_large",
+  unsupported_file: "admin.drugs.reason.unsupported_file",
+  bad_upload: "admin.drugs.reason.bad_upload",
+  not_multipart: "admin.drugs.reason.not_multipart",
+  one_file_only: "admin.drugs.reason.one_file_only",
 };
 
 /** The friendly sentence for an error: a specific reason first, else the message of its code. */

@@ -17,19 +17,26 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1149.0",
+    "@aws-sdk/s3-request-presigner": "3.1149.0",
+    "@napi-rs/canvas": "1.0.11",
     "@wasfa/db": "workspace:*",
     "@wasfa/shared": "workspace:*",
     "@whiskeysockets/baileys": "7.0.0-rc14",
     "bullmq": "^5.81.5",
     "drizzle-orm": "^0.45.4",
+    "file-type": "22.1.1",
     "ioredis": "^5.11.1",
     "nodemailer": "^10.1.0",
+    "pdfjs-dist": "6.4.299",
     "pino": "^10.4.0",
+    "sharp": "0.35.5",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@swc-node/register": "^1.12.1",
     "@swc/core": "^1.16.13",
+    "@testcontainers/minio": "12.2.0",
     "@testcontainers/postgresql": "^12.2.0",
     "@testcontainers/redis": "^12.2.0",
     "@types/node": "^24.0.0",

@@ -348,6 +348,10 @@ export const arAdmin = {
   "admin.settings.ai.description":
     "سقف الإنفاق اليومي ومفاتيح الإيقاف وقيمة الرصيد. تُعدَّل من صفحة الذكاء الاصطناعي.",
   "admin.settings.rx.title": "تحليل الروشتات",
+  "admin.settings.uploads.title": "الصور المرفوعة",
+  "admin.settings.uploads.description":
+    "المدة التي تُحفظ فيها صور الروشتات قبل حذفها. نتائج التحليل تبقى.",
+  "admin.settings.field.uploads.retentionDays": "أيام الاحتفاظ بالصور",
   "admin.settings.rx.description": "سعر الصفحة بالنقاط وحدود التحليل. ظاهر للمستخدمين قبل التحليل.",
   "admin.settings.auth.title": "المصادقة",
   "admin.settings.auth.description":

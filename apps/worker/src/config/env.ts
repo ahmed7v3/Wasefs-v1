@@ -1,4 +1,5 @@
 import { parseEnv } from "@wasfa/shared/env";
+import { refineUploadsEnv, uploadsEnvShape } from "@wasfa/shared/storage";
 import { z } from "zod";
 
 import type { QueueName } from "@wasfa/shared/queues";
@@ -33,6 +34,10 @@ export const workerEnvSchema = z
     WORKER_CONCURRENCY_NOTIFICATIONS: concurrency,
     /** ... and on the `credits` queue (reservation sweeper, monthly grants). */
     WORKER_CONCURRENCY_CREDITS: concurrency,
+    /** ... and on the `images` queue (sharp and PDF rasterizing are CPU and memory heavy: keep it low). */
+    WORKER_CONCURRENCY_IMAGES: concurrency,
+    /** ... and on the `drugs` queue (list imports; one at a time is plenty, they are DB-heavy). */
+    WORKER_CONCURRENCY_DRUGS: concurrency,
     /** How long shutdown waits for active jobs before force-closing. */
     WORKER_SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).default(30_000),
 
@@ -45,8 +50,12 @@ export const workerEnvSchema = z
     MAIL_FROM: z.string().min(3).max(300).default('"وصفة AI" <no-reply@wasfa.online>'),
     /** Brevo's free plan allows 300 a day; the margin absorbs retries and manual sends. */
     MAIL_DAILY_CAP: z.coerce.number().int().min(1).max(1_000_000).default(280),
+
+    // Uploaded images (Task 2.5): the same bucket and keys as the api. All four keys or none.
+    ...uploadsEnvShape,
   })
   .superRefine((env, ctx) => {
+    refineUploadsEnv(env, ctx);
     if (env.NODE_ENV === "production") {
       for (const key of ["SMTP_HOST", "SMTP_USER", "SMTP_PASS"] as const) {
         if (env[key] === undefined) {
@@ -80,5 +89,7 @@ export function queueConcurrency(env: WorkerEnv): Record<QueueName, number> {
     system: env.WORKER_CONCURRENCY_SYSTEM,
     notifications: env.WORKER_CONCURRENCY_NOTIFICATIONS,
     credits: env.WORKER_CONCURRENCY_CREDITS,
+    drugs: env.WORKER_CONCURRENCY_DRUGS,
+    images: env.WORKER_CONCURRENCY_IMAGES,
   };
 }

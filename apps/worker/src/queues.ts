@@ -11,11 +11,17 @@ import { DelayedError, Queue, UnrecoverableError, Worker, type Job } from "bullm
 
 import { DeferJob } from "./defer.js";
 import { anonymizeDueJob, purgeExpiredJob } from "./jobs/accounts.job.js";
+import { spendRollupJob } from "./jobs/ai.spend-rollup.job.js";
 import { grantMonthlyJob } from "./jobs/credits.grant.job.js";
+import { reconcileCreditsJob } from "./jobs/credits.reconcile.job.js";
 import { sweepReservationsJob } from "./jobs/credits.sweep.job.js";
+import { drugImportJob } from "./jobs/drug-import.job.js";
+import { filesRetentionJob } from "./jobs/files.retention.job.js";
 import { heartbeatJob } from "./jobs/health.job.js";
+import { imageProcessJob } from "./jobs/image.job.js";
 import { emailSendJob, type EmailRuntime } from "./notifications/email.js";
 
+import type { ObjectStore } from "./storage/object-store.js";
 import type { Database } from "@wasfa/db";
 import type { Redis } from "ioredis";
 import type { Logger } from "pino";
@@ -25,6 +31,8 @@ export interface JobContext {
   db: Database;
   logger: Logger;
   email: EmailRuntime;
+  /** The uploads bucket; unset when `R2_UPLOADS_*` are not configured (image jobs then fail loudly). */
+  storage?: ObjectStore | undefined;
 }
 
 type JobHandler<Q extends QueueName, J extends JobName<Q>> = (
@@ -47,6 +55,15 @@ export const HANDLERS: Handlers = {
   credits: {
     "credits.sweep_reservations": sweepReservationsJob,
     "credits.grant_monthly": grantMonthlyJob,
+    "credits.reconcile": reconcileCreditsJob,
+    "ai.spend_rollup": spendRollupJob,
+  },
+  drugs: {
+    "drugs.import": drugImportJob,
+  },
+  images: {
+    "image.process": imageProcessJob,
+    "files.retention": filesRetentionJob,
   },
 };
 
@@ -129,6 +146,11 @@ const PURGE_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const SWEEP_RESERVATIONS_INTERVAL_MS = 5 * 60 * 1000;
 /** Daily at 00:10 UTC: just after the month turns, and every day after for late joiners and retries. */
 export const GRANT_MONTHLY_PATTERN = "10 0 * * *";
+/** Nightly at 02:00 UTC, after the grants and the day's last sweeps. */
+export const RECONCILE_PATTERN = "0 2 * * *";
+const SPEND_ROLLUP_INTERVAL_MS = 60 * 60 * 1000;
+/** Daily at 03:30 UTC: deletes uploaded images past their retention. */
+export const FILES_RETENTION_PATTERN = "30 3 * * *";
 
 /** Registers repeatable jobs. Upserting by id is idempotent, so restarts never duplicate them. */
 export async function registerSchedules(queues: readonly Queue[]): Promise<void> {
@@ -160,6 +182,23 @@ export async function registerSchedules(queues: readonly Queue[]): Promise<void>
     "credits.grant_monthly",
     { pattern: GRANT_MONTHLY_PATTERN, tz: "UTC" },
     { name: "credits.grant_monthly", data: {} },
+  );
+  await credits.upsertJobScheduler(
+    "credits.reconcile",
+    { pattern: RECONCILE_PATTERN, tz: "UTC" },
+    { name: "credits.reconcile", data: {} },
+  );
+  await credits.upsertJobScheduler(
+    "ai.spend_rollup",
+    { every: SPEND_ROLLUP_INTERVAL_MS },
+    { name: "ai.spend_rollup", data: {} },
+  );
+  const images = queues.find((queue) => queue.name === "images");
+  if (images === undefined) throw new Error("images queue is not registered");
+  await images.upsertJobScheduler(
+    "files.retention",
+    { pattern: FILES_RETENTION_PATTERN, tz: "UTC" },
+    { name: "files.retention", data: {} },
   );
   // Beat once now so the API sees a live worker without waiting for the first interval.
   await system.add("system.heartbeat", { source: "manual" });

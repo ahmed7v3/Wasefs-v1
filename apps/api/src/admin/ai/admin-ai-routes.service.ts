@@ -1,5 +1,11 @@
 import { Injectable } from "@nestjs/common";
-import { AI_MODES, AI_TASKS, type AiCapability, type AiTask } from "@wasfa/shared/ai";
+import {
+  AI_MODES,
+  AI_TASKS,
+  MEDICAL_AI_TASKS,
+  type AiCapability,
+  type AiTask,
+} from "@wasfa/shared/ai";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import {
   routeModelParamsSchema,
@@ -19,14 +25,6 @@ import type { AiTaskRoute } from "@wasfa/db";
 
 /** Fields kept in the audit rows of route changes. Model names, not ids: the redactor mangles digit runs. */
 export const ROUTE_AUDIT_FIELDS = ["task", "mode", "planKey", "version", "models"] as const;
-
-/** Prescription and health-chat tasks: a provider that may train on the data must not see them. */
-const MEDICAL_TASKS: ReadonlySet<AiTask> = new Set([
-  "rx_extract",
-  "rx_verify",
-  "chat",
-  "deep_think",
-]);
 
 const REQUIRED_CAPABILITIES: Partial<Record<AiTask, readonly AiCapability[]>> = {
   rx_extract: ["vision", "json"],
@@ -186,7 +184,7 @@ export class AdminAiRoutesService {
       if (needs.some((capability) => !found.model.capabilities.includes(capability))) {
         throw refuse("missing_capability", index);
       }
-      if (MEDICAL_TASKS.has(input.task) && found.provider.dataPolicy === "free_tier") {
+      if (MEDICAL_AI_TASKS.has(input.task) && found.provider.dataPolicy === "free_tier") {
         throw refuse("free_tier_medical", index);
       }
       if (!allowPreview && isPreviewModel(found.model.modelId)) {

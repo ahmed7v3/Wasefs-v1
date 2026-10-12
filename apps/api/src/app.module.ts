@@ -15,6 +15,7 @@ import { ZodValidationPipe } from "./common/validation.js";
 import { ConfigModule } from "./config/config.module.js";
 import { ContactModule } from "./contact/contact.module.js";
 import { CreditsModule } from "./credits/credits.module.js";
+import { FilesModule } from "./files/files.module.js";
 import { FlagsModule } from "./flags/flags.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { NotificationsModule } from "./notifications/notifications.module.js";
@@ -59,6 +60,7 @@ export class AppModule {
         OnboardingModule,
         UsersModule,
         CreditsModule,
+        FilesModule,
         AdminModule,
         OrgsModule,
         HealthModule,

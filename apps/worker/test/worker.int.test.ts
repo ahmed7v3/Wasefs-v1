@@ -57,7 +57,7 @@ beforeAll(async () => {
   const email = createEmailRuntime(testEnv(redisInfra.url), connection, logger);
   set = startWorkers(
     connection,
-    { system: 2, notifications: 1, credits: 1 },
+    { system: 2, notifications: 1, credits: 1, images: 1, drugs: 1 },
     { redis: connection, db: database.db, logger, email },
   );
   producer = new Queue("system", { connection });
@@ -197,5 +197,32 @@ describe("credits maintenance", () => {
     const output = logs.join("");
     expect(output).toContain("Expired credit reservations released");
     expect(output).toContain("Monthly credit grants finished");
+  });
+});
+
+describe("image jobs", () => {
+  it("has a handler for both jobs and schedules the retention daily at 03:30 UTC, once", async () => {
+    expect(Object.keys(HANDLERS.images)).toEqual(
+      expect.arrayContaining(["image.process", "files.retention"]),
+    );
+    await registerSchedules(set.queues);
+    await registerSchedules(set.queues);
+    const images = set.queues.find((queue) => queue.name === "images");
+    const schedulers = (await images?.getJobSchedulers()) ?? [];
+    const retention = schedulers.filter((scheduler) => scheduler.key === "files.retention");
+    expect(retention).toHaveLength(1);
+    expect(retention[0]).toMatchObject({ pattern: "30 3 * * *", tz: "UTC" });
+  });
+
+  it("rejects an image.process job without a valid fileId permanently, before any handler runs", async () => {
+    const images = set.queues.find((queue) => queue.name === "images");
+    await images?.add(
+      "image.process",
+      { fileId: "not-a-uuid" },
+      { jobId: "t-bad-image", attempts: 1 },
+    );
+    await waitFor(async () => (await images?.getJob("t-bad-image"))?.isFailed());
+    const job = await images?.getJob("t-bad-image");
+    expect(job?.failedReason).toContain("fileId");
   });
 });

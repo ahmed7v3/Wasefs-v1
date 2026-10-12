@@ -1,8 +1,9 @@
 import { ERROR_CODES, ERROR_INFO, type ErrorCode } from "../errors/codes.js";
 
-import { arAdmin } from "./ar.admin.js";
 import { arAdminAi } from "./ar.admin-ai.js";
 import { arAdminBilling } from "./ar.admin-billing.js";
+import { arAdminDrugs } from "./ar.admin-drugs.js";
+import { arAdmin } from "./ar.admin.js";
 
 type ErrorMessageKey = `error.${ErrorCode}`;
 
@@ -144,6 +145,12 @@ export const ar = {
     "طريقة تسجيل الدخول هذه غير متاحة حاليًا. استخدم بريدك الإلكتروني أو رقم هاتفك.",
   "auth.error.socialFailed":
     "تعذّر تسجيل الدخول بهذه الطريقة. حاول مرة أخرى أو استخدم بريدك الإلكتروني.",
+  // AI limits (Task 2.2): the API answers with `details.reason`, the web app shows these.
+  "ai.reason.ai_paused": "الخدمة مزدحمة الآن، حاول بعد قليل",
+  "ai.reason.plan_feature": "هذه الميزة غير متاحة في باقتك الحالية.",
+  "ai.reason.daily_cap": "وصلت إلى الحد اليومي لهذه الميزة. حاول غدًا أو قم بترقية باقتك.",
+  "ai.reason.busy": "لديك عملية قيد التنفيذ بالفعل. انتظر حتى تنتهي ثم حاول مرة أخرى.",
+  "ai.reason.insufficient_credits": "رصيدك من الكريدت لا يكفي لهذه العملية.",
   "form.required": "هذا الحقل مطلوب.",
   "form.tooShort": "يجب ألا يقل عن {min} أحرف.",
   "form.tooLong": "يجب ألا يزيد عن {max} حرفًا.",
@@ -499,9 +506,12 @@ export const ar = {
   "contact.success.body": "شكرًا لتواصلك. سنرد عليك على وسيلة التواصل التي تركتها في أقرب وقت.",
   "contact.success.again": "إرسال رسالة أخرى",
   "contact.channels.title": "قنوات أخرى للتواصل",
+  "upload.error.heicUnsupported":
+    "صيغة HEIC غير مدعومة على الخادم. حوّل الصورة إلى JPEG أو PNG ثم أعد المحاولة.",
   ...arAdmin,
   ...arAdminAi,
   ...arAdminBilling,
+  ...arAdminDrugs,
   ...errorMessages,
 } as const;
 

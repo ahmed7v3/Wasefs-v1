@@ -5,7 +5,7 @@
 # `.env.prod` lives only on the server (chmod 600, never committed); `.env.example` lists every
 # variable. Images are pulled from GHCR; to build them locally add `-f compose.build.yml`.
 #
-# Sizing: written for a 2 vCPU / 4 GB host (AWS t3.medium). Limits add up to ~2.7 GB of the 4 GB,
+# Sizing: written for a 2 vCPU / 4 GB host (AWS t3.medium). Limits add up to ~3.2 GB of the 4 GB,
 # leaving room for the OS, Docker and page cache. To resize, scale `mem_limit` together with the
 # matching Postgres/Redis settings (see postgres/postgresql.conf and redis/redis.conf).
 name: wasfa
@@ -110,6 +110,12 @@ services:
       # The business WhatsApp number users send their verification code to (digits, with country
       # code). Empty = phone verification is unavailable and the UI hides it.
       WHATSAPP_NUMBER: ${WHATSAPP_NUMBER:-}
+      # Uploaded prescription images: private R2 bucket (presigned URLs only). Empty = uploads answer 503.
+      R2_UPLOADS_ENDPOINT: ${R2_UPLOADS_ENDPOINT:-}
+      R2_UPLOADS_BUCKET: ${R2_UPLOADS_BUCKET:-}
+      R2_UPLOADS_ACCESS_KEY_ID: ${R2_UPLOADS_ACCESS_KEY_ID:-}
+      R2_UPLOADS_SECRET_ACCESS_KEY: ${R2_UPLOADS_SECRET_ACCESS_KEY:-}
+      R2_UPLOADS_REGION: ${R2_UPLOADS_REGION:-auto}
       # Authentication (Better Auth). The api container reaches Cloudflare (Turnstile), Google and
       # the breached-password service through the `edge` network.
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
@@ -151,6 +157,13 @@ services:
       WORKER_CONCURRENCY_SYSTEM: ${WORKER_CONCURRENCY_SYSTEM:-1}
       WORKER_CONCURRENCY_NOTIFICATIONS: ${WORKER_CONCURRENCY_NOTIFICATIONS:-1}
       WORKER_CONCURRENCY_CREDITS: ${WORKER_CONCURRENCY_CREDITS:-1}
+      WORKER_CONCURRENCY_IMAGES: ${WORKER_CONCURRENCY_IMAGES:-1}
+      # Same bucket and keys as the api: the worker re-encodes uploads and deletes expired ones.
+      R2_UPLOADS_ENDPOINT: ${R2_UPLOADS_ENDPOINT:-}
+      R2_UPLOADS_BUCKET: ${R2_UPLOADS_BUCKET:-}
+      R2_UPLOADS_ACCESS_KEY_ID: ${R2_UPLOADS_ACCESS_KEY_ID:-}
+      R2_UPLOADS_SECRET_ACCESS_KEY: ${R2_UPLOADS_SECRET_ACCESS_KEY:-}
+      R2_UPLOADS_REGION: ${R2_UPLOADS_REGION:-auto}
       # Outgoing mail through Brevo's SMTP relay. Another provider is an env change only.
       SMTP_HOST: ${SMTP_HOST:-smtp-relay.brevo.com}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -167,7 +180,7 @@ services:
         condition: service_healthy
     # Active jobs get 30 s to finish (WORKER_SHUTDOWN_TIMEOUT_MS); Docker must wait longer than that.
     stop_grace_period: 40s
-    mem_limit: 256m
+    mem_limit: 768m
     cpus: 0.5
 
   # WhatsApp bridge (Task 1.5): receives the verification codes users send from their own phone.

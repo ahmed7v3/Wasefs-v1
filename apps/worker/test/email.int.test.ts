@@ -61,7 +61,7 @@ async function startWith(runtime: EmailRuntime): Promise<void> {
   }
   set = startWorkers(
     connection,
-    { system: 1, notifications: 2, credits: 1 },
+    { system: 1, notifications: 2, credits: 1, images: 1, drugs: 1 },
     {
       redis: connection,
       db: unusedDatabase.db,

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { CREDIT_LEDGER_KINDS } from "../ai.js";
+import { AI_TASKS, CREDIT_LEDGER_KINDS } from "../ai.js";
 
 import { cursorQuerySchema } from "./admin.js";
 
@@ -104,5 +104,38 @@ export const meCreditsResponseSchema = z.object({
   monthlyCredits: z.number().int(),
   /** First day of the next UTC month, when the monthly grant arrives. */
   nextGrantAt: isoDate,
+  /** Today (UTC) against the plan's daily caps, for every task the plan allows. */
+  today: z.array(
+    z.object({
+      task: z.enum(AI_TASKS),
+      used: z.number().int().min(0),
+      /** Null = no daily cap. */
+      dailyCap: z.number().int().min(0).nullable(),
+    }),
+  ),
 });
 export type MeCreditsResponse = z.output<typeof meCreditsResponseSchema>;
+
+/** `GET /me/usage?cursor`: query. Same keyset paging as every list. */
+export const meUsageQuerySchema = cursorQuerySchema;
+
+/**
+ * One line of the caller's credit history. No content ever: not the prompt, the answer, nor an
+ * admin's private note (`reason` is a short machine code such as `monthly:2026-10`, or null).
+ */
+export const meUsageEntrySchema = z.object({
+  id: z.uuid(),
+  kind: z.enum(CREDIT_LEDGER_KINDS),
+  /** Signed: negative = credits spent or removed. */
+  amount: z.number().int(),
+  balanceAfter: z.number().int(),
+  reason: z.string().nullable(),
+  createdAt: isoDate,
+});
+export type MeUsageEntry = z.output<typeof meUsageEntrySchema>;
+
+export const meUsagePageSchema = z.object({
+  items: z.array(meUsageEntrySchema),
+  nextCursor: z.string().nullable(),
+});
+export type MeUsagePage = z.output<typeof meUsagePageSchema>;

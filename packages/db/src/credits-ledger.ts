@@ -471,6 +471,40 @@ export async function grant(
   );
 }
 
+/**
+ * Expires the unused part of the monthly grant of `period` (`YYYY-MM`, the month that just ended),
+ * right before the next grant. The rule: expire min(current balance, that period's grant amount).
+ * The balance is what is left after every spend (credits held by open reservations are already out
+ * of it), so a user never loses more than the free credits they were given for that month, and
+ * credits topped up by an admin or refunded beyond the grant survive. Nothing is written when the
+ * owner has no grant for the period or nothing is left. Idempotent per wallet and period.
+ */
+export async function expireUnused(
+  db: Database,
+  owner: WalletOwner,
+  period: string,
+): Promise<LedgerWrite | null> {
+  if (!PERIOD_PATTERN.test(period)) throw new Error("period must be YYYY-MM");
+  return transact(db, async (tx) => {
+    const wallet = await lockOwnerWallet(tx, owner);
+    const key = `expiry:${wallet.id}:${period}`;
+    const existing = await findByKey(tx, key);
+    if (existing) return writeResult(wallet.id, existing, existing.balanceAfter - existing.amount, true);
+
+    const granted = await findByKey(tx, `grant:${owner.type}:${owner.id}:${period}`);
+    if (!granted || granted.amount <= 0) return null;
+    const amount = Math.min(wallet.balance, granted.amount);
+    if (amount <= 0) return null;
+    const { row } = await append(tx, wallet, wallet.balance, {
+      kind: "expiry",
+      amount: -amount,
+      idempotencyKey: key,
+      reason: `expired:${period}`,
+    });
+    return writeResult(wallet.id, row, wallet.balance, false);
+  });
+}
+
 /** Gives credits back ("no result, no charge"). A retry with the same key changes nothing. */
 export async function refund(
   db: Database,

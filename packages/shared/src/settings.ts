@@ -135,6 +135,11 @@ export const rxSettingsSchema = z.object({
   verifyMaxItems: z.number().int().min(0).max(20).default(5),
 });
 
+/** Uploaded images (Phase 2, Task 2.5): how long the pictures are kept; the analysis results stay. */
+export const uploadsSettingsSchema = z.object({
+  retentionDays: z.number().int().min(1).max(365).default(30),
+});
+
 export const SETTING_VISIBILITIES = ["public", "admin"] as const;
 export type SettingVisibility = (typeof SETTING_VISIBILITIES)[number];
 
@@ -153,6 +158,8 @@ export const SETTINGS_REGISTRY = {
   ai: { schema: aiSettingsSchema, visibility: "admin" },
   /** Public: the price per page and the page limit are shown before a prescription is analysed. */
   rx: { schema: rxSettingsSchema, visibility: "public" },
+  /** Admin only: the retention job reads it; users are told the number on the analysis page. */
+  uploads: { schema: uploadsSettingsSchema, visibility: "admin" },
 } as const satisfies Record<string, { schema: z.ZodType; visibility: SettingVisibility }>;
 
 export type SettingsRegistry = typeof SETTINGS_REGISTRY;

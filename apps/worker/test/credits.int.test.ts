@@ -1,10 +1,12 @@
 import {
+  adjust,
   createDb,
   creditLedger,
   creditReservations,
   creditWallets,
   planAssignments,
   plans,
+  release,
   reserve,
   seedDefaults,
   settle,
@@ -14,7 +16,12 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { pino } from "pino";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { GRANT_BATCH_SIZE, grantMonthlyJob } from "../src/jobs/credits.grant.job.js";
+import {
+  GRANT_BATCH_SIZE,
+  grantMonthlyJob,
+  previousPeriod,
+} from "../src/jobs/credits.grant.job.js";
+import { reconcileCredits, reconcileCreditsJob } from "../src/jobs/credits.reconcile.job.js";
 import { sweepReservationsJob } from "../src/jobs/credits.sweep.job.js";
 
 import { startPostgres, type TestPostgres } from "./support/postgres.js";
@@ -117,13 +124,76 @@ describe("credits.grant_monthly", () => {
     await run(new Date("2026-10-20T00:10:00Z"));
     expect((await ledgerOf(userId)).balance).toBe(30);
 
+    // Nothing was spent, so October's whole grant expires before November's arrives.
     await run(NOVEMBER);
     const next = await ledgerOf(userId);
-    expect(next.balance).toBe(60);
-    expect(next.rows.map((row) => row.idempotencyKey)).toEqual([
-      `grant:user:${userId}:2026-10`,
-      `grant:user:${userId}:2026-11`,
+    expect(next.balance).toBe(30);
+    const walletId = next.rows[0]?.walletId;
+    expect(next.rows.map((row) => [row.kind, row.amount, row.idempotencyKey])).toEqual([
+      ["grant", 30, `grant:user:${userId}:2026-10`],
+      ["expiry", -30, `expiry:${walletId ?? ""}:2026-10`],
+      ["grant", 30, `grant:user:${userId}:2026-11`],
     ]);
+
+    // The job runs daily: nothing expires or is granted twice.
+    await run(new Date("2026-11-02T00:10:00Z"));
+    expect((await ledgerOf(userId)).rows).toHaveLength(3);
+  });
+
+  it("expires only the unused part of last month's grant and keeps other credits", async () => {
+    const spender = await createUser();
+    const topped = await createUser();
+    await run(OCTOBER);
+    const spent = { type: "user", id: spender } as const;
+    const held = await reserve(worker.db, spent, 12, {
+      idempotencyKey: `s-${spender}`,
+      purpose: "rx",
+    });
+    await settle(worker.db, held.reservation.id, 12);
+    await adjust(worker.db, { type: "user", id: topped }, 50, {
+      reason: "pilot top-up",
+      actorId: topped,
+      idempotencyKey: `top-${topped}`,
+    });
+
+    await run(NOVEMBER);
+
+    // 30 granted - 12 spent = 18 unused: expire 18, then grant 30.
+    const afterSpender = await ledgerOf(spender);
+    expect(afterSpender.balance).toBe(30);
+    expect(afterSpender.rows.find((row) => row.kind === "expiry")?.amount).toBe(-18);
+    // 30 + 50 = 80 unused: only the 30 granted can expire, the admin's 50 stay.
+    const afterTopped = await ledgerOf(topped);
+    expect(afterTopped.balance).toBe(80);
+    expect(afterTopped.rows.find((row) => row.kind === "expiry")?.amount).toBe(-30);
+  });
+
+  it("writes no expiry for a wallet with nothing left, or with no grant last month", async () => {
+    const drained = await createUser();
+    await run(OCTOBER);
+    const drainedOwner = { type: "user", id: drained } as const;
+    const held = await reserve(worker.db, drainedOwner, 30, {
+      idempotencyKey: `d-${drained}`,
+      purpose: "rx",
+    });
+    await settle(worker.db, held.reservation.id, 30);
+    const newcomer = await createUser();
+
+    await run(NOVEMBER);
+
+    expect((await ledgerOf(drained)).rows.map((row) => row.kind)).toEqual([
+      "grant",
+      "usage_reserve",
+      "release",
+      "usage_settle",
+      "grant",
+    ]);
+    expect((await ledgerOf(newcomer)).rows.map((row) => row.kind)).toEqual(["grant"]);
+  });
+
+  it("knows the month before, across a year", () => {
+    expect(previousPeriod("2026-11")).toBe("2026-10");
+    expect(previousPeriod("2026-01")).toBe("2025-12");
   });
 
   it("accepts a phone-verified user and skips unverified, suspended and zero-credit users", async () => {
@@ -252,5 +322,74 @@ describe("credits.sweep_reservations", () => {
     // 30 granted, 2 still held for the live call, 3 spent on the settled one.
     expect(after.balance).toBe(30 - 2 - 3);
     expect(after.rows.reduce((sum, row) => sum + row.amount, 0)).toBe(after.balance);
+  });
+});
+
+describe("credits.reconcile", () => {
+  it("reports zero drift after 50 concurrent reserves, settles and releases", async () => {
+    const userId = await createUser();
+    const owned = { type: "user", id: userId } as const;
+    await run(OCTOBER);
+    // The 50-concurrent scenario of the API suite, on a wallet funded for 10.
+    await adjust(worker.db, owned, -20, {
+      reason: "shrink to 10",
+      actorId: userId,
+      idempotencyKey: `shrink-${userId}`,
+    });
+    const results = await Promise.allSettled(
+      Array.from({ length: 50 }, (_, index) =>
+        reserve(worker.db, owned, 1, {
+          idempotencyKey: `race-${userId}-${String(index)}`,
+          purpose: "rx",
+        }),
+      ),
+    );
+    const accepted = results.flatMap((result) =>
+      result.status === "fulfilled" ? [result.value.reservation.id] : [],
+    );
+    expect(accepted).toHaveLength(10);
+    await Promise.all(
+      accepted.map((id, index) =>
+        index % 2 === 0 ? settle(worker.db, id, 1) : release(worker.db, id),
+      ),
+    );
+
+    expect((await ledgerOf(userId)).balance).toBe(5);
+    const result = await reconcileCredits(worker.db);
+    expect(result.drifted).toBe(0);
+    expect(result.wallets).toBeGreaterThan(0);
+  });
+
+  it("finds a wallet whose balance no longer matches its ledger and alerts with ids only", async () => {
+    const userId = await createUser();
+    await run(OCTOBER);
+    const [wallet] = await owner.db
+      .select()
+      .from(creditWallets)
+      .where(eq(creditWallets.ownerUserId, userId));
+    if (!wallet) throw new Error("wallet missing");
+    await owner.db
+      .update(creditWallets)
+      .set({ balance: wallet.balance + 7 })
+      .where(eq(creditWallets.id, wallet.id));
+
+    try {
+      lines.length = 0;
+      const found = await reconcileCredits(worker.db);
+      expect(found.drifted).toBe(1);
+
+      await reconcileCreditsJob({}, { db: worker.db, logger });
+      const alert = lines
+        .map((line) => JSON.parse(line) as Record<string, unknown>)
+        .find((entry) => entry.event === "credits.drift");
+      expect(alert).toMatchObject({ level: 50, drifted: 1, walletIds: [wallet.id] });
+      expect(JSON.stringify(alert)).not.toContain(userId);
+    } finally {
+      await owner.db
+        .update(creditWallets)
+        .set({ balance: wallet.balance })
+        .where(eq(creditWallets.id, wallet.id));
+    }
+    expect((await reconcileCredits(worker.db)).drifted).toBe(0);
   });
 });

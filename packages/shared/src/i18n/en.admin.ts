@@ -352,6 +352,10 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
   "admin.settings.ai.description":
     "Daily spend cap, kill switches and credit value. Edited from the AI page.",
   "admin.settings.rx.title": "Prescription analysis",
+  "admin.settings.uploads.title": "Uploaded images",
+  "admin.settings.uploads.description":
+    "How long prescription images are kept before they are deleted. Analysis results stay.",
+  "admin.settings.field.uploads.retentionDays": "Days to keep images",
   "admin.settings.rx.description":
     "Price per page in credits and analysis limits. Shown to users before they analyse.",
   "admin.settings.auth.title": "Authentication",

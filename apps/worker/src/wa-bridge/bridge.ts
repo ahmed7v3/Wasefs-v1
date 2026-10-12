@@ -22,9 +22,7 @@ import type { Logger } from "pino";
 export type DisconnectKind = "logged_out" | "replaced" | "restart_required" | "other";
 
 export type ConnectionEvent =
-  | { type: "qr" }
-  | { type: "open" }
-  | { type: "close"; kind: DisconnectKind };
+  { type: "qr" } | { type: "open" } | { type: "close"; kind: DisconnectKind };
 
 /** What the lifecycle needs from a live WhatsApp socket. */
 export interface SocketHandle extends ReplySocketMethods {
@@ -281,7 +279,9 @@ export class WaBridge {
     }
     await this.publish("disconnected");
     if (kind === "replaced") {
-      this.deps.logger.error("Another session replaced this one; waiting 5 minutes before retrying");
+      this.deps.logger.error(
+        "Another session replaced this one; waiting 5 minutes before retrying",
+      );
       this.scheduleReconnect(5 * 60_000);
     } else if (kind === "restart_required") {
       this.scheduleReconnect(500);

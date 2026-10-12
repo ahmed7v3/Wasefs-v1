@@ -1,9 +1,11 @@
 import "reflect-metadata";
 
 import helmet from "@fastify/helmet";
+import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
 import { NestFactory } from "@nestjs/core";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
+import { DRUG_IMPORT_MAX_BYTES } from "@wasfa/shared/drugs";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import { newId } from "@wasfa/shared/ids";
 import { Logger } from "nestjs-pino";
@@ -63,6 +65,12 @@ export async function createApp(
     },
     crossOriginResourcePolicy: { policy: "same-site" },
     referrerPolicy: { policy: "no-referrer" },
+  });
+
+  // Only the drug import wizard posts multipart (one file, read lazily by that handler); every
+  // other route keeps the 1 MB JSON limit. Guards run before the handler reads a single byte.
+  await app.register(multipart, {
+    limits: { fileSize: DRUG_IMPORT_MAX_BYTES, files: 1, fields: 5, fieldSize: 20_000, parts: 8 },
   });
 
   const allowedOrigins = new Set(env.WEB_ORIGIN);

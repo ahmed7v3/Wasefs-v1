@@ -2,13 +2,12 @@ import { Inject, Injectable } from "@nestjs/common";
 import { AiProviderError, createAdapter, type AIProviderAdapter } from "@wasfa/ai";
 import { decryptSecret, encryptSecret, maskSecret } from "@wasfa/shared/crypto";
 
+import { providerKeyContext as keyContext } from "../../ai-runtime/provider-key.js";
 import { API_ENV } from "../../config/config.module.js";
 import { encryptionKey, type ApiEnv } from "../../config/env.js";
 
 import type { AiProvider } from "@wasfa/db";
 
-/** The key is bound to its provider row (AAD): a ciphertext copied into another provider will not decrypt. */
-const keyContext = (providerKey: string) => `ai_provider:${providerKey}`;
 
 /**
  * The only place the admin API turns a provider row into something that can call out, and the only

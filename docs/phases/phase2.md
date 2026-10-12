@@ -186,8 +186,8 @@ Acceptance
 
 Acceptance
 - [x] Integration tests: 50 concurrent reserves on a wallet with credits for 10 → exactly 10 succeed, and the balance is never negative. Settle with actual > reserved is capped at the reservation, and the overage is logged as a warning. A crashed job's reservation is released by the sweeper. A retried settle is a no-op. *(`apps/api/test/credits.int.test.ts`, d41e8d8.)*
-- [ ] The reconcile job reports zero drift after the concurrency test. *(Open: reconcile job not built yet.)*
-- [ ] Spend guard: a forced cost over the cap refuses the next call with `ai_paused`, and the alert fires once. *(Open: spend guard not built yet; the `ai` setting holds the cap and kill switch.)*
+- [x] The reconcile job reports zero drift after the concurrency test. *(`apps/worker/test/credits.int.test.ts`: 50 concurrent reserves, then settles and releases, then `reconcileCredits` finds zero drift; a forced mismatch is found and logged as `credits.drift`.)*
+- [x] Spend guard: a forced cost over the cap refuses the next call with `ai_paused`, and the alert fires once. *(`packages/ai/test/spend-guard.test.ts` and `router.test.ts`; the alert is an error log with event `ai.spend_alert` until an admin notifier exists.)*
 
 ---
 
@@ -222,7 +222,7 @@ Acceptance
 
 Acceptance
 - [x] Unit + fixture tests per adapter: text, thinking, search sources, JSON, usage/cost, each error class, abort mid-stream (no further events; usage still recorded). *(`packages/ai/test/*`, 580e172. On abort, usage is recorded only if the provider already sent it.)*
-- [ ] Router tests: fallback order, no fallback on non-retryable (400/schema), circuit breaker opens and closes, kill switch honoured. *(Partly: fallback order, no fallback on 400 and breaker skip are tested in `runWithFallbacks`; Redis breaker and kill switch come with the DB-backed router.)*
+- [x] Router tests: fallback order, no fallback on non-retryable (400/schema), circuit breaker opens and closes, kill switch honoured. *(`packages/ai/test/{router,breaker}.test.ts`; DB-backed route lookup and usage rows in `apps/api/test/ai-runtime.int.test.ts`.)*
 - [x] Pricing tests reproduce the reference prices exactly in micros. *(`packages/ai/test/pricing.test.ts`.)*
 
 ---
@@ -286,8 +286,8 @@ Acceptance
 5. Retention job: delete R2 objects past `uploads.retentionDays`, mark files `deleted`; the analysis keeps showing "الصورة حُذفت بعد 30 يومًا".
 
 Acceptance
-- [ ] A presigned PUT with a body larger than declared is refused (or deleted by `complete`); tested against MinIO, and once manually against R2 (recorded in Notes).
-- [ ] Tests: wrong magic bytes, polyglot file, 20,000 × 20,000 PNG bomb, EXIF GPS removed, rotated phone photo comes out upright, another user's `fileId` → `NOT_FOUND`.
+- [ ] A presigned PUT with a body larger than declared is refused (or deleted by `complete`); tested against MinIO, and once manually against R2 (recorded in Notes). *(MinIO half done in `apps/api/test/files.int.test.ts`; the R2 check is owed by the owner, procedure in Notes.)*
+- [x] Tests: wrong magic bytes, polyglot file, 20,000 × 20,000 PNG bomb, EXIF GPS removed, rotated phone photo comes out upright, another user's `fileId` → `NOT_FOUND`. *(`apps/worker/test/{image.units,files.int}.test.ts`, `apps/api/test/files.int.test.ts`.)*
 
 ---
 
@@ -572,6 +572,17 @@ Acceptance
 - [ ] Summary written below with any deviations.
 
 ## Notes
+
+### Task 2.5 — Uploads (implemented 2026-10-12)
+
+- **Decision 6 on MinIO (tested):** a presigned PUT signed with `content-length`, `content-type` and `x-amz-checksum-sha256` is refused by MinIO for a larger body (403 `SignatureDoesNotMatch`), a smaller body (403), another content type (403) and the same size with different bytes (400 `XAmzContentChecksumMismatch`). `POST /uploads/:id/complete` still runs a `HEAD` and deletes anything of the wrong size or type (tested by writing the object behind the api's back). The declared `sha256` is therefore *signed*, so the store verifies the bytes, not just the length. **Owed by the owner, once, manually against real R2** (the acceptance box stays open until then): create the private `wasfa-uploads` bucket, an API token scoped to it, and a CORS rule (origin = `WEB_ORIGIN`, methods PUT and GET, headers `content-type` and `x-amz-checksum-sha256`); then `PUT` to a URL from `POST /uploads` with (a) a body one byte longer, (b) the same length and other bytes, (c) the exact body. Expect (a) and (b) refused and (c) 200. If R2 accepts (a) or (b), nothing breaks (`complete` deletes the object), but write it here.
+- **Storage image for dev and tests:** MinIO no longer publishes to Docker Hub. `compose.dev.yml` and the test helpers use Chainguard's build (`cgr.dev/chainguard/minio`, pinned by digest, MinIO RELEASE.2026-09-22) with `minio-client` creating the bucket. It has no shell, so the compose service has no healthcheck and `minio-init` retries until the server answers. Tests use Testcontainers, or `TEST_S3_ENDPOINT` / `TEST_S3_ACCESS_KEY` / `TEST_S3_SECRET_KEY` for a running one.
+- **PDF choice: `pdfjs-dist` + `@napi-rs/canvas`, not `pdftoppm`.** The worker runtime stage is bare Alpine plus a stripped `node` and deletes `apk` on purpose, so poppler would mean new system packages in a hardened image. pdf.js is JavaScript plus one prebuilt canvas binary with a musl build. Rendering is at 200 dpi, capped at a 4096 px long edge, and then goes through the same sharp pipeline as a photo. Fonts, CMaps, ICC profiles and wasm decoders are read from the package directory (`standardFontDataUrl` etc.). Smoke-tested (2026-10-12) in an image shaped like the worker runtime stage (bare `alpine:3.24` + `libstdc++` + the stripped `node`): sharp 0.35.5 (libvips 8.18.7), `@napi-rs/canvas` and a pdf.js page render all load and run. Confirm once more on the first full `worker.Dockerfile` build.
+- **Deviation: a PDF may have only one page for now.** `files` has a single `r2_key`, `width`, `height`, `sha256` and `dhash`, so several rasterized pages cannot be stored without a schema change (a `file_pages` table, or a parent file id). A PDF with more than one page is rejected with `pdf_multi_page_unsupported`. Decision needed from the owner before Task 2.8 relies on multi-page PDFs; users can already attach several images, one `files` row each.
+- **Deviation: `files.mime` cannot hold `application/pdf`** (the CHECK is image types only). A PDF upload stores `image/jpeg` (what it becomes) and keeps its true type in the key: `u/<owner>/<id>/original.pdf` instead of `.../original`. After processing, `r2_key` is `u/<owner>/<id>/processed` for every file.
+- **Queue:** new `images` queue (`image.process`, `files.retention`) with its own concurrency (`WORKER_CONCURRENCY_IMAGES`, default 1). `files.retention` runs daily at 03:30 UTC and deletes every object under the file's prefix (a failed delete of the original cannot leave bytes behind). It uses the row's `expires_at`, which was set from `uploads.retentionDays` when the file was created, so shortening the setting affects new uploads only. **Worker memory:** `compose.prod.yml` gives the worker 256 MB; decoding a 24 MP photo needs more. Raise it (about 768 MB) before the first real upload in production.
+- **Owner of a file:** the calling user. The organization-wallet rule does not exist in code yet (`GET /me/credits` is personal-only), so uploads are personal for now; `GET /files/:id/url` and `complete` already serve an organization's file to its members (tested), and the owner columns allow creating org-owned files once the wallet-owner rule exists.
+- **Not done here (by design):** the plan's maximum page count is not checked at upload (an upload is one page; the page limit belongs to the analysis request in Task 2.8). The rate limit of 30 requests per 10 minutes per user is a fail-closed Redis counter (`AuthRateLimiter`), plus the per-IP route limits.
 _(agent fills in deviations here)_
 
 ## Open questions

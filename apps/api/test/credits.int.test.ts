@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { CreditsRepo } from "../src/credits/credits.repo.js";
 import { CreditsService } from "../src/credits/credits.service.js";
 import { PlansService } from "../src/plans/plans.service.js";
+import { QuotaService } from "../src/quota/quota.service.js";
 
 import { AdminTestContext } from "./support/admin-context.js";
 import { insertOrg } from "./support/identity-fixtures.js";
@@ -31,7 +32,12 @@ beforeAll(async () => {
   // A second service with a spy logger, to see the overage warning without parsing log lines.
   warnings = vi.fn();
   const logger = { setContext: vi.fn(), warn: warnings } as unknown as PinoLogger;
-  metered = new CreditsService(ctx.app.get(CreditsRepo), ctx.app.get(PlansService), logger);
+  metered = new CreditsService(
+    ctx.app.get(CreditsRepo),
+    ctx.app.get(PlansService),
+    ctx.app.get(QuotaService),
+    logger,
+  );
 }, 180_000);
 
 afterAll(async () => {

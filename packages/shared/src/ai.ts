@@ -18,6 +18,14 @@ export const AI_TASKS = [
 ] as const;
 export type AiTask = (typeof AI_TASKS)[number];
 
+/** Prescription and health-chat tasks: a provider that may train on the data must never see them. */
+export const MEDICAL_AI_TASKS: ReadonlySet<AiTask> = new Set([
+  "rx_extract",
+  "rx_verify",
+  "chat",
+  "deep_think",
+]);
+
 /** What users choose (never a model name): "سريع", "متوازن", "عميق". */
 export const AI_MODES = ["fast", "balanced", "deep"] as const;
 export type AiMode = (typeof AI_MODES)[number];

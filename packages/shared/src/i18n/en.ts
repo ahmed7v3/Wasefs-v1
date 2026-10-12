@@ -1,8 +1,9 @@
 import { ERROR_CODES, ERROR_INFO } from "../errors/codes.js";
 
-import { enAdmin } from "./en.admin.js";
 import { enAdminAi } from "./en.admin-ai.js";
 import { enAdminBilling } from "./en.admin-billing.js";
+import { enAdminDrugs } from "./en.admin-drugs.js";
+import { enAdmin } from "./en.admin.js";
 
 import type { MessageKey } from "./ar.js";
 
@@ -137,6 +138,12 @@ export const en: Partial<Record<MessageKey, string>> = {
   "auth.error.providerUnavailable":
     "This sign-in method is not available right now. Use your email or phone number.",
   "auth.error.socialFailed": "We could not sign you in this way. Try again or use your email.",
+  "ai.reason.ai_paused": "The service is busy right now. Please try again shortly.",
+  "ai.reason.plan_feature": "This feature is not included in your current plan.",
+  "ai.reason.daily_cap":
+    "You have reached today's limit for this feature. Try tomorrow or upgrade your plan.",
+  "ai.reason.busy": "You already have a task running. Wait for it to finish, then try again.",
+  "ai.reason.insufficient_credits": "You do not have enough credits for this.",
   "form.required": "This field is required.",
   "form.tooShort": "Must be at least {min} characters.",
   "form.tooLong": "Must be at most {max} characters.",
@@ -489,8 +496,11 @@ export const en: Partial<Record<MessageKey, string>> = {
   "contact.topic.other": "Other",
   "contact.submit": "Send message",
   "contact.success.title": "We received your message",
+  "upload.error.heicUnsupported":
+    "HEIC is not supported on the server. Convert the picture to JPEG or PNG and try again.",
   ...enAdmin,
   ...enAdminAi,
   ...enAdminBilling,
+  ...enAdminDrugs,
   ...errorMessages,
 };

@@ -76,6 +76,14 @@ export class PlansRepo {
     return found;
   }
 
+  /** Every task the plan configures. */
+  async entitlementsOfPlan(planId: string): Promise<PlanEntitlement[]> {
+    return await this.handle.db
+      .select()
+      .from(planEntitlements)
+      .where(eq(planEntitlements.planId, planId));
+  }
+
   async entitlementOf(planId: string, task: AiTask): Promise<PlanEntitlement | undefined> {
     const [row] = await this.handle.db
       .select()

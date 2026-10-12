@@ -1,5 +1,6 @@
 export * from "./ai.js";
 export * from "./auth-settings.js";
+export * from "./drugs.js";
 export * from "./email.js";
 export * from "./env.js";
 export * from "./errors/index.js";
@@ -7,6 +8,7 @@ export * from "./i18n/index.js";
 export * from "./identity.js";
 export * from "./ids.js";
 export * from "./money.js";
+export * from "./normalize.js";
 export * from "./permissions.js";
 export * from "./plans.js";
 export * from "./queues.js";

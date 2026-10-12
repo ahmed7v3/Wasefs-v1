@@ -1,5 +1,5 @@
-# Local development: Postgres + Redis only. The apps run on the host with `pnpm dev`.
-#   docker compose -f infra/docker/compose.dev.yml up -d
+# Local development: Postgres, Redis and MinIO (stands in for Cloudflare R2).
+# The apps run on the host with `pnpm dev`.
 # Credentials here are for a throwaway local database and must never be reused anywhere else.
 name: wasfa-dev
 
@@ -40,6 +40,34 @@ services:
       timeout: 3s
       retries: 10
 
+  # S3-compatible object store for uploaded prescription images (R2 in production, same code).
+  # Pinned by digest: MinIO no longer publishes to Docker Hub, so this is Chainguard's build.
+  # The image has no shell, hence no curl healthcheck; `minio-init` retries until the server is up.
+  minio:
+    image: cgr.dev/chainguard/minio@sha256:dc455cdd4db6e390b1b26514f15ff37681a777bf8dab41aac445a0259f751e56
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: wasfa
+      MINIO_ROOT_PASSWORD: wasfa_dev_password
+    ports:
+      # Set MINIO_PORT (and R2_UPLOADS_ENDPOINT) if 9000 is taken. Console: http://127.0.0.1:9001
+      - "127.0.0.1:${MINIO_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio-data:/data
+
+  # Creates the private bucket once and exits. `MC_HOST_<alias>` configures mc without a shell.
+  minio-init:
+    image: cgr.dev/chainguard/minio-client@sha256:d8a93c5d335509ff353774eefec8f82fa2a2a975e800139702232d8be3dbe6b9
+    depends_on:
+      - minio
+    restart: on-failure
+    environment:
+      MC_HOST_local: http://wasfa:wasfa_dev_password@minio:9000
+    command: ["mb", "--ignore-existing", "local/wasfa-uploads"]
+
 volumes:
   postgres-data:
   redis-data:
+  minio-data:

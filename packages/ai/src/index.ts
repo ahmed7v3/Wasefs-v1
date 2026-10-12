@@ -9,6 +9,40 @@ import type { AIProviderAdapter, ProviderConfig } from "./types.js";
 export * from "./types.js";
 export { costUsdMicros, creditsFor, usdPerTokenToMicrosPerM, usdToMicros } from "./pricing.js";
 export { runWithFallbacks } from "./runner.js";
+export {
+  BREAKER_FAILURE_THRESHOLD,
+  BREAKER_OPEN_SECONDS,
+  BREAKER_WINDOW_SECONDS,
+  MemoryBreakerStore,
+  type BreakerStore,
+} from "./breaker.js";
+export { RedisBreakerStore } from "./breaker-redis.js";
+export type { BreakerRedis, RedisLike, SpendRedis } from "./redis-like.js";
+export { aiPausedError, noModelError } from "./refusals.js";
+export {
+  createSpendGuard,
+  spendAlertedKey,
+  spendKey,
+  utcDay,
+  type SpendAlert,
+  type SpendGuard,
+  type SpendGuardOptions,
+  type SpendLimits,
+} from "./spend-guard.js";
+export { createRouter } from "./router.js";
+export type {
+  ResolvedRoute,
+  Router,
+  RouterEvent,
+  RouterInput,
+  RouterModel,
+  RouterNote,
+  RouterPorts,
+  RouterProvider,
+  RouterResult,
+  SkipReason,
+  UsageRecord,
+} from "./router.js";
 export type {
   AttemptInfo,
   RunnerCandidate,

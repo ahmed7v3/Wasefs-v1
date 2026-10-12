@@ -38,6 +38,11 @@ export class PlansService {
     return result;
   }
 
+  /** Every allowance of a plan (what the owner may do), in no particular order. */
+  entitlementsOf(plan: Plan): Promise<PlanEntitlement[]> {
+    return this.repo.entitlementsOfPlan(plan.id);
+  }
+
   /** The allowance of the owner's plan for `task`; `null` when the plan does not configure it (= not allowed). */
   async entitlement(owner: WalletOwner, task: AiTask): Promise<PlanEntitlement | null> {
     const plan = await this.effectivePlan(owner);

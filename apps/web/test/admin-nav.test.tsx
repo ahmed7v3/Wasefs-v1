@@ -53,6 +53,8 @@ describe("visibleNavGroups", () => {
       "/admin/ai/routes",
       "/admin/plans",
       "/admin/credits",
+      "/admin/drugs",
+      "/admin/drugs/imports",
       "/admin/audit",
       "/admin/issues",
     ]);
