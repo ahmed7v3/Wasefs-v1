@@ -22,7 +22,7 @@
   "dependencies": {
     "@wasfa/shared": "workspace:*",
     "clsx": "^2.1.1",
-    "lucide-react": "^1.54.0",
+    "lucide-react": "^1.55.0",
     "react-markdown": "10.1.0",
     "rehype-sanitize": "6.0.0",
     "remark-gfm": "4.0.1"

@@ -18,7 +18,7 @@
     "@wasfa/shared": "workspace:*",
     "@wasfa/ui": "workspace:*",
     "heic2any": "0.0.4",
-    "lucide-react": "^1.54.0",
+    "lucide-react": "^1.55.0",
     "next": "^16.4.0",
     "pdfjs-dist": "6.4.299",
     "qrcode": "^1.5.4",

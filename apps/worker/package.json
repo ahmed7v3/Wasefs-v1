@@ -38,7 +38,7 @@
   },
   "devDependencies": {
     "@swc-node/register": "^1.12.1",
-    "@swc/core": "^1.16.13",
+    "@swc/core": "^1.16.18",
     "@testcontainers/minio": "12.2.0",
     "@testcontainers/postgresql": "^12.2.0",
     "@testcontainers/redis": "^12.2.0",
