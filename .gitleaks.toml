@@ -10,6 +10,9 @@ description = "Values that look like secrets but are not"
 paths = [
   # Lockfile integrity hashes look like high-entropy tokens.
   '''(^|/)pnpm-lock\.yaml$''',
+  # Obviously fake provider keys used as fixtures by the admin AI integration tests: they prove
+  # that a key never appears in a response or an audit row, so they must look like real keys.
+  '''(^|/)apps/api/test/admin-ai(-ops)?\.int\.test\.ts$''',
 ]
 regexes = [
   # Throwaway password of the local development database in compose.dev.yml / .env.example.

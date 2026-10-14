@@ -113,7 +113,8 @@ test("a tool card opens the assistant with its skill chosen", async ({
   await openDashboard(context, page, urls, redis);
   await page.getByRole("link", { name: new RegExp(t("dashboard.tools.drug-info.title")) }).click();
   await page.waitForURL(/\/ai\?skill=drug-info$/);
+  // The suggestion cards share the label; only the skill chip carries aria-pressed.
   await expect(
-    page.getByRole("button", { name: t("chat.skill.drug-info") }).first(),
+    page.locator("button[aria-pressed]").filter({ hasText: t("chat.skill.drug-info") }),
   ).toHaveAttribute("aria-pressed", "true");
 });
