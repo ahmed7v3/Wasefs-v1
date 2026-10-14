@@ -358,8 +358,8 @@ Acceptance
 4. Admin drug browser: search (the same matcher), edit, add alias, merge duplicates (audited).
 
 Acceptance
-- [ ] Matcher tests: Arabic/English variants, typos ("Augmentn"), brand vs ingredient, strength disambiguation (Panadol 500 vs Panadol Extra). p95 query < 30 ms on 50,000 drugs (seeded synthetic data).
-- [ ] Import of a 20,000-row file: dry run, commit and rollback all work, and are idempotent on re-import.
+- [x] Matcher tests: Arabic/English variants, typos ("Augmentn"), brand vs ingredient, strength disambiguation (Panadol 500 vs Panadol Extra). p95 query < 30 ms on 50,000 drugs (seeded synthetic data).
+- [x] Import of a 20,000-row file: dry run, commit and rollback all work, and are idempotent on re-import.
 
 ---
 
@@ -630,3 +630,22 @@ _(agent fills in deviations here)_
   - Exact current Gemini prices at seeding (Decision 3).
 - **Credit price for users** (owner): defaults are 1 credit/page, 30 free credits/month, 1 credit = $0.01. Confirm before Phase 3 sets money prices on top.
 - **Retention**: images 30 days by default. Does the owner want shorter (7 days) for privacy positioning? It changes only the setting.
+
+## Phase 2 status (2026-10-14)
+
+All code for Tasks 2.1 to 2.13 is built and merged on `phase2/data-model`; lint, typecheck and every test suite pass (some worker integration tests time out when the whole suite runs in parallel on a laptop and pass alone). **What is left needs the owner**, which is why the final-checklist boxes stay open:
+
+- Enter provider keys in admin, test and enable them; fill in model prices (Gemini 3.6 Flash, 3.5 Flash-Lite and the OpenRouter copy are seeded at 0).
+- Real R2 check (Task 2.5), iOS Safari and Android Chrome check (Task 2.6), Lighthouse run on `/dashboard` (Task 2.12), production smoke test with one real analysis and one chat (Task 2.13).
+- Label the evaluation set (`evals/rx/README.md`), run it on the four candidate models, record the chosen route and accuracy numbers in Notes (Task 2.10), then tune the untuned thresholds (blur, match accept/verify, confidence badge).
+- Review the six `skills/*/SKILL.md` files and the abbreviation dictionary (`rx-normalize.ts`) with a pharmacist.
+- Image sizes (worker grew with sharp/pdf.js/canvas) are not measured yet: record them after the first CI build.
+
+Deviations and decisions needing the owner:
+- **HEIC outside Safari** needs a WASM converter (CSP forbids `heic2any`), see Task 2.6 Notes.
+- **No feedback storage** (thumbs up/down are not saved) and **consented corrections are deleted with their analysis** (schema decision needed).
+- **Multi-page PDFs** are rasterized per page in the browser; the server accepts single-page PDFs only.
+- **Organization wallets** are not built: wallets and analyses are personal for now.
+- **Ingredient-only drug matches** are never auto-accepted (always in the verify zone).
+- Monthly plan caps (`monthly_cap`) are not enforced yet; daily caps are.
+- The spend guard and breaker fail open when Redis is down; alerts are log events until an alert channel exists.
