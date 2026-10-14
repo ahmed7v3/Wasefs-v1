@@ -517,3 +517,53 @@ describe("collapsed", () => {
     expect(screen.getAllByRole("listitem", { name: /^الصفحة/ })).toHaveLength(1);
   });
 });
+
+describe("touch devices and the close button", () => {
+  /** Makes `matchMedia` answer true only for the listed queries. */
+  function media(matching: string[]) {
+    vi.stubGlobal(
+      "matchMedia",
+      (query: string) =>
+        ({
+          matches: matching.includes(query),
+          media: query,
+          addEventListener: () => undefined,
+          removeEventListener: () => undefined,
+        }) as unknown as MediaQueryList,
+    );
+  }
+
+  const handoff = {
+    start: vi.fn(),
+    subscribe: vi.fn(() => () => undefined),
+    adopt: vi.fn(),
+  } as unknown as HandoffClient;
+
+  it("shows the camera button, and not 'use your phone', on a coarse pointer", async () => {
+    media(["(pointer: coarse)"]);
+    mount({ handoff });
+    expect(await screen.findByRole("button", { name: t("capture.camera") })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: t("capture.phone") })).toBeNull();
+  });
+
+  it("still finds a touch device whose main pointer reports fine", async () => {
+    media(["(any-pointer: coarse)"]);
+    mount({ handoff });
+    expect(await screen.findByRole("button", { name: t("capture.camera") })).toBeTruthy();
+  });
+
+  it("offers 'use your phone' and no camera button on a desktop", async () => {
+    media(["(hover: hover) and (pointer: fine)"]);
+    mount({ handoff });
+    expect(await screen.findByRole("button", { name: t("capture.phone") })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: t("capture.camera") })).toBeNull();
+  });
+
+  it("closes the open panel from the X button", () => {
+    media([]);
+    const onClose = vi.fn();
+    mount({ variant: "composer", onClose });
+    fireEvent.click(screen.getByRole("button", { name: t("capture.close") }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});

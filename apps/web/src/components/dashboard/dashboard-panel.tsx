@@ -23,10 +23,10 @@ export function DashboardPanel({ id, title, action, className, children }: Dashb
       role="region"
       aria-labelledby={id}
       padding="compact"
-      className={cn("flex h-full flex-col gap-4", className)}
+      className={cn("flex h-full flex-col gap-3 sm:gap-4", className)}
     >
       <div className="flex min-h-11 items-center justify-between gap-3">
-        <h2 id={id} className="font-heading text-xl font-semibold text-text">
+        <h2 id={id} className="font-heading text-lg font-semibold text-text sm:text-xl">
           {title}
         </h2>
         {action}

@@ -3,7 +3,7 @@
 import { t } from "@wasfa/shared/i18n";
 import { CHAT_MAX_IMAGES, CHAT_MESSAGE_MAX_CHARS } from "@wasfa/shared/schemas/chat";
 import { Globe, Info, Plus, Send, Square } from "lucide-react";
-import { useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { CaptureSurface } from "../capture/CaptureSurface";
 import { cn } from "../cn";
@@ -116,8 +116,14 @@ export function Composer({
   const waiting = pages.some((page) => page.status === "processing" || page.status === "uploading");
   const unsettled = pages.some((page) => page.status === "warning" || page.status === "error");
   const canSend = value.trim() !== "" && !tooLong && !waiting && !unsettled && !disabled;
-  // Pasted or dropped pictures open the panel by themselves; the plus button opens it for picking.
+  // The picking panel (drop box and buttons) closes by itself once a picture is chosen; the tray of
+  // chosen pictures stays above the text, and the plus button opens the panel again to add more.
   const showCapture = captureOpen || pages.length > 0;
+  const hadPages = useRef(false);
+  useEffect(() => {
+    if (pages.length > 0 && !hadPages.current) setCaptureOpen(false);
+    hadPages.current = pages.length > 0;
+  }, [pages.length]);
 
   const submit = () => {
     if (canSend && !streaming) onSubmit();
@@ -142,6 +148,9 @@ export function Composer({
           key={captureResetKey}
           variant="composer"
           collapsed={!captureOpen}
+          onClose={() => {
+            setCaptureOpen(false);
+          }}
           maxPages={CHAT_MAX_IMAGES}
           uploader={uploader}
           disabled={disabled}

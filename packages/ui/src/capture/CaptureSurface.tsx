@@ -1,7 +1,7 @@
 "use client";
 
 import { t } from "@wasfa/shared/i18n";
-import { ImagePlus, Camera, Smartphone, WifiOff } from "lucide-react";
+import { ImagePlus, Camera, Smartphone, WifiOff, X } from "lucide-react";
 import {
   Suspense,
   lazy,
@@ -66,6 +66,8 @@ export interface CaptureSurfaceProps {
    * work, and pages that arrive show up on their own.
    */
   collapsed?: boolean | undefined;
+  /** Shows a close (X) button on the open panel; the owner hides the panel in response. */
+  onClose?: (() => void) | undefined;
 }
 
 /** Per page, the parts that never go to the parent: the prepared image and its abort handle. */
@@ -126,6 +128,7 @@ export function CaptureSurface({
   supportHref = "/contact",
   initialFileIds,
   collapsed = false,
+  onClose,
 }: CaptureSurfaceProps) {
   const { toast } = useToast();
   const [pages, setPages] = useState<CapturePage[]>([]);
@@ -509,7 +512,12 @@ export function CaptureSurface({
     window.addEventListener("online", goOnline);
     window.addEventListener("offline", goOffline);
     if (typeof window.matchMedia === "function") {
-      setTouch(window.matchMedia("(pointer: coarse)").matches);
+      // A phone or tablet: the main pointer is coarse, or any pointer is and there is no mouse
+      // hovering. Some Android browsers report "fine" for the main pointer, so also trust touch points.
+      const coarse = window.matchMedia("(pointer: coarse)").matches;
+      const anyCoarse = window.matchMedia("(any-pointer: coarse)").matches;
+      const mouse = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+      setTouch(coarse || anyCoarse || (navigator.maxTouchPoints > 0 && !mouse));
       setKeyboard(window.matchMedia("(hover: hover) and (pointer: fine)").matches);
     }
     return () => {
@@ -633,8 +641,15 @@ export function CaptureSurface({
   );
 
   const actions: ReactNode = (
-    <div className={cn("flex flex-wrap gap-2", pages.length === 0 && "justify-center")}>
+    <div
+      className={cn(
+        "grid gap-2 sm:flex sm:flex-wrap",
+        touch ? "grid-cols-2" : "grid-cols-1",
+        pages.length === 0 && "sm:justify-center",
+      )}
+    >
       <Button
+        className="whitespace-nowrap px-3 sm:px-5"
         variant={pages.length === 0 ? "primary" : "secondary"}
         size={variant === "full" && pages.length === 0 ? "lg" : "md"}
         disabled={disabled || full}
@@ -645,6 +660,7 @@ export function CaptureSurface({
       </Button>
       {touch ? (
         <Button
+          className="whitespace-nowrap px-3 sm:px-5"
           variant="secondary"
           size={variant === "full" && pages.length === 0 ? "lg" : "md"}
           disabled={disabled || full}
@@ -654,7 +670,7 @@ export function CaptureSurface({
           {t("capture.camera")}
         </Button>
       ) : null}
-      {handoff ? (
+      {handoff && !touch ? (
         <Button
           variant="secondary"
           size={variant === "full" && pages.length === 0 ? "lg" : "md"}
@@ -667,6 +683,19 @@ export function CaptureSurface({
       ) : null}
     </div>
   );
+
+  const closeButton: ReactNode = onClose ? (
+    <button
+      type="button"
+      onClick={onClose}
+      aria-label={t("capture.close")}
+      className={cn(
+        "inline-flex size-11 items-center justify-center rounded-full text-text-muted transition-colors duration-150 hover:bg-primary-soft hover:text-primary focus-visible:outline-none focus-visible:shadow-focus",
+      )}
+    >
+      <X aria-hidden className="size-5" />
+    </button>
+  ) : null;
 
   return (
     <div
@@ -716,10 +745,13 @@ export function CaptureSurface({
         collapsed ? null : (
           <div
             className={cn(
-              "flex flex-col items-center gap-4 rounded-2xl border-2 border-dashed border-neutral-400 bg-surface text-center",
-              compactLayout ? "p-5" : "p-8 sm:p-12",
+              "relative flex flex-col items-center gap-4 rounded-2xl border-2 border-dashed border-neutral-400 bg-surface text-center",
+              compactLayout ? "p-3 sm:p-5" : "p-3 sm:p-12",
             )}
           >
+            {onClose ? (
+              <div className="-mt-1 -me-1 flex w-full justify-end">{closeButton}</div>
+            ) : null}
             {variant !== "composer" ? (
               <>
                 <span className="inline-flex size-14 items-center justify-center rounded-full bg-primary-soft text-primary">
@@ -764,8 +796,13 @@ export function CaptureSurface({
               }}
             />
           ))}
-          {actions}
-          {keyboard && variant !== "composer" ? (
+          {collapsed ? null : (
+            <div className="flex flex-col gap-1">
+              {onClose ? <div className="flex justify-end">{closeButton}</div> : null}
+              {actions}
+            </div>
+          )}
+          {keyboard && variant !== "composer" && !collapsed ? (
             <p className="text-sm text-text-muted">{t("capture.pasteHint")}</p>
           ) : null}
         </>
