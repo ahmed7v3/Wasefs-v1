@@ -109,7 +109,7 @@ export class ChatController {
    */
   @Post(":id/messages")
   @HttpCode(200)
-  @RateLimit(30)
+  @RateLimit(20)
   async send(
     @CurrentUser() user: AuthenticatedUser,
     @Param() params: ChatIdParamDto,

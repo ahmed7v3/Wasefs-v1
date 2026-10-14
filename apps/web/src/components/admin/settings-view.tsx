@@ -19,8 +19,8 @@ import { ErrorNotice } from "../error-notice";
 
 import { SettingForm } from "./setting-form";
 
-/** `ai` is edited on its own page (`ai.write` + `ai.killswitch`); the generic route refuses it. */
-const GENERIC_SETTING_KEYS = SETTING_KEYS.filter((key) => key !== "ai");
+/** `ai` and `skills` are edited on their own pages (`ai.write`); the generic route refuses them. */
+const GENERIC_SETTING_KEYS = SETTING_KEYS.filter((key) => key !== "ai" && key !== "skills");
 
 export interface SettingsViewProps {
   canWrite: boolean;

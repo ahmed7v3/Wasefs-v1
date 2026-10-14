@@ -320,7 +320,7 @@ describe("Postgres auth state", () => {
     const rows = await handle.db.select().from(waSessions).where(eq(waSessions.session, "sealed"));
     expect(rows.length).toBeGreaterThanOrEqual(3);
     for (const row of rows) {
-      expect(row.value.startsWith("v1.")).toBe(true);
+      expect(row.value.startsWith("v2.")).toBe(true);
       expect(row.value).not.toContain("noiseKey");
       expect(row.value).not.toContain("registrationId");
     }

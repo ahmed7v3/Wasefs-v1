@@ -30,10 +30,12 @@ describe("visibleNavGroups", () => {
     ]);
   });
 
-  it("maps every page to its read permission, never to a write permission", () => {
+  it("maps every page to its read permission, never to a write permission (evals.run is the one permission that guards a page and its runs)", () => {
     const permissions = ADMIN_NAV.flatMap((group) => group.items.map((item) => item.permission));
     for (const permission of permissions) {
-      expect(permission === null || permission.endsWith(".read")).toBe(true);
+      expect(
+        permission === null || permission.endsWith(".read") || permission === "evals.run",
+      ).toBe(true);
     }
   });
 
@@ -51,6 +53,10 @@ describe("visibleNavGroups", () => {
       "/admin/ai/providers",
       "/admin/ai/models",
       "/admin/ai/routes",
+      "/admin/ai/playground",
+      "/admin/ai/usage",
+      "/admin/ai/evals",
+      "/admin/ai/skills",
       "/admin/plans",
       "/admin/credits",
       "/admin/drugs",
@@ -67,9 +73,12 @@ describe("visibleNavGroups", () => {
       "/admin/ai/providers",
       "/admin/ai/models",
       "/admin/ai/routes",
+      "/admin/ai/playground",
+      "/admin/ai/skills",
     ]);
     expect(hrefs(["plans.read", "usage.read"])).toEqual([
       "/admin",
+      "/admin/ai/usage",
       "/admin/plans",
       "/admin/credits",
     ]);

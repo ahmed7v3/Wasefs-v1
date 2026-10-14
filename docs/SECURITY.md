@@ -40,13 +40,16 @@ Phase 0 rows come from ARCHITECTURE.md §8. Rows marked **P1** are the identity 
 | Phone-verification abuse **P1** | The proof is an inbound WhatsApp message from the number (we never send first); 6-digit code is only a correlation token; 10 min TTL, single use, constant-time compare; 3 starts/hour per user, per phone and per IP; wrong-sender messages ignored and counted | Task 1.5 |
 | WhatsApp number ban **P1** | The anti-ban rules in §8; kill switch `auth.phoneVerification = disabled`; verification degrades to email, so a ban is an inconvenience, not an outage | Task 1.5 |
 | Email abuse and cost **P1** | Turnstile and rate limits on every endpoint that triggers mail (register, reset, invites, phone start); daily cap guard under Brevo's 300/day with an alert at 80 %; per-organization pending-invite cap; no mail to unverified third parties beyond the verification mail itself | Task 1.3 / 1.4 / 1.7 |
-| Denial-of-wallet (AI cost) | Credit reservation before every AI call, spend caps, kill switch (Phase 2) | Phase 2 |
+| Denial-of-wallet (AI cost) **P2** | Credits are reserved before every provider call and settled after (append-only ledger, wallet row lock, idempotency keys); per-plan daily caps and one running analysis and one chat stream per user (Redis); a global daily USD cap with an alert at `ai.alertPercent` and `ai_paused` refusal at 100 %; kill switch per task or global (`ai.killswitch`, fresh auth); a fixed price per page and `maxOutputTokens` on every route; the browser quality gate and the exact-hash cache (a re-upload costs no provider call); route changes need fresh auth; every provider call writes an `ai_usage` row. If Redis is down the spend guard and breaker fail open (AI keeps working, the cap is not enforced): the ledger and plan checks still bound each user | **Done** (Tasks 2.2-2.4, 2.8, 2.11) |
 | Payment fraud | Server-side pricing, signed idempotent webhooks (Phase 3) | Phase 3 |
 | IDOR / data mixing | `scopedRepo` for every query on user-owned data; ownership checks in services; a wrong-owner integration test for every endpoint | Task 1.6 / 1.7 |
 | Injection (SQL / XSS / SSRF) | Drizzle parameterized queries only (a CHECK may inline **constants** from our own code, never input); strict nonce CSP; Markdown through a sanitizer; no user-controlled outbound URLs; `next` redirect targets are same-origin relative paths only | Done / Task 1.9 |
 | Open redirect **P1** | `?next=` accepts only a relative path starting with a single `/`; anything else falls back to `/dashboard` | **Done** in the api (Task 1.3, tested); web side Task 1.9 |
-| Malicious uploads | Direct-to-R2, magic bytes, re-encode (Phase 2) | Phase 2 |
-| Prompt injection | Isolated prompts, schema-validated output (Phase 2) | Phase 2 |
+| Malicious uploads **P2** | Presigned PUT signed for the exact `Content-Length`, `Content-Type` and SHA-256 (R2/MinIO refuse a different body; `complete` runs a HEAD and deletes any mismatch); 10 MB and 30 uploads per 10 min per user; the worker re-checks magic bytes with `file-type`, limits decoded pixels to 40 MP (decompression bombs), auto-orients, strips every metadata block and re-encodes to JPEG, so a polyglot never reaches a reader; originals are deleted after processing; HEIC is converted in the browser; reads only through 60 s presigned GETs for the owner. Tests: wrong magic bytes, polyglot, 20,000 x 20,000 PNG bomb, EXIF GPS removed, other owner gets 404 | **Done** (Task 2.5); manual R2 check owed |
+| Prompt injection **P2** | User text and text read from images are wrapped in `<user_data>` blocks the skills declare to be data; the model has no tools with side effects; every structured output is zod-validated (one repair retry); the verify step may only answer with an id from the offered candidate list; dose and drug identity come from deterministic code (matcher, dictionary), not model prose; model-written warnings are off. Test fixture: a prescription image with "ignore previous instructions" written on it must still produce an ordinary transcription | **Done** in code; image fixture with the eval set (Task 2.10) |
+| Cross-owner data leakage via caches **P2** | The global result cache is keyed by the exact hash of the processed image plus skill and route versions, so only identical bytes match; an analysis that has any user correction is never served to another owner; the perceptual (near-duplicate) match is same-owner only and only offered, never reused silently; chats are personal even in an organization | **Done** (Task 2.8) |
+| Handoff-token abuse **P2** | 32 random bytes, only the SHA-256 stored, 5 min expiry, 4 files at most, bound to one user and one capture session; the token can only add pages to that session (it cannot analyse, read, or spend credits); creating a token is limited to 5 per 10 min; the desktop feed is readable by the same user only | **Done** (Task 2.6) |
+| Provider-key and cost exfiltration **P2** | Provider keys are encrypted (AAD `ai_provider:<key>`), shown masked, never returned, never in audit rows (tested by scanning every response and audit row); `ai_usage` and logs hold no prompt or answer text; medical tasks refuse providers flagged `free_tier`; CSV exports prefix formula characters | **Done** |
 | Secret leakage | Env validated at boot; encrypted keys in DB; log redaction; gitleaks in CI; tokens in emails are encrypted in the queue (`encryptSecret`) so Redis never holds a usable token | Done / Task 1.4 |
 | PII in logs **P1** | pino redaction paths; `redactText` on stored errors; recipients and phones logged as hashes only (mail, WhatsApp bridge) | Done / Task 1.4 / 1.5 |
 | Supply chain | Lockfile, `pnpm audit` (high+) in CI, Dependabot, Trivy on images, pinned base images, non-root, read-only filesystems; Baileys and Better Auth versions pinned and reviewed on every bump | Done |
@@ -155,6 +158,45 @@ Everything else under `/auth/*` answers 404 (§4). Tasks 1.5 to 1.11 add their r
 
 **Uploaded brand images (logo, favicon).** The one place the api accepts a file from a user, and it is an admin's. Controls, in order: the key is a closed set; the body is a base64 data URL capped at 512 KB decoded; the declared type must be on a short list (PNG, WebP, SVG, ICO for the favicon only) **and** match the file's magic bytes (`89504E47…`, `RIFF….WEBP`, `00000100`), so a renamed file is refused; the row is stored as `bytea` in `site_assets` (never on disk, never on a user-chosen path). **SVG is the risk** (XML that can carry script), so it is parsed by a small well-formedness scanner (single `<svg>` root, balanced tags, quoted attributes, no DOCTYPE or `<!ENTITY`, no processing instruction but a leading `<?xml?>`) and refused on a deliberately blunt denylist, checked on the raw text and again with numeric character references decoded: `<script`, `<foreignObject`, `<iframe|embed|object|link|meta`, `on…=` event attributes, `javascript:`/`vbscript:`/`data:text/html`, any `href`/`xlink:href` that does not start with `#` (so no external or `data:` payloads), SMIL `attributeName="href"`, CSS `@import` and `url(` that does not point at `#id`. No sanitising and no allowlist: an SVG that trips it is rejected with `details.reason = unsafe_svg` and the admin exports a plain one. The serving route adds the second layer: `X-Content-Type-Options: nosniff`, `Cross-Origin-Resource-Policy: cross-origin`, and for SVG `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; sandbox` with `Content-Disposition: inline`, so opening the URL directly still runs nothing. In the browser an SVG only ever loads through `<img>`, which does not execute script. Web CSP: `img-src` allows the API origin and nothing else new.
 
+### 3.2 Phase 2 endpoint register (AI product)
+
+Same columns as 3.1 minus the repeated ones: every route validates input with a shared zod schema, all bodies are capped at 1 MB except the drug-import upload (20 MB), and no route here uses Turnstile. 
+
+| Method and path | Auth | Permission | Ownership | Rate limit | Audit | Test |
+|---|---|---|---|---|---|---|
+| `POST /uploads` | cookie, verified account | — | caller's own file; plan/page rules at analysis | 30 per 10 min per user (fail-closed) + 60/min | — | Done |
+| `POST /uploads/:id/complete` | cookie, verified account | — | owner or org member, else 404 | 60/min | — | Done |
+| `GET /files/:id` | cookie, verified account | — | owner, else 404 | 240/min | — | Done |
+| `GET /files/:id/url` | cookie, verified account | — | owner or org member, else 404; 60 s URL | 120/min | — | Done |
+| `POST /handoff` | cookie, verified account | — | caller + capture session | 5 per 10 min | — | Done |
+| `GET /handoff/:captureSessionId/events` | cookie, verified account | — | same user only | 30/min | — | Done |
+| `GET /handoff/:token, POST /handoff/:token/uploads, .../complete` | public capability URL (random token, hash stored, 5 min, 4 files) | — | adds pages to the token's user session only; cannot analyse | 60 / 30 / 30 per min + 4 files per token | — | Done |
+| `POST /rx` | cookie, verified account | — | files owned and processed, else 404 | 6/min + plan daily cap + one running analysis | — | Done |
+| `GET /rx, GET /rx/:id, /events, /candidates/:itemIndex` | cookie, verified account | — | owner, else 404 | 120 / 240 / 60 / 120 per min | — | Done |
+| `DELETE /rx/:id, POST /rx/:id/corrections` | cookie, verified account | — | owner, else 404; running analysis refuses delete | 60 / 120 per min | — | Done |
+| `POST /ai/chats, GET /ai/chats, GET /ai/chats/:id, PATCH, DELETE, GET .../messages` | cookie, verified account | — | chat owner (personal even in an org), else 404 | 30 / 120 / 120 / 60 / 60 / 120 per min | — | Done |
+| `POST /ai/chats/:id/messages (SSE)` | cookie, verified account | — | chat owner, else 404; plan mode and tool entitlement; one stream per user | 20/min + plan daily cap | — | Done |
+| `GET /me/credits, GET /me/usage` | cookie | — | caller's wallet; ledger reasons hide admin notes | 60/min | — | Done |
+| `GET /admin/ai/providers, /models, /routes, /settings` | cookie + 2FA session | ai.read | platform data | 120/min | — | Done |
+| `POST/PATCH/DELETE /admin/ai/providers` | cookie + 2FA session + fresh auth 10 min | ai.write | platform data; key encrypted, never returned | 30/min | `ai.provider.*` (no key material) | Done |
+| `POST /admin/ai/providers/:id/test, GET .../discover` | cookie + 2FA session | ai.write / ai.read | platform data | 10 / 20 per min | `ai.provider.test` | Done |
+| `POST/PATCH/DELETE /admin/ai/models, POST price-sync/apply` | cookie + 2FA session + fresh auth 10 min | ai.write | platform data; sync token single-use and bound to the admin | 30/min (preview 5/min) | `ai.model.*` | Done |
+| `PUT/DELETE /admin/ai/routes` | cookie + 2FA session + fresh auth 10 min | ai.write | platform data; versioned (`expectedVersion`) | 30/min | `ai.route.*` | Done |
+| `PUT /admin/ai/settings` | cookie + 2FA session + fresh auth 10 min | ai.write; kill switch also `ai.killswitch` | platform data | 20/min | `setting.update` | Done |
+| `GET /admin/plans, /assignments` | cookie + 2FA session | plans.read | platform data | 120/min | — | Done |
+| `POST/PATCH/PUT/DELETE /admin/plans..., POST /admin/plans/assignments(/:id/end)` | cookie + 2FA session + fresh auth 10 min | plans.write | platform data | 30/min | `plan.*` | Done |
+| `GET /admin/credits/wallets(/:id/ledger)` | cookie + 2FA session | usage.read | platform data | 120/min | — | Done |
+| `POST /admin/credits/adjust` | cookie + 2FA session + fresh auth 10 min | credits.adjust | a wallet; reason required; ledger is append-only | 30/min | `credits.adjust` | Done |
+| `GET /admin/drugs, /:id; POST /admin/drugs/merge; PATCH /:id; POST /:id/aliases` | cookie + 2FA session (merge: fresh auth) | drugs.read / drugs.write | platform data | 120 / 30 / 60 / 60 per min | `drug.*` | Done |
+| `GET/POST /admin/drugs/imports, dry-run, commit, rollback` | cookie + 2FA session (commit, rollback: fresh auth) | drugs.read / drugs.write | platform data; upload <= 20 MB, held 24 h in Redis | 10-30/min | `drug_import.*` | Done |
+| `GET /admin/ai/overview` | cookie + 2FA session | usage.read | platform data; aggregates only, no content | per route default | — | Done |
+| `POST /admin/ai/playground` | cookie + 2FA session | ai.write | admin runs 1-3 pinned models; own processed images only (else 404); goes through kill switch, spend guard and free-tier rule | 20 per hour per admin, one hit per model run (fail-closed) | `ai.playground.run` (task, counts, model keys; never input, output or keys) | Done |
+| `GET /admin/ai/usage, /usage/totals` | cookie + 2FA session | usage.read | platform data; never content | per route default | — | Done |
+| `GET /admin/ai/usage/export.csv` | cookie + 2FA session | usage.read | platform data; 100,000-row cap; cells starting with = + - @ tab CR are prefixed with ' | per route default | `ai.usage.export` | Done |
+| `GET /admin/ai/skills, PUT /admin/ai/skills/:name` | cookie + 2FA session (PUT: fresh auth) | ai.read / ai.write | platform data; chat skills only | per route default | `setting.update` (key `skills`) | Done |
+| `Evals: GET sets/runs/run detail/compare/review-queue` | cookie + 2FA session | evals.run | platform data; consented corrections show item text only, no patient identifiers | per route default | — | Done |
+| `Evals: POST import, runs, cancel, review approve/reject` | cookie + 2FA session + fresh auth 10 min | evals.run | platform data; import stages files under `evals/rx/staging/`, worker re-encodes | per route default | `eval.import`, `eval.run.*`, `eval.correction.*` | Done |
+
 ---
 
 ## 4. Authentication and session rules
@@ -206,7 +248,7 @@ Everything else under `/auth/*` answers 404 (§4). Tasks 1.5 to 1.11 add their r
 - New in Phase 1 (added to `.env.example`, compose and the deploy-secrets doc by their tasks): `BETTER_AUTH_SECRET` (≥ 32 bytes), `AUTH_COOKIE_DOMAIN`, `GOOGLE_CLIENT_ID/SECRET`, `FACEBOOK_CLIENT_ID/SECRET` (optional, unused while Facebook is `coming_soon`), `TURNSTILE_SECRET_KEY`, `ARGON2_MEMORY_KIB`, `SMTP_HOST/PORT/USER/PASS`, `MAIL_FROM`, `MAIL_DAILY_CAP`.
 - The WhatsApp auth state is stored encrypted in Postgres (`wa_sessions`), never on disk.
 - `API_DB_PASSWORD` (Task 1.6): password of the restricted database role the API and the bridge use; hex only because it sits in a URL. Rotating it = change the variable and re-run the `migrate` step, then restart the api and the bridge.
-- Rotation: `ENCRYPTION_KEY` and `BETTER_AUTH_SECRET` rotation invalidate sessions / stored ciphertexts; a rotation procedure is written when each is first used in anger (Task 1.3 for the auth secret).
+- Rotation: `BETTER_AUTH_SECRET` (replace and redeploy; signs everyone out). `ENCRYPTION_KEY` (Task 2.13): every new ciphertext is `v2.<keyId>.<iv>.<tag>.<data>` where `keyId` is the first 4 bytes of the key's SHA-256; older `v1` values still open. Rotate with `ENCRYPTION_KEY_OLD=<old> ENCRYPTION_KEY=<new> pnpm --filter @wasfa/api key:rotate [--dry-run]` (owner `DATABASE_URL`, run from the `migrate` container): it re-seals every provider key and the WhatsApp session in one transaction and aborts, changing nothing, if any value opens with neither key. Then update `.env.prod` and redeploy. In-flight email links sealed with the old key fail once and are re-issued by the user (they live 15 min to 7 days).
 - gitleaks runs in CI over full history; `docs/vps/` is git-ignored because it holds server credentials.
 
 ---
@@ -276,7 +318,8 @@ Health data does not exist in Phase 1. The privacy policy (Task 1.11) must descr
 | Need to stop the product, not the admins | `access.maintenanceMode = true` (admins bypass). |
 | One user is abusive or compromised | Suspend (kills all sessions immediately). |
 | Suspected session-secret leak | Rotate `BETTER_AUTH_SECRET` (signs everyone out) and redeploy. |
-| Suspected database-key leak | Rotate `ENCRYPTION_KEY` with the re-encryption script (written with its first stored secret). |
+| Suspected database-key leak | Rotate `ENCRYPTION_KEY` with `key:rotate` (§6), then rotate every provider API key at the provider and re-enter it in admin. |
+| AI spend spike or abuse | Admin > AI > Overview: flip the kill switch (per task or all), lower `dailyCapUsdMicros`, find the user in the usage explorer and suspend; steps in `AI-COST-RUNBOOK.md`. |
 | Admin account suspected compromised | Suspend, revoke sessions, remove roles, review `audit_logs` for that actor. |
 
 ---
@@ -304,7 +347,7 @@ Open security items from Phase 0 and design decisions. Each has an owner task; n
 | ~~Decide nonce vs hash-based CSP for the SEO pages~~ **Decided (Task 1.11):** keep the per-request nonce for Phase 1; HTML is not CDN-cached. Revisit with hash-based CSP when traffic justifies it | Decision #10 | Task 1.11 |
 | `.trivyignore.yaml` entries (age's Go standard library advisories) expire **2026-12-01**; re-evaluate then | Phase 0 | Before 2026-12-01 |
 | Remove the Fastify 5.12.5 override when `@nestjs/platform-fastify` ships a patched dependency | Decision #13 | Ongoing |
-| Rotation: `BETTER_AUTH_SECRET` = replace it in `.env.prod` and redeploy (every session, verification link and reset link is invalidated; nothing else breaks). **Done (Task 1.3).** `ENCRYPTION_KEY` rotation needs a re-encryption script, written with its first stored secret (Task 1.4 stores email tokens, Phase 2 stores provider keys) | Phase 1 | Task 1.3 / 1.4 |
+| Rotation: `BETTER_AUTH_SECRET` = replace it in `.env.prod` and redeploy (every session, verification link and reset link is invalidated; nothing else breaks). **Done (Task 1.3).** **`ENCRYPTION_KEY` rotation: Done (Task 2.13)**, key-id prefix and `key:rotate` (§6) | Phase 1 | Task 2.13 |
 | ~~OAuth tokens in `accounts` must be encrypted at rest~~ **Done (Task 1.3):** `account.encryptOAuthTokens`, asserted by a test | Task 1.2 review | Task 1.3 |
 | ~~Purge unverified accounts~~ **Done (Task 1.7):** accounts with neither email nor phone verified are anonymized after 7 days by the worker's `account.anonymize_due` (hourly), which frees the squatted address. Decision #22 holds: they are anonymized, not deleted | Task 1.3 | Task 1.7 |
 | The breached-password check (Have I Been Pwned) **fails closed**: if that service is unreachable, registration and password changes return an error with a `WSF-` ref. Decide whether to fail open (and log) once real traffic shows how often it happens | Task 1.3 | Phase 4 launch review |

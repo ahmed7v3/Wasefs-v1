@@ -4,11 +4,12 @@ import { t } from "@wasfa/shared/i18n";
 import { rxCreateResponseSchema } from "@wasfa/shared/schemas/rx";
 import { CaptureSurface, useToast } from "@wasfa/ui";
 import { useRouter } from "next/navigation";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { api } from "../../lib/api-client";
 import { extractErrorRef } from "../../lib/api-error";
 import { createHandoffClient } from "../../lib/capture/handoff-client";
+import { clearPendingCapture, peekPendingCapture } from "../../lib/capture/pending-capture";
 import { createCaptureUploader } from "../../lib/capture/uploader";
 import { errorMessage } from "../error-notice";
 
@@ -27,6 +28,12 @@ export function AnalyzeCapture({ maxPages, creditsPerPage, balance }: AnalyzeCap
   const { toast } = useToast();
   const uploader = useMemo(() => createCaptureUploader(), []);
   const handoff = useMemo(() => createHandoffClient(), []);
+  // Pages the dashboard's quick capture already uploaded. Read (not consumed) in the initializer so
+  // a strict-mode double render sees them; they are cleared once this screen has taken them.
+  const [initialFileIds] = useState(peekPendingCapture);
+  useEffect(() => {
+    clearPendingCapture();
+  }, []);
 
   async function analyze(fileIds: string[]): Promise<void> {
     try {
@@ -55,6 +62,7 @@ export function AnalyzeCapture({ maxPages, creditsPerPage, balance }: AnalyzeCap
       price={{ perPage: creditsPerPage, balance }}
       uploader={uploader}
       handoff={handoff}
+      initialFileIds={initialFileIds}
       onPagesChange={noop}
       onAnalyze={analyze}
     />

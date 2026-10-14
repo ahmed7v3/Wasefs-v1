@@ -55,6 +55,44 @@ export interface RuntimeRoute {
 /** Turns a stored `api_key_enc` into the key. May throw (wrong `ENCRYPTION_KEY`); the caller then has no key. */
 export type DecryptProviderKey = (providerKey: string, apiKeyEnc: string) => string;
 
+interface ModelRow {
+  model: typeof aiModels.$inferSelect;
+  provider: typeof aiProviders.$inferSelect;
+}
+
+function toRuntimeModel(row: ModelRow, decrypt: DecryptProviderKey): RuntimeModel {
+  let apiKey: string | null = null;
+  if (row.provider.apiKeyEnc !== null) {
+    try {
+      apiKey = decrypt(row.provider.key, row.provider.apiKeyEnc);
+    } catch {
+      apiKey = null;
+    }
+  }
+  return {
+    id: row.model.id,
+    modelId: row.model.modelId,
+    capabilities: row.model.capabilities,
+    enabled: row.model.enabled,
+    creditMultiplierBp: row.model.creditMultiplierBp,
+    pricing: {
+      inputUsdMicrosPerM: row.model.priceInputUsdMicrosPerM,
+      cachedInputUsdMicrosPerM: row.model.priceCachedInputUsdMicrosPerM,
+      outputUsdMicrosPerM: row.model.priceOutputUsdMicrosPerM,
+      searchUsdMicros: row.model.priceSearchUsdMicros,
+    },
+    provider: {
+      id: row.provider.id,
+      key: row.provider.key,
+      kind: row.provider.kind,
+      baseUrl: row.provider.baseUrl,
+      apiKey,
+      dataPolicy: row.provider.dataPolicy,
+      enabled: row.provider.enabled,
+    },
+  };
+}
+
 /**
  * The route for a task, plan and mode: the plan's own route when it has one, else the default
  * route (`plan_id` null). Entries whose model row no longer exists are dropped; disabled models
@@ -97,41 +135,31 @@ export async function resolveAiRoute(
   for (const entry of route.models) {
     const row = byId.get(entry.modelId);
     if (!row) continue;
-    let apiKey: string | null = null;
-    if (row.provider.apiKeyEnc !== null) {
-      try {
-        apiKey = decrypt(row.provider.key, row.provider.apiKeyEnc);
-      } catch {
-        apiKey = null;
-      }
-    }
-    attempts.push({
-      params: entry.params,
-      model: {
-        id: row.model.id,
-        modelId: row.model.modelId,
-        capabilities: row.model.capabilities,
-        enabled: row.model.enabled,
-        creditMultiplierBp: row.model.creditMultiplierBp,
-        pricing: {
-          inputUsdMicrosPerM: row.model.priceInputUsdMicrosPerM,
-          cachedInputUsdMicrosPerM: row.model.priceCachedInputUsdMicrosPerM,
-          outputUsdMicrosPerM: row.model.priceOutputUsdMicrosPerM,
-          searchUsdMicros: row.model.priceSearchUsdMicros,
-        },
-        provider: {
-          id: row.provider.id,
-          key: row.provider.key,
-          kind: row.provider.kind,
-          baseUrl: row.provider.baseUrl,
-          apiKey,
-          dataPolicy: row.provider.dataPolicy,
-          enabled: row.provider.enabled,
-        },
-      },
-    });
+    attempts.push({ params: entry.params, model: toRuntimeModel(row, decrypt) });
   }
   return { routeId: route.id, version: route.version, attempts };
+}
+
+/**
+ * Models by `ai_models.id`, in the order asked, with the decrypted provider key; missing ids are
+ * dropped. For callers that name the models themselves (accuracy evaluation runs a frozen list).
+ */
+export async function loadAiModels(
+  db: Database,
+  decrypt: DecryptProviderKey,
+  ids: readonly string[],
+): Promise<RuntimeModel[]> {
+  if (ids.length === 0) return [];
+  const found = await db
+    .select({ model: aiModels, provider: aiProviders })
+    .from(aiModels)
+    .innerJoin(aiProviders, eq(aiProviders.id, aiModels.providerId))
+    .where(inArray(aiModels.id, [...ids]));
+  const byId = new Map(found.map((row) => [row.model.id, row]));
+  return ids.flatMap((id) => {
+    const row = byId.get(id);
+    return row === undefined ? [] : [toRuntimeModel(row, decrypt)];
+  });
 }
 
 export interface RuntimeUsageRow {

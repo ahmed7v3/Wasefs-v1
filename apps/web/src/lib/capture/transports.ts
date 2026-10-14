@@ -8,6 +8,8 @@ import { api } from "../api-client";
 
 import { UploadNetworkError, UploadRefusedError, type UploadTransport } from "./upload-queue";
 
+import type { FilePurpose } from "@wasfa/shared/ai";
+
 /** PUT to the presigned URL with real progress (`fetch` has none for uploads). */
 export function xhrPut(
   target: { url: string; headers: Record<string, string> },
@@ -53,24 +55,33 @@ export function xhrPut(
   });
 }
 
-/** The signed-in person's uploads: `/uploads`, `/uploads/:id/complete`, `/files/:id`. */
-export const userTransport: UploadTransport = {
-  create: (input, signal) =>
-    api("/uploads", {
-      method: "POST",
-      body: { purpose: "rx_page", ...input },
-      schema: createUploadResponseSchema,
-      signal,
-    }),
-  put: xhrPut,
-  complete: (fileId, signal) =>
-    api(`/uploads/${fileId}/complete`, {
-      method: "POST",
-      schema: completeUploadResponseSchema,
-      signal,
-    }),
-  status: (fileId, signal) => api(`/files/${fileId}`, { schema: fileStatusResponseSchema, signal }),
-};
+/**
+ * The signed-in person's uploads: `/uploads`, `/uploads/:id/complete`, `/files/:id`. The purpose
+ * says what the file is for (a prescription page, or a picture attached to a chat message).
+ */
+export function userTransportFor(purpose: FilePurpose): UploadTransport {
+  return {
+    create: (input, signal) =>
+      api("/uploads", {
+        method: "POST",
+        body: { purpose, ...input },
+        schema: createUploadResponseSchema,
+        signal,
+      }),
+    put: xhrPut,
+    complete: (fileId, signal) =>
+      api(`/uploads/${fileId}/complete`, {
+        method: "POST",
+        schema: completeUploadResponseSchema,
+        signal,
+      }),
+    status: (fileId, signal) =>
+      api(`/files/${fileId}`, { schema: fileStatusResponseSchema, signal }),
+  };
+}
+
+/** Prescription pages: the default of every capture screen. */
+export const userTransport: UploadTransport = userTransportFor("rx_page");
 
 /**
  * A phone with a handoff token: it can only create and complete pages for the desktop session,

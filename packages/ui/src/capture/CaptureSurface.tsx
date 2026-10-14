@@ -56,6 +56,16 @@ export interface CaptureSurfaceProps {
   handoff?: HandoffClient | undefined;
   /** Where "contact support" leads when credits run short (payments arrive in Phase 3). */
   supportHref?: string | undefined;
+  /**
+   * Pages that are already on the server (uploaded from the dashboard's quick capture): added at
+   * mount through `handoff.adopt`, so they need `handoff`. Read once; later changes are ignored.
+   */
+  initialFileIds?: readonly string[] | undefined;
+  /**
+   * Show nothing while there are no pages (the composer's closed panel). Drop and paste still
+   * work, and pages that arrive show up on their own.
+   */
+  collapsed?: boolean | undefined;
 }
 
 /** Per page, the parts that never go to the parent: the prepared image and its abort handle. */
@@ -114,6 +124,8 @@ export function CaptureSurface({
   uploader,
   handoff,
   supportHref = "/contact",
+  initialFileIds,
+  collapsed = false,
 }: CaptureSurfaceProps) {
   const { toast } = useToast();
   const [pages, setPages] = useState<CapturePage[]>([]);
@@ -342,6 +354,29 @@ export function CaptureSurface({
     },
     [announce, commit, handoff, patch, toast],
   );
+
+  // Pages that came from the dashboard's quick capture. Through a ref so a new `toast` identity
+  // cannot re-run the effect; the cleanup takes them out again so React's strict-mode double
+  // mount (whose unmount effect aborts every transfer) adds them afresh instead of skipping them.
+  const seedIds = useRef(initialFileIds ?? []);
+  const addRemoteRef = useRef(addRemote);
+  addRemoteRef.current = addRemote;
+  useEffect(() => {
+    const ids = seedIds.current;
+    const live = internals.current;
+    for (const id of ids) addRemoteRef.current(id);
+    return () => {
+      const seeded = pagesRef.current.filter((page) => page.fileId && ids.includes(page.fileId));
+      for (const page of seeded) {
+        live.get(page.localId)?.controller.abort();
+        live.delete(page.localId);
+      }
+      if (seeded.length > 0) {
+        const gone = new Set(seeded.map((page) => page.localId));
+        commit((current) => current.filter((page) => !gone.has(page.localId)));
+      }
+    };
+  }, [commit]);
 
   // ---- page actions ------------------------------------------------------------------------
 
@@ -678,29 +713,31 @@ export function CaptureSurface({
       ) : null}
 
       {pages.length === 0 ? (
-        <div
-          className={cn(
-            "flex flex-col items-center gap-4 rounded-2xl border-2 border-dashed border-neutral-400 bg-surface text-center",
-            compactLayout ? "p-5" : "p-8 sm:p-12",
-          )}
-        >
-          {variant !== "composer" ? (
-            <>
-              <span className="inline-flex size-14 items-center justify-center rounded-full bg-primary-soft text-primary">
-                <ImagePlus aria-hidden className="size-7" />
-              </span>
-              <h2 className="font-heading text-xl font-semibold">{t("capture.empty.title")}</h2>
-              <p className="max-w-md text-base text-text-muted">
-                {t("capture.empty.hint", { max: maxPages })}
-              </p>
-            </>
-          ) : null}
-          {actions}
-          <p className="text-sm text-text-muted">
-            {t("capture.dropZone")}
-            {keyboard ? ` · ${t("capture.pasteHint")}` : null}
-          </p>
-        </div>
+        collapsed ? null : (
+          <div
+            className={cn(
+              "flex flex-col items-center gap-4 rounded-2xl border-2 border-dashed border-neutral-400 bg-surface text-center",
+              compactLayout ? "p-5" : "p-8 sm:p-12",
+            )}
+          >
+            {variant !== "composer" ? (
+              <>
+                <span className="inline-flex size-14 items-center justify-center rounded-full bg-primary-soft text-primary">
+                  <ImagePlus aria-hidden className="size-7" />
+                </span>
+                <h2 className="font-heading text-xl font-semibold">{t("capture.empty.title")}</h2>
+                <p className="max-w-md text-base text-text-muted">
+                  {t("capture.empty.hint", { max: maxPages })}
+                </p>
+              </>
+            ) : null}
+            {actions}
+            <p className="text-sm text-text-muted">
+              {t("capture.dropZone")}
+              {keyboard ? ` · ${t("capture.pasteHint")}` : null}
+            </p>
+          </div>
+        )
       ) : (
         <>
           <PageTray

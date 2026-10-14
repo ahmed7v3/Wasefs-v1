@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import {
   AI_MODES,
   AI_TASKS,
@@ -7,6 +7,7 @@ import {
   type AiTask,
 } from "@wasfa/shared/ai";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
+import { isEvalRegression } from "@wasfa/shared/evals";
 import {
   routeModelParamsSchema,
   type PutRouteInput,
@@ -24,7 +25,14 @@ import type { AuditScope } from "../../audit/audited.decorator.js";
 import type { AiTaskRoute } from "@wasfa/db";
 
 /** Fields kept in the audit rows of route changes. Model names, not ids: the redactor mangles digit runs. */
-export const ROUTE_AUDIT_FIELDS = ["task", "mode", "planKey", "version", "models"] as const;
+export const ROUTE_AUDIT_FIELDS = [
+  "task",
+  "mode",
+  "planKey",
+  "version",
+  "models",
+  "reason",
+] as const;
 
 const REQUIRED_CAPABILITIES: Partial<Record<AiTask, readonly AiCapability[]>> = {
   rx_extract: ["vision", "json"],
@@ -38,7 +46,11 @@ const conflict = (reason: string) => new AppError(ErrorCode.CONFLICT, { details:
 
 const orderOf = <T extends string>(all: readonly T[], value: T) => all.indexOf(value);
 
-function routeView(row: RouteRow, models: ReadonlyMap<string, ModelRow>): RouteView {
+function routeView(
+  row: RouteRow,
+  models: ReadonlyMap<string, ModelRow>,
+  scores: ReadonlyMap<string, number> = new Map(),
+): RouteView {
   const warnings: { reason: RouteWarningReason; index: number }[] = [];
   const entries = row.route.models.map((entry, index) => {
     const found = models.get(entry.modelId);
@@ -74,6 +86,10 @@ function routeView(row: RouteRow, models: ReadonlyMap<string, ModelRow>): RouteV
     version: row.route.version,
     models: entries,
     warnings,
+    lastEvalScore:
+      row.route.task === "rx_extract"
+        ? (scores.get(row.route.models[0]?.modelId ?? "") ?? null)
+        : null,
     updatedAt: row.route.updatedAt.toISOString(),
   };
 }
@@ -83,6 +99,8 @@ const modelIdsOf = (route: AiTaskRoute) => route.models.map((entry) => entry.mod
 /** Task x plan x mode -> ordered models. Every save validates the whole list and bumps the version. */
 @Injectable()
 export class AdminAiRoutesService {
+  private readonly logger = new Logger(AdminAiRoutesService.name);
+
   constructor(
     private readonly repo: AdminAiRoutesRepo,
     private readonly modelsRepo: AdminAiModelsRepo,
@@ -92,8 +110,13 @@ export class AdminAiRoutesService {
   async list() {
     const rows = await this.repo.list();
     const models = await this.modelsById(rows.flatMap((row) => modelIdsOf(row.route)));
+    const scores = await this.repo.lastEvalScores(
+      rows.flatMap((row) =>
+        row.route.task === "rx_extract" ? [row.route.models[0]?.modelId ?? ""] : [],
+      ),
+    );
     const items = rows
-      .map((row) => routeView(row, models))
+      .map((row) => routeView(row, models, scores))
       .sort(
         (a, b) =>
           orderOf(AI_TASKS, a.task) - orderOf(AI_TASKS, b.task) ||
@@ -120,6 +143,7 @@ export class AdminAiRoutesService {
     const models = await this.modelsById(input.models.map((entry) => entry.modelId));
     const ai = await this.settings.get("ai");
     this.validate(input, models, ai.allowPreviewModels);
+    await this.requireReasonForRegression(input);
 
     const outcome = await this.repo.save(
       { task: input.task, planId: input.planId, mode: input.mode },
@@ -141,7 +165,10 @@ export class AdminAiRoutesService {
     });
     audit.targetId = outcome.after.id;
     if (outcome.before) audit.before = summary(outcome.before);
-    audit.after = summary(outcome.after);
+    audit.after = {
+      ...summary(outcome.after),
+      ...(input.reason === undefined ? {} : { reason: input.reason }),
+    };
     return routeView({ route: outcome.after, planKey }, names);
   }
 
@@ -163,6 +190,43 @@ export class AdminAiRoutesService {
         (model) => names.get(model)?.model.displayName ?? "(removed)",
       ),
     };
+  }
+
+  /**
+   * Promotion check (Task 2.10): making a primary `rx_extract` model whose last accuracy score is
+   * lower than the current primary's by more than one point needs a written reason. The reason is
+   * audited; the regression itself is logged as `eval.regression` either way. A model that was
+   * never evaluated is not blocked: there is nothing to compare.
+   */
+  private async requireReasonForRegression(input: PutRouteInput): Promise<void> {
+    if (input.task !== "rx_extract") return;
+    const next = input.models[0]?.modelId;
+    const current = (
+      await this.repo.findByKey({ task: input.task, planId: input.planId, mode: input.mode })
+    )?.models[0]?.modelId;
+    if (next === undefined || current === undefined || next === current) return;
+    const scores = await this.repo.lastEvalScores([current, next]);
+    const before = scores.get(current) ?? null;
+    const after = scores.get(next) ?? null;
+    if (!isEvalRegression(before, after)) return;
+    this.logger.warn({
+      event: "eval.regression",
+      task: input.task,
+      mode: input.mode,
+      currentScore: before,
+      newScore: after,
+      reasonGiven: input.reason !== undefined,
+    });
+    if (input.reason === undefined) {
+      throw new AppError(ErrorCode.VALIDATION_FAILED, {
+        details: {
+          reason: "eval_regression_reason_required",
+          fields: ["reason"],
+          currentScore: before ?? 0,
+          newScore: after ?? 0,
+        },
+      });
+    }
   }
 
   /** The first problem found (unknown models first, then in list order): the editor highlights `details.index`. */

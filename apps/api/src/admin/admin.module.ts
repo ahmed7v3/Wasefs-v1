@@ -5,6 +5,7 @@ import { AdminAuditModule } from "./audit/admin-audit.module.js";
 import { AdminBrandingModule } from "./branding/admin-branding.module.js";
 import { AdminCreditsModule } from "./credits/admin-credits.module.js";
 import { AdminDrugsModule } from "./drugs/admin-drugs.module.js";
+import { AdminEvalsModule } from "./evals/admin-evals.module.js";
 import { AdminFlagsModule } from "./flags/admin-flags.module.js";
 import { AdminIssuesModule } from "./issues/admin-issues.module.js";
 import { AdminOrgsModule } from "./orgs/admin-orgs.module.js";
@@ -35,6 +36,7 @@ import { AdminWhatsappModule } from "./whatsapp/admin-whatsapp.module.js";
     AdminCreditsModule,
     AdminAiModule,
     AdminDrugsModule,
+    AdminEvalsModule,
   ],
 })
 export class AdminModule {}

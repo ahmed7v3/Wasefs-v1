@@ -25,7 +25,7 @@ import { buildPrompt, recentHistory, type BuiltPrompt } from "./chat-context.js"
 import { reserveCredits, settleCredits } from "./chat-credits.js";
 import { ChatImages, type ChatImage } from "./chat-images.js";
 import { CHAT_SYSTEM_PROMPT } from "./chat-prompts.js";
-import { skillBody } from "./chat-skills.js";
+import { ChatSkillGate, skillBody } from "./chat-skills.js";
 import { ChatRepo } from "./chat.repo.js";
 
 import type { ChatStreamIo } from "./sse.js";
@@ -88,6 +88,7 @@ export class ChatTurnService {
     private readonly settings: SettingsService,
     private readonly images: ChatImages,
     private readonly background: ChatBackground,
+    private readonly skills: ChatSkillGate,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext("ChatTurn");
@@ -103,6 +104,7 @@ export class ChatTurnService {
     const owner: WalletOwner = { type: "user", id: user.id };
     const task = taskOf(input.mode);
 
+    await this.skills.assertAllowed(owner, isChatSkill(chat.skill) ? chat.skill : null);
     if (input.search) {
       const search = await this.plans.entitlement(owner, "web_search");
       if (!search?.allowed) {

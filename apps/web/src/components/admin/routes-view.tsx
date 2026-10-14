@@ -65,6 +65,11 @@ function RouteCell({ task, mode, route, inherited, canWrite, onOpen }: CellProps
           <span dir="ltr" className="tabular-nums">
             v{route.version}
           </span>
+          {route.lastEvalScore === null || route.lastEvalScore === undefined ? null : (
+            <span className="tabular-nums">
+              {t("admin.evals.routeScore", { score: route.lastEvalScore })}
+            </span>
+          )}
           {route.warnings.length > 0 ? (
             <Badge tone="warning" className="py-0.5">
               <TriangleAlert aria-hidden className="size-4" />

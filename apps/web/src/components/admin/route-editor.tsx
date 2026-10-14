@@ -8,7 +8,17 @@ import {
   type ModelView,
   type RouteView,
 } from "@wasfa/shared/schemas/admin-ai";
-import { Badge, Button, Checkbox, Field, Input, Select, Skeleton, useToast } from "@wasfa/ui";
+import {
+  Badge,
+  Button,
+  Checkbox,
+  Field,
+  Input,
+  Select,
+  Skeleton,
+  Textarea,
+  useToast,
+} from "@wasfa/ui";
 import { ArrowDown, ArrowUp, Plus, TriangleAlert, Trash2 } from "lucide-react";
 import { useEffect, useId, useMemo, useState } from "react";
 
@@ -343,6 +353,9 @@ export function RouteEditor({
   const [formError, setFormError] = useState<ApiRequestError | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // Asked for by the API when the new primary scored lower than the current one in the accuracy eval.
+  const [needReason, setNeedReason] = useState(false);
+  const [reason, setReason] = useState("");
   const [removing, setRemoving] = useState(false);
   const [focusRequest, setFocusRequest] = useState<{ key: string; direction: Direction } | null>(
     null,
@@ -427,6 +440,7 @@ export function RouteEditor({
       mode,
       models: checked.models,
       ...(route ? { expectedVersion: route.version } : {}),
+      ...(reason.trim() === "" ? {} : { reason: reason.trim() }),
     };
     reauth
       .run(() => api("/admin/ai/routes", { method: "PUT", body, schema: routeViewSchema }))
@@ -440,6 +454,11 @@ export function RouteEditor({
           if (errorReason(error) === "stale_version") {
             toast({ tone: "info", title: t("admin.routes.stale") });
             onStale();
+            return;
+          }
+          if (errorReason(error) === "eval_regression_reason_required") {
+            setNeedReason(true);
+            setFormError(null);
             return;
           }
           const index = error instanceof ApiRequestError ? error.details?.["index"] : undefined;
@@ -549,6 +568,26 @@ export function RouteEditor({
             ) : null}
           </div>
         )}
+
+        {needReason ? (
+          <Field
+            label={t("admin.evals.promotion.reason")}
+            hint={t("admin.evals.promotion.hint")}
+            required
+          >
+            {(control) => (
+              <Textarea
+                {...control}
+                name="reason"
+                value={reason}
+                maxLength={500}
+                onChange={(event) => {
+                  setReason(event.target.value);
+                }}
+              />
+            )}
+          </Field>
+        ) : null}
 
         {formError ? <ErrorNotice error={formError} /> : null}
 

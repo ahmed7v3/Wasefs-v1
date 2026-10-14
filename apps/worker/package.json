@@ -12,6 +12,7 @@
     "dev": "node --env-file-if-exists=../../.env --watch-path=src --import @swc-node/register/esm-register src/main.ts",
     "start": "node dist/main.js",
     "bridge": "node --env-file-if-exists=../../.env --import @swc-node/register/esm-register src/wa-bridge/main.ts",
+    "eval:template": "node --import @swc-node/register/esm-register src/eval/make-template.ts",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
@@ -26,6 +27,7 @@
     "@whiskeysockets/baileys": "7.0.0-rc14",
     "bullmq": "^5.81.5",
     "drizzle-orm": "^0.45.4",
+    "exceljs": "^4.4.0",
     "file-type": "22.1.1",
     "ioredis": "^5.11.1",
     "nodemailer": "^10.1.0",

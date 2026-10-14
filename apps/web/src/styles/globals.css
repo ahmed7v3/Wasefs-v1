@@ -341,3 +341,33 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Printing a prescription result (Task 2.9): the sheet in [data-rx-print] is the page, the app chrome is not. */
+@page {
+  size: A4;
+  margin: 14mm;
+}
+
+@media print {
+  body:has([data-rx-print]) {
+    background: #fff;
+  }
+
+  body:has([data-rx-print]) .page-backdrop {
+    background: none;
+  }
+
+  body:has([data-rx-print]) .page-backdrop > header,
+  body:has([data-rx-print]) aside,
+  body:has([data-rx-print]) .fixed {
+    display: none !important;
+  }
+
+  body:has([data-rx-print]) main {
+    padding: 0;
+  }
+
+  body:has([data-rx-print]) .page-backdrop > div {
+    padding: 0;
+  }
+}

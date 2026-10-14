@@ -13,7 +13,7 @@ import {
   type RouterPorts,
   type SpendGuard,
 } from "@wasfa/ai";
-import { createAiRuntimePorts } from "@wasfa/db";
+import { createAiRuntimePorts, loadAiModels, type DecryptProviderKey } from "@wasfa/db";
 import { decryptSecret } from "@wasfa/shared/crypto";
 import { isAppError } from "@wasfa/shared/errors";
 import { Redis } from "ioredis";
@@ -70,6 +70,9 @@ export class AiRuntimeService {
   private readonly router: Router;
   private readonly routeLookup: RouterPorts["resolveRoute"];
   private readonly spendGuard: SpendGuard;
+  private readonly portsOf: (resolveRoute: RouterPorts["resolveRoute"]) => RouterPorts;
+  private readonly decrypt: DecryptProviderKey;
+  private readonly db: DbHandle["db"];
 
   constructor(
     @Inject(DB) handle: DbHandle,
@@ -83,9 +86,9 @@ export class AiRuntimeService {
       const ai = await this.settings.get("ai");
       return { dailyCapUsdMicros: ai.dailyCapUsdMicros, alertPercent: ai.alertPercent };
     };
-    const { resolveRoute, recordUsage } = createAiRuntimePorts(handle.db, (key, enc) =>
-      decryptSecret(enc, encryptionKey(env), providerKeyContext(key)),
-    );
+    this.db = handle.db;
+    this.decrypt = (key, enc) => decryptSecret(enc, encryptionKey(env), providerKeyContext(key));
+    const { resolveRoute, recordUsage } = createAiRuntimePorts(handle.db, this.decrypt);
     this.routeLookup = resolveRoute;
     this.spendGuard = createSpendGuard(redis, {
       limits,
@@ -94,11 +97,13 @@ export class AiRuntimeService {
         this.logger.error({ event: "ai.spend_alert", ...alert }, "AI daily spend alert");
       },
     });
-    this.router = createRouter({
-      resolveRoute,
+    const breaker = new RedisBreakerStore(redis);
+    // Everything but the route lookup is shared with `runPinned`: same breaker, spend guard, switches.
+    this.portsOf = (lookup) => ({
+      resolveRoute: lookup,
       recordUsage,
       limits,
-      breaker: new RedisBreakerStore(redis),
+      breaker,
       spendGuard: this.spendGuard,
       killSwitch: async (task, options) =>
         isSwitchedOff((await this.settings.get("ai")).killSwitch, task, options),
@@ -116,11 +121,32 @@ export class AiRuntimeService {
         this.note(note);
       },
     });
+    this.router = createRouter(this.portsOf(resolveRoute));
   }
 
   /** Streams the answer and ends with a `result` event; see `Router.run` for the refusals it throws. */
   run(input: RouterInput, signal: AbortSignal): AsyncGenerator<RouterEvent> {
     return this.router.run(input, signal);
+  }
+
+  /**
+   * Like `run`, but on one model picked by its `ai_models.id` instead of the task's route (the admin
+   * playground). It still goes through the kill switches, the spend guard, the free-tier rule and the
+   * breaker, and still writes its `ai_usage` row; a model that no longer exists is `no_route`.
+   */
+  runPinned(
+    modelRowId: string,
+    input: RouterInput,
+    signal: AbortSignal,
+  ): AsyncGenerator<RouterEvent> {
+    // Version 0 marks usage rows that did not come from a stored route.
+    const router = createRouter(
+      this.portsOf(async () => {
+        const [model] = await loadAiModels(this.db, this.decrypt, [modelRowId]);
+        return model ? { routeId: "pinned", version: 0, attempts: [{ model, params: {} }] } : null;
+      }),
+    );
+    return router.run(input, signal);
   }
 
   /** The route the router would use, for estimating a call's worst-case cost before it starts. */

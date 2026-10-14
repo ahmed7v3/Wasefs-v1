@@ -1,6 +1,7 @@
 import { t } from "@wasfa/shared/i18n";
 
 import { ForbiddenState } from "../../../components/admin/access-state";
+import { AiOverviewPanel } from "../../../components/admin/ai-overview-panel";
 import { AiSettingsView } from "../../../components/admin/ai-settings-view";
 import { canAccess } from "../../../lib/admin-nav";
 import { requireMe } from "../../../lib/session";
@@ -13,9 +14,12 @@ export default async function AdminAiSettingsPage() {
   const me = await requireMe("/admin/ai");
   if (!canAccess(me.permissions, "ai.read")) return <ForbiddenState />;
   return (
-    <AiSettingsView
-      canWrite={canAccess(me.permissions, "ai.write")}
-      canKill={canAccess(me.permissions, "ai.killswitch")}
-    />
+    <div className="flex flex-col gap-8">
+      {canAccess(me.permissions, "usage.read") ? <AiOverviewPanel /> : null}
+      <AiSettingsView
+        canWrite={canAccess(me.permissions, "ai.write")}
+        canKill={canAccess(me.permissions, "ai.killswitch")}
+      />
+    </div>
   );
 }

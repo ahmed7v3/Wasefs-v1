@@ -16,6 +16,7 @@ import { grantMonthlyJob } from "./jobs/credits.grant.job.js";
 import { reconcileCreditsJob } from "./jobs/credits.reconcile.job.js";
 import { sweepReservationsJob } from "./jobs/credits.sweep.job.js";
 import { drugImportJob } from "./jobs/drug-import.job.js";
+import { evalImportJob, evalRunJob } from "./jobs/eval.job.js";
 import { filesRetentionJob } from "./jobs/files.retention.job.js";
 import { heartbeatJob } from "./jobs/health.job.js";
 import { imageProcessJob } from "./jobs/image.job.js";
@@ -71,6 +72,10 @@ export const HANDLERS: Handlers = {
   },
   rx: {
     "rx.analyze": rxAnalyzeJob,
+  },
+  evals: {
+    "evals.run": evalRunJob,
+    "evals.import": evalImportJob,
   },
 };
 

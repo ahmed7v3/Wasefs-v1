@@ -2,24 +2,17 @@
 
 import { t } from "@wasfa/shared/i18n";
 import { CHAT_MAX_IMAGES, CHAT_MESSAGE_MAX_CHARS } from "@wasfa/shared/schemas/chat";
-import { Globe, Info, Plus, Send, Square, X } from "lucide-react";
+import { Globe, Info, Plus, Send, Square } from "lucide-react";
 import { useId, useLayoutEffect, useRef, useState } from "react";
 
+import { CaptureSurface } from "../capture/CaptureSurface";
 import { cn } from "../cn";
-import { Spinner } from "../spinner";
 
 import { ModeToggle } from "./ModeToggle";
 
+import type { CapturePage, CaptureUploader } from "../capture/types";
 import type { AiMode } from "@wasfa/shared/ai";
-import type { ClipboardEvent, DragEvent, KeyboardEvent, ReactNode } from "react";
-
-export interface ComposerAttachment {
-  id: string;
-  name: string;
-  status: "uploading" | "ready" | "error";
-  /** Local preview (`blob:` URL) of the picture. */
-  previewUrl?: string | undefined;
-}
+import type { KeyboardEvent, ReactNode } from "react";
 
 export interface ComposerProps {
   value: string;
@@ -37,10 +30,15 @@ export interface ComposerProps {
   onSearchChange: (search: boolean) => void;
   /** The plan includes web search; otherwise the toggle shows as locked. */
   searchAllowed: boolean;
-  attachments: readonly ComposerAttachment[];
-  /** Pasted, dropped or picked pictures; the owner uploads them and reports back in `attachments`. */
-  onFiles: (files: File[]) => void;
-  onRemoveAttachment: (id: string) => void;
+  /**
+   * Pictures go through the shared `CaptureSurface` (paste, drop and pick all end there). The owner
+   * injects the browser-side `uploader` and learns the pages through `onPagesChange`; the message
+   * may carry the `fileId` of every page that is `uploaded`.
+   */
+  uploader: CaptureUploader;
+  onPagesChange: (pages: CapturePage[]) => void;
+  /** Change it to forget the pages (after a send): the surface is mounted afresh. */
+  captureResetKey?: number | undefined;
   /** How the cost is worked out, shown on hover/focus of the info button. */
   estimate: string;
   /** Something to tell about the composer (an upload error, the prescription suggestion). */
@@ -51,11 +49,6 @@ export interface ComposerProps {
 }
 
 const MAX_LINES = 8;
-const ACCEPT = "image/jpeg,image/png,image/webp";
-
-function imageFiles(list: FileList | null | undefined): File[] {
-  return [...(list ?? [])].filter((file) => file.type.startsWith("image/"));
-}
 
 /** What a keydown means for the composer. Pure, so the IME rules are testable on their own. */
 export function isSubmitKey(event: {
@@ -87,9 +80,9 @@ export function Composer({
   search,
   onSearchChange,
   searchAllowed,
-  attachments,
-  onFiles,
-  onRemoveAttachment,
+  uploader,
+  onPagesChange,
+  captureResetKey = 0,
   estimate,
   notice,
   disabled = false,
@@ -97,9 +90,10 @@ export function Composer({
   className,
 }: ComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [dragging, setDragging] = useState(false);
+  const [pages, setPages] = useState<CapturePage[]>([]);
+  const [captureOpen, setCaptureOpen] = useState(false);
   const labelId = useId();
+  const captureId = useId();
   const hintId = useId();
   const estimateId = useId();
 
@@ -117,9 +111,13 @@ export function Composer({
   }, [value]);
 
   const tooLong = value.length > CHAT_MESSAGE_MAX_CHARS;
-  const uploading = attachments.some((item) => item.status === "uploading");
-  const canSend = value.trim() !== "" && !tooLong && !uploading && !disabled;
-  const atLimit = attachments.length >= CHAT_MAX_IMAGES;
+  // A page still travelling, waiting for a quality decision or failed would silently drop out of
+  // the message: the person settles it first (the tray offers retry, retake and remove).
+  const waiting = pages.some((page) => page.status === "processing" || page.status === "uploading");
+  const unsettled = pages.some((page) => page.status === "warning" || page.status === "error");
+  const canSend = value.trim() !== "" && !tooLong && !waiting && !unsettled && !disabled;
+  // Pasted or dropped pictures open the panel by themselves; the plus button opens it for picking.
+  const showCapture = captureOpen || pages.length > 0;
 
   const submit = () => {
     if (canSend && !streaming) onSubmit();
@@ -131,80 +129,28 @@ export function Composer({
     submit();
   };
 
-  const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
-    const files = imageFiles(event.clipboardData.files);
-    if (files.length === 0) return;
-    // A picture was pasted: attach it and keep any text in the clipboard out of the way.
-    event.preventDefault();
-    onFiles(files);
-  };
-
-  const onDrop = (event: DragEvent<HTMLDivElement>) => {
-    setDragging(false);
-    const files = imageFiles(event.dataTransfer.files);
-    if (files.length === 0) return;
-    event.preventDefault();
-    onFiles(files);
-  };
-
   return (
     <div
       className={cn(
-        "relative flex flex-col gap-2 rounded-2xl border bg-surface p-3 shadow-card transition-colors duration-150",
-        dragging ? "border-primary bg-primary-soft" : "border-border",
+        "relative flex flex-col gap-2 rounded-2xl border border-border bg-surface p-3 shadow-card",
         className,
       )}
-      onDragOver={(event) => {
-        if ([...event.dataTransfer.types].includes("Files")) {
-          event.preventDefault();
-          setDragging(true);
-        }
-      }}
-      onDragLeave={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false);
-      }}
-      onDrop={onDrop}
     >
-      {dragging ? (
-        <p className="pointer-events-none text-center text-sm font-semibold text-primary">
-          {t("chat.composer.dropHere")}
-        </p>
-      ) : null}
-
-      {attachments.length > 0 ? (
-        <ul aria-label={t("chat.composer.attachments")} className="flex flex-wrap gap-2">
-          {attachments.map((item) => (
-            <li
-              key={item.id}
-              className={cn(
-                "relative flex size-16 items-center justify-center overflow-hidden rounded-md border bg-neutral-100",
-                item.status === "error" ? "border-danger" : "border-border",
-              )}
-            >
-              {item.previewUrl ? (
-                // A local blob preview of the user's own picture: nothing to optimize or proxy.
-                <img src={item.previewUrl} alt={item.name} className="size-full object-cover" />
-              ) : null}
-              {item.status === "uploading" ? (
-                <span className="absolute inset-0 flex items-center justify-center bg-surface/70">
-                  <Spinner />
-                  <span className="sr-only">{t("chat.composer.uploading")}</span>
-                </span>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => {
-                  onRemoveAttachment(item.id);
-                }}
-                aria-label={`${t("chat.composer.removeAttachment")}: ${item.name}`}
-                className="absolute end-0 top-0 inline-flex size-6 items-center justify-center rounded-full bg-neutral-900/70 text-on-primary hover:bg-neutral-900 focus-visible:outline-none focus-visible:shadow-focus"
-              >
-                <X aria-hidden className="size-3.5" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      {/* Mounted for good (its paste and drop listeners must always be there); `collapsed` keeps it empty until opened. The negative margin takes back the gap of a zero-height row. */}
+      <div id={captureId} className={cn(!showCapture && "-mb-2")}>
+        <CaptureSurface
+          key={captureResetKey}
+          variant="composer"
+          collapsed={!captureOpen}
+          maxPages={CHAT_MAX_IMAGES}
+          uploader={uploader}
+          disabled={disabled}
+          onPagesChange={(next) => {
+            setPages(next);
+            onPagesChange(next);
+          }}
+        />
+      </div>
 
       <label id={labelId} htmlFor={`${labelId}-input`} className="sr-only">
         {t("chat.composer.label")}
@@ -222,7 +168,6 @@ export function Composer({
           onChange(event.target.value);
         }}
         onKeyDown={onKeyDown}
-        onPaste={onPaste}
         className="max-h-none min-h-11 w-full resize-none bg-transparent px-2 py-2 text-base leading-8 text-text placeholder:text-text-muted focus-visible:outline-none"
       />
       <p id={hintId} className="px-2 text-xs text-text-muted">
@@ -230,30 +175,26 @@ export function Composer({
           ? t("chat.composer.tooLong", { max: CHAT_MESSAGE_MAX_CHARS })
           : value.length > CHAT_MESSAGE_MAX_CHARS * 0.8
             ? t("chat.composer.counter", { count: value.length, max: CHAT_MESSAGE_MAX_CHARS })
-            : t("chat.composer.hint")}
+            : waiting
+              ? t("chat.composer.waitUploads")
+              : unsettled
+                ? t("chat.composer.fixPages")
+                : t("chat.composer.hint")}
       </p>
       {notice ? <div className="px-2 text-sm text-text-muted">{notice}</div> : null}
 
       <div className="flex flex-wrap items-center gap-2">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept={ACCEPT}
-          multiple
-          hidden
-          onChange={(event) => {
-            const files = imageFiles(event.target.files);
-            event.target.value = "";
-            if (files.length > 0) onFiles(files);
-          }}
-        />
         <button
           type="button"
-          disabled={disabled || atLimit}
-          title={atLimit ? t("chat.composer.tooMany", { max: CHAT_MAX_IMAGES }) : undefined}
+          disabled={disabled}
           aria-label={t("chat.composer.attach")}
-          onClick={() => fileInputRef.current?.click()}
-          className={iconButton}
+          aria-expanded={showCapture}
+          aria-controls={captureId}
+          onClick={() => {
+            // With pictures on screen the panel stays; the button then only opens it while empty.
+            setCaptureOpen((open) => !open);
+          }}
+          className={cn(iconButton, showCapture && "bg-primary-soft text-primary")}
         >
           <Plus aria-hidden className="size-5" />
         </button>

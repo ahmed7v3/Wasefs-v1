@@ -3,9 +3,11 @@ import { ERROR_CODES, ERROR_INFO } from "../errors/codes.js";
 import { enAdminAi } from "./en.admin-ai.js";
 import { enAdminBilling } from "./en.admin-billing.js";
 import { enAdminDrugs } from "./en.admin-drugs.js";
+import { enAdminEvals } from "./en.admin-evals.js";
 import { enAdmin } from "./en.admin.js";
 import { enCapture } from "./en.capture.js";
 import { enChat } from "./en.chat.js";
+import { enDashboard } from "./en.dashboard.js";
 import { enRx } from "./en.rx.js";
 
 import type { MessageKey } from "./ar.js";
@@ -341,17 +343,7 @@ export const en: Partial<Record<MessageKey, string>> = {
     "Your setup state changed. Refresh and continue where you left off.",
   "dashboard.title": "Home",
   "dashboard.greeting": "Hello {name}, ready when you are",
-  "dashboard.lead":
-    "Your smart medical tools are on their way. We will let you know when they are ready.",
-  "dashboard.toolsTitle": "Coming soon",
-  "dashboard.tool.analysis.title": "Prescription analysis",
-  "dashboard.tool.analysis.desc":
-    "Upload a prescription photo and get drug names, doses and warnings clearly.",
-  "dashboard.tool.assistant.title": "AI assistant",
-  "dashboard.tool.assistant.desc":
-    "Ask about medicines in Arabic and get a simple, reliable answer.",
-  "dashboard.tool.drugs.title": "Drug search",
-  "dashboard.tool.drugs.desc": "Look up any drug: its uses, alternatives and warnings.",
+  "dashboard.lead": "Start here: capture a prescription, ask the assistant, or pick up where you left off.",
   "dashboard.verify.title": "Finish verifying your account",
   "dashboard.verify.body": "You cannot use the tools until your email or phone number is verified.",
   "dashboard.verify.email":
@@ -505,8 +497,10 @@ export const en: Partial<Record<MessageKey, string>> = {
   ...enAdminAi,
   ...enAdminBilling,
   ...enAdminDrugs,
+  ...enAdminEvals,
   ...enRx,
   ...enCapture,
   ...enChat,
+  ...enDashboard,
   ...errorMessages,
 };

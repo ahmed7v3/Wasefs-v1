@@ -30,7 +30,7 @@ export function ChatComposerPanel({
 }: ChatComposerPanelProps) {
   const { capabilities, attachments } = composer;
   const rxHint =
-    attachments.attachments.length > 0 ? (
+    attachments.count > 0 ? (
       <p className="m-0">
         {t("chat.composer.rxSuggestion")}{" "}
         <Link href="/analyze" className="font-semibold text-primary underline underline-offset-2">
@@ -52,20 +52,13 @@ export function ChatComposerPanel({
         search={composer.search}
         onSearchChange={composer.setSearch}
         searchAllowed={capabilities.webSearch}
-        attachments={attachments.attachments}
-        onFiles={attachments.add}
-        onRemoveAttachment={attachments.remove}
+        uploader={attachments.uploader}
+        onPagesChange={attachments.onPagesChange}
+        captureResetKey={attachments.resetKey}
         estimate={t("chat.composer.estimate", {
           balance: capabilities.balance === null ? "—" : String(capabilities.balance),
         })}
-        notice={
-          attachments.notice || rxHint ? (
-            <>
-              {attachments.notice ? <p className="m-0 text-danger">{attachments.notice}</p> : null}
-              {rxHint}
-            </>
-          ) : null
-        }
+        notice={rxHint}
         autoFocus={autoFocus}
         disabled={disabled}
       />

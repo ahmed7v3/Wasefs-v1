@@ -254,8 +254,10 @@ Pages (all `/admin/ai/*`, permission-gated, every write audited, key and kill-sw
 8. **Usage explorer**: filters by user/org/task/model/outcome/date, totals, CSV export. Never shows content.
 9. **Skills**: list with version, enable per plan.
 
+> Notes (2.4 remainder): overview/usage need `usage.read`; playground and skill writes need `ai.write`. Fallback rate is approximated (a request+task with a failed and a later answered attempt; the router stores no fallback flag). Cost per analysis groups `rx_extract`+`rx_verify` by `request_id` (the analysis id) over rows with an owner and cost > 0. Usage totals are `GET /admin/ai/usage/totals`. The playground UI is text-only (the API accepts `fileIds` of the admin own `chat_image` files); its 20 runs/hour per admin counts one per model. Skills live in the `skills` setting (`{name: planKey[]}`, absent = all) and are enforced in the chat at create and at send. No `dataviz` skill was available: charts are inline SVG/CSS with text values and a table alternative.
+
 Acceptance
-- [ ] Every route and page has a permission, and the 403 states render. E2E: admin adds a provider (fake), a model and a route, runs the playground, flips the kill switch, and a user's next analysis is refused with the friendly message. *(Partly: every admin AI route and page is permission-gated with 403 states (64bfcf6, 9ba1c86); the E2E needs the playground and the rx pipeline.)*
+- [ ] Every route and page has a permission, and the 403 states render. E2E: admin adds a provider (fake), a model and a route, runs the playground, flips the kill switch, and a user's next analysis is refused with the friendly message. *(Partly: every admin AI route and page, now including overview, playground, usage explorer and skills, is permission-gated with 403 states (`apps/api/test/admin-ai-ops.int.test.ts`, `apps/web/test/admin-ai-ops.test.tsx`). The Playwright E2E (provider, model, route, playground, kill switch, refused analysis) was NOT run, so the box stays open.)*
 - [x] API keys never appear in any response, log, or audit row (test greps responses and audit `after`). *(`apps/api/test/admin-ai.int.test.ts` scans responses and every audit row.)*
 
 ---
@@ -411,8 +413,8 @@ Acceptance
 - **History** (`/analyze/history`): list with search by drug name, filters, a thumbnail only while the image is retained, and deletion (soft, owner).
 
 Acceptance
-- [ ] Playwright at 360/1440: row ↔ region highlighting by mouse and keyboard, correction flow, print snapshot, insufficient-credits path, reconnect after a reload mid-analysis.
-- [ ] axe clean. The table is announced correctly (header cells, `scope`).
+- [x] Playwright at 360/1440: row ↔ region highlighting by mouse and keyboard, correction flow, print snapshot, insufficient-credits path, reconnect after a reload mid-analysis.
+- [x] axe clean. The table is announced correctly (header cells, `scope`).
 
 ---
 
@@ -606,6 +608,19 @@ Acceptance
 - **Leaving the page does not cancel an answer** (only Stop does); the server settles whatever was produced, and the busy lock holds until the stream ends.
 - **E2E (Playwright) is not written yet:** the acceptance box stays open for it; API integration tests (16) cover the stream, stop, regenerate, kill switch, busy, plan lock, ownership of every route and credit settlement, and Vitest covers the composer keyboard (IME), the SSE parser, the markdown sanitizer and the stream hook.
 _(agent fills in deviations here)_
+
+### Task 2.10 — Evaluation harness and accuracy loop (implemented 2026-10-14, without the owner's real data)
+
+- **Chosen production route for `rx_extract`: NOT CHOSEN YET.** It awaits the owner's labelled set (`evals/rx/README.md` explains how to make one). Nothing below was run against real prescriptions or a real provider; the tests use the scripted fake provider. Record here, per candidate (3.1 Flash-Lite, 3.5 Flash-Lite, 3.6 Flash, 3.8 Flash): printed / handwritten name accuracy, strength / frequency / duration accuracy, fabricated count, p50 / p95 latency, cost per prescription, and the cheapest that meets the Targets table. Then re-tune the confidence thresholds from the calibration table. The two acceptance boxes of Task 2.10 stay open until then.
+- **Where things are:** scoring `packages/shared/src/evals.ts` (definitions in its header, table-tested); runner `apps/worker/src/eval/run.ts` (queue `evals`, `WORKER_CONCURRENCY_EVALS` default 1, 2 prescriptions at a time inside a run); import `apps/worker/src/eval/import.ts`; API `apps/api/src/admin/evals/`; page `/admin/ai/evals`; template `evals/rx/template.xlsx` (`pnpm --filter @wasfa/worker eval:template`).
+- **Same pipeline as production:** `rx.analyze` was refactored to call `analyzeImages` (`apps/worker/src/rx/analyze.ts`), which has no credits and no user rows; the evaluation calls the same function. Spend goes through the router, so the spend guard, kill switch, breaker and `ai_usage` (request id = run id, no owner) apply. A refusal from the router ends the run as `failed` with the results so far; starting it again resumes (items with a result are skipped).
+- **A run freezes `rx_extract` only.** Its snapshot holds the route version and the exact model list with params; `rx_verify` still uses the live route. With `modelIds` each model runs alone as the primary (no fallbacks, params of the route's primary); without, the route as configured.
+- **Score used for promotion:** overall drug-name accuracy in percentage points (`metrics.score`). `PUT /admin/ai/routes` for `rx_extract` with a different primary whose last finished run scored more than 1 point lower than the current primary's needs `reason` (audited in `after.reason`), else `VALIDATION_FAILED` / `eval_regression_reason_required`; a model never evaluated is not blocked. Both the API check and the end of a run log `eval.regression`. The route list carries `lastEvalScore` and the grid shows it.
+- **Import:** the api cannot read XLSX (no exceljs there), so `POST /admin/ai/evals/import` (multipart: `key`, `name`, `sheet`, `images`) parks the files under `evals/rx/staging/<batch>/` and queues `evals.import`; the worker parses (the drug-import reader), re-encodes every image like an upload (EXIF dropped) and stores it at `evals/rx/<fileId>/processed` with a `files` row owned by the importing admin and no expiry (retention never touches it). Report in Redis for 24 h, polled by the page. Importing again adds nothing twice (same first-page hash in the set).
+- **Deviation:** `ai_eval_items.expected` holds the `rxResultSchema` item fields a person can read (`name, strength, form, frequency, duration, route`) plus `origin.correctionIds`, not a full result item (confidence and badge have no meaning in a label). No schema change.
+- **Review queue:** approve adds the whole stored reading of the analysis (user fixes included) as the label, so the admin must check the other lines; the picture is copied to the eval prefix when it still exists, otherwise the item has no files and no run reads it. Reject sets `consent_for_eval = false`.
+- **Not built:** the Batch API (documented TODO in `evals/rx/README.md`); images in the item drilldown (would need the storage origin in the CSP); a cancel button that stops an item already in flight (it stops before the next item).
+- **Pre-existing gap found:** `exceljs` is imported by the worker (drug import) but is not in any `package.json` or in `pnpm-lock.yaml`; it only resolves because it is installed locally.
 
 ## Open questions
 - **Verify before building (from research, 2026-10-11):**

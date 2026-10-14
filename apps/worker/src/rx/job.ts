@@ -1,46 +1,22 @@
 import { skillVersion } from "@wasfa/ai";
-import { LedgerError, refund, release, settle, type WalletOwner } from "@wasfa/db";
+import { refund, release, settle, type WalletOwner } from "@wasfa/db";
 import { busyLockKey } from "@wasfa/shared/busy";
 import { isAppError } from "@wasfa/shared/errors";
 import { newErrorRef } from "@wasfa/shared/ids";
 import { UPLOAD_MAX_BYTES } from "@wasfa/shared/schemas/files";
-import {
-  rxExtractionJsonSchema,
-  rxExtractionSchema,
-  rxVerifyAnswerSchema,
-  rxVerifyJsonSchema,
-  type RxExtraction,
-  type RxResult,
-  type RxVerifyAnswer,
-} from "@wasfa/shared/schemas/rx";
 
 import { readSetting } from "../settings.js";
 
-import { cropRegion } from "./crop.js";
+import { analyzeImages } from "./analyze.js";
 import { createRxPublisher, type RxPublisher } from "./events.js";
-import { RxStepError, callJson, type ModelCall } from "./model-call.js";
-import {
-  applyVerification,
-  buildResult,
-  isReadable,
-  markSkipped,
-  matchItems,
-  pickForVerification,
-  type WorkItem,
-} from "./pipeline.js";
-import {
-  RX_SKILL,
-  readMessages,
-  systemPrompt,
-  verifyMessages,
-  type VerifyItem,
-} from "./prompts.js";
+import { RxStepError } from "./model-call.js";
+import { isReadable } from "./pipeline.js";
+import { RX_SKILL } from "./prompts.js";
 import {
   claimForProcessing,
   effectivePlanId,
   findAnalysis,
   finishAnalysis,
-  ingredientsOf,
   isTerminal,
   loadPages,
   markFailed,
@@ -56,38 +32,12 @@ type RxContext = Pick<JobContext, "db" | "redis" | "logger" | "storage" | "ai">;
 
 /** The whole analysis, pages to settled credits (phase2.md Task 2.8: a 60 second total budget). */
 export const RX_BUDGET_MS = 60_000;
-/** One provider attempt; the rest of the budget is left for the fallback route. */
-const ATTEMPT_TIMEOUT_MS = 40_000;
-const READ_MAX_OUTPUT_TOKENS = 8_192;
-const VERIFY_MAX_OUTPUT_TOKENS = 2_048;
-/** Gemini bills an image at a fixed token count; used only for the spend estimate. */
-const IMAGE_TOKENS = 1_120;
 
 const walletOf = (row: { ownerUserId: string | null; ownerOrgId: string | null }): WalletOwner => {
   if (row.ownerUserId !== null) return { type: "user", id: row.ownerUserId };
   if (row.ownerOrgId !== null) return { type: "org", id: row.ownerOrgId };
   throw new Error("An analysis always has an owner (rx_analyses_owner_check)");
 };
-
-/**
- * Runs `step`, and once more if it throws. The router already falls back across the route's models
- * inside one attempt, so a second attempt covers a transient failure of everything; refusals
- * (switched off, no route) and an exhausted budget are final.
- */
-async function withRetry<T>(step: () => Promise<T>, signal: AbortSignal): Promise<T> {
-  try {
-    return await step();
-  } catch (error) {
-    if (isAppError(error) || signal.aborted || error instanceof LedgerError) throw error;
-    if (error instanceof RxStepError && error.code === "image_missing") throw error;
-    return step();
-  }
-}
-
-interface Reading {
-  extraction: RxExtraction;
-  calls: ModelCall<RxExtraction>;
-}
 
 /**
  * `rx.analyze`: reads, matches, verifies, finalizes and settles one prescription analysis.
@@ -144,93 +94,24 @@ export async function rxAnalyzeJob(
       userId: row.createdBy,
       requestId: analysisId,
     };
-    const system = systemPrompt();
-
-    // 1. read: all pages in one call.
-    await events.step("read");
-    const reading: Reading = await withRetry(async () => {
-      const calls = await callJson({
-        router: ai.router,
-        input: {
-          ...base,
-          task: "rx_extract",
-          estimateInputTokens: images.length * IMAGE_TOKENS + Math.ceil(system.length / 4),
-        },
-        request: {
-          system,
-          messages: readMessages(images.map((jpeg) => ({ jpeg }))),
-          jsonSchema: rxExtractionJsonSchema as unknown as Record<string, unknown>,
-          maxOutputTokens: READ_MAX_OUTPUT_TOKENS,
-        },
-        schema: rxExtractionSchema,
-        signal: budget,
-        attemptTimeoutMs: ATTEMPT_TIMEOUT_MS,
-      });
-      return { extraction: calls.value, calls };
-    }, budget);
-    let cost = reading.calls.costUsdMicros;
-    const { routeVersion, usageId } = reading.calls;
-
-    // 2. match: deterministic, from the drug database.
-    failedStep = "match";
-    await events.step("match");
-    const items: WorkItem[] = await withRetry(() => matchItems(db, reading.extraction), budget);
-
-    // 3. verify: only the flagged lines, highest risk first.
-    failedStep = "verify";
-    const chosenForVerify = pickForVerification(items, rx.verifyMaxItems).filter((index) => {
-      const item = items[index];
-      return item !== undefined && item.extracted.page < images.length;
+    const {
+      result,
+      costUsdMicros: cost,
+      routeVersion,
+      usageId,
+    } = await analyzeImages({
+      db,
+      router: ai.router,
+      images,
+      base,
+      verifyMaxItems: rx.verifyMaxItems,
+      signal: budget,
+      onStep: async (step, { verifying }) => {
+        failedStep = step;
+        await events.step(step);
+        if (verifying) await markVerifying(db, analysisId);
+      },
     });
-    if (chosenForVerify.length > 0) {
-      await events.step("verify");
-      await markVerifying(db, analysisId);
-      const offered = new Map(
-        chosenForVerify.map((index) => [index, items[index]?.candidates ?? []] as const),
-      );
-      const verification = await withRetry(async () => {
-        const verifyItems: VerifyItem[] = [];
-        for (const index of chosenForVerify) {
-          const item = items[index];
-          const page = item === undefined ? undefined : images[item.extracted.page];
-          if (item === undefined || page === undefined) continue;
-          verifyItems.push({
-            index,
-            crop: await cropRegion(page, item.extracted.box_2d),
-            candidates: item.candidates,
-          });
-        }
-        return callJson({
-          router: ai.router,
-          input: {
-            ...base,
-            task: "rx_verify",
-            estimateInputTokens: verifyItems.length * IMAGE_TOKENS + 1_000,
-          },
-          request: {
-            system,
-            messages: verifyMessages(verifyItems),
-            jsonSchema: rxVerifyJsonSchema as unknown as Record<string, unknown>,
-            maxOutputTokens: VERIFY_MAX_OUTPUT_TOKENS,
-          },
-          schema: rxVerifyAnswerSchema,
-          signal: budget,
-          attemptTimeoutMs: ATTEMPT_TIMEOUT_MS,
-        });
-      }, budget);
-      cost += verification.costUsdMicros;
-      await applyVerification(db, items, offered, verification.value as RxVerifyAnswer);
-    }
-    markSkipped(items, new Set(chosenForVerify));
-
-    // 4. finalize: merge, duplicate-ingredient check, confidence, badge, validation.
-    failedStep = "finalize";
-    await events.step("finalize");
-    const drugIds = items.flatMap((item) => (item.chosen === null ? [] : [item.chosen.drugId]));
-    const result: RxResult = await withRetry(async () => {
-      const ingredients = await ingredientsOf(db, [...new Set(drugIds)]);
-      return buildResult(reading.extraction, items, ingredients);
-    }, budget);
 
     // 5. settle: the fixed price, or a full refund when nothing could be read.
     failedStep = "settle";

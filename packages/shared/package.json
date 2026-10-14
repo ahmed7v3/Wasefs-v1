@@ -25,6 +25,11 @@
       "import": "./dist/crypto.js",
       "default": "./dist/crypto.js"
     },
+    "./evals": {
+      "types": "./dist/evals.d.ts",
+      "import": "./dist/evals.js",
+      "default": "./dist/evals.js"
+    },
     "./drugs": {
       "types": "./dist/drugs.d.ts",
       "import": "./dist/drugs.js",
@@ -34,6 +39,11 @@
       "types": "./dist/normalize.d.ts",
       "import": "./dist/normalize.js",
       "default": "./dist/normalize.js"
+    },
+    "./schemas/admin-evals": {
+      "types": "./dist/schemas/admin-evals.d.ts",
+      "import": "./dist/schemas/admin-evals.js",
+      "default": "./dist/schemas/admin-evals.js"
     },
     "./schemas/admin-drugs": {
       "types": "./dist/schemas/admin-drugs.d.ts",

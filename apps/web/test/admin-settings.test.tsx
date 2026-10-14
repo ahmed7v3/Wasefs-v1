@@ -14,6 +14,9 @@ import { SettingForm } from "../src/components/admin/setting-form";
 import { ApiRequestError } from "../src/lib/api-error";
 import { fromDraft, settingFields, toDraft } from "../src/lib/setting-fields";
 
+/** `skills` is a per-plan map edited on /admin/ai/skills, not a generated form. */
+const FORM_KEYS = SETTING_KEYS.filter((key) => key !== "skills");
+
 function renderForm(key: SettingKey, onSave = vi.fn<(value: unknown) => Promise<void>>()) {
   onSave.mockResolvedValue(undefined);
   render(<SettingForm settingKey={key} value={settingDefault(key)} canWrite onSave={onSave} />);
@@ -45,7 +48,7 @@ describe("settingFields", () => {
   });
 
   it("round-trips every default through the draft to a value the schema accepts", () => {
-    for (const key of SETTING_KEYS) {
+    for (const key of FORM_KEYS) {
       const schema = SETTINGS_REGISTRY[key].schema;
       const fields = settingFields(schema);
       const value = fromDraft(fields, toDraft(fields, settingDefault(key)));
@@ -57,7 +60,7 @@ describe("settingFields", () => {
 });
 
 describe("SettingForm", () => {
-  it.each(SETTING_KEYS)("renders every field of %s and saves its defaults", async (key) => {
+  it.each(FORM_KEYS)("renders every field of %s and saves its defaults", async (key) => {
     const onSave = renderForm(key);
     const form = screen.getByRole("form", { name: t(`admin.settings.${key}.title`) });
     // One control per leaf of the registry schema.

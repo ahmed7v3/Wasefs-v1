@@ -9,7 +9,7 @@ import {
   type RouterNote,
   type RouterPorts,
 } from "@wasfa/ai";
-import { createAiRuntimePorts, type Database } from "@wasfa/db";
+import { createAiRuntimePorts, loadAiModels, type Database, type RuntimeModel } from "@wasfa/db";
 import { decodeEncryptionKey, decryptSecret } from "@wasfa/shared/crypto";
 import { isAiSwitchedOff } from "@wasfa/shared/settings";
 
@@ -22,8 +22,18 @@ import type { Logger } from "pino";
 /** The AAD a provider key was sealed with: must equal the API's `providerKeyContext`. */
 export const providerKeyContext = (providerKey: string): string => `ai_provider:${providerKey}`;
 
+/** Wraps the route lookup of a router: sees the lookup it replaces and answers instead of it. */
+export type RouteRewrite = (inner: RouterPorts["resolveRoute"]) => RouterPorts["resolveRoute"];
+
 export interface AiRuntime {
   router: Router;
+  /**
+   * A router identical to `router` (same breaker, spend guard, kill switch and usage rows) whose
+   * route lookup is rewritten. Accuracy runs use it to call a frozen list of models.
+   */
+  routerWith(rewrite: RouteRewrite): Router;
+  /** Models by id with their decrypted provider keys (see `loadAiModels`). */
+  loadModels(ids: readonly string[]): Promise<RuntimeModel[]>;
 }
 
 export interface AiRuntimeDeps {
@@ -46,38 +56,43 @@ export function createAiRuntime({ env, db, redis, logger, adapterFor }: AiRuntim
     const ai = await readSetting(db, "ai");
     return { dailyCapUsdMicros: ai.dailyCapUsdMicros, alertPercent: ai.alertPercent };
   };
-  const { resolveRoute, recordUsage } = createAiRuntimePorts(db, (providerKey, enc) =>
-    decryptSecret(enc, key, providerKeyContext(providerKey)),
-  );
-  const router = createRouter({
-    resolveRoute,
-    recordUsage,
-    limits,
-    breaker: new RedisBreakerStore(redis),
-    spendGuard: createSpendGuard(redis, {
+  const decrypt = (providerKey: string, enc: string): string =>
+    decryptSecret(enc, key, providerKeyContext(providerKey));
+  const { resolveRoute, recordUsage } = createAiRuntimePorts(db, decrypt);
+  const buildRouter = (rewrite?: RouteRewrite): Router =>
+    createRouter({
+      resolveRoute: rewrite === undefined ? resolveRoute : rewrite(resolveRoute),
+      recordUsage,
       limits,
-      onAlert: (alert) => {
-        logger.error({ event: "ai.spend_alert", ...alert }, "AI daily spend alert");
+      breaker: new RedisBreakerStore(redis),
+      spendGuard: createSpendGuard(redis, {
+        limits,
+        onAlert: (alert) => {
+          logger.error({ event: "ai.spend_alert", ...alert }, "AI daily spend alert");
+        },
+      }),
+      killSwitch: async (task, options) =>
+        isAiSwitchedOff((await readSetting(db, "ai")).killSwitch, task, options),
+      adapterFor:
+        adapterFor ??
+        ((model) =>
+          createAdapter(
+            {
+              kind: model.provider.kind,
+              baseUrl: model.provider.baseUrl,
+              apiKey: model.provider.apiKey,
+              dataPolicy: model.provider.dataPolicy,
+            },
+            { env: env.NODE_ENV },
+          )),
+      onNote: (note: RouterNote) => {
+        // Ids and codes only: a note never carries content.
+        logger.warn({ note }, "AI router note");
       },
-    }),
-    killSwitch: async (task, options) =>
-      isAiSwitchedOff((await readSetting(db, "ai")).killSwitch, task, options),
-    adapterFor:
-      adapterFor ??
-      ((model) =>
-        createAdapter(
-          {
-            kind: model.provider.kind,
-            baseUrl: model.provider.baseUrl,
-            apiKey: model.provider.apiKey,
-            dataPolicy: model.provider.dataPolicy,
-          },
-          { env: env.NODE_ENV },
-        )),
-    onNote: (note: RouterNote) => {
-      // Ids and codes only: a note never carries content.
-      logger.warn({ note }, "AI router note");
-    },
-  });
-  return { router };
+    });
+  return {
+    router: buildRouter(),
+    routerWith: buildRouter,
+    loadModels: (ids) => loadAiModels(db, decrypt, ids),
+  };
 }

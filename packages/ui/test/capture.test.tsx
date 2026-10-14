@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { t } from "@wasfa/shared/i18n";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -448,5 +449,71 @@ describe("pure helpers", () => {
   it("fitLongEdge never upscales", () => {
     expect(fitLongEdge(4000, 3000, 2048)).toEqual({ width: 2048, height: 1536 });
     expect(fitLongEdge(1000, 800, 2048)).toEqual({ width: 1000, height: 800 });
+  });
+});
+
+describe("pages that are already uploaded (dashboard quick capture)", () => {
+  const ids = ["00000000-0000-4000-8000-0000000000a1", "00000000-0000-4000-8000-0000000000a2"];
+  const adoptingClient = (): HandoffClient => ({
+    start: vi.fn(async () => ({ url: "https://wasfa.online/capture/x", expiresAt: "" })),
+    subscribe: vi.fn(() => () => undefined),
+    qr: vi.fn(async () => undefined),
+    adopt: vi.fn(async () => ({ previewUrl: "https://img.example/p.jpg" })),
+  });
+
+  it("shows them as uploaded pages in order, ready for Analyze", async () => {
+    const handoff = adoptingClient();
+    const onAnalyze = vi.fn(async () => undefined);
+    const { onPagesChange } = mount({ handoff, initialFileIds: ids, onAnalyze });
+    await waitFor(() => {
+      expect(document.querySelectorAll('[data-status="uploaded"]')).toHaveLength(2);
+    });
+    expect(onPagesChange.mock.lastCall?.[0]?.map((page) => page.fileId)).toEqual(ids);
+    fireEvent.click(screen.getByRole("button", { name: /تحليل|ابدأ/ }));
+    await waitFor(() => {
+      expect(onAnalyze).toHaveBeenCalledWith(ids);
+    });
+  });
+});
+
+describe("pages that are already uploaded under React strict mode", () => {
+  it("adds each once even though the effects run, clean up and run again", async () => {
+    const ids = ["00000000-0000-4000-8000-0000000000b1", "00000000-0000-4000-8000-0000000000b2"];
+    const handoff: HandoffClient = {
+      start: vi.fn(async () => ({ url: "https://wasfa.online/capture/x", expiresAt: "" })),
+      subscribe: vi.fn(() => () => undefined),
+      qr: vi.fn(async () => undefined),
+      adopt: vi.fn(async () => ({ previewUrl: "https://img.example/p.jpg" })),
+    };
+    render(
+      <StrictMode>
+        <ToastProvider>
+          <CaptureSurface
+            variant="full"
+            maxPages={4}
+            uploader={fakeUploader().uploader}
+            handoff={handoff}
+            initialFileIds={ids}
+            onPagesChange={() => undefined}
+          />
+        </ToastProvider>
+      </StrictMode>,
+    );
+    await waitFor(() => {
+      expect(document.querySelectorAll('[data-status="uploaded"]')).toHaveLength(2);
+    });
+    expect(screen.getAllByRole("listitem", { name: /^الصفحة/ })).toHaveLength(2);
+  });
+});
+
+describe("collapsed", () => {
+  it("draws nothing while empty, yet still takes a pasted picture and then shows it", async () => {
+    const { fake } = mount({ variant: "composer", collapsed: true });
+    expect(screen.queryByRole("button", { name: "اختر صورة" })).toBeNull();
+    transferEvent("paste", "clipboardData", { files: [jpeg("c.jpg")] });
+    await waitFor(() => {
+      expect(fake.upload).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.getAllByRole("listitem", { name: /^الصفحة/ })).toHaveLength(1);
   });
 });

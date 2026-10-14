@@ -57,7 +57,7 @@ beforeAll(async () => {
   const email = createEmailRuntime(testEnv(redisInfra.url), connection, logger);
   set = startWorkers(
     connection,
-    { system: 2, notifications: 1, credits: 1, images: 1, drugs: 1, rx: 1 },
+    { system: 2, notifications: 1, credits: 1, images: 1, drugs: 1, rx: 1, evals: 1 },
     { redis: connection, db: database.db, logger, email },
   );
   producer = new Queue("system", { connection });

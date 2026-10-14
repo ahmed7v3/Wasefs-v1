@@ -1,4 +1,5 @@
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
@@ -94,11 +95,51 @@ export class ObjectStorage implements OnApplicationShutdown {
     try {
       const result = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
       if ((result.ContentLength ?? 0) > maxBytes || !result.Body) {
-        throw new AppError(ErrorCode.UPSTREAM_UNAVAILABLE, { details: { reason: "file_too_large" } });
+        throw new AppError(ErrorCode.UPSTREAM_UNAVAILABLE, {
+          details: { reason: "file_too_large" },
+        });
       }
       return await result.Body.transformToByteArray();
     } catch (error) {
       if (error instanceof AppError) throw error;
+      throw new AppError(ErrorCode.UPSTREAM_UNAVAILABLE, { cause: error });
+    }
+  }
+
+  /**
+   * Stores bytes the api itself holds (admin evaluation uploads, which the worker then processes).
+   * User pictures never come this way: they go straight to the bucket by presigned PUT.
+   */
+  async put(key: string, body: Uint8Array, contentType: string): Promise<void> {
+    const { s3, bucket } = this.connect();
+    try {
+      await s3.send(
+        new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType }),
+      );
+    } catch (error) {
+      throw new AppError(ErrorCode.UPSTREAM_UNAVAILABLE, { cause: error });
+    }
+  }
+
+  /** Server-side copy inside the bucket. Returns false when the source does not exist. */
+  async copy(fromKey: string, toKey: string): Promise<boolean> {
+    const { s3, bucket } = this.connect();
+    try {
+      await s3.send(
+        new CopyObjectCommand({
+          Bucket: bucket,
+          Key: toKey,
+          CopySource: `${bucket}/${encodeURIComponent(fromKey).replaceAll("%2F", "/")}`,
+        }),
+      );
+      return true;
+    } catch (error) {
+      if (
+        error instanceof S3ServiceException &&
+        (error.$metadata.httpStatusCode === 404 || error.name === "NoSuchKey")
+      ) {
+        return false;
+      }
       throw new AppError(ErrorCode.UPSTREAM_UNAVAILABLE, { cause: error });
     }
   }

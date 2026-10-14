@@ -142,6 +142,28 @@ export const uploadsSettingsSchema = z.object({
   retentionDays: z.number().int().min(1).max(365).default(30),
 });
 
+/**
+ * Which plans may use each assistant skill (Task 2.4). A skill missing from the map is on for every
+ * plan; `[]` turns it off everywhere. Written through `/admin/ai/skills` (`ai.write`), never through
+ * the generic settings route.
+ */
+export const skillsSettingsSchema = z
+  .record(
+    z.string().regex(/^[a-z][a-z0-9-]{0,59}$/),
+    z.union([z.literal("all"), z.array(z.string().regex(/^[a-z][a-z0-9_]*$/)).max(100)]),
+  )
+  .default({});
+
+/** True when `planKey` may use `skill` under the `skills` setting. */
+export function skillEnabledForPlan(
+  skills: z.output<typeof skillsSettingsSchema>,
+  skill: string,
+  planKey: string,
+): boolean {
+  const rule = Object.hasOwn(skills, skill) ? skills[skill] : undefined;
+  return rule === undefined || rule === "all" || rule.includes(planKey);
+}
+
 export const SETTING_VISIBILITIES = ["public", "admin"] as const;
 export type SettingVisibility = (typeof SETTING_VISIBILITIES)[number];
 
@@ -162,6 +184,8 @@ export const SETTINGS_REGISTRY = {
   rx: { schema: rxSettingsSchema, visibility: "public" },
   /** Admin only: the retention job reads it; users are told the number on the analysis page. */
   uploads: { schema: uploadsSettingsSchema, visibility: "admin" },
+  /** Admin only: per-plan enablement of assistant skills, edited on `/admin/ai/skills`. */
+  skills: { schema: skillsSettingsSchema, visibility: "admin" },
 } as const satisfies Record<string, { schema: z.ZodType; visibility: SettingVisibility }>;
 
 export type SettingsRegistry = typeof SETTINGS_REGISTRY;

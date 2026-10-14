@@ -1,7 +1,7 @@
-import { createEvent, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   Composer,
@@ -10,31 +10,86 @@ import {
   ModeToggle,
   SourceChips,
   ThinkingPanel,
+  ToastProvider,
   isSubmitKey,
+  type CapturePage,
+  type CaptureUploader,
   type ChatDisplayMessage,
   type ComposerProps,
 } from "../src";
 
+function fakeUploader(): CaptureUploader & {
+  prepare: ReturnType<typeof vi.fn>;
+  upload: ReturnType<typeof vi.fn>;
+} {
+  let next = 0;
+  const prepare = vi.fn(async () => ({
+    pages: [
+      {
+        blob: new Blob([new Uint8Array([9])], { type: "image/jpeg" }),
+        width: 1600,
+        height: 1200,
+        sha256: "0".repeat(64),
+        issues: [],
+      },
+    ],
+    trimmed: false,
+  }));
+  const upload = vi.fn(async () => ({
+    fileId: `00000000-0000-4000-8000-${String((next += 1)).padStart(12, "0")}`,
+  }));
+  return { prepare, upload };
+}
+
+/** A paste or drop event: jsdom does not build `clipboardData` / `dataTransfer` itself. */
+function transferEvent(type: "paste" | "drop", files: File[], target: EventTarget): Event {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperty(event, type === "paste" ? "clipboardData" : "dataTransfer", {
+    value: { files, items: [], types: files.length > 0 ? ["Files"] : [] },
+  });
+  act(() => {
+    target.dispatchEvent(event);
+  });
+  return event;
+}
+
+beforeEach(() => {
+  let n = 0;
+  vi.stubGlobal(
+    "URL",
+    Object.assign(URL, {
+      createObjectURL: () => `blob:test/${(n += 1)}`,
+      revokeObjectURL: () => undefined,
+    }),
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 function Harness(props: Partial<ComposerProps> & { onSubmit?: () => void }) {
   const [value, setValue] = useState(props.value ?? "");
   return (
-    <Composer
-      value={value}
-      onChange={setValue}
-      onSubmit={props.onSubmit ?? (() => undefined)}
-      streaming={props.streaming ?? false}
-      onStop={props.onStop ?? (() => undefined)}
-      mode="balanced"
-      onModeChange={() => undefined}
-      allowedModes={["fast", "balanced"]}
-      search={false}
-      onSearchChange={() => undefined}
-      searchAllowed={false}
-      attachments={props.attachments ?? []}
-      onFiles={props.onFiles ?? (() => undefined)}
-      onRemoveAttachment={() => undefined}
-      estimate="how the cost is worked out"
-    />
+    <ToastProvider>
+      <Composer
+        value={value}
+        onChange={setValue}
+        onSubmit={props.onSubmit ?? (() => undefined)}
+        streaming={props.streaming ?? false}
+        onStop={props.onStop ?? (() => undefined)}
+        mode="balanced"
+        onModeChange={() => undefined}
+        allowedModes={["fast", "balanced"]}
+        search={false}
+        onSearchChange={() => undefined}
+        searchAllowed={false}
+        uploader={props.uploader ?? fakeUploader()}
+        onPagesChange={props.onPagesChange ?? (() => undefined)}
+        captureResetKey={props.captureResetKey}
+        estimate="how the cost is worked out"
+      />
+    </ToastProvider>
   );
 }
 
@@ -95,21 +150,88 @@ describe("Composer keyboard", () => {
     expect(onStop).toHaveBeenCalledTimes(1);
   });
 
-  it("hands pasted pictures to the owner and leaves pasted text alone", () => {
-    const onFiles = vi.fn();
-    render(<Harness onFiles={onFiles} />);
+  it("uploads a pasted picture through the capture surface and leaves pasted text alone", async () => {
+    const uploader = fakeUploader();
+    const onPagesChange = vi.fn<(pages: CapturePage[]) => void>();
+    render(<Harness uploader={uploader} onPagesChange={onPagesChange} />);
     const file = new File(["x"], "scan.png", { type: "image/png" });
-    const paste = createEvent.paste(textbox());
-    Object.defineProperty(paste, "clipboardData", { value: { files: [file] } });
-    fireEvent(textbox(), paste);
-    expect(onFiles).toHaveBeenCalledWith([file]);
+    const paste = transferEvent("paste", [file], textbox());
     expect(paste.defaultPrevented).toBe(true);
+    await waitFor(() => {
+      expect(uploader.upload).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(onPagesChange.mock.lastCall?.[0]?.[0]?.status).toBe("uploaded");
+    });
 
-    const textPaste = createEvent.paste(textbox());
-    Object.defineProperty(textPaste, "clipboardData", { value: { files: [] } });
-    fireEvent(textbox(), textPaste);
+    const textPaste = transferEvent("paste", [], textbox());
     expect(textPaste.defaultPrevented).toBe(false);
-    expect(onFiles).toHaveBeenCalledTimes(1);
+    expect(uploader.prepare).toHaveBeenCalledTimes(1);
+  });
+
+  it("takes a dropped picture anywhere on the page", async () => {
+    const uploader = fakeUploader();
+    render(<Harness uploader={uploader} />);
+    transferEvent("drop", [new File(["x"], "scan.jpg", { type: "image/jpeg" })], document.body);
+    await waitFor(() => {
+      expect(uploader.upload).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("keeps the panel closed until the plus button opens it, and opens itself for a picture", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    const attach = screen.getByRole("button", { name: "إرفاق صورة" });
+    expect(attach.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("button", { name: "اختر صورة" })).toBeNull();
+    await user.click(attach);
+    expect(attach.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("button", { name: "اختر صورة" })).toBeTruthy();
+  });
+
+  it("does not send while a picture is still uploading, then sends once it is uploaded", async () => {
+    let finish: (value: { fileId: string }) => void = () => undefined;
+    const uploader = fakeUploader();
+    uploader.upload.mockImplementation(
+      () =>
+        new Promise<{ fileId: string }>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const onSubmit = vi.fn();
+    render(<Harness uploader={uploader} onSubmit={onSubmit} value="ما هذا الدواء؟" />);
+    transferEvent("paste", [new File(["x"], "a.png", { type: "image/png" })], textbox());
+    await waitFor(() => {
+      expect(uploader.upload).toHaveBeenCalled();
+    });
+    const send = screen.getByRole("button", { name: "إرسال" }) as HTMLButtonElement;
+    expect(send.disabled).toBe(true);
+    fireEvent.keyDown(textbox(), { key: "Enter" });
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    await act(async () => {
+      finish({ fileId: "00000000-0000-4000-8000-000000000099" });
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(send.disabled).toBe(false);
+    });
+  });
+
+  it("forgets the pictures when the reset key changes", async () => {
+    const uploader = fakeUploader();
+    const onPagesChange = vi.fn<(pages: CapturePage[]) => void>();
+    const { rerender } = render(
+      <Harness uploader={uploader} onPagesChange={onPagesChange} captureResetKey={0} />,
+    );
+    transferEvent("paste", [new File(["x"], "a.png", { type: "image/png" })], textbox());
+    await waitFor(() => {
+      expect(onPagesChange.mock.lastCall?.[0]).toHaveLength(1);
+    });
+    rerender(<Harness uploader={uploader} onPagesChange={onPagesChange} captureResetKey={1} />);
+    await waitFor(() => {
+      expect(onPagesChange.mock.lastCall?.[0]).toHaveLength(0);
+    });
   });
 
   it("explains the cost on focus of the info button", () => {

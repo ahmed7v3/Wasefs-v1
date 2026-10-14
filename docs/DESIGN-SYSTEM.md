@@ -241,6 +241,41 @@ The UI package knows nothing about the API, R2, pdf.js or libheif. Sub-component
 - **Streaming**: text is applied once per animation frame; the list follows the newest text only while the user is at the bottom, otherwise a "↓ جديد" button appears. The list itself is not a live region: one polite status announces "اكتملت الإجابة." (or the stopped variant) when the answer ends.
 - **ThinkingPanel**: collapsed; "يفكّر…" while the model reasons, then "فكّر لمدة N ث" with an expand control. **SourceChips**: domain plus title, no favicon, new tab.
 
+### 5.6 Result (Task 2.9) — `packages/ui/src/{ImageViewer,RxTable,ConfidenceBadge,StepProgress,CandidatePicker}.tsx`
+
+`/analyze/[id]` shows one analysis; `/analyze/history` lists them. The UI package knows no API: `apps/web/src/components/rx` owns data, the stream, corrections and actions.
+
+**Layout.** From `lg` the grid is image (inline-start, 2fr) and results (3fr). Below it the image is a collapsible block on top (toggle "إخفاء/عرض الصورة") and results follow. The table is a real `<table>` from `xl`; below, the same markup is stacked cards with explicit ARIA roles (`table`, `row`, `rowheader`, `columnheader`, `cell`) so it is still announced as a table. `tabular-nums` throughout; logical CSS only (the viewer stage is `dir="ltr"` because image coordinates are physical; its overlays use `inset-inline-start`).
+
+**API**
+
+```ts
+<ImageViewer pages={ViewerPage[]} page onPageChange regions={ViewerRegion[]} activeId onHover(id|null) onSelect(id) onImageError? onRetry? />
+<RxTable items activeIndex selectedIndex onActivate(i|null) onSelect(i) onReview(i) pending? />
+<ConfidenceBadge level="high"|"medium"|"low" unmatched? />   // unmatched: "غير مؤكد", never shown as high
+<StepProgress steps current elapsedSeconds? note? />
+<CandidatePicker open onOpenChange rawText candidates|null loadFailed? onRetry? busy? error? onCorrect({candidateId|text, consentForEval}) />
+```
+
+**States**
+
+| State | What the person sees |
+|---|---|
+| Running | Card with the four steps (done check, current `Spinner`, pending number), elapsed `m:ss`, "يمكنك مغادرة هذه الصفحة…". One polite status line announces the step that begins; the clock is not live. After 3 dropped streams a note says it is following automatically (polling every 2 s). No other animation. |
+| Done | Split layout, table, notices, actions, disclaimer. A polite status says "اكتمل التحليل." |
+| Refunded | Card with the guidance and "لم نخصم أي رصيد", link to a new analysis. |
+| Failed | `role="alert"` card, the `WSF-` ref chip, new analysis and support links. |
+| Image deleted / loading / failed | Placeholder in the viewer: "الصورة حُذفت بعد 30 يومًا", spinner, or message + "حاول مرة أخرى". The result stays. |
+| Flagged row | Amber edge on the inline-start side, confidence badge, "راجع" (44 px) opening the picker. Unmatched rows show the raw text read and "غير مؤكد". |
+| Correcting | Picker closes at once, the row shows the new value with `aria-busy`, the API answer replaces it; on failure it reverts and an error toast with the ref appears. |
+| Deep re-run | Only when a line is low confidence, the mode is not already deep and the pictures exist: price (pages × credits per page) shown first; a short balance disables it with an alert. |
+
+**Viewer interaction.** Drag (when zoomed), wheel, two-finger pinch, `+`/`-`/`0` and arrows (focus the viewer, a labelled group), toolbar buttons. Hovering, focusing or selecting a row outlines its `box_2d` and pans a zoomed image to show it (and switches page); hovering a box highlights its row and tapping it selects the row. Outlines are `aria-hidden`: the row buttons are the accessible equivalent.
+
+**Print.** `RxPrintSheet` (hidden on screen, `data-rx-print`) is the page: A4, RTL, lines table, disclaimer, unreadable note; no image, no names. `globals.css` hides the shell whenever `[data-rx-print]` is on the page, so Ctrl+P and the Print button give the same sheet.
+
+**Share and copy.** Text is built only from structured fields (never notes, initials, date or files). Share is a link to `https://wa.me/?text=`.
+
 ---
 
 ## 6. Forms

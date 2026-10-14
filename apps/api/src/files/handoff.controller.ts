@@ -39,7 +39,7 @@ export class HandoffController {
 
   @Post()
   @RequireVerified()
-  @RateLimit(20)
+  @RateLimit(5, "10 minutes")
   create(
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: CreateHandoffDto,

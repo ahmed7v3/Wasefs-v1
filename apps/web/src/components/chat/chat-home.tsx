@@ -49,10 +49,17 @@ const cardStyle =
   "flex h-full w-full flex-col gap-3 p-5 text-start transition-colors duration-150 hover:bg-primary-soft focus-visible:outline-none focus-visible:shadow-focus";
 
 /** `/ai` with no chat open: greeting, three starting points, the composer and the skill chips. */
-export function ChatHome({ name }: { name: string }) {
+export function ChatHome({
+  name,
+  initialSkill = null,
+}: {
+  name: string;
+  /** Skill preselected by a link (`/ai?skill=drug-info`). */
+  initialSkill?: ChatSkill | null;
+}) {
   const router = useRouter();
   const composer = useChatComposer();
-  const [skill, setSkill] = useState<ChatSkill | null>(null);
+  const [skill, setSkill] = useState<ChatSkill | null>(initialSkill);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -160,7 +167,7 @@ export function ChatHome({ name }: { name: string }) {
             <SkillChips
               items={skillChipItems()}
               selectedId={skill}
-              suggestedId={composer.attachments.attachments.length > 0 ? RX_CHIP_ID : null}
+              suggestedId={composer.attachments.count > 0 ? RX_CHIP_ID : null}
               onSelect={(id) => {
                 setSkill(isChatSkill(id) ? id : null);
               }}

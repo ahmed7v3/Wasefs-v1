@@ -12,6 +12,7 @@
     "dev": "node --env-file-if-exists=../../.env --watch-path=src --import @swc-node/register/esm-register src/main.ts",
     "start": "node dist/main.js",
     "admin:grant": "node dist/cli/admin-grant.js",
+    "key:rotate": "node dist/cli/rotate-encryption-key.js",
     "admin:grant:dev": "node --env-file-if-exists=../../.env --import @swc-node/register/esm-register src/cli/admin-grant.ts",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json",

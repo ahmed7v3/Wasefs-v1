@@ -1,7 +1,8 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
 const ALGORITHM = "aes-256-gcm";
-const VERSION = "v1";
+const VERSION = "v2";
+const LEGACY_VERSION = "v1";
 const IV_BYTES = 12;
 const TAG_BYTES = 16;
 
@@ -18,10 +19,17 @@ function assertKey(key: Buffer): void {
   }
 }
 
+/** Short public id of a key (first 4 bytes of its SHA-256, hex). Safe to store: it cannot recover the key. */
+export function keyId(key: Buffer): string {
+  assertKey(key);
+  return createHash("sha256").update(key).digest("hex").slice(0, 8);
+}
+
 /**
  * AES-256-GCM for admin-stored secrets (AI/payment API keys).
- * Output: `v1.<iv>.<tag>.<ciphertext>` (base64url). `context` is bound as AAD, so a value
- * copied into another row (e.g. `ai_provider:openrouter`) fails to decrypt.
+ * Output: `v2.<keyId>.<iv>.<tag>.<ciphertext>` (base64url). `context` is bound as AAD, so a value
+ * copied into another row (e.g. `ai_provider:openrouter`) fails to decrypt. The key id lets a
+ * rotation tell which key sealed a value (`scripts/rotate-encryption-key`).
  */
 export function encryptSecret(plaintext: string, key: Buffer, context = ""): string {
   assertKey(key);
@@ -30,35 +38,60 @@ export function encryptSecret(plaintext: string, key: Buffer, context = ""): str
   cipher.setAAD(Buffer.from(context, "utf8"));
   const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
-  return [VERSION, iv, tag, ciphertext]
+  return [VERSION, keyId(key), iv, tag, ciphertext]
     .map((part) => (typeof part === "string" ? part : part.toString("base64url")))
     .join(".");
 }
 
-export function decryptSecret(payload: string, key: Buffer, context = ""): string {
-  assertKey(key);
+/** Id of the key that sealed `payload`; `null` for legacy `v1` values (no id) and malformed input. */
+export function sealedKeyId(payload: string): string | null {
   const parts = payload.split(".");
-  if (parts.length !== 4 || parts[0] !== VERSION) {
+  return parts.length === 5 && parts[0] === VERSION ? (parts[1] ?? null) : null;
+}
+
+/**
+ * `key` may be a list (current key first, old keys after) during a rotation window: a `v2` value
+ * uses the key whose id it names; a legacy `v1` value (no id) is tried against each key.
+ */
+export function decryptSecret(
+  payload: string,
+  key: Buffer | readonly Buffer[],
+  context = "",
+): string {
+  const keys = Array.isArray(key) ? key : [key as Buffer];
+  const parts = payload.split(".");
+  let candidates: readonly Buffer[];
+  let rest: string[];
+  if (parts.length === 5 && parts[0] === VERSION) {
+    candidates = keys.filter((candidate) => keyId(candidate) === parts[1]);
+    rest = parts.slice(2);
+  } else if (parts.length === 4 && parts[0] === LEGACY_VERSION) {
+    candidates = keys;
+    rest = parts.slice(1);
+  } else {
     throw new SecretDecryptionError();
   }
-  const [, ivPart = "", tagPart = "", dataPart = ""] = parts;
+  const [ivPart = "", tagPart = "", dataPart = ""] = rest;
   const iv = Buffer.from(ivPart, "base64url");
   const tag = Buffer.from(tagPart, "base64url");
   if (iv.length !== IV_BYTES || tag.length !== TAG_BYTES) {
     throw new SecretDecryptionError();
   }
-  try {
-    const decipher = createDecipheriv(ALGORITHM, key, iv, { authTagLength: TAG_BYTES });
-    decipher.setAAD(Buffer.from(context, "utf8"));
-    decipher.setAuthTag(tag);
-    const plaintext = Buffer.concat([
-      decipher.update(Buffer.from(dataPart, "base64url")),
-      decipher.final(),
-    ]);
-    return plaintext.toString("utf8");
-  } catch {
-    throw new SecretDecryptionError();
+  for (const candidate of candidates) {
+    assertKey(candidate);
+    try {
+      const decipher = createDecipheriv(ALGORITHM, candidate, iv, { authTagLength: TAG_BYTES });
+      decipher.setAAD(Buffer.from(context, "utf8"));
+      decipher.setAuthTag(tag);
+      return Buffer.concat([
+        decipher.update(Buffer.from(dataPart, "base64url")),
+        decipher.final(),
+      ]).toString("utf8");
+    } catch {
+      // Wrong key for a legacy value: try the next one.
+    }
   }
+  throw new SecretDecryptionError();
 }
 
 /** For admin screens: `sk-…f9a2`. Never returns more than the last 4 characters. */

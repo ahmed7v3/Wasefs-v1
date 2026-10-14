@@ -13,6 +13,9 @@ export const enChat: Partial<Record<keyof typeof arChat, string>> = {
   "chat.composer.send": "Send",
   "chat.composer.stop": "Stop answer",
   "chat.composer.attach": "Attach an image",
+  "chat.composer.waitUploads": "Wait for the pictures to finish uploading to send.",
+  "chat.composer.fixPages":
+    "Confirm the pictures that need a decision, or remove the failed ones, then send.",
   "chat.mode.label": "Answer mode",
   "chat.mode.fast": "Fast",
   "chat.mode.balanced": "Balanced",

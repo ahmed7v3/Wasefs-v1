@@ -68,10 +68,20 @@ export class AdminTestContext {
   );
   private roleCounter = 0;
 
-  async start(extraImports: ModuleMetadata["imports"] = []): Promise<void> {
+  async start(
+    extraImports: ModuleMetadata["imports"] = [],
+    envOverrides: Record<string, string | number> = {},
+  ): Promise<void> {
     this.infra = await startInfra();
-    this.network.listen({ onUnhandledRequest: "error" });
-    this.env = testApiEnv(this.infra);
+    // Anything but the local test services (MinIO) must have a handler.
+    this.network.listen({
+      onUnhandledRequest: (request, print) => {
+        const host = new URL(request.url).hostname;
+        if (host === "localhost" || host === "127.0.0.1") return;
+        print.error();
+      },
+    });
+    this.env = testApiEnv(this.infra, envOverrides);
     this.owner = createDb({ url: this.infra.databaseUrl, max: 4 });
     await seedDefaults(this.owner.db);
     this.app = await createApp(this.env, {

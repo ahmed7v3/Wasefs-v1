@@ -42,6 +42,8 @@ export const arChat = {
   "chat.composer.send": "إرسال",
   "chat.composer.stop": "إيقاف الإجابة",
   "chat.composer.attach": "إرفاق صورة",
+  "chat.composer.waitUploads": "انتظر اكتمال رفع الصور لتتمكن من الإرسال.",
+  "chat.composer.fixPages": "أكّد الصور التي تحتاج قرارًا أو أزل التي تعذّر رفعها ثم أرسل.",
   "chat.composer.attachments": "الصور المرفقة",
   "chat.composer.removeAttachment": "إزالة الصورة",
   "chat.composer.uploading": "جارٍ رفع الصورة…",

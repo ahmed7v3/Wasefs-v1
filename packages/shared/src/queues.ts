@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { emailSendPayloadSchema } from "./email.js";
+import { evalImportPayloadSchema, evalRunPayloadSchema } from "./schemas/admin-evals.js";
 import { imageProcessPayloadSchema } from "./schemas/files.js";
 import { rxAnalyzePayloadSchema } from "./schemas/rx.js";
 
@@ -75,6 +76,11 @@ export const QUEUE_REGISTRY = {
   /** Prescription analysis (Phase 2, Task 2.8): one job per analysis, jobId `rx-<id>`. */
   rx: {
     "rx.analyze": rxAnalyzePayloadSchema,
+  },
+  /** Accuracy evaluation (Phase 2, Task 2.10): label-set imports and eval runs; no credits, no users. */
+  evals: {
+    "evals.run": evalRunPayloadSchema,
+    "evals.import": evalImportPayloadSchema,
   },
 } as const;
 

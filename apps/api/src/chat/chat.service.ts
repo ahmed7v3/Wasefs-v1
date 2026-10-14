@@ -14,6 +14,7 @@ import {
 
 import { decodeCursor, toPage } from "../admin/common/keyset.js";
 
+import { ChatSkillGate } from "./chat-skills.js";
 import { ChatRepo, type MessageRow } from "./chat.repo.js";
 
 import type { Chat } from "@wasfa/db";
@@ -56,9 +57,13 @@ export function messageView(row: MessageRow | Omit<MessageRow, "cursorAt">): Cha
 /** Chat CRUD for the caller's own chats. Streaming an answer is `ChatTurnService`. */
 @Injectable()
 export class ChatService {
-  constructor(private readonly repo: ChatRepo) {}
+  constructor(
+    private readonly repo: ChatRepo,
+    private readonly skills: ChatSkillGate,
+  ) {}
 
   async create(userId: string, input: CreateChatInput): Promise<{ id: string }> {
+    await this.skills.assertAllowed({ type: "user", id: userId }, input.skill ?? null);
     const chat = await this.repo.create(userId, input.skill ?? null);
     return { id: chat.id };
   }

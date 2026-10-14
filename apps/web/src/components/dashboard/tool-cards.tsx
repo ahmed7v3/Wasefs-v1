@@ -1,46 +1,99 @@
-import { t } from "@wasfa/shared/i18n";
-import { Card, ComingSoonBadge } from "@wasfa/ui";
-import { FileScan, Pill, Sparkles } from "lucide-react";
+import { t, type MessageKey } from "@wasfa/shared/i18n";
+import { Card } from "@wasfa/ui";
+import {
+  Calculator,
+  FileScan,
+  FlaskConical,
+  GitCompareArrows,
+  Pill,
+  ScanSearch,
+  type LucideIcon,
+} from "lucide-react";
+import Link from "next/link";
 
-import type { MessageKey } from "@wasfa/shared/i18n";
-import type { LucideIcon } from "lucide-react";
+import type { ChatSkill } from "@wasfa/shared/schemas/chat";
 
-const TOOLS: ReadonlyArray<{ icon: LucideIcon; title: MessageKey; description: MessageKey }> = [
+interface Tool {
+  id: "rx" | ChatSkill;
+  icon: LucideIcon;
+  title: MessageKey;
+  description: MessageKey;
+  /** The prescription analysis has its own page; the others open the assistant with the skill chosen. */
+  href: string;
+}
+
+const TOOLS: readonly Tool[] = [
   {
+    id: "rx",
     icon: FileScan,
-    title: "dashboard.tool.analysis.title",
-    description: "dashboard.tool.analysis.desc",
+    title: "dashboard.tools.rx.title",
+    description: "dashboard.tools.rx.desc",
+    href: "/analyze",
   },
   {
-    icon: Sparkles,
-    title: "dashboard.tool.assistant.title",
-    description: "dashboard.tool.assistant.desc",
+    id: "drug-info",
+    icon: Pill,
+    title: "dashboard.tools.drug-info.title",
+    description: "dashboard.tools.drug-info.desc",
+    href: "/ai?skill=drug-info",
   },
-  { icon: Pill, title: "dashboard.tool.drugs.title", description: "dashboard.tool.drugs.desc" },
+  {
+    id: "lab-test-interpretation",
+    icon: FlaskConical,
+    title: "dashboard.tools.lab-test-interpretation.title",
+    description: "dashboard.tools.lab-test-interpretation.desc",
+    href: "/ai?skill=lab-test-interpretation",
+  },
+  {
+    id: "imaging-educational",
+    icon: ScanSearch,
+    title: "dashboard.tools.imaging-educational.title",
+    description: "dashboard.tools.imaging-educational.desc",
+    href: "/ai?skill=imaging-educational",
+  },
+  {
+    id: "dose-calculator",
+    icon: Calculator,
+    title: "dashboard.tools.dose-calculator.title",
+    description: "dashboard.tools.dose-calculator.desc",
+    href: "/ai?skill=dose-calculator",
+  },
+  {
+    id: "drug-interaction-check",
+    icon: GitCompareArrows,
+    title: "dashboard.tools.drug-interaction-check.title",
+    description: "dashboard.tools.drug-interaction-check.desc",
+    href: "/ai?skill=drug-interaction-check",
+  },
 ];
 
-/** Three equal "arrives soon" cards, in the rhythm of `3.png`: icon chip, title, one sentence, status. */
+/**
+ * The six tools, all live: prescription analysis opens `/analyze`, the five assistant skills open
+ * `/ai` with the skill chosen. Each card is one link (44 px+ target, one tab stop).
+ */
 export function ToolCards() {
   return (
     <section aria-labelledby="tools-title" className="flex flex-col gap-4">
       <h2 id="tools-title" className="font-heading text-2xl font-semibold text-text">
-        {t("dashboard.toolsTitle")}
+        {t("dashboard.tools.title")}
       </h2>
-      <ul className="grid gap-4 md:grid-cols-3">
-        {TOOLS.map(({ icon: Icon, title, description }) => (
-          <li key={title} className="flex">
-            <Card className="flex w-full flex-col gap-3 p-5 sm:p-5">
-              <span
-                aria-hidden
-                className="inline-flex size-12 items-center justify-center rounded-lg bg-primary-soft text-primary"
+      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {TOOLS.map(({ id, icon: Icon, title, description, href }) => (
+          <li key={id} className="flex">
+            <Card padding="none" className="flex w-full overflow-hidden">
+              <Link
+                href={href}
+                className="flex min-h-11 w-full flex-col gap-3 p-5 transition-colors duration-150 hover:bg-primary-soft focus-visible:outline-none focus-visible:shadow-focus"
               >
-                <Icon className="size-6" />
-              </span>
-              <h3 className="font-heading text-xl font-semibold text-text">{t(title)}</h3>
-              <p className="flex-1 text-base text-text-muted">{t(description)}</p>
-              <div>
-                <ComingSoonBadge />
-              </div>
+                <span
+                  aria-hidden
+                  className="inline-flex size-12 items-center justify-center rounded-lg bg-primary-soft text-primary"
+                >
+                  <Icon className="size-6" />
+                </span>
+                <h3 className="font-heading text-xl font-semibold text-text">{t(title)}</h3>
+                <p className="text-base text-text-muted">{t(description)}</p>
+              </Link>
             </Card>
           </li>
         ))}

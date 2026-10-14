@@ -49,7 +49,7 @@ export class RxController {
   constructor(private readonly rx: RxService) {}
 
   @Post()
-  @RateLimit(20)
+  @RateLimit(6)
   create(@CurrentUser() user: AuthenticatedUser, @Body() body: CreateRxDto) {
     return this.rx.create(user, body);
   }

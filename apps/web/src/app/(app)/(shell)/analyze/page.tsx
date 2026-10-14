@@ -1,5 +1,6 @@
 import { t } from "@wasfa/shared/i18n";
 import { meCreditsResponseSchema } from "@wasfa/shared/schemas/credits";
+import Link from "next/link";
 
 import { AnalyzeCapture } from "../../../../components/capture/analyze-capture";
 import { VerificationBanner } from "../../../../components/dashboard/verification-banner";
@@ -28,6 +29,12 @@ export default async function AnalyzePage() {
           {t("analyze.title")}
         </h1>
         <p className="text-lg text-text-muted">{t("analyze.lead")}</p>
+        <Link
+          href="/analyze/history"
+          className="w-fit text-base font-semibold text-primary underline"
+        >
+          {t("rx.history.link")}
+        </Link>
       </header>
       {credits === null ? (
         <VerificationBanner me={me} nonce={nonce} />

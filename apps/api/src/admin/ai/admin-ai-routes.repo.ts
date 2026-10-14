@@ -1,12 +1,13 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
+  aiEvalRuns,
   aiTaskRoutes,
   isUniqueViolation,
   plans,
   type AiTaskRoute,
   type RouteModelEntry,
 } from "@wasfa/db";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { DB, type DbHandle } from "../../common/database.js";
 
@@ -47,6 +48,50 @@ export class AdminAiRoutesRepo {
   async find(id: string): Promise<RouteRow | undefined> {
     const [row] = await this.select().where(eq(aiTaskRoutes.id, id));
     return row;
+  }
+
+  /** The stored route for a task, plan and mode, if any. */
+  async findByKey(key: RouteKey): Promise<AiTaskRoute | undefined> {
+    const [row] = await this.handle.db
+      .select()
+      .from(aiTaskRoutes)
+      .where(
+        and(
+          eq(aiTaskRoutes.task, key.task),
+          eq(aiTaskRoutes.mode, key.mode),
+          key.planId === null ? isNull(aiTaskRoutes.planId) : eq(aiTaskRoutes.planId, key.planId),
+        ),
+      );
+    return row;
+  }
+
+  /**
+   * The score (0-100) of each model's latest finished accuracy run (Task 2.10), keyed by
+   * `ai_models.id`. A model that was never evaluated is absent.
+   */
+  async lastEvalScores(modelIds: readonly string[]): Promise<Map<string, number>> {
+    const scores = new Map<string, number>();
+    if (modelIds.length === 0) return scores;
+    const primary = sql<string>`${aiEvalRuns.routeSnapshot} ->> 'primaryModelId'`;
+    const rows = await this.handle.db
+      .selectDistinctOn([primary], {
+        modelId: primary,
+        score: sql<string>`${aiEvalRuns.metrics} ->> 'score'`,
+      })
+      .from(aiEvalRuns)
+      .where(
+        and(
+          eq(aiEvalRuns.status, "done"),
+          sql`${aiEvalRuns.metrics} ->> 'score' is not null`,
+          sql`${primary} in (${sql.join(
+            modelIds.map((id) => sql`${id}`),
+            sql`, `,
+          )})`,
+        ),
+      )
+      .orderBy(primary, sql`${aiEvalRuns.finishedAt} desc`);
+    for (const row of rows) scores.set(row.modelId, Number(row.score));
+    return scores;
   }
 
   async planKey(planId: string): Promise<string | undefined> {
