@@ -156,7 +156,7 @@ describe("ModelForm (add)", () => {
   }
 
   it("accepts a free-text id when discovery fails, and sends exact micros", async () => {
-    const { onSaved } = setup(() => json({ code: "UPSTREAM_UNAVAILABLE", message: "x" }, 502));
+    const { onSaved } = setup(() => json({ code: "UPSTREAM_UNAVAILABLE", message: "x" }, 503));
     expect(await screen.findByText(t("admin.ai.models.discover.failed"))).toBeTruthy();
 
     await userEvent.type(control("modelId"), "vendor/custom-model:free");

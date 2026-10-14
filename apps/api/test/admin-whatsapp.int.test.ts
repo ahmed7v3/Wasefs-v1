@@ -316,7 +316,7 @@ describe("POST /admin/whatsapp/link", () => {
       expectError(await link(admin), 409, "CONFLICT", "whatsapp_already_linked");
     }
     await ctx.redis.del(WA_HEARTBEAT_KEY);
-    expectError(await link(admin), 502, "UPSTREAM_UNAVAILABLE", "bridge_down");
+    expectError(await link(admin), 503, "UPSTREAM_UNAVAILABLE", "bridge_down");
     expect(await queued()).toEqual([]);
     expect((await settings.get("whatsapp")).number).toBeNull();
   });

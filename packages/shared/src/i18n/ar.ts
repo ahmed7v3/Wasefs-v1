@@ -156,6 +156,7 @@ export const ar = {
   "ai.reason.daily_cap": "وصلت إلى الحد اليومي لهذه الميزة. حاول غدًا أو قم بترقية باقتك.",
   "ai.reason.busy": "لديك عملية قيد التنفيذ بالفعل. انتظر حتى تنتهي ثم حاول مرة أخرى.",
   "ai.reason.insufficient_credits": "رصيدك من الكريدت لا يكفي لهذه العملية.",
+  "ai.reason.storage_not_configured": "رفع الصور غير مُفعَّل بعد. سنُعلمك فور تفعيله.",
   "form.required": "هذا الحقل مطلوب.",
   "form.tooShort": "يجب ألا يقل عن {min} أحرف.",
   "form.tooLong": "يجب ألا يزيد عن {max} حرفًا.",

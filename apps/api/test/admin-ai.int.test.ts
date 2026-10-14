@@ -766,14 +766,14 @@ describe("providers", () => {
     expect(await ctx.redis.exists(`ai:discover:v1:${provider.id}`)).toBe(0);
   });
 
-  it("answers 502 with the reason when the provider fails, and 404 for an unknown provider", async () => {
+  it("answers 503 with the reason when the provider fails, and 404 for an unknown provider", async () => {
     const provider = await createProvider();
     stubGateway(
       stubAdapter({ listModels: () => Promise.reject(new AiProviderError("rate_limited")) }),
     );
     expectError(
       await call("GET", `/admin/ai/providers/${provider.id}/discover`, boss),
-      502,
+      503,
       "UPSTREAM_UNAVAILABLE",
       { reason: "rate_limited" },
     );
@@ -788,7 +788,7 @@ describe("providers", () => {
     const keyless = await createProvider({ kind: "openrouter" });
     expectError(
       await call("GET", `/admin/ai/providers/${keyless.id}/discover`, boss),
-      502,
+      503,
       "UPSTREAM_UNAVAILABLE",
       { reason: "auth" },
     );
@@ -1223,12 +1223,12 @@ describe("price sync from OpenRouter", () => {
       priceCachedInputUsdMicrosPerM: 10,
     });
 
-    // A provider failure is a 502 with the reason; a source without a key is not a source.
+    // A provider failure is a 503 with the reason; a source without a key is not a source.
     vi.restoreAllMocks();
     stubGateway(stubAdapter({ listModels: () => Promise.reject(new AiProviderError("auth")) }));
     expectError(
       await call("POST", "/admin/ai/models/price-sync/preview", boss),
-      502,
+      503,
       "UPSTREAM_UNAVAILABLE",
       { reason: "auth" },
     );
