@@ -649,3 +649,10 @@ Deviations and decisions needing the owner:
 - **Ingredient-only drug matches** are never auto-accepted (always in the verify zone).
 - Monthly plan caps (`monthly_cap`) are not enforced yet; daily caps are.
 - The spend guard and breaker fail open when Redis is down; alerts are log events until an alert channel exists.
+
+### Production deploy and R2 check (2026-10-14)
+
+- **Deployed** commit `785c0d1` (Phase 1 + Phase 2) through the normal pipeline. The first runs failed because the Elastic IP attached on 13 Oct changed the server address: `DEPLOY_HOST` and `DEPLOY_KNOWN_HOSTS` (production environment secrets) now hold `13.63.55.251` and its ED25519 host key.
+- **Real R2 check (Task 2.5 manual box):** private bucket `wasfa-uploads`, CORS origin `https://wasfa.online`, methods GET/PUT, headers `content-type` and `x-amz-checksum-sha256`; app token limited to that bucket (read and write on items; the backups bucket answers AccessDenied). A presigned PUT signed for length, type and SHA-256: the exact body returned 200, a body one byte longer returned 403, the browser preflight passed. R2 therefore enforces the signed `Content-Length`, as MinIO does; `complete` still HEADs and deletes any mismatch as a second layer.
+- **Cloudflare replaces 502 responses** (the browser then reports a CORS failure), so expected refusals (`UPSTREAM_UNAVAILABLE`) now answer 503.
+
