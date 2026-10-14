@@ -149,6 +149,7 @@ export const en: Partial<Record<MessageKey, string>> = {
     "You have reached today's limit for this feature. Try tomorrow or upgrade your plan.",
   "ai.reason.busy": "You already have a task running. Wait for it to finish, then try again.",
   "ai.reason.insufficient_credits": "You do not have enough credits for this.",
+  "ai.reason.storage_not_configured": "Image upload is not enabled yet. We will let you know when it is.",
   "form.required": "This field is required.",
   "form.tooShort": "Must be at least {min} characters.",
   "form.tooLong": "Must be at most {max} characters.",

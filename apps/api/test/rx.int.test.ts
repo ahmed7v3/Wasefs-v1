@@ -299,7 +299,7 @@ describe("POST /rx: checks", () => {
     try {
       // The file does not even exist: the switch is the first answer.
       const res = await create(who, { fileIds: [randomUUID()] });
-      expect(res.statusCode).toBe(502);
+      expect(res.statusCode).toBe(503);
       expect(res.json()).toMatchObject({
         code: "UPSTREAM_UNAVAILABLE",
         details: { reason: "ai_paused" },

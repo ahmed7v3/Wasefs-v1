@@ -75,7 +75,7 @@ export const ERROR_INFO: Record<ErrorCode, ErrorCodeInfo> = {
     },
   },
   UPSTREAM_UNAVAILABLE: {
-    httpStatus: 502,
+    httpStatus: 503,
     message: {
       ar: "الخدمة غير متاحة مؤقتاً. حاول مرة أخرى بعد قليل.",
       en: "The service is temporarily unavailable. Please try again shortly.",

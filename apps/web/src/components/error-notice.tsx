@@ -24,6 +24,7 @@ const REASON_MESSAGES: Record<string, MessageKey> = {
   daily_cap: "ai.reason.daily_cap",
   busy: "ai.reason.busy",
   insufficient_credits: "ai.reason.insufficient_credits",
+  storage_not_configured: "ai.reason.storage_not_configured",
   password_compromised: "form.passwordCompromised",
   email_domain_blocked: "form.emailDomainBlocked",
   phone_verification_disabled: "phone.unavailable.disabled",

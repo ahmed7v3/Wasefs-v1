@@ -465,7 +465,7 @@ describe("POST /ai/chats/:id/messages", () => {
     );
     try {
       const { res } = await send(who, chatId, { content: "hello" });
-      expect(res.statusCode).toBe(502);
+      expect(res.statusCode).toBe(503);
       expect(res.headers["content-type"]).toContain("application/json");
       expect(res.json()).toMatchObject({
         code: "UPSTREAM_UNAVAILABLE",

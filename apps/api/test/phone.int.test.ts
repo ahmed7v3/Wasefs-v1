@@ -420,7 +420,7 @@ describe("kill switch and bridge health", () => {
       unavailableReason: "bridge_down",
       bridge: "down",
     });
-    expect((await start(jar, newPhone())).statusCode).toBe(502);
+    expect((await start(jar, newPhone())).statusCode).toBe(503);
 
     await bridgeIs("logged_out");
     expect((await status(jar)).json()).toMatchObject({ available: false, bridge: "logged_out" });
