@@ -24,25 +24,25 @@ export default async function DashboardPage() {
   const settings = me.canUseTools ? await getPublicSettings() : null;
 
   return (
-    <div className="flex flex-col gap-8">
-      <header className="flex flex-col gap-3">
-        <h1 className="font-heading text-3xl font-bold text-primary sm:text-4xl">
+    <div className="flex flex-col gap-5 sm:gap-8">
+      <header className="flex flex-col gap-2 sm:gap-3">
+        <h1 className="font-heading text-2xl font-bold leading-snug text-primary sm:text-4xl">
           {t("dashboard.greeting", { name: firstName })}
         </h1>
-        <p className="text-lg text-text-muted">{t("dashboard.lead")}</p>
+        <p className="text-base text-text-muted sm:text-lg">{t("dashboard.lead")}</p>
       </header>
       {me.canUseTools ? null : <VerificationBanner me={me} nonce={nonce} />}
       <MyInvites />
       {settings ? (
         <>
           {/* Capture beside the wallet (the reference's stat row), then the recent work in two columns. */}
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid gap-3 sm:gap-4 lg:grid-cols-3">
             <div className="lg:col-span-2">
               <QuickCapture maxPages={settings.rx.maxPages} />
             </div>
             <CreditsCard />
           </div>
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
             <RecentAnalyses />
             <RecentChats />
           </div>

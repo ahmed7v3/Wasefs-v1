@@ -139,6 +139,16 @@ export function PageThumb({
         >
           {n}
         </span>
+        {compact ? (
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label={t("capture.page.remove", { n })}
+            className="absolute end-1 top-1 inline-flex size-11 items-center justify-center rounded-full bg-surface/90 text-danger shadow-card hover:bg-danger-soft focus-visible:outline-none focus-visible:shadow-focus"
+          >
+            <X aria-hidden className="size-5" />
+          </button>
+        ) : null}
         {page.status === "uploading" ? (
           <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-1.5 bg-neutral-200">
             <span
@@ -148,7 +158,13 @@ export function PageThumb({
           </span>
         ) : null}
       </div>
-      <p className="flex items-center gap-1.5 text-sm font-semibold text-text">
+      <p
+        className={cn(
+          "flex items-center gap-1.5 text-sm font-semibold text-text",
+          // A narrow tile has no room for the sentence: the bar and the live region carry progress.
+          compact && page.status !== "error" && page.status !== "warning" && "sr-only",
+        )}
+      >
         <StatusLine page={page} />
       </p>
       {page.status === "error" ? (
@@ -172,7 +188,12 @@ export function PageThumb({
           </button>
         </div>
       ) : null}
-      <div className="flex flex-wrap items-center justify-center gap-1">
+      <div
+        className={cn(
+          "flex flex-wrap items-center justify-center gap-1",
+          compact && total <= 1 && "hidden",
+        )}
+      >
         {total > 1 ? (
           <>
             <button
@@ -201,7 +222,7 @@ export function PageThumb({
             </button>
           </>
         ) : null}
-        {onEdit ? (
+        {onEdit && !compact ? (
           <button
             type="button"
             disabled={page.previewUrl === "" || page.status === "uploading"}
@@ -212,14 +233,16 @@ export function PageThumb({
             <Crop aria-hidden className="size-5" />
           </button>
         ) : null}
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label={t("capture.page.remove", { n })}
-          className={cn(ICON_BUTTON, "text-danger hover:bg-danger-soft")}
-        >
-          <X aria-hidden className="size-5" />
-        </button>
+        {compact ? null : (
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label={t("capture.page.remove", { n })}
+            className={cn(ICON_BUTTON, "text-danger hover:bg-danger-soft")}
+          >
+            <X aria-hidden className="size-5" />
+          </button>
+        )}
       </div>
       {total > 1 ? (
         <span id={hintId} className="sr-only">

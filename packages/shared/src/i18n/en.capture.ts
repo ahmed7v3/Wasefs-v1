@@ -5,6 +5,7 @@ export const enCapture: Partial<Record<keyof typeof arCapture, string>> = {
   "capture.empty.title": "Start by photographing the prescription",
   "capture.empty.hint": "Choose a clear photo or take one now. You can add up to {max} pages.",
   "capture.pick": "Choose a photo",
+  "capture.close": "Close",
   "capture.addMore": "Add a page",
   "capture.camera": "Take a photo",
   "capture.phone": "Use your phone",

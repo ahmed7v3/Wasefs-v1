@@ -82,7 +82,7 @@ export function AppShell({ user, showAdmin = false, branding, children }: AppShe
               </span>
             </button>
           </aside>
-          <main id="main" className="min-w-0 flex-1 p-5 pb-24 sm:p-8 sm:pb-24">
+          <main id="main" className="min-w-0 flex-1 p-4 pb-8 sm:p-8 sm:pb-12">
             {children}
           </main>
         </div>

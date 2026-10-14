@@ -46,7 +46,7 @@ const SUGGESTIONS: readonly Suggestion[] = [
 ];
 
 const cardStyle =
-  "flex h-full w-full flex-col gap-3 p-5 text-start transition-colors duration-150 hover:bg-primary-soft focus-visible:outline-none focus-visible:shadow-focus";
+  "flex h-full min-h-11 w-full items-center gap-3 p-3 text-start transition-colors duration-150 hover:bg-primary-soft focus-visible:outline-none focus-visible:shadow-focus sm:flex-col sm:items-stretch sm:p-5";
 
 /** `/ai` with no chat open: greeting, three starting points, the composer and the skill chips. */
 export function ChatHome({
@@ -96,65 +96,70 @@ export function ChatHome({
   };
 
   return (
-    <div
-      ref={root}
-      className="mx-auto flex h-full w-full max-w-3xl flex-col justify-center gap-8 overflow-y-auto py-4"
-    >
-      <header className="flex flex-col items-center gap-3 text-center">
-        <span
-          aria-hidden
-          className="inline-flex size-14 items-center justify-center rounded-full bg-primary-soft text-primary"
-        >
-          <Sparkles className="size-7" />
-        </span>
-        <h1 className="m-0 font-heading text-3xl font-bold text-primary sm:text-4xl">
-          {name ? t("chat.greeting", { name }) : t("chat.greetingAnonymous")}
-        </h1>
-        <p className="m-0 text-lg text-text-muted">{t("chat.lead")}</p>
-      </header>
+    <div ref={root} className="flex h-full w-full flex-col gap-2">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div className="mx-auto my-auto flex w-full max-w-3xl flex-col gap-4 py-2 sm:gap-8 sm:py-4">
+          <header className="flex flex-col items-center gap-2 text-center sm:gap-3">
+            <span
+              aria-hidden
+              className="hidden size-14 items-center justify-center rounded-full bg-primary-soft text-primary sm:inline-flex"
+            >
+              <Sparkles className="size-7" />
+            </span>
+            <h1 className="m-0 font-heading text-xl font-bold leading-snug text-primary sm:text-4xl">
+              {name ? t("chat.greeting", { name }) : t("chat.greetingAnonymous")}
+            </h1>
+            <p className="m-0 hidden text-lg text-text-muted sm:block">{t("chat.lead")}</p>
+          </header>
 
-      <ul aria-label={t("chat.suggest.region")} className="grid gap-4 md:grid-cols-3">
-        {SUGGESTIONS.map((suggestion) => {
-          const Icon = suggestion.icon;
-          const inner = (
-            <>
-              <span
-                aria-hidden
-                className="inline-flex size-10 items-center justify-center rounded-lg bg-primary-soft text-primary"
-              >
-                <Icon className="size-5" />
-              </span>
-              <span className="font-heading text-lg font-semibold text-text">
-                {t(suggestion.label)}
-              </span>
-              <span className="text-sm text-text-muted">{t(suggestion.text)}</span>
-            </>
-          );
-          return (
-            <li key={suggestion.label} className="flex">
-              <Card padding="none" className="flex w-full overflow-hidden">
-                {suggestion.prompt ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      choose(suggestion);
-                    }}
-                    className={cardStyle}
+          <ul aria-label={t("chat.suggest.region")} className="grid gap-2 sm:gap-4 md:grid-cols-3">
+            {SUGGESTIONS.map((suggestion) => {
+              const Icon = suggestion.icon;
+              const inner = (
+                <>
+                  <span
+                    aria-hidden
+                    className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary sm:size-10"
                   >
-                    {inner}
-                  </button>
-                ) : (
-                  <Link href="/analyze" className={cardStyle}>
-                    {inner}
-                  </Link>
-                )}
-              </Card>
-            </li>
-          );
-        })}
-      </ul>
+                    <Icon className="size-5" />
+                  </span>
+                  <span className="flex min-w-0 flex-col gap-1">
+                    <span className="font-heading text-base font-semibold text-text sm:text-lg">
+                      {t(suggestion.label)}
+                    </span>
+                    <span className="hidden text-sm text-text-muted sm:block">
+                      {t(suggestion.text)}
+                    </span>
+                  </span>
+                </>
+              );
+              return (
+                <li key={suggestion.label} className="flex">
+                  <Card padding="none" className="flex w-full overflow-hidden">
+                    {suggestion.prompt ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          choose(suggestion);
+                        }}
+                        className={cardStyle}
+                      >
+                        {inner}
+                      </button>
+                    ) : (
+                      <Link href="/analyze" className={cardStyle}>
+                        {inner}
+                      </Link>
+                    )}
+                  </Card>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </div>
 
-      <div className="flex flex-col gap-3">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
         {error ? <ErrorNotice error={error} supportHref={null} /> : null}
         <ChatComposerPanel
           composer={composer}

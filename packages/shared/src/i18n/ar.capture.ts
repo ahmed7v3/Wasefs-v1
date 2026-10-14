@@ -9,6 +9,7 @@ export const arCapture = {
   "capture.empty.title": "ابدأ بتصوير الروشتة",
   "capture.empty.hint": "اختر صورة واضحة أو التقطها الآن. يمكنك إضافة حتى {max} صفحات.",
   "capture.pick": "اختر صورة",
+  "capture.close": "إغلاق",
   "capture.addMore": "إضافة صفحة",
   "capture.camera": "التقط صورة",
   "capture.phone": "استخدم هاتفك",

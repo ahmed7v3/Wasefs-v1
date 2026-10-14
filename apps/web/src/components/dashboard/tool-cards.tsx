@@ -73,26 +73,30 @@ const TOOLS: readonly Tool[] = [
  */
 export function ToolCards() {
   return (
-    <section aria-labelledby="tools-title" className="flex flex-col gap-4">
-      <h2 id="tools-title" className="font-heading text-2xl font-semibold text-text">
+    <section aria-labelledby="tools-title" className="flex flex-col gap-3 sm:gap-4">
+      <h2 id="tools-title" className="font-heading text-xl font-semibold text-text sm:text-2xl">
         {t("dashboard.tools.title")}
       </h2>
-      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <ul className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
         {TOOLS.map(({ id, icon: Icon, title, description, href }) => (
           <li key={id} className="flex">
             <Card padding="none" className="flex w-full overflow-hidden">
               <Link
                 href={href}
-                className="flex min-h-11 w-full flex-col gap-3 p-5 transition-colors duration-150 hover:bg-primary-soft focus-visible:outline-none focus-visible:shadow-focus"
+                className="flex min-h-11 w-full flex-col gap-2 p-3 transition-colors sm:gap-3 sm:p-5 duration-150 hover:bg-primary-soft focus-visible:outline-none focus-visible:shadow-focus"
               >
                 <span
                   aria-hidden
-                  className="inline-flex size-12 items-center justify-center rounded-lg bg-primary-soft text-primary"
+                  className="inline-flex size-10 items-center justify-center rounded-lg bg-primary-soft text-primary sm:size-12"
                 >
-                  <Icon className="size-6" />
+                  <Icon className="size-5 sm:size-6" />
                 </span>
-                <h3 className="font-heading text-xl font-semibold text-text">{t(title)}</h3>
-                <p className="text-base text-text-muted">{t(description)}</p>
+                <h3 className="font-heading text-base font-semibold leading-snug text-text sm:text-xl">
+                  {t(title)}
+                </h3>
+                <p className="line-clamp-3 text-sm text-text-muted sm:text-base">
+                  {t(description)}
+                </p>
               </Link>
             </Card>
           </li>

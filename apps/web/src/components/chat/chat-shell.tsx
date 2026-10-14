@@ -22,7 +22,7 @@ export function ChatShell({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <div className="-mb-16 flex h-[calc(100dvh-13.5rem)] min-h-[32rem] gap-4 sm:-mb-16">
+    <div className="flex h-[calc(100dvh-8rem)] min-h-[26rem] gap-4 sm:h-[calc(100dvh-11rem)] sm:min-h-[32rem]">
       <aside className="hidden w-72 shrink-0 border-e border-border/60 pe-4 lg:block">
         <ChatHistory />
       </aside>

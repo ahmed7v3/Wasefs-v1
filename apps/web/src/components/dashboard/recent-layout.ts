@@ -6,4 +6,4 @@ export const RECENT_COUNT = 5;
  * five, so skeleton, empty state and a short list occupy the same space: no layout shift.
  */
 export const RECENT_ROW = "flex h-16 w-full border-b border-border last:border-b-0";
-export const RECENT_MIN_HEIGHT = "min-h-[27rem]";
+export const RECENT_MIN_HEIGHT = "min-h-[14rem] lg:min-h-[27rem]";

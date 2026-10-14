@@ -28,16 +28,16 @@ export function EmptyState({
 }: EmptyStateProps) {
   return (
     <div
-      className={cn("flex flex-col items-center gap-3 px-4 py-10 text-center", className)}
+      className={cn("flex flex-col items-center gap-3 px-4 py-6 text-center sm:py-10", className)}
       {...props}
     >
       <span
         aria-hidden
-        className="inline-flex size-14 items-center justify-center rounded-full bg-primary-soft text-primary [&>svg]:size-7"
+        className="inline-flex size-11 items-center justify-center rounded-full bg-primary-soft text-primary sm:size-14 [&>svg]:size-6 sm:[&>svg]:size-7"
       >
         {icon ?? <Inbox />}
       </span>
-      <Title className="font-heading text-xl font-semibold text-text">{title}</Title>
+      <Title className="font-heading text-lg font-semibold text-text sm:text-xl">{title}</Title>
       {description ? <p className="max-w-prose text-base text-text-muted">{description}</p> : null}
       {action ? <div className="mt-2">{action}</div> : null}
     </div>
