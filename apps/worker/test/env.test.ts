@@ -14,7 +14,15 @@ describe("workerEnvSchema", () => {
   it("applies defaults", () => {
     const env = workerEnvSchema.parse(base);
     expect(env.WORKER_SHUTDOWN_TIMEOUT_MS).toBe(30_000);
-    expect(queueConcurrency(env)).toEqual({ system: 1, notifications: 1 });
+    expect(queueConcurrency(env)).toEqual({
+      system: 1,
+      notifications: 1,
+      credits: 1,
+      images: 1,
+      drugs: 1,
+      rx: 2,
+      evals: 1,
+    });
     expect(env.MAIL_DAILY_CAP).toBe(280);
     expect(env.SMTP_PORT).toBe(587);
     expect(env.MAIL_FROM).toContain("no-reply@wasfa.online");
@@ -25,8 +33,20 @@ describe("workerEnvSchema", () => {
       ...base,
       WORKER_CONCURRENCY_SYSTEM: "4",
       WORKER_CONCURRENCY_NOTIFICATIONS: "2",
+      WORKER_CONCURRENCY_CREDITS: "3",
+      WORKER_CONCURRENCY_IMAGES: "2",
+      WORKER_CONCURRENCY_DRUGS: "2",
+      WORKER_CONCURRENCY_RX: "3",
     });
-    expect(queueConcurrency(env)).toEqual({ system: 4, notifications: 2 });
+    expect(queueConcurrency(env)).toEqual({
+      system: 4,
+      notifications: 2,
+      credits: 3,
+      images: 2,
+      drugs: 2,
+      rx: 3,
+      evals: 1,
+    });
   });
 
   it("rejects a missing or non-redis URL and out-of-range concurrency", () => {
@@ -70,5 +90,19 @@ describe("workerEnvSchema", () => {
     expect(workerEnvSchema.safeParse({ ...base, SMTP_USER: "login" }).success).toBe(false);
     const blank = workerEnvSchema.parse({ ...base, SMTP_HOST: "", SMTP_USER: "", SMTP_PASS: "" });
     expect(blank.SMTP_HOST).toBeUndefined();
+  });
+
+  it("takes the uploads storage keys all together or not at all", () => {
+    const storage = {
+      R2_UPLOADS_ENDPOINT: "http://127.0.0.1:9000",
+      R2_UPLOADS_BUCKET: "wasfa-uploads",
+      R2_UPLOADS_ACCESS_KEY_ID: "key",
+      R2_UPLOADS_SECRET_ACCESS_KEY: "secret",
+    };
+    expect(workerEnvSchema.parse(base).R2_UPLOADS_REGION).toBe("auto");
+    expect(workerEnvSchema.safeParse({ ...base, ...storage }).success).toBe(true);
+    expect(
+      workerEnvSchema.safeParse({ ...base, R2_UPLOADS_BUCKET: storage.R2_UPLOADS_BUCKET }).success,
+    ).toBe(false);
   });
 });

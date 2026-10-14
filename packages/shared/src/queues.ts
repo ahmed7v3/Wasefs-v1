@@ -1,6 +1,9 @@
 import { z } from "zod";
 
 import { emailSendPayloadSchema } from "./email.js";
+import { evalImportPayloadSchema, evalRunPayloadSchema } from "./schemas/admin-evals.js";
+import { imageProcessPayloadSchema } from "./schemas/files.js";
+import { rxAnalyzePayloadSchema } from "./schemas/rx.js";
 
 /**
  * Queue registry shared by `apps/api` (producers) and `apps/worker` (consumers).
@@ -22,6 +25,32 @@ export const maintenancePayloadSchema = z.object({
   source: z.enum(["scheduler", "manual"]).default("scheduler"),
 });
 
+/**
+ * Credit maintenance (Phase 2, Task 2.2). No payload: each run works out what is due.
+ * `credits.sweep_reservations`: releases reservations whose job crashed. `credits.grant_monthly`:
+ * gives every user the monthly credits of their plan for the current UTC month (once per period).
+ * `credits.reconcile`: nightly check of every wallet balance against its ledger. `ai.spend_rollup`:
+ * hourly recompute of `ai_spend_daily` (both on the `credits` queue: accounting, not AI calls).
+ */
+export const creditsMaintenancePayloadSchema = z.object({});
+
+/**
+ * Uploaded images (Phase 2, Task 2.5). `image.process` re-encodes one upload (`fileId`);
+ * `files.retention` (no payload) deletes the objects older than `uploads.retentionDays`.
+ */
+export const filesRetentionPayloadSchema = z.object({});
+
+/**
+ * Drug list import (Phase 2, Task 2.7). The uploaded file waits in Redis (`drugimport:<batchId>`);
+ * `dry_run` reports what a commit would do, `commit` writes it. Rollback is a plain api transaction.
+ */
+export const drugImportPayloadSchema = z.object({
+  batchId: z.uuid(),
+  mode: z.enum(["dry_run", "commit"]),
+  /** The admin who asked, for `committed_by`. */
+  actorId: z.uuid().optional(),
+});
+
 export const QUEUE_REGISTRY = {
   system: {
     "system.heartbeat": heartbeatPayloadSchema,
@@ -30,6 +59,28 @@ export const QUEUE_REGISTRY = {
   },
   notifications: {
     "email.send": emailSendPayloadSchema,
+  },
+  credits: {
+    "credits.sweep_reservations": creditsMaintenancePayloadSchema,
+    "credits.grant_monthly": creditsMaintenancePayloadSchema,
+    "credits.reconcile": creditsMaintenancePayloadSchema,
+    "ai.spend_rollup": creditsMaintenancePayloadSchema,
+  },
+  images: {
+    "image.process": imageProcessPayloadSchema,
+    "files.retention": filesRetentionPayloadSchema,
+  },
+  drugs: {
+    "drugs.import": drugImportPayloadSchema,
+  },
+  /** Prescription analysis (Phase 2, Task 2.8): one job per analysis, jobId `rx-<id>`. */
+  rx: {
+    "rx.analyze": rxAnalyzePayloadSchema,
+  },
+  /** Accuracy evaluation (Phase 2, Task 2.10): label-set imports and eval runs; no credits, no users. */
+  evals: {
+    "evals.run": evalRunPayloadSchema,
+    "evals.import": evalImportPayloadSchema,
   },
 } as const;
 

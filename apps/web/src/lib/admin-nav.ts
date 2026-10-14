@@ -1,9 +1,21 @@
 import {
   Building2,
+  ClipboardCheck,
+  Coins,
+  Cpu,
+  Database,
   Flag,
+  FlaskConical,
+  Gauge,
+  KeyRound,
+  Sparkles,
+  Layers,
   LayoutDashboard,
   MessageCircle,
   Palette,
+  PackageOpen,
+  Receipt,
+  Route,
   ScrollText,
   Settings,
   ShieldCheck,
@@ -117,6 +129,103 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
     ],
   },
   {
+    id: "ai",
+    label: "admin.nav.group.ai",
+    items: [
+      {
+        href: "/admin/ai",
+        label: "admin.nav.ai",
+        description: "admin.nav.ai.description",
+        icon: Gauge,
+        permission: "ai.read",
+      },
+      {
+        href: "/admin/ai/providers",
+        label: "admin.nav.aiProviders",
+        description: "admin.nav.aiProviders.description",
+        icon: KeyRound,
+        permission: "ai.read",
+      },
+      {
+        href: "/admin/ai/models",
+        label: "admin.nav.aiModels",
+        description: "admin.nav.aiModels.description",
+        icon: Cpu,
+        permission: "ai.read",
+      },
+      {
+        href: "/admin/ai/routes",
+        label: "admin.nav.aiRoutes",
+        description: "admin.nav.aiRoutes.description",
+        icon: Route,
+        permission: "ai.read",
+      },
+      {
+        href: "/admin/ai/playground",
+        label: "admin.nav.aiPlayground",
+        description: "admin.nav.aiPlayground.description",
+        icon: FlaskConical,
+        // Visible to readers like every nav entry; running it needs ai.write and the page says so.
+        permission: "ai.read",
+      },
+      {
+        href: "/admin/ai/usage",
+        label: "admin.nav.aiUsage",
+        description: "admin.nav.aiUsage.description",
+        icon: Receipt,
+        permission: "usage.read",
+      },
+      {
+        href: "/admin/ai/evals",
+        label: "admin.nav.aiEvals",
+        description: "admin.nav.aiEvals.description",
+        icon: ClipboardCheck,
+        permission: "evals.run",
+      },
+      {
+        href: "/admin/ai/skills",
+        label: "admin.nav.aiSkills",
+        description: "admin.nav.aiSkills.description",
+        icon: Sparkles,
+        permission: "ai.read",
+      },
+      {
+        href: "/admin/plans",
+        label: "admin.nav.plans",
+        description: "admin.nav.plans.description",
+        icon: Layers,
+        permission: "plans.read",
+      },
+      {
+        href: "/admin/credits",
+        label: "admin.nav.credits",
+        description: "admin.nav.credits.description",
+        icon: Coins,
+        permission: "usage.read",
+      },
+    ],
+  },
+  {
+    id: "drugs",
+    label: "admin.nav.group.drugs",
+    items: [
+      {
+        href: "/admin/drugs",
+        label: "admin.nav.drugs",
+        description: "admin.nav.drugs.description",
+        icon: Database,
+        permission: "drugs.read",
+      },
+      {
+        href: "/admin/drugs/imports",
+        label: "admin.nav.drugImports",
+        description: "admin.nav.drugImports.description",
+        icon: PackageOpen,
+        permission: "drugs.read",
+      },
+    ],
+  },
+  {
     id: "monitoring",
     label: "admin.nav.group.monitoring",
     items: [
@@ -151,11 +260,19 @@ export function visibleNavGroups(permissions: readonly string[]): AdminNavGroup[
   })).filter((group) => group.items.length > 0);
 }
 
-/** Active on the exact path (overview) or the path and everything below it. */
+const NAV_HREFS = ADMIN_NAV.flatMap((group) => group.items.map((item) => item.href));
+
+const isWithin = (href: string, pathname: string) =>
+  pathname === href || pathname.startsWith(`${href}/`);
+
+/**
+ * Active on the exact path (overview) or the path and everything below it, unless a longer entry
+ * also matches: `/admin/ai/models` is the models page, not the AI settings page it sits under.
+ */
 export function isNavActive(href: string, pathname: string): boolean {
-  return href === "/admin"
-    ? pathname === "/admin"
-    : pathname === href || pathname.startsWith(`${href}/`);
+  if (href === "/admin") return pathname === "/admin";
+  if (!isWithin(href, pathname)) return false;
+  return !NAV_HREFS.some((other) => other.length > href.length && isWithin(other, pathname));
 }
 
 /** The nav item of the current path, for the top bar title. */

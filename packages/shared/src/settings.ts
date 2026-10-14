@@ -4,6 +4,8 @@ import { accessSettingsSchema, authSettingsSchema } from "./auth-settings.js";
 import { LOCALES } from "./i18n/index.js";
 import { emailSchema, phoneNumberSchema } from "./schemas/auth.js";
 
+import type { AiTask } from "./ai.js";
+
 /*
  * Typed registry of every `site_settings` key (Task 1.8). Each key has a zod schema (with safe
  * defaults, so `schema.parse({})` is the default value), and a visibility: `public` keys are served
@@ -99,6 +101,69 @@ export const whatsappSettingsSchema = z.object({
   number: phoneNumberSchema.nullable().default(null),
 });
 
+/**
+ * AI spend control (Phase 2, Task 2.2). Admin only: it holds the daily spend cap and the kill
+ * switches. Written through `/admin/ai/settings` (`ai.write` + `ai.killswitch`), never through the
+ * generic settings route. Money is integer USD micros (1 USD = 1,000,000).
+ */
+export const aiSettingsSchema = z.object({
+  /** Daily provider spend at which new AI work is refused (UTC day). */
+  dailyCapUsdMicros: z.number().int().min(0).default(10_000_000),
+  /** Percent of the cap at which the admins are alerted, once per day. */
+  alertPercent: z.number().int().min(1).max(100).default(80),
+  /** `all` stops everything; the others stop one feature. */
+  killSwitch: z
+    .object({
+      all: z.boolean().default(false),
+      rx: z.boolean().default(false),
+      chat: z.boolean().default(false),
+      search: z.boolean().default(false),
+    })
+    .default({ all: false, rx: false, chat: false, search: false }),
+  /** What one credit is worth in USD micros (default $0.01). */
+  creditValueUsdMicros: z.number().int().min(1).default(10_000),
+  /** Preview models can disappear without notice: off unless an admin allows them. */
+  allowPreviewModels: z.boolean().default(false),
+});
+
+/** Prescription analysis: what users are shown before pressing Analyze, and its limits. */
+export const rxSettingsSchema = z.object({
+  /** Credits charged per page of a prescription. */
+  creditsPerPage: z.number().int().min(0).max(100).default(1),
+  maxPages: z.number().int().min(1).max(4).default(4),
+  /** Model-written warnings are off: warnings come from code (phase2.md, Decision 8). */
+  modelWarnings: z.boolean().default(false),
+  /** Items re-read by the verification pass. */
+  verifyMaxItems: z.number().int().min(0).max(20).default(5),
+});
+
+/** Uploaded images (Phase 2, Task 2.5): how long the pictures are kept; the analysis results stay. */
+export const uploadsSettingsSchema = z.object({
+  retentionDays: z.number().int().min(1).max(365).default(30),
+});
+
+/**
+ * Which plans may use each assistant skill (Task 2.4). A skill missing from the map is on for every
+ * plan; `[]` turns it off everywhere. Written through `/admin/ai/skills` (`ai.write`), never through
+ * the generic settings route.
+ */
+export const skillsSettingsSchema = z
+  .record(
+    z.string().regex(/^[a-z][a-z0-9-]{0,59}$/),
+    z.union([z.literal("all"), z.array(z.string().regex(/^[a-z][a-z0-9_]*$/)).max(100)]),
+  )
+  .default({});
+
+/** True when `planKey` may use `skill` under the `skills` setting. */
+export function skillEnabledForPlan(
+  skills: z.output<typeof skillsSettingsSchema>,
+  skill: string,
+  planKey: string,
+): boolean {
+  const rule = Object.hasOwn(skills, skill) ? skills[skill] : undefined;
+  return rule === undefined || rule === "all" || rule.includes(planKey);
+}
+
 export const SETTING_VISIBILITIES = ["public", "admin"] as const;
 export type SettingVisibility = (typeof SETTING_VISIBILITIES)[number];
 
@@ -114,6 +179,13 @@ export const SETTINGS_REGISTRY = {
   /** Blocked email domains and the phone-verification kill switch: admin only. */
   auth: { schema: authSettingsSchema, visibility: "admin" },
   whatsapp: { schema: whatsappSettingsSchema, visibility: "admin" },
+  ai: { schema: aiSettingsSchema, visibility: "admin" },
+  /** Public: the price per page and the page limit are shown before a prescription is analysed. */
+  rx: { schema: rxSettingsSchema, visibility: "public" },
+  /** Admin only: the retention job reads it; users are told the number on the analysis page. */
+  uploads: { schema: uploadsSettingsSchema, visibility: "admin" },
+  /** Admin only: per-plan enablement of assistant skills, edited on `/admin/ai/skills`. */
+  skills: { schema: skillsSettingsSchema, visibility: "admin" },
 } as const satisfies Record<string, { schema: z.ZodType; visibility: SettingVisibility }>;
 
 export type SettingsRegistry = typeof SETTINGS_REGISTRY;
@@ -148,6 +220,7 @@ export const publicSettingsSchema = z.object({
   currency: currencySettingsSchema,
   access: accessSettingsSchema,
   free_tier: freeTierSettingsSchema,
+  rx: rxSettingsSchema,
 }) satisfies z.ZodType<{ [K in PublicSettingKey]: SettingValue<K> }>;
 export type PublicSettings = z.output<typeof publicSettingsSchema>;
 
@@ -199,3 +272,31 @@ export const upsertFlagSchema = z.object({
 
 /** `GET /flags`: the caller's evaluated flags (unknown keys are simply absent = off). */
 export const flagsResponseSchema = z.object({ flags: z.record(z.string(), z.boolean()) });
+
+type KillSwitch = SettingValue<"ai">["killSwitch"];
+
+/**
+ * Whether the `ai` kill switches stop a task: `all`, the task's own feature switch, or (when asked
+ * about search) the search switch. Helper tasks (titles, summaries) answer to `all` only. The
+ * worker's router uses this; the API's `isSwitchedOff` implements the same table.
+ */
+export function isAiSwitchedOff(
+  killSwitch: KillSwitch,
+  task: AiTask,
+  options: { search: boolean },
+): boolean {
+  if (killSwitch.all) return true;
+  if (options.search) return killSwitch.search;
+  switch (task) {
+    case "rx_extract":
+    case "rx_verify":
+      return killSwitch.rx;
+    case "chat":
+    case "deep_think":
+      return killSwitch.chat;
+    case "web_search":
+      return killSwitch.search;
+    default:
+      return false;
+  }
+}

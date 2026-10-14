@@ -1,10 +1,12 @@
 import { createDb } from "@wasfa/db";
 import { Redis } from "ioredis";
 
+import { createAiRuntime } from "./ai/runtime.js";
 import { loadEnv, queueConcurrency } from "./config/env.js";
 import { createLogger } from "./logger.js";
 import { createEmailRuntime } from "./notifications/email.js";
 import { closeWorkers, registerSchedules, startWorkers } from "./queues.js";
+import { createObjectStore } from "./storage/object-store.js";
 
 const env = loadEnv();
 const logger = createLogger(env);
@@ -18,15 +20,23 @@ connection.on("error", (error: Error) => {
 const { db, close: closeDb } = createDb({ url: env.DATABASE_URL, max: 3 });
 
 const email = createEmailRuntime(env, connection, logger);
+const storage = createObjectStore(env);
+const ai = createAiRuntime({ env, db, redis: connection, logger });
 const { workers, queues } = startWorkers(connection, queueConcurrency(env), {
   redis: connection,
   db,
   logger,
   email,
+  storage,
+  ai,
 });
 await registerSchedules(queues);
 logger.info(
-  { queues: queues.map((queue) => queue.name), mailTransport: email.transport.kind },
+  {
+    queues: queues.map((queue) => queue.name),
+    mailTransport: email.transport.kind,
+    uploadsStorage: storage !== undefined,
+  },
   "Worker started",
 );
 
@@ -46,6 +56,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   // After the workers: a job that was still running needs the pool until it settles.
   await closeDb();
   email.transport.close();
+  storage?.close();
   await connection.quit().catch(() => {
     connection.disconnect();
   });

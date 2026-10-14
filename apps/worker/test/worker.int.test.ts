@@ -57,7 +57,7 @@ beforeAll(async () => {
   const email = createEmailRuntime(testEnv(redisInfra.url), connection, logger);
   set = startWorkers(
     connection,
-    { system: 2, notifications: 1 },
+    { system: 2, notifications: 1, credits: 1, images: 1, drugs: 1, rx: 1, evals: 1 },
     { redis: connection, db: database.db, logger, email },
   );
   producer = new Queue("system", { connection });
@@ -168,5 +168,61 @@ describe("closeWorkers", () => {
     };
     await expect(closeWorkers([stuck], 100)).resolves.toBe("forced");
     expect(calls).toEqual([undefined, true]);
+  });
+});
+
+describe("credits maintenance", () => {
+  it("has a handler for both jobs and schedules them every 5 minutes and daily at 00:10 UTC, once each", async () => {
+    expect(Object.keys(HANDLERS.credits)).toEqual(
+      expect.arrayContaining(["credits.sweep_reservations", "credits.grant_monthly"]),
+    );
+    await registerSchedules(set.queues);
+    await registerSchedules(set.queues);
+    const credits = set.queues.find((queue) => queue.name === "credits");
+    const schedulers = (await credits?.getJobSchedulers()) ?? [];
+    const sweep = schedulers.filter((scheduler) => scheduler.key === "credits.sweep_reservations");
+    const grant = schedulers.filter((scheduler) => scheduler.key === "credits.grant_monthly");
+    expect(sweep).toHaveLength(1);
+    expect(sweep[0]?.every).toBe(300_000);
+    expect(grant).toHaveLength(1);
+    expect(grant[0]).toMatchObject({ pattern: "10 0 * * *", tz: "UTC" });
+  });
+
+  it("runs both jobs against the database when they are queued", async () => {
+    const credits = set.queues.find((queue) => queue.name === "credits");
+    await credits?.add("credits.sweep_reservations", {}, { jobId: "t-sweep" });
+    await credits?.add("credits.grant_monthly", {}, { jobId: "t-grant" });
+    await waitFor(async () => (await credits?.getJob("t-sweep"))?.isCompleted());
+    await waitFor(async () => (await credits?.getJob("t-grant"))?.isCompleted());
+    const output = logs.join("");
+    expect(output).toContain("Expired credit reservations released");
+    expect(output).toContain("Monthly credit grants finished");
+  });
+});
+
+describe("image jobs", () => {
+  it("has a handler for both jobs and schedules the retention daily at 03:30 UTC, once", async () => {
+    expect(Object.keys(HANDLERS.images)).toEqual(
+      expect.arrayContaining(["image.process", "files.retention"]),
+    );
+    await registerSchedules(set.queues);
+    await registerSchedules(set.queues);
+    const images = set.queues.find((queue) => queue.name === "images");
+    const schedulers = (await images?.getJobSchedulers()) ?? [];
+    const retention = schedulers.filter((scheduler) => scheduler.key === "files.retention");
+    expect(retention).toHaveLength(1);
+    expect(retention[0]).toMatchObject({ pattern: "30 3 * * *", tz: "UTC" });
+  });
+
+  it("rejects an image.process job without a valid fileId permanently, before any handler runs", async () => {
+    const images = set.queues.find((queue) => queue.name === "images");
+    await images?.add(
+      "image.process",
+      { fileId: "not-a-uuid" },
+      { jobId: "t-bad-image", attempts: 1 },
+    );
+    await waitFor(async () => (await images?.getJob("t-bad-image"))?.isFailed());
+    const job = await images?.getJob("t-bad-image");
+    expect(job?.failedReason).toContain("fileId");
   });
 });

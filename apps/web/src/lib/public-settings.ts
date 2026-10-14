@@ -14,6 +14,7 @@ export const PUBLIC_SETTINGS_FALLBACK: PublicSettings = {
   currency: settingDefault("currency"),
   access: settingDefault("access"),
   free_tier: settingDefault("free_tier"),
+  rx: settingDefault("rx"),
 };
 
 /** The public pages wait this long for the API, then render with the defaults. */

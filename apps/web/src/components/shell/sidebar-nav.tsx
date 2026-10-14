@@ -38,8 +38,20 @@ const ITEMS: readonly NavItem[] = [
     icon: House,
     match: (pathname) => pathname === "/dashboard",
   },
-  { kind: "soon", label: "nav.analysis", icon: FileScan },
-  { kind: "soon", label: "nav.assistant", icon: Sparkles },
+  {
+    kind: "link",
+    href: "/analyze",
+    label: "nav.analysis",
+    icon: FileScan,
+    match: (pathname) => pathname === "/analyze" || pathname.startsWith("/analyze/"),
+  },
+  {
+    kind: "link",
+    href: "/ai",
+    label: "nav.assistant",
+    icon: Sparkles,
+    match: (pathname) => pathname === "/ai" || pathname.startsWith("/ai/"),
+  },
   { kind: "soon", label: "nav.drugs", icon: Pill },
   {
     kind: "link",

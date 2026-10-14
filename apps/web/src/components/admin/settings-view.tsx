@@ -19,6 +19,9 @@ import { ErrorNotice } from "../error-notice";
 
 import { SettingForm } from "./setting-form";
 
+/** `ai` and `skills` are edited on their own pages (`ai.write`); the generic route refuses them. */
+const GENERIC_SETTING_KEYS = SETTING_KEYS.filter((key) => key !== "ai" && key !== "skills");
+
 export interface SettingsViewProps {
   canWrite: boolean;
 }
@@ -72,7 +75,7 @@ export function SettingsView({ canWrite }: SettingsViewProps) {
       <p className="text-base text-text-muted">
         {canWrite ? t("admin.settings.lead") : t("admin.settings.readOnlyNote")}
       </p>
-      {SETTING_KEYS.map((key) => {
+      {GENERIC_SETTING_KEYS.map((key) => {
         const item = saved[key] ?? loaded.get(key);
         if (!item) return null;
         return (

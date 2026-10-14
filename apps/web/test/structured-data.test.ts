@@ -22,6 +22,7 @@ const defaults: PublicSettings = {
   currency: settingDefault("currency"),
   access: settingDefault("access"),
   free_tier: settingDefault("free_tier"),
+  rx: settingDefault("rx"),
 };
 
 describe("faqJsonLd", () => {

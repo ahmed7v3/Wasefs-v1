@@ -1,6 +1,14 @@
 import { ERROR_CODES, ERROR_INFO, type ErrorCode } from "../errors/codes.js";
 
+import { arAdminAi } from "./ar.admin-ai.js";
+import { arAdminBilling } from "./ar.admin-billing.js";
+import { arAdminDrugs } from "./ar.admin-drugs.js";
+import { arAdminEvals } from "./ar.admin-evals.js";
 import { arAdmin } from "./ar.admin.js";
+import { arCapture } from "./ar.capture.js";
+import { arChat } from "./ar.chat.js";
+import { arDashboard } from "./ar.dashboard.js";
+import { arRx } from "./ar.rx.js";
 
 type ErrorMessageKey = `error.${ErrorCode}`;
 
@@ -142,6 +150,12 @@ export const ar = {
     "طريقة تسجيل الدخول هذه غير متاحة حاليًا. استخدم بريدك الإلكتروني أو رقم هاتفك.",
   "auth.error.socialFailed":
     "تعذّر تسجيل الدخول بهذه الطريقة. حاول مرة أخرى أو استخدم بريدك الإلكتروني.",
+  // AI limits (Task 2.2): the API answers with `details.reason`, the web app shows these.
+  "ai.reason.ai_paused": "الخدمة مزدحمة الآن، حاول بعد قليل",
+  "ai.reason.plan_feature": "هذه الميزة غير متاحة في باقتك الحالية.",
+  "ai.reason.daily_cap": "وصلت إلى الحد اليومي لهذه الميزة. حاول غدًا أو قم بترقية باقتك.",
+  "ai.reason.busy": "لديك عملية قيد التنفيذ بالفعل. انتظر حتى تنتهي ثم حاول مرة أخرى.",
+  "ai.reason.insufficient_credits": "رصيدك من الكريدت لا يكفي لهذه العملية.",
   "form.required": "هذا الحقل مطلوب.",
   "form.tooShort": "يجب ألا يقل عن {min} أحرف.",
   "form.tooLong": "يجب ألا يزيد عن {max} حرفًا.",
@@ -326,15 +340,7 @@ export const ar = {
   "onboarding.conflict.generic": "تغيّرت حالة إعداد حسابك. حدّثنا الصفحة وتابع من حيث توقفت.",
   "dashboard.title": "الرئيسية",
   "dashboard.greeting": "أهلًا {name}، جاهزون لخدمتك",
-  "dashboard.lead": "أدواتك الطبية الذكية في الطريق إليك. سنُعلمك بمجرد أن تصبح جاهزة.",
-  "dashboard.toolsTitle": "أدوات قادمة قريبًا",
-  "dashboard.tool.analysis.title": "تحليل الروشتة",
-  "dashboard.tool.analysis.desc":
-    "ارفع صورة الروشتة واحصل على أسماء الأدوية والجرعات والتحذيرات بوضوح.",
-  "dashboard.tool.assistant.title": "المساعد الذكي",
-  "dashboard.tool.assistant.desc": "اسأل بالعربية عن الأدوية واحصل على إجابة مبسطة وموثوقة.",
-  "dashboard.tool.drugs.title": "البحث عن دواء",
-  "dashboard.tool.drugs.desc": "ابحث عن أي دواء واعرف استخداماته وبدائله وتحذيراته.",
+  "dashboard.lead": "ابدأ من هنا: صوّر روشتة، أو اسأل المساعد، أو تابع آخر أعمالك.",
   "dashboard.verify.title": "أكمل توثيق حسابك",
   "dashboard.verify.body": "لن تتمكن من استخدام الأدوات قبل توثيق بريدك الإلكتروني أو رقم هاتفك.",
   "dashboard.verify.email": "أرسلنا رابط التأكيد إلى {email}. افتح الرسالة، أو اطلب رابطًا جديدًا.",
@@ -497,7 +503,17 @@ export const ar = {
   "contact.success.body": "شكرًا لتواصلك. سنرد عليك على وسيلة التواصل التي تركتها في أقرب وقت.",
   "contact.success.again": "إرسال رسالة أخرى",
   "contact.channels.title": "قنوات أخرى للتواصل",
+  "upload.error.heicUnsupported":
+    "صيغة HEIC غير مدعومة على الخادم. حوّل الصورة إلى JPEG أو PNG ثم أعد المحاولة.",
   ...arAdmin,
+  ...arAdminAi,
+  ...arAdminBilling,
+  ...arAdminDrugs,
+  ...arAdminEvals,
+  ...arRx,
+  ...arCapture,
+  ...arChat,
+  ...arDashboard,
   ...errorMessages,
 } as const;
 

@@ -1,6 +1,7 @@
 import { isIP } from "node:net";
 
 import { parseEnv } from "@wasfa/shared/env";
+import { refineUploadsEnv, uploadsEnvShape } from "@wasfa/shared/storage";
 import { z } from "zod";
 
 const csv = (value: string) =>
@@ -91,10 +92,15 @@ export const apiEnvSchema = z
         .transform((value) => value.replace(/^\+/, ""))
         .pipe(z.string().regex(/^[1-9]\d{7,14}$/)),
     ),
+
+    // --- Uploads (presigned PUT to R2; MinIO locally, Task 2.5). All four keys or none. ---
+    ...uploadsEnvShape,
   })
   .superRefine((env, ctx) => {
     const issue = (key: keyof typeof env, message: string) =>
       ctx.addIssue({ code: "custom", path: [key], message });
+
+    refineUploadsEnv(env, ctx);
 
     for (const [id, secret] of [
       ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],

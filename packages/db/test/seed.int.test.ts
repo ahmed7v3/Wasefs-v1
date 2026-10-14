@@ -45,6 +45,11 @@ describe("seedDefaults", () => {
       settings: 0,
       roles: 0,
       rolePermissions: 0,
+      plans: 0,
+      planEntitlements: 0,
+      aiProviders: 0,
+      aiModels: 0,
+      aiTaskRoutes: 0,
     });
     expect(await snapshot()).toEqual(before);
   });

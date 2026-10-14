@@ -4,6 +4,8 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync } from "node:f
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
+import { CreateBucketCommand, S3Client } from "@aws-sdk/client-s3";
+import { MinioContainer, type StartedMinioContainer } from "@testcontainers/minio";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { RedisContainer, type StartedRedisContainer } from "@testcontainers/redis";
 
@@ -34,6 +36,10 @@ const DB_DIR = `${REPO_ROOT}packages/db`;
 const API_PRELOAD = new URL("./api-preload.mjs", import.meta.url).href;
 
 const API_DB_PASSWORD = "e2e-api-role-password";
+/** Chainguard MinIO, pinned like the dev compose and the api tests (MinIO no longer publishes to Docker Hub). */
+const MINIO_IMAGE =
+  "cgr.dev/chainguard/minio@sha256:dc455cdd4db6e390b1b26514f15ff37681a777bf8dab41aac445a0259f751e56";
+const UPLOADS_BUCKET = "wasfa-e2e-uploads";
 
 export interface RuntimeInfo {
   redisUrl: string;
@@ -46,6 +52,10 @@ interface Infra {
   ownerDatabaseUrl: string;
   apiDatabaseUrl: string;
   redisUrl: string;
+  /** `R2_UPLOADS_*` for the api and the worker (MinIO, the same S3 code path as R2). */
+  storageEnv: Record<string, string>;
+  /** Where the browser PUTs and GETs pictures: the web CSP has to allow it. */
+  storageOrigin: string;
   stop: () => Promise<void>;
 }
 
@@ -75,10 +85,24 @@ function tail(name: string, lines = 40): string {
 }
 
 async function startInfra(): Promise<Infra> {
-  const [postgres, redis]: [StartedPostgreSqlContainer, StartedRedisContainer] = await Promise.all([
+  const [postgres, redis, minio]: [
+    StartedPostgreSqlContainer,
+    StartedRedisContainer,
+    StartedMinioContainer,
+  ] = await Promise.all([
     new PostgreSqlContainer("postgres:18-alpine").start(),
     new RedisContainer("redis:8-alpine").start(),
+    new MinioContainer(MINIO_IMAGE).start(),
   ]);
+  const storageOrigin = minio.getConnectionUrl();
+  const s3 = new S3Client({
+    endpoint: storageOrigin,
+    region: "auto",
+    credentials: { accessKeyId: minio.getUsername(), secretAccessKey: minio.getPassword() },
+    forcePathStyle: true,
+  });
+  await s3.send(new CreateBucketCommand({ Bucket: UPLOADS_BUCKET }));
+  s3.destroy();
   const ownerDatabaseUrl = postgres.getConnectionUri();
   const apiUrl = new URL(ownerDatabaseUrl);
   // The API connects as the restricted role it has in production (no UPDATE/DELETE on audit_logs).
@@ -88,8 +112,15 @@ async function startInfra(): Promise<Infra> {
     ownerDatabaseUrl,
     apiDatabaseUrl: apiUrl.toString(),
     redisUrl: redis.getConnectionUrl(),
+    storageOrigin,
+    storageEnv: {
+      R2_UPLOADS_ENDPOINT: storageOrigin,
+      R2_UPLOADS_BUCKET: UPLOADS_BUCKET,
+      R2_UPLOADS_ACCESS_KEY_ID: minio.getUsername(),
+      R2_UPLOADS_SECRET_ACCESS_KEY: minio.getPassword(),
+    },
     stop: async () => {
-      await Promise.all([postgres.stop(), redis.stop()]);
+      await Promise.all([postgres.stop(), redis.stop(), minio.stop()]);
     },
   };
 }
@@ -243,6 +274,7 @@ export async function startStack(options: { withTurnstile: boolean }): Promise<R
         REDIS_URL: running.redisUrl,
         ENCRYPTION_KEY: encryptionKey,
         LOG_LEVEL: "info",
+        ...running.storageEnv,
       }),
     });
     services.push(worker);
@@ -267,6 +299,7 @@ export async function startStack(options: { withTurnstile: boolean }): Promise<R
           RATE_LIMIT_MAX: "100000",
           LOG_LEVEL: "warn",
           WHATSAPP_NUMBER,
+          ...running.storageEnv,
           ...(name === "turnstile" ? { TURNSTILE_SECRET_KEY: TURNSTILE_TEST_SECRET_KEY } : {}),
         }),
       });
@@ -281,6 +314,9 @@ export async function startStack(options: { withTurnstile: boolean }): Promise<R
           NEXT_DIST_DIR: distDirOf(name),
           NEXT_TELEMETRY_DISABLED: "1",
           API_INTERNAL_URL: originOf(ports.api),
+          // The browser uploads straight to storage and shows pictures from it (Task 2.6).
+          CSP_CONNECT_SRC_EXTRA: running.storageOrigin,
+          CSP_IMG_SRC_EXTRA: running.storageOrigin,
         }),
       });
       services.push(web);

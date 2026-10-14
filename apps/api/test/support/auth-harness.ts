@@ -118,7 +118,7 @@ export class AuthHarness {
     method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
     url: string,
     options: {
-      body?: Record<string, unknown>;
+      body?: Record<string, unknown> | readonly unknown[];
       jar?: Jar;
       ip?: string;
       headers?: Record<string, string>;

@@ -1,0 +1,93 @@
+import { getSkill } from "@wasfa/ai";
+import { RX_SKILL_NAME } from "@wasfa/shared/rx";
+
+import type { NormalizedMessage } from "@wasfa/ai";
+import type { DrugMatchCandidate } from "@wasfa/shared/drugs";
+
+/*
+ * Prompt assembly, ordered for provider-side caching (phase2.md, Decision 7c): the stable system
+ * prompt, then the skill, then the abbreviation glossary, and only then the variable input. The
+ * variable part is wrapped in `<user_data>` blocks, which the skill tells the model to treat as
+ * data, never as instructions.
+ */
+
+export const RX_SKILL = RX_SKILL_NAME;
+
+const SYSTEM = `You are the reading component of a pharmacy assistant. Follow the skill instructions below exactly. Reply with JSON that matches the provided schema and nothing else.`;
+
+/** Reading aid only: the meaning of an abbreviation is decided by code (rx-normalize), never by the model. */
+const GLOSSARY = `## Abbreviations you may see (copy them as written; do not translate them)
+- 1x3, 1×3, 3x1, bid, b.i.d, tid, qid, od, qd: how many times a day
+- prn: when needed; hs: at bedtime
+- ac, ق.أ: before meals; pc, ب.أ: after meals
+- x 5 days, لمدة 5 أيام: duration`;
+
+export function systemPrompt(): string {
+  return `${SYSTEM}\n\n${getSkill(RX_SKILL).body}\n\n${GLOSSARY}`;
+}
+
+export interface PageImage {
+  jpeg: Buffer;
+}
+
+/** The read step: every page, in order, each inside its own `<user_data>` block. */
+export function readMessages(pages: readonly PageImage[]): NormalizedMessage[] {
+  return [
+    {
+      role: "user",
+      parts: [
+        {
+          type: "text",
+          text: `Read this prescription. It has ${pages.length} page(s); "page" is the 0-based index of the image in this message.`,
+        },
+        ...pages.flatMap((page, index): NormalizedMessage["parts"] => [
+          { type: "text", text: `<user_data page="${index}">` },
+          { type: "image", mime: "image/jpeg", data: page.jpeg },
+          { type: "text", text: "</user_data>" },
+        ]),
+      ],
+    },
+  ];
+}
+
+export interface VerifyItem {
+  /** Index of the line in the extraction: the answer refers to it. */
+  index: number;
+  crop: Buffer;
+  candidates: readonly DrugMatchCandidate[];
+}
+
+/** One-line description of a candidate; the id is what the model answers with. */
+function candidateLine(candidate: DrugMatchCandidate): string {
+  const parts = [candidate.brandEn, candidate.strengthText, candidate.form].filter(
+    (part): part is string => part !== null && part !== "",
+  );
+  return `- ${candidate.drugId} | ${parts.join(" | ")}`;
+}
+
+/** The verify step: each flagged line as a cropped image plus its candidates. */
+export function verifyMessages(items: readonly VerifyItem[]): NormalizedMessage[] {
+  return [
+    {
+      role: "user",
+      parts: [
+        {
+          type: "text",
+          text: `Re-read these unclear prescription lines. For each item answer with exactly one of: kind "candidate" with the id of one listed candidate, kind "other" with the text you read, or kind "unreadable". Prefer "unreadable" over a guess.`,
+        },
+        ...items.flatMap((item): NormalizedMessage["parts"] => [
+          { type: "text", text: `<user_data item="${item.index}">` },
+          { type: "image", mime: "image/jpeg", data: item.crop },
+          {
+            type: "text",
+            text:
+              item.candidates.length === 0
+                ? "Candidates: none"
+                : `Candidates:\n${item.candidates.map(candidateLine).join("\n")}`,
+          },
+          { type: "text", text: "</user_data>" },
+        ]),
+      ],
+    },
+  ];
+}

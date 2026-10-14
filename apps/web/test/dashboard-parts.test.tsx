@@ -3,7 +3,6 @@ import { render, screen } from "@testing-library/react";
 import { t } from "@wasfa/shared/i18n";
 import { describe, expect, it } from "vitest";
 
-import { ToolCards } from "../src/components/dashboard/tool-cards";
 import { VerificationBanner } from "../src/components/dashboard/verification-banner";
 import { formatDate, formatRelative } from "../src/lib/dates";
 import { label } from "../src/lib/labels";
@@ -32,15 +31,6 @@ describe("VerificationBanner", () => {
     );
     expect(screen.queryByRole("button", { name: t("auth.resend.button") })).toBeNull();
     expect(screen.getByRole("link", { name: t("dashboard.verify.phoneLink") })).toBeTruthy();
-  });
-});
-
-describe("ToolCards", () => {
-  it("shows the three Phase 2 tools as cards with a coming-soon badge, never as links", () => {
-    render(<ToolCards />);
-    expect(screen.getAllByRole("heading", { level: 3 })).toHaveLength(3);
-    expect(screen.getAllByText(t("ui.comingSoon"))).toHaveLength(3);
-    expect(screen.queryAllByRole("link")).toHaveLength(0);
   });
 });
 

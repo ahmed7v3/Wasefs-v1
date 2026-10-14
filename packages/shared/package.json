@@ -10,6 +10,11 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./ai": {
+      "types": "./dist/ai.d.ts",
+      "import": "./dist/ai.js",
+      "default": "./dist/ai.js"
+    },
     "./auth-settings": {
       "types": "./dist/auth-settings.d.ts",
       "import": "./dist/auth-settings.js",
@@ -19,6 +24,31 @@
       "types": "./dist/crypto.d.ts",
       "import": "./dist/crypto.js",
       "default": "./dist/crypto.js"
+    },
+    "./evals": {
+      "types": "./dist/evals.d.ts",
+      "import": "./dist/evals.js",
+      "default": "./dist/evals.js"
+    },
+    "./drugs": {
+      "types": "./dist/drugs.d.ts",
+      "import": "./dist/drugs.js",
+      "default": "./dist/drugs.js"
+    },
+    "./normalize": {
+      "types": "./dist/normalize.d.ts",
+      "import": "./dist/normalize.js",
+      "default": "./dist/normalize.js"
+    },
+    "./schemas/admin-evals": {
+      "types": "./dist/schemas/admin-evals.d.ts",
+      "import": "./dist/schemas/admin-evals.js",
+      "default": "./dist/schemas/admin-evals.js"
+    },
+    "./schemas/admin-drugs": {
+      "types": "./dist/schemas/admin-drugs.d.ts",
+      "import": "./dist/schemas/admin-drugs.js",
+      "default": "./dist/schemas/admin-drugs.js"
     },
     "./email": {
       "types": "./dist/email.d.ts",
@@ -60,6 +90,11 @@
       "import": "./dist/permissions.js",
       "default": "./dist/permissions.js"
     },
+    "./plans": {
+      "types": "./dist/plans.d.ts",
+      "import": "./dist/plans.js",
+      "default": "./dist/plans.js"
+    },
     "./settings": {
       "types": "./dist/settings.d.ts",
       "import": "./dist/settings.js",
@@ -74,6 +109,16 @@
       "types": "./dist/redact.d.ts",
       "import": "./dist/redact.js",
       "default": "./dist/redact.js"
+    },
+    "./rx": {
+      "types": "./dist/rx.d.ts",
+      "import": "./dist/rx.js",
+      "default": "./dist/rx.js"
+    },
+    "./schemas/admin-ai": {
+      "types": "./dist/schemas/admin-ai.d.ts",
+      "import": "./dist/schemas/admin-ai.js",
+      "default": "./dist/schemas/admin-ai.js"
     },
     "./schemas/admin": {
       "types": "./dist/schemas/admin.d.ts",
@@ -110,10 +155,60 @@
       "import": "./dist/schemas/contact.js",
       "default": "./dist/schemas/contact.js"
     },
+    "./schemas/files": {
+      "types": "./dist/schemas/files.d.ts",
+      "import": "./dist/schemas/files.js",
+      "default": "./dist/schemas/files.js"
+    },
+    "./schemas/handoff": {
+      "types": "./dist/schemas/handoff.d.ts",
+      "import": "./dist/schemas/handoff.js",
+      "default": "./dist/schemas/handoff.js"
+    },
+    "./storage": {
+      "types": "./dist/storage.d.ts",
+      "import": "./dist/storage.js",
+      "default": "./dist/storage.js"
+    },
+    "./schemas/chat": {
+      "types": "./dist/schemas/chat.d.ts",
+      "import": "./dist/schemas/chat.js",
+      "default": "./dist/schemas/chat.js"
+    },
+    "./busy": {
+      "types": "./dist/busy.d.ts",
+      "import": "./dist/busy.js",
+      "default": "./dist/busy.js"
+    },
+    "./rx-normalize": {
+      "types": "./dist/rx-normalize.d.ts",
+      "import": "./dist/rx-normalize.js",
+      "default": "./dist/rx-normalize.js"
+    },
+    "./rx-result": {
+      "types": "./dist/rx-result.d.ts",
+      "import": "./dist/rx-result.js",
+      "default": "./dist/rx-result.js"
+    },
+    "./schemas/rx": {
+      "types": "./dist/schemas/rx.d.ts",
+      "import": "./dist/schemas/rx.js",
+      "default": "./dist/schemas/rx.js"
+    },
+    "./schemas/credits": {
+      "types": "./dist/schemas/credits.d.ts",
+      "import": "./dist/schemas/credits.js",
+      "default": "./dist/schemas/credits.js"
+    },
     "./schemas/onboarding": {
       "types": "./dist/schemas/onboarding.d.ts",
       "import": "./dist/schemas/onboarding.js",
       "default": "./dist/schemas/onboarding.js"
+    },
+    "./schemas/plans": {
+      "types": "./dist/schemas/plans.d.ts",
+      "import": "./dist/schemas/plans.js",
+      "default": "./dist/schemas/plans.js"
     }
   },
   "files": [

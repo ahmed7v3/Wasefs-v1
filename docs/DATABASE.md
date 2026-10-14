@@ -2,7 +2,7 @@
 
 > PostgreSQL 18 + Drizzle ORM. The schema lives in `packages/db/src/schema/`, migrations in `packages/db/migrations/`. This file explains the conventions and indexes the code cannot say for itself.
 > **Update it in every task that adds or changes a table.** A table that is in the schema but not in the index below is a bug.
-> Status: reflects the code after Phase 1 Task 1.11.
+> Status: reflects the code after Phase 2 Task 2.1.
 
 ---
 
@@ -13,7 +13,7 @@
 | Names | `snake_case` tables (plural) and columns. TypeScript keeps camelCase; `casing: "snake_case"` in both `drizzle.config.ts` and `createDb` maps them. |
 | Primary keys | `uuid` with the database default `uuidv7()` (time-sortable, PostgreSQL 18 native). Use `idColumn()` from `schema/columns.ts`. Join tables use a composite primary key instead. |
 | Timestamps | `timestamptz`. `created_at` and `updated_at` via `timestamps()`. Drizzle refreshes `updated_at` on ORM updates; **raw SQL updates must set it themselves.** |
-| Money | Integer **minor units** (`amount_minor`) plus an ISO 4217 `currency`. Never `numeric` or float. (No money tables yet: Phase 3.) |
+| Money | Integer **minor units** (`amount_minor`) plus an ISO 4217 `currency`. Never `numeric` or float. (Credits and plans arrive in Phase 2; payments in Phase 3.) |
 | Closed value sets | `text` + a `CHECK (col IN (...))`, never a Postgres `ENUM` (adding a value is then a one-line migration, not `ALTER TYPE`). The list is a `const` tuple in `@wasfa/shared` (`identity.ts`, `permissions.ts`) and **the same tuple** types the column and builds the CHECK (`inList()`), so TypeScript and the database cannot drift. |
 | Emails | `citext` (case-insensitive), unique. |
 | Phones | E.164 (`+201001234567`), enforced by a CHECK that reuses `E164_PATTERN.source`. |
@@ -71,7 +71,56 @@
 | `wa_sessions` | Encrypted Baileys auth state of the WhatsApp bridge (`session`, `key`, AES-256-GCM `value`, Task 1.5). | None: not user data; read only by the bridge. |
 | `contact_messages` | Contact-form submissions (Task 1.11): name, email and/or phone (`contact_messages_contact_check`), topic, message (≤ 4000), locale, optional `user_id` (`SET NULL`), status `new | read | archived`. Becomes the Phase 4 ticket inbox. | Platform; no read route yet (`contact.*` permission arrives with its admin view). Deleted by the anonymization job for the sender. |
 
-Phase 2-4 tables (plans, credit ledger, AI usage, drugs, payments, blog, tickets, ...) are described in ARCHITECTURE.md and enter this file when they are built.
+### Phase 2 — Task 2.1 (AI product)
+
+Migration `0008_ai_product.sql` (it also revokes `UPDATE, DELETE, TRUNCATE` on `credit_ledger` from `wasfa_api`, mirroring `audit_logs` in 0005). Schema files `packages/db/src/schema/{plans,credits,ai,files,rx,chats,drugs,evals}.ts`; value sets in `@wasfa/shared` `plans.ts`, `ai.ts`, `rx.ts`.
+
+**Owner pattern (all owned Phase 2 tables).** Two nullable columns `owner_user_id` (FK `users`, `RESTRICT`) and `owner_org_id` (FK `organizations`, `CASCADE`) with `<table>_owner_check: num_nonnulls(owner_user_id, owner_org_id) = 1`. Two declared FKs instead of a polymorphic `(owner_type, owner_id)`, which could not have an FK. Scoped queries filter on whichever one the actor's context selects (Decision 5). `created_by` / `user_id` = the acting user (`SET NULL`), never the owner.
+
+**Money and credits.** Credits are `integer`. USD amounts are `bigint` **USD micros** (`*_usd_micros`, 1 USD = 1,000,000). Prices are USD micros **per 1M tokens**. Multipliers are basis points (`10000` = ×1). No `numeric`, no float.
+
+| Table | Purpose | Owner / access |
+|---|---|---|
+| `plans` | `key` (unique, `^[a-z][a-z0-9_]*$`), `name_ar`, `name_en`, `audience` (`PLAN_AUDIENCES`: `individual|organization|any`), `is_default`, `monthly_credits` (≥ 0), `visibility` (`public|hidden`), `sort`, `badge_ar/en`. Partial unique `plans_one_default_idx` on `(is_default) where is_default`. | Platform; `plans.read/write`. |
+| `plan_entitlements` | PK `(plan_id, task)`; `task` ∈ `AI_TASKS`; `allowed`, `modes text[]` ⊆ `AI_MODES`, `daily_cap`, `monthly_cap` (null = unlimited, else ≥ 0), `max_pages_per_rx` (1–4), `web_search`. Plan FK `CASCADE`. | Platform. |
+| `plan_assignments` | Owner pattern; `plan_id` (`RESTRICT`), `starts_at`, `ends_at` (null = open, `> starts_at`), `assigned_by` (`SET NULL`), `reason`. Index `(owner_user_id, starts_at)`, `(owner_org_id, starts_at)`. No row = default plan. | Owner reads; admin writes (`plans.write`). |
+| `credit_wallets` | Owner pattern, unique per owner (`credit_wallets_owner_user_key`, `credit_wallets_owner_org_key`); `balance integer ≥ 0` (`credit_wallets_balance_check`). Updated only in the ledger transaction under `FOR UPDATE`. | Owner. |
+| `credit_reservations` | `wallet_id` (`RESTRICT`), `amount > 0`, `settled_amount` (null until settled, `0 ≤ settled ≤ amount`), `status` (`open|settled|released|expired`), `purpose`, `expires_at`. Partial index `(expires_at) where status = 'open'` for the sweeper. | Via wallet. |
+| `credit_ledger` | **Append-only.** `wallet_id` (`RESTRICT`), `kind` (`CREDIT_LEDGER_KINDS`: `grant|admin_adjust|usage_reserve|usage_settle|release|refund|expiry`), `amount integer <> 0` (signed), `balance_after ≥ 0`, `reservation_id` (`RESTRICT`), `ai_usage_id` (`SET NULL`), `actor_id` (`SET NULL`), `reason`, `idempotency_key` (unique `credit_ledger_idempotency_key_key`), `created_at` only. `wasfa_api` has `SELECT, INSERT` only (like `audit_logs`). Index `(wallet_id, created_at)`. | Via wallet; admin `credits.adjust`. |
+| `ai_providers` | `key` unique, `kind` (`gemini|openrouter|openai_compatible|fake`), `base_url`, `api_key_enc` (`encryptSecret`), `key_hint` (last 4), `enabled` (false at seed), `priority`, `data_policy` (`paid_no_training|zdr|free_tier`), `last_test_at`, `last_test_ok`, `last_test_error`. | Platform; `ai.read/write`. Key never leaves the API. |
+| `ai_models` | `provider_id` (`RESTRICT`), `model_id` (free text), unique `(provider_id, model_id)`, `display_name`, `capabilities text[]` ⊆ `AI_CAPABILITIES` (`vision|thinking|search|json|bbox`), `context_tokens`, `price_input/cached_input/output_usd_micros_per_m` ≥ 0, `price_search_usd_micros` (per call), `credit_multiplier_bp` (> 0, default 10000), `enabled`, `price_source` (`manual|openrouter_sync`), `price_checked_at`. | Platform. |
+| `ai_task_routes` | `task`, `plan_id` (null = default, `CASCADE`), `mode`; unique `ai_task_routes_key` on `(task, coalesce(plan_id, nil-uuid), mode)` (expression index); `models jsonb` = ordered `[{modelId, params}]` (validated by the shared zod schema; CHECK `jsonb_typeof = 'array'` and non-empty); `version integer ≥ 1`, bumped on every write. | Platform. |
+| `ai_usage` | One row per provider call. `task`, `route_version`, `model_id` / `provider_id` (`SET NULL`, plus `model_key` text snapshot), owner pattern (both nullable here for system calls: CHECK `≤ 1`), `user_id` (`SET NULL`), tokens `input/cached/output/thinking ≥ 0`, `search_count`, `cost_usd_micros bigint ≥ 0`, `credits_charged ≥ 0`, `latency_ms`, `outcome` (`AI_OUTCOMES`: `ok|error|timeout|cancelled|refused|cache_hit`), `cache_hit`, `request_id`. **No content columns.** Indexes `(created_at)`, `(owner_user_id, created_at)`, `(owner_org_id, created_at)`. | Owner (own usage); `usage.read`. Retention 13 months. |
+| `ai_spend_daily` | PK `(day, provider_id, model_id)`; `calls`, tokens, `cost_usd_micros`. Worker upsert. | Platform; `usage.read`. |
+| `files` | Owner pattern, `created_by`, `purpose` (`rx_page|chat_image`), `r2_key` unique, `mime` (`FILE_MIMES`), `bytes` (1 B–15 MB), `width/height`, `sha256` (hex 64), `dhash` (hex 16), `status` (`pending|uploaded|processed|rejected|deleted`), `reject_reason`, `expires_at`. Indexes `(sha256)`, `(owner_user_id, dhash)`, `(owner_org_id, dhash)`, partial `(expires_at) where status <> 'deleted'`. | Owner. Objects deleted after `uploads.retentionDays`; row kept as `deleted`. |
+| `rx_analyses` | Owner pattern, `created_by`, `status` (`queued|processing|verifying|done|failed|refunded`), `mode`, `credits_charged`, `reservation_id` (`SET NULL`), `skill_version`, `route_version`, `input_sha256`, `cache_of` (self FK, `SET NULL`), `result jsonb` (shared `rxResultSchema`), `patient_initials`, `prescriber_initials` (≤ 8 chars: redacted only), `queued_at/started_at/finished_at`, `error_ref`. Index `(owner_*, created_at desc)`, `(input_sha256, skill_version, route_version) where status = 'done'` for the global exact cache. | Owner. |
+| `rx_pages` | PK `(analysis_id, page_no)`, `page_no` 1–4, `file_id` (`RESTRICT`). Analysis FK `CASCADE`. | Via analysis. |
+| `rx_corrections` | `analysis_id` (`CASCADE`), `item_index ≥ 0`, `field` (`RX_FIELDS`), `before`, `after` (text), `user_id` (`SET NULL`), `consent_for_eval`. | Via analysis. |
+| `chats` | Owner pattern, `user_id`, `title`, `skill`, `archived`. Index `(user_id, updated_at desc)`. | Owner + `user_id` (chats are personal even inside an org). |
+| `chat_messages` | `chat_id` (`CASCADE`), `role` (`user|assistant|system`), `content` text, `parts jsonb` (array), `status` (`streaming|done|stopped|error`), `ai_usage_id` (`SET NULL`), `credits_charged`. Index `(chat_id, created_at)`. | Via chat. |
+| `chat_summaries` | PK `chat_id` (`CASCADE`), `summary`, `through_message_id`, `updated_at`. | Via chat. |
+| `drug_import_batches` | `file_name`, `source` (`DRUG_SOURCES`: `eda|sfda|manual|other`), `mapping jsonb`, `rows_total/inserted/updated/skipped`, `status` (`draft|dry_run|committed|rolled_back|failed`), `committed_by` (`SET NULL`), `committed_at`, `rolled_back_at`. | Platform; `drugs.write`. |
+| `active_ingredients` | `name_en`, `name_ar`, `normalized` unique, `import_batch_id` (`SET NULL`). GIN trigram on `normalized`. | Platform; `drugs.read`. |
+| `drugs` | `brand_en`, `brand_ar`, `normalized_en`, `normalized_ar`, `form`, `strength_text`, `strength_value_micro bigint` (value × 10⁶), `strength_unit`, `manufacturer`, `country` (ISO-2), `status` (`active|withdrawn`), `import_batch_id` (`SET NULL`). GIN trigram on both normalized columns. | Platform. |
+| `drug_ingredients` | PK `(drug_id, ingredient_id)` (both `CASCADE`), `strength_text`, `strength_value_micro`, `strength_unit`. | Platform. |
+| `drug_aliases` | `drug_id` (`CASCADE`), `alias`, `normalized`, `lang` (`ar|en`), `source`, `import_batch_id`. Unique `(drug_id, normalized)`; GIN trigram on `normalized`. | Platform. |
+| `ai_eval_sets` | `key` unique, `name`, `description`. | Platform; `evals.run`. |
+| `ai_eval_items` | `set_id` (`CASCADE`), `file_ids uuid[]`, `kind` (`printed|handwritten`), `expected jsonb`. | Platform. |
+| `ai_eval_runs` | `set_id` (`RESTRICT`), `route_snapshot jsonb`, `status` (`queued|running|done|failed|cancelled`), `metrics jsonb`, `cost_usd_micros`, `started_by` (`SET NULL`), `started_at`, `finished_at`. | Platform. |
+| `ai_eval_results` | PK `(run_id, item_id)` (both `CASCADE`), `output jsonb`, `scores jsonb`, `cost_usd_micros`, `latency_ms`, `error`. | Platform. |
+
+**Details the table above does not say.**
+- `ai_task_routes.models[].modelId` is the `ai_models.id` (uuid) of the model, not the provider's own model string, which is only unique per provider. The seed resolves the ids after inserting the models.
+- `ai_spend_daily.provider_id` / `model_id` are `RESTRICT` (they are in the primary key, so they cannot be nulled; spend history is kept). `chat_summaries.through_message_id` is `CASCADE` (a summary of a deleted message is stale). `chats.user_id` is nullable (`SET NULL`) like every acting-user column.
+- `files.sha256` / `dhash`, `rx_analyses.input_sha256` / `route_version` and most `drugs` text columns are nullable (known only after processing or absent in the source list); `drugs.brand_en` and `normalized_en` are required.
+- `credit_ledger.ai_usage_id` is `SET NULL`: Postgres runs that referential action with the table owner's rights, so pruning old `ai_usage` rows (13-month retention, run by the owner role) clears the link without giving `wasfa_api` UPDATE on the ledger.
+- `plans_one_default_idx` can reject re-seeding `free` after an admin made another plan the default; the seed inserts plans without a conflict target so that case is skipped, not an error.
+
+**Retention.** `files` objects: `uploads.retentionDays` (default 30), row kept with `status = 'deleted'`. `rx_analyses`, `chats`: until the owner deletes them or the account is anonymized (§5: user-owned rows are hard-deleted; org-owned rows stay with the org). `ai_usage`: 13 months, then rolled into `ai_spend_daily`. `credit_ledger`: forever (financial record). `rx_corrections` with `consent_for_eval = false`: deleted with the analysis.
+
+**Seed (insert-only).** Plans `free` (default, 30 credits, `rx_extract` 3/day and `chat`, modes `fast,balanced`, no web search; the internal steps `rx_verify`, `title_gen`, `classify`, `summarize` are allowed because the feature price covers them) and `pro` (hidden); providers `gemini`, `openrouter` disabled with no key; models and default routes from phase2.md Decision 3; permissions `ai.read, ai.write, ai.killswitch, plans.read, plans.write, credits.adjust, drugs.read, drugs.write, evals.run, usage.read` (catalog groups `ai`, `plans`, `credits`, `drugs`, `evals`, `usage`; existing roles other than the `super_admin` wildcard receive them only through the role editor or a data migration, per the seed policy above). Entitlements are seeded only in the transaction that creates their plan; the 24 default routes (8 tasks x 3 modes, `plan_id` null) start identical for every mode and use provider-neutral `params` (`thinking`, `mediaResolution`, `temperature`, `jsonSchema`, `tool`, `plugin`) that the adapter maps (Task 2.3). `gemini-3.1-pro-preview` is seeded `enabled = false`. Code: `packages/db/src/seed-ai.ts`.
+
+Phase 3-4 tables (payments, blog, tickets, ...) are described in ARCHITECTURE.md and enter this file when they are built.
 
 ---
 
@@ -139,6 +188,24 @@ Better Auth's tables with UUIDv7 keys and `timestamptz`. `accounts_provider_acco
 | `user_roles_role_key_idx` | `user_roles (role_key)` | "Who holds this role". |
 | `audit_logs_target_idx`, `audit_logs_actor_created_idx` | `audit_logs` | Audit queries by target and by actor. |
 | `error_events_fingerprint_idx`, `error_events_created_at_idx` | `error_events` | Issues grouping and recency. |
+| `plans_one_default_idx` | `plans (is_default)` unique, where `is_default` | At most one default plan. |
+| `plan_assignments_owner_user_starts_idx`, `plan_assignments_owner_org_starts_idx` | `plan_assignments (owner_*, starts_at)` | The plan an owner is on right now. |
+| `credit_wallets_owner_user_key`, `credit_wallets_owner_org_key` | `credit_wallets (owner_user_id)`, `(owner_org_id)` unique | One wallet per owner; wallet lookup under `FOR UPDATE`. |
+| `credit_reservations_open_expires_idx` | `credit_reservations (expires_at)` where `status = 'open'` | The sweeper that releases expired reservations. |
+| `credit_ledger_idempotency_key_key` | `credit_ledger (idempotency_key)` unique | A retried operation is a no-op. |
+| `credit_ledger_wallet_created_idx` | `credit_ledger (wallet_id, created_at)` | A wallet's history and the nightly reconciliation. |
+| `ai_task_routes_key` | `ai_task_routes (task, coalesce(plan_id, nil-uuid), mode)` unique (expression) | One route per task, plan and mode; the default plan (null) counts as one value. |
+| `ai_usage_created_at_idx`, `ai_usage_owner_user_created_idx`, `ai_usage_owner_org_created_idx` | `ai_usage` | Admin cost views, an owner's usage and quota counting, 13-month pruning. |
+| `files_sha256_idx` | `files (sha256)` | Global exact-match cache lookup. |
+| `files_owner_user_dhash_idx`, `files_owner_org_dhash_idx` | `files (owner_*, dhash)` | Near-duplicate hint, same owner only. |
+| `files_expires_at_idx` | `files (expires_at)` where `status <> 'deleted'` | The retention job. |
+| `rx_analyses_owner_user_created_idx`, `rx_analyses_owner_org_created_idx` | `rx_analyses (owner_*, created_at desc)` | An owner's history list. |
+| `rx_analyses_cache_idx` | `rx_analyses (input_sha256, skill_version, route_version)` where `status = 'done'` | The global exact-match result cache. |
+| `chats_user_updated_idx` | `chats (user_id, updated_at desc)` | The chat list. |
+| `chat_messages_chat_created_idx` | `chat_messages (chat_id, created_at)` | Loading a conversation in order. |
+| `active_ingredients_normalized_key`, `active_ingredients_normalized_trgm_idx` | `active_ingredients (normalized)` unique + GIN trigram | Exact and fuzzy ingredient match. |
+| `drugs_normalized_en_trgm_idx`, `drugs_normalized_ar_trgm_idx` | `drugs (normalized_en)`, `(normalized_ar)` GIN trigram | Fuzzy brand-name match. |
+| `drug_aliases_drug_normalized_key`, `drug_aliases_normalized_trgm_idx` | `drug_aliases (drug_id, normalized)` unique; `(normalized)` GIN trigram | One alias per drug; fuzzy alias match. |
 
 Not added yet, on purpose: a trigram index for admin user search by name/email/phone (Task 1.10, once the volume justifies it).
 

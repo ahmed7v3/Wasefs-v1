@@ -13,7 +13,7 @@ import { publicEnv } from "./env";
 
 export interface ApiOptions {
   method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
-  /** JSON body. */
+  /** JSON body, or `FormData` for an upload (the browser then sets the multipart header itself). */
   body?: unknown;
   /** Cloudflare Turnstile token for the routes that ask for one. */
   turnstileToken?: string | null | undefined;
@@ -57,7 +57,8 @@ export async function api(
     Accept: "application/json",
     "Accept-Language": "ar",
   };
-  if (body !== undefined) headers["Content-Type"] = "application/json";
+  const isForm = typeof FormData !== "undefined" && body instanceof FormData;
+  if (body !== undefined && !isForm) headers["Content-Type"] = "application/json";
   if (turnstileToken) headers["x-turnstile-token"] = turnstileToken;
 
   let response: Response;
@@ -66,7 +67,7 @@ export async function api(
       method,
       credentials: "include",
       headers,
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      ...(body === undefined ? {} : { body: isForm ? body : JSON.stringify(body) }),
       ...(signal ? { signal } : {}),
     });
   } catch (error) {
