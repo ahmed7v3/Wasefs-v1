@@ -34,6 +34,13 @@ export class FilesController {
     return this.files.completeUpload(user, params.id);
   }
 
+  /** Where an upload is in its life (the capture screen polls it after `complete`). */
+  @Get("files/:id")
+  @RateLimit(240)
+  status(@CurrentUser() user: AuthenticatedUser, @Param() params: FileIdParamDto) {
+    return this.files.status(user, params.id);
+  }
+
   @Get("files/:id/url")
   @RateLimit(120)
   url(@CurrentUser() user: AuthenticatedUser, @Param() params: FileIdParamDto) {

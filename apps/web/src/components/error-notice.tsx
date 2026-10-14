@@ -86,6 +86,13 @@ const REASON_MESSAGES: Record<string, MessageKey> = {
   bad_upload: "admin.drugs.reason.bad_upload",
   not_multipart: "admin.drugs.reason.not_multipart",
   one_file_only: "admin.drugs.reason.one_file_only",
+  // The /ai assistant (Task 2.11).
+  content_blocked: "ai.reason.content_blocked",
+  provider_error: "ai.reason.provider_error",
+  no_model: "ai.reason.no_model",
+  no_route: "ai.reason.no_route",
+  file_not_ready: "ai.reason.file_not_ready",
+  not_last_message: "ai.reason.not_last_message",
 };
 
 /** The friendly sentence for an error: a specific reason first, else the message of its code. */

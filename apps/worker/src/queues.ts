@@ -19,8 +19,10 @@ import { drugImportJob } from "./jobs/drug-import.job.js";
 import { filesRetentionJob } from "./jobs/files.retention.job.js";
 import { heartbeatJob } from "./jobs/health.job.js";
 import { imageProcessJob } from "./jobs/image.job.js";
+import { rxAnalyzeJob } from "./jobs/rx.job.js";
 import { emailSendJob, type EmailRuntime } from "./notifications/email.js";
 
+import type { AiRuntime } from "./ai/runtime.js";
 import type { ObjectStore } from "./storage/object-store.js";
 import type { Database } from "@wasfa/db";
 import type { Redis } from "ioredis";
@@ -33,6 +35,8 @@ export interface JobContext {
   email: EmailRuntime;
   /** The uploads bucket; unset when `R2_UPLOADS_*` are not configured (image jobs then fail loudly). */
   storage?: ObjectStore | undefined;
+  /** The AI router (providers, breaker, spend guard); the `rx` queue needs it. */
+  ai?: AiRuntime | undefined;
 }
 
 type JobHandler<Q extends QueueName, J extends JobName<Q>> = (
@@ -64,6 +68,9 @@ export const HANDLERS: Handlers = {
   images: {
     "image.process": imageProcessJob,
     "files.retention": filesRetentionJob,
+  },
+  rx: {
+    "rx.analyze": rxAnalyzeJob,
   },
 };
 

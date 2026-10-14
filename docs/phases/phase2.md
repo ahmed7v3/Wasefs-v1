@@ -324,9 +324,9 @@ Page tray: up to `rx.maxPages` thumbnails, with order numbers, reorder, remove, 
 States to design (all in DESIGN-SYSTEM.md with screenshots): empty, dragging, uploading, quality warning, ready, insufficient credits, offline, upload error (with ref), and handoff waiting/connected/expired.
 
 Acceptance
-- [ ] Playwright: drop a file, paste an image (synthetic `ClipboardEvent`), pick files, handoff flow on two browser contexts, reorder by keyboard, blur warning on a blurred fixture, an 8 MB photo uploads as < 1 MB, HEIC fixture converted (Chromium path).
+- [ ] Playwright: drop a file, paste an image (synthetic `ClipboardEvent`), pick files, handoff flow on two browser contexts, reorder by keyboard, blur warning on a blurred fixture, an 8 MB photo uploads as < 1 MB, HEIC fixture converted (Chromium path). *(`apps/web/e2e/capture.spec.ts`: everything passes against MinIO and the real worker except HEIC, which skips until `e2e/fixtures/sample.heic` exists and the CSP question in Notes is settled.)*
 - [ ] Manual device check on iOS Safari and Android Chrome recorded in Notes (camera opens, orientation correct, paste from the screenshot clipboard on iOS).
-- [ ] axe clean, 44 px targets, and all strings via i18n.
+- [ ] axe clean, 44 px targets, and all strings via i18n. *(axe is clean on /analyze empty at 1440 and 360 px, with four pages, with a quality hint, and on the phone page; the 44 px check is automated for the main button only.)*
 
 ---
 
@@ -388,8 +388,8 @@ Then it enqueues `rx.analyze` and returns `{id}`. Steps, each published on `rx:<
 Timeouts: a 60 s total budget. On failure: retry the step once on another route, then `failed` + release + `error_ref`.
 
 Acceptance
-- [ ] Fixture-driven job tests with the fake provider: happy path, verify path, a cache hit with no provider call, refund on empty, failure releases credits, job retry does not double-charge, events in order.
-- [ ] Every analysis records route version, skill version, provider cost, and credits.
+- [x] Fixture-driven job tests with the fake provider: happy path, verify path, a cache hit with no provider call, refund on empty, failure releases credits, job retry does not double-charge, events in order.
+- [x] Every analysis records route version, skill version, provider cost, and credits.
 
 ---
 
@@ -488,8 +488,8 @@ UI (reference `3.png`, adapted to DESIGN-SYSTEM: navy instead of black pills, Pl
 
 Acceptance
 - [ ] E2E with the fake provider: stream, stop mid-answer (credits settled for the partial), regenerate, thinking panel, sources, image attach via paste, history CRUD, mode locked by plan, `ai_paused` message.
-- [ ] Ownership: another user's chat id → `NOT_FOUND` on every chat route.
-- [ ] First-token overhead measured (Notes).
+- [x] Ownership: another user's chat id → `NOT_FOUND` on every chat route.
+- [x] First-token overhead measured (Notes).
 
 ---
 
@@ -583,6 +583,28 @@ Acceptance
 - **Queue:** new `images` queue (`image.process`, `files.retention`) with its own concurrency (`WORKER_CONCURRENCY_IMAGES`, default 1). `files.retention` runs daily at 03:30 UTC and deletes every object under the file's prefix (a failed delete of the original cannot leave bytes behind). It uses the row's `expires_at`, which was set from `uploads.retentionDays` when the file was created, so shortening the setting affects new uploads only. **Worker memory:** `compose.prod.yml` gives the worker 256 MB; decoding a 24 MP photo needs more. Raise it (about 768 MB) before the first real upload in production.
 - **Owner of a file:** the calling user. The organization-wallet rule does not exist in code yet (`GET /me/credits` is personal-only), so uploads are personal for now; `GET /files/:id/url` and `complete` already serve an organization's file to its members (tested), and the owner columns allow creating org-owned files once the wallet-owner rule exists.
 - **Not done here (by design):** the plan's maximum page count is not checked at upload (an upload is one page; the page limit belongs to the analysis request in Task 2.8). The rate limit of 30 requests per 10 minutes per user is a fail-closed Redis counter (`AuthRateLimiter`), plus the per-IP route limits.
+### Task 2.6 — Capture experience (implemented 2026-10-14)
+
+- **Where things are:** `packages/ui/src/capture/` (components, transport-agnostic), `apps/web/src/lib/capture/` (Worker pipeline, quality, HEIC, PDF, upload queue, handoff client), `apps/api/src/files/handoff.*` and `GET /files/:id` (status for polling), pages `/analyze` and `/capture/[token]`, states table in DESIGN-SYSTEM §5.4.
+- **Quality thresholds are UNTUNED first guesses** (owner to tune on the eval images, then record them here): long edge < 1000 px, Laplacian variance < 100 on a 512 px grayscale copy, mean brightness < 50 dark. Synthetic check in Chromium: crisp 30 px text on a 1600 x 1200 page gives variance about 7600; the same page through `blur(14px)` gives about 1; `blur(6px)` on 48 px text gives about 42.
+- **Deviation (found by the first end-to-end run): "bright" is not just mean > 215.** A clean white page with dark text (every PDF page, every screenshot, a well-lit sheet) averages 220 to 245, so the rule flagged all of them. It is now: mean > 215 **and** fewer than 0.3 % of the pixels darker than 100 (no ink left = washed out). Blur takes priority over washed-out because a blur erases ink too (a featureless blown-out frame is therefore reported as unclear). Tests: `apps/web/test/capture-quality.test.ts`.
+- **Storage origin must be in the CSP.** The browser PUTs the picture straight to R2/MinIO and shows phone pages from presigned GET links, so set `CSP_CONNECT_SRC_EXTRA` and `CSP_IMG_SRC_EXTRA` to the origin of `R2_UPLOADS_ENDPOINT` (documented in `.env.example`; the e2e stack does it). The R2 bucket CORS rule from the Task 2.5 note (PUT and GET from the web origin) applies to this screen too.
+- **OPEN, decision needed: HEIC on non-Safari browsers.** `heic2any` (libheif through emscripten embind) builds functions with `new Function`, which our CSP (`script-src` without `unsafe-eval`) refuses; the conversion fails and the person sees "تعذّر تحويل صورة HEIC. جرّب التقاطها بصيغة JPEG." (graceful, but not a conversion). Safari decodes HEIC natively and is unaffected. Options: allow `unsafe-eval` on the capture routes only (weakens the CSP there), swap to a converter that is plain WebAssembly (`'wasm-unsafe-eval'` only), or convert HEIC on the server (needs libheif in the worker image). Not verified in a browser at all yet: no HEIC fixture was available here. The library is a separate 1.35 MB chunk, loaded only when a HEIC file arrives (checked in the `next build` output).
+- **pdf.js:** loaded on demand (own chunk, worker file emitted as a static asset); pages are rasterized to a 2048 px long edge and then take the same path as photos, so the server only ever sees single JPEGs (no `pdf_multi_page_unsupported`).
+- **Workers:** the resize/encode/hash/quality pipeline runs in a module Worker where OffscreenCanvas exists (asserted in Chromium by the e2e test) and on the main thread otherwise. Safari and Firefox paths are owed to the device check.
+- **Handoff:** the token is 32 random bytes (base64url), only its sha256 is in Redis (EX 300), at most 4 files, bound to the user and the capture session; phone routes are public, rate-limited per IP and per token, and can only create and complete pages for that session; the desktop feed is SSE for the session owner only (404 for anyone else). `/capture/<token>` is noindex and `referrer: no-referrer`. The API int tests cover single user, max 4, expiry, another user subscribing, and the token being refused on `/rx`.
+- **Not done here:** the dashboard quick-capture card (the dashboard still shows the "coming soon" cards); the /ai composer still uses its minimal inline upload (TODO in the 2.11 note: swap to `CaptureSurface variant="composer"`); an end-to-end Analyze click (a new account has no credits and the suite has no cheap way to grant them: it asserts the "not enough credits" state instead; the Analyze-enabled path is covered in `packages/ui/test/capture.test.tsx`). `/analyze` always sends `mode: "balanced"` (no mode picker yet).
+- **Owed by the owner (Notes acceptance box 2):** iOS Safari and Android Chrome by hand: the camera opens from "التقط صورة", orientation is correct (EXIF), paste from the screenshot clipboard works on iOS, HEIC from the iOS gallery, the phone QR flow on a real phone over the public URL, and the 44 px targets with a thumb. Then tune the blur threshold.
+
+### Task 2.11 — `/ai` assistant (implemented 2026-10-14)
+
+- **First-token overhead (fake provider, instant model, local Postgres/Redis/MinIO in Testcontainers, n = 20 sequential turns through the real HTTP stack):** first `text` event **median 72 ms, p95 106 ms**; first event (`message_id`, sent after quota check, reserve and the two inserts) median 65 ms. During a full parallel API suite on the same machine the same test read median 413 ms, p95 549 ms, so treat the quiet number as the floor. That is the platform's own overhead before the model's first token; a real provider adds its network and time-to-first-token on top. Re-measure against the production route when the owner's keys are in. Measured by `apps/api/test/chat.int.test.ts` ("first-token overhead").
+- **Stream contract:** refusals before the stream (`ai_paused`, `plan_feature`, `daily_cap`, `busy`, `insufficient_credits`) are normal JSON errors; once the headers are out, failures are `error` events. `heartbeat` every 15 s, `x-accel-buffering: no`, `cache-control: no-transform`, and Caddy's API site has `flush_interval -1`.
+- **Plan features in the composer:** `GET /me/credits` now carries `chat: { modes, webSearch }` so the toggle can show locked modes with the plan badge.
+- **Not persisted:** the 👍/👎 buttons are local state only (no feedback endpoint or table exists in the spec); wire them when a feedback store is designed.
+- **Image attach in the composer** uses a minimal inline upload (`apps/web/src/lib/chat-upload.ts`, JPEG/PNG/WebP, no cropping or HEIC). TODO: swap for `CaptureSurface variant="composer"`. The browser PUTs to the R2 host, so `connect-src` must list it (`CSP_CONNECT_SRC_EXTRA`); the same is true for the capture screen.
+- **Leaving the page does not cancel an answer** (only Stop does); the server settles whatever was produced, and the busy lock holds until the stream ends.
+- **E2E (Playwright) is not written yet:** the acceptance box stays open for it; API integration tests (16) cover the stream, stop, regenerate, kill switch, busy, plan lock, ownership of every route and credit settlement, and Vitest covers the composer keyboard (IME), the SSE parser, the markdown sanitizer and the stream hook.
 _(agent fills in deviations here)_
 
 ## Open questions

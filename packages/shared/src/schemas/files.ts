@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { FILE_PURPOSES, FILE_SHA256_PATTERN, type FileMime } from "../ai.js";
+import { FILE_PURPOSES, FILE_SHA256_PATTERN, FILE_STATUSES, type FileMime } from "../ai.js";
 
 /*
  * Uploads contract (Phase 2, Task 2.5): the browser asks for a presigned PUT, uploads straight to
@@ -100,3 +100,14 @@ export const imageProcessPayloadSchema = z.object({ fileId: z.uuid() });
 
 /** Stored MIME of a processed image: always JPEG, whatever was uploaded. */
 export const PROCESSED_MIME: FileMime = "image/jpeg";
+
+/**
+ * `GET /files/:id`: where an upload is in its life. The capture screen polls this after `complete`
+ * until the worker has processed (or rejected) the page. `rejectReason` is set only when rejected.
+ */
+export const fileStatusResponseSchema = z.object({
+  fileId: z.uuid(),
+  status: z.enum(FILE_STATUSES),
+  rejectReason: z.enum(UPLOAD_REJECT_REASONS).nullable(),
+});
+export type FileStatusResponse = z.output<typeof fileStatusResponseSchema>;

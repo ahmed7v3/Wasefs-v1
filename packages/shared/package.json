@@ -150,10 +150,40 @@
       "import": "./dist/schemas/files.js",
       "default": "./dist/schemas/files.js"
     },
+    "./schemas/handoff": {
+      "types": "./dist/schemas/handoff.d.ts",
+      "import": "./dist/schemas/handoff.js",
+      "default": "./dist/schemas/handoff.js"
+    },
     "./storage": {
       "types": "./dist/storage.d.ts",
       "import": "./dist/storage.js",
       "default": "./dist/storage.js"
+    },
+    "./schemas/chat": {
+      "types": "./dist/schemas/chat.d.ts",
+      "import": "./dist/schemas/chat.js",
+      "default": "./dist/schemas/chat.js"
+    },
+    "./busy": {
+      "types": "./dist/busy.d.ts",
+      "import": "./dist/busy.js",
+      "default": "./dist/busy.js"
+    },
+    "./rx-normalize": {
+      "types": "./dist/rx-normalize.d.ts",
+      "import": "./dist/rx-normalize.js",
+      "default": "./dist/rx-normalize.js"
+    },
+    "./rx-result": {
+      "types": "./dist/rx-result.d.ts",
+      "import": "./dist/rx-result.js",
+      "default": "./dist/rx-result.js"
+    },
+    "./schemas/rx": {
+      "types": "./dist/schemas/rx.d.ts",
+      "import": "./dist/schemas/rx.js",
+      "default": "./dist/schemas/rx.js"
     },
     "./schemas/credits": {
       "types": "./dist/schemas/credits.d.ts",

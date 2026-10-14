@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { emailSendPayloadSchema } from "./email.js";
 import { imageProcessPayloadSchema } from "./schemas/files.js";
+import { rxAnalyzePayloadSchema } from "./schemas/rx.js";
 
 /**
  * Queue registry shared by `apps/api` (producers) and `apps/worker` (consumers).
@@ -70,6 +71,10 @@ export const QUEUE_REGISTRY = {
   },
   drugs: {
     "drugs.import": drugImportPayloadSchema,
+  },
+  /** Prescription analysis (Phase 2, Task 2.8): one job per analysis, jobId `rx-<id>`. */
+  rx: {
+    "rx.analyze": rxAnalyzePayloadSchema,
   },
 } as const;
 

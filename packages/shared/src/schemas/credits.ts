@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { AI_TASKS, CREDIT_LEDGER_KINDS } from "../ai.js";
+import { AI_MODES, AI_TASKS, CREDIT_LEDGER_KINDS } from "../ai.js";
 
 import { cursorQuerySchema } from "./admin.js";
 
@@ -113,6 +113,11 @@ export const meCreditsResponseSchema = z.object({
       dailyCap: z.number().int().min(0).nullable(),
     }),
   ),
+  /** What the assistant composer may offer: the modes the plan allows and whether web search is on. */
+  chat: z.object({
+    modes: z.array(z.enum(AI_MODES)),
+    webSearch: z.boolean(),
+  }),
 });
 export type MeCreditsResponse = z.output<typeof meCreditsResponseSchema>;
 

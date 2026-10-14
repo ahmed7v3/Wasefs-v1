@@ -188,6 +188,59 @@ All primitives: accessible name on every control, visible `focus-visible` ring, 
 - **Floating contact hub** (Task 1.9 / 1.11): a round button at the inline-end corner that opens WhatsApp / Telegram / phone links; hidden when no contact is configured; clears the on-screen keyboard and the safe area on mobile.
 - **Social-provider buttons** (login): full-width secondary buttons with the provider mark; a provider that is `coming_soon` is rendered **disabled** with a "قريباً" `Badge` and `aria-disabled`; all driven by `GET /auth/providers`.
 
+### 5.4 Capture (Task 2.6) — `packages/ui/src/capture`
+
+One component for every place a prescription photo is taken: `/analyze` (`variant="full"`), the phone page `/capture/<token>` (`compact`, no Analyze bar), and later the dashboard card (`compact`) and the `/ai` composer (`composer`: no empty-state copy and no Analyze bar). Mount **one per page**: the drop and paste listeners are on the window.
+
+**API**
+
+```ts
+<CaptureSurface
+  variant="full" | "compact" | "composer"
+  maxPages={n}                      // plan limit (public setting rx.maxPages)
+  onPagesChange={(pages) => …}      // CapturePage[] = { localId, fileId, status, previewUrl, quality, progress, errorRef … }
+  price?={{ perPage, balance }}     // shows "تحليل — N رصيد" and the balance; N × pages > balance → "رصيدك غير كافٍ" + support link
+  onAnalyze?={(fileIds) => …}       // absent: no Analyze bar (phone page, composer)
+  disabled? supportHref?
+  uploader={CaptureUploader}        // injected by apps/web: prepare(file) → ready pages, upload(page) → { fileId }
+  handoff?={HandoffClient}          // absent: no "استخدم هاتفك" button
+/>
+```
+
+The UI package knows nothing about the API, R2, pdf.js or libheif. Sub-components (`DropOverlay`, `PageTray`, `PageThumb`, `ImageEditor` (lazy), `QualityHint`, `PhoneHandoff`) are exported for reuse and tested on their own.
+
+**States** (all strings in `packages/shared/src/i18n/{ar,en}.capture.ts`)
+
+| State | What the person sees | Announced (polite live region) |
+|---|---|---|
+| **Empty** | Dashed card: icon, "ابدأ بتصوير الروشتة", hint with the page limit, primary "اختر صورة", "التقط صورة" on touch devices only, "استخدم هاتفك" when a handoff client is given, "أو اسحب الصورة وأفلتها هنا", and "أو الصق صورة (Ctrl+V)" only when the device has a fine pointer and hover (a keyboard). | — |
+| **Dragging** | Calm full-page overlay "أفلت الصورة هنا" while a *file* is dragged over the window (enter/leave depth counted so child elements do not flicker it away); hidden on leave or drop. Dragged text or links do nothing. A non-image file is refused with an error toast. | "أفلت الملف لإضافته." |
+| **Processing** | Tile with a spinner "جارٍ التجهيز…" (decode, resize, JPEG, quality check run in the browser). | "أُضيفت الصفحة n." |
+| **Uploading** | Tile with a progress bar and "جارٍ الرفع n%"; two pages upload at once, the rest queue. | — |
+| **Quality warning** | The page waits (it is *not* uploaded) and a hint card with the preview, the reason ("الصورة غير واضحة — جرّب الإضاءة أو قرّب الكاميرا"), "لا يُخصم أي رصيد قبل أن تضغط «تحليل»", and two buttons: **إعادة الالتقاط** (removes the page and opens the picker) and **المتابعة على أي حال** (uploads it). Analyze is disabled with a reason until every warning is decided. | "الصفحة n تحتاج مراجعة: …" |
+| **Ready** | Tile with a check and "جاهزة"; the Analyze button is enabled and shows the price and the balance. | "اكتمل رفع الصفحة n." |
+| **Insufficient credits** | The Analyze button is replaced by `role="alert"`: "رصيدك غير كافٍ", the price against the balance, and a link "تواصل مع الدعم لشحن رصيدك" (payments arrive in Phase 3). Pages stay; nothing is lost. | alert |
+| **Offline** | A `warning` banner "لا يوجد اتصال بالإنترنت — سيستمر الرفع تلقائيًا عند عودة الاتصال". Retries wait for the connection instead of using up attempts. | "لا يوجد اتصال…" / "عاد الاتصال" |
+| **Upload error** | Tile in `danger` with the friendly sentence, the `WSF-XXXX-XXXX` reference when the API gave one, and "إعادة المحاولة" (retries only that page). Network and 5xx failures are retried automatically (1, 2, 4 s) before this shows. | "تعذّر رفع الصفحة n." |
+| **Limit reached** | "وصلت إلى الحد الأقصى (n صفحات)"; add buttons disabled. A PDF with more pages than room is cut with a toast. | — |
+| **Handoff waiting** | Dialog: QR code, the link as text (copy button), a countdown (`m:ss`, Western digits), "في انتظار الهاتف…", and the note that nothing is analysed until Analyze is pressed here. | — |
+| **Handoff connected** | Same dialog with "وصلت n من 4 صور من هاتفك"; each phone photo appears in the tray as it is processed. | "وصلت صفحة من هاتفك: الصفحة n." |
+| **Handoff expired** | "انتهت صلاحية الرمز" with "رمز جديد" (a fresh single-use code for the same capture session). Pages already received stay. | — |
+
+**Keyboard and screen reader.** Everything is a native control reachable by Tab. A focused page tile reorders with the arrow keys (the arrows follow what is on screen, so in RTL the right arrow moves a page toward the start) and has move/remove/edit buttons for pointer users; the tile that moved keeps focus. The editor (rotate 90°, crop with four handles that take arrow keys, Shift for a bigger step, reset) is a dialog, loaded only when opened. All controls are ≥ 44 px, logical CSS only.
+
+**Browser pipeline** (`apps/web/src/lib/capture`): decode with `createImageBitmap(file, { imageOrientation: "from-image" })` → long edge 2048 → JPEG q0.85 → SHA-256, in a Worker where OffscreenCanvas exists (main thread otherwise). HEIC: native decode first (Safari), else `heic2any` loaded on demand. PDF: first ≤ 4 pages rasterized with pdf.js (on demand). Quality (`quality.ts`, on a 512 px grayscale copy): long edge < 1000 → low resolution; variance of the Laplacian < 100 → blurry (**untuned**, see phase2.md Notes); mean brightness < 50 → dark; mean > 215 **and** under 0.3 % ink pixels (gray < 100) → washed out. A clean white page with dark text is bright on average and must pass, so brightness alone is not enough. Blur wins over washed-out (a blur erases the ink too).
+
+### 5.5 Assistant (Task 2.11) — `packages/ui/src/chat`
+
+`/ai` is a history panel (inline-start, 288 px; a drawer below `lg`) next to the conversation. Components: `Composer`, `ModeToggle`, `MessageList`, `Message`, `Markdown`, `ThinkingPanel`, `SourceChips`, `SkillChips`; the web app owns data (`apps/web/src/components/chat`).
+
+- **Composer**: a rounded surface with a growing textarea (to 8 lines, then it scrolls), attach (+), web-search toggle, a cost note on hover/focus of the info button, the mode segmented control, and one round navy button that is **send** or, while streaming, **stop**. `Enter` sends, `Shift+Enter` adds a line, and the Enter that confirms an IME candidate never sends (`isComposing` or keyCode 229). Pasted or dropped images attach; the counter appears at 80% of the 8000-character limit.
+- **ModeToggle**: native radios in a pill group; a mode the plan lacks is a disabled radio with the "ترقية" badge and a title, never hidden.
+- **Messages**: user messages are soft-navy bubbles at the inline-end; answers are plain text under the product name. Markdown is sanitized (raw HTML is shown as text), links open in a new tab with `noopener noreferrer`, tables scroll inside their own box, code blocks are LTR, and runs of Latin text and numbers inside Arabic are wrapped in `<bdi>`. The medical disclaimer sits under every answer; copy, regenerate (last answer only) and 👍/👎 appear once the answer is complete.
+- **Streaming**: text is applied once per animation frame; the list follows the newest text only while the user is at the bottom, otherwise a "↓ جديد" button appears. The list itself is not a live region: one polite status announces "اكتملت الإجابة." (or the stopped variant) when the answer ends.
+- **ThinkingPanel**: collapsed; "يفكّر…" while the model reasons, then "فكّر لمدة N ث" with an expand control. **SourceChips**: domain plus title, no favicon, new tab.
+
 ---
 
 ## 6. Forms

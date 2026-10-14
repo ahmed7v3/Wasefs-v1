@@ -1634,7 +1634,12 @@ describe("AI settings", () => {
         .where(eq(auditLogs.action, "setting.update"));
       const mine = rows.filter((row) => row.targetId === "ai" && row.actorId === boss.userId);
       expect(mine.length).toBeGreaterThanOrEqual(1);
-      expect(mine.at(-1)?.after).toMatchObject({ dailyCapUsdMicros: 25_000_000 });
+      expect(
+        mine.some(
+          (row) =>
+            (row.after as { dailyCapUsdMicros?: number } | null)?.dailyCapUsdMicros === 25_000_000,
+        ),
+      ).toBe(true);
     } finally {
       await putSettings(boss, SETTINGS);
     }

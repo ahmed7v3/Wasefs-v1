@@ -36,3 +36,6 @@ export const RX_INITIALS_MAX_LENGTH = 8;
 /** Kind of an eval item, so accuracy is reported separately for printed and handwritten. */
 export const EVAL_ITEM_KINDS = ["printed", "handwritten"] as const;
 export type EvalItemKind = (typeof EVAL_ITEM_KINDS)[number];
+
+/** The skill (`skills/<name>/SKILL.md`) the prescription pipeline runs; its version is part of the exact-match cache key. */
+export const RX_SKILL_NAME = "prescription-analysis";

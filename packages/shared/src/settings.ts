@@ -4,6 +4,8 @@ import { accessSettingsSchema, authSettingsSchema } from "./auth-settings.js";
 import { LOCALES } from "./i18n/index.js";
 import { emailSchema, phoneNumberSchema } from "./schemas/auth.js";
 
+import type { AiTask } from "./ai.js";
+
 /*
  * Typed registry of every `site_settings` key (Task 1.8). Each key has a zod schema (with safe
  * defaults, so `schema.parse({})` is the default value), and a visibility: `public` keys are served
@@ -246,3 +248,31 @@ export const upsertFlagSchema = z.object({
 
 /** `GET /flags`: the caller's evaluated flags (unknown keys are simply absent = off). */
 export const flagsResponseSchema = z.object({ flags: z.record(z.string(), z.boolean()) });
+
+type KillSwitch = SettingValue<"ai">["killSwitch"];
+
+/**
+ * Whether the `ai` kill switches stop a task: `all`, the task's own feature switch, or (when asked
+ * about search) the search switch. Helper tasks (titles, summaries) answer to `all` only. The
+ * worker's router uses this; the API's `isSwitchedOff` implements the same table.
+ */
+export function isAiSwitchedOff(
+  killSwitch: KillSwitch,
+  task: AiTask,
+  options: { search: boolean },
+): boolean {
+  if (killSwitch.all) return true;
+  if (options.search) return killSwitch.search;
+  switch (task) {
+    case "rx_extract":
+    case "rx_verify":
+      return killSwitch.rx;
+    case "chat":
+    case "deep_think":
+      return killSwitch.chat;
+    case "web_search":
+      return killSwitch.search;
+    default:
+      return false;
+  }
+}

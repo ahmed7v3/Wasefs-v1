@@ -1,6 +1,7 @@
 import { createDb } from "@wasfa/db";
 import { Redis } from "ioredis";
 
+import { createAiRuntime } from "./ai/runtime.js";
 import { loadEnv, queueConcurrency } from "./config/env.js";
 import { createLogger } from "./logger.js";
 import { createEmailRuntime } from "./notifications/email.js";
@@ -20,12 +21,14 @@ const { db, close: closeDb } = createDb({ url: env.DATABASE_URL, max: 3 });
 
 const email = createEmailRuntime(env, connection, logger);
 const storage = createObjectStore(env);
+const ai = createAiRuntime({ env, db, redis: connection, logger });
 const { workers, queues } = startWorkers(connection, queueConcurrency(env), {
   redis: connection,
   db,
   logger,
   email,
   storage,
+  ai,
 });
 await registerSchedules(queues);
 logger.info(

@@ -85,6 +85,24 @@ export class ObjectStorage implements OnApplicationShutdown {
     return getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: key }), { expiresIn });
   }
 
+  /**
+   * The bytes of a (small) stored object, for the one place the api itself sends an image on to a
+   * model: the assistant's image questions. Refuses anything larger than `maxBytes`.
+   */
+  async getBytes(key: string, maxBytes: number): Promise<Uint8Array> {
+    const { s3, bucket } = this.connect();
+    try {
+      const result = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+      if ((result.ContentLength ?? 0) > maxBytes || !result.Body) {
+        throw new AppError(ErrorCode.UPSTREAM_UNAVAILABLE, { details: { reason: "file_too_large" } });
+      }
+      return await result.Body.transformToByteArray();
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      throw new AppError(ErrorCode.UPSTREAM_UNAVAILABLE, { cause: error });
+    }
+  }
+
   /** Size and type of what is stored, or `null` when there is no such object. */
   async head(key: string): Promise<ObjectHead | null> {
     const { s3, bucket } = this.connect();

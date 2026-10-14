@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import {
   LedgerError,
   type CreditWallet,
+  type PlanEntitlement,
   type LedgerWrite,
   type ReleaseResult,
   type ReservationResult,
@@ -9,6 +10,7 @@ import {
   type SweepResult,
   type WalletOwner,
 } from "@wasfa/db";
+import { AI_MODES, type AiMode } from "@wasfa/shared/ai";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import { PinoLogger } from "nestjs-pino";
 
@@ -62,6 +64,25 @@ function usageEntry(row: LedgerRow): MeUsageEntry {
         ? row.reason
         : null,
     createdAt: row.createdAt.toISOString(),
+  };
+}
+
+/**
+ * What the assistant may offer this plan: `fast`/`balanced` come from the `chat` allowance, `deep`
+ * from `deep_think`; search is the `web_search` allowance (the same rule `ChatService` enforces).
+ */
+export function chatFeatures(allowed: readonly PlanEntitlement[]): MeCreditsResponse["chat"] {
+  const modes = new Set<AiMode>();
+  for (const item of allowed) {
+    if (item.task === "chat") {
+      for (const mode of item.modes) if (mode !== "deep") modes.add(mode);
+    } else if (item.task === "deep_think" && item.modes.includes("deep")) {
+      modes.add("deep");
+    }
+  }
+  return {
+    modes: AI_MODES.filter((mode) => modes.has(mode)),
+    webSearch: allowed.some((item) => item.task === "web_search"),
   };
 }
 
@@ -176,6 +197,7 @@ export class CreditsService {
         used: used.get(item.task) ?? 0,
         dailyCap: item.dailyCap,
       })),
+      chat: chatFeatures(allowed),
     };
   }
 

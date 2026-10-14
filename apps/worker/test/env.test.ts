@@ -20,6 +20,7 @@ describe("workerEnvSchema", () => {
       credits: 1,
       images: 1,
       drugs: 1,
+      rx: 2,
     });
     expect(env.MAIL_DAILY_CAP).toBe(280);
     expect(env.SMTP_PORT).toBe(587);
@@ -34,6 +35,7 @@ describe("workerEnvSchema", () => {
       WORKER_CONCURRENCY_CREDITS: "3",
       WORKER_CONCURRENCY_IMAGES: "2",
       WORKER_CONCURRENCY_DRUGS: "2",
+      WORKER_CONCURRENCY_RX: "3",
     });
     expect(queueConcurrency(env)).toEqual({
       system: 4,
@@ -41,6 +43,7 @@ describe("workerEnvSchema", () => {
       credits: 3,
       images: 2,
       drugs: 2,
+      rx: 3,
     });
   });
 

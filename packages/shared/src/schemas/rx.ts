@@ -5,7 +5,7 @@
 import { z } from "zod";
 
 import { AI_MODES } from "../ai.js";
-import { RX_MAX_PAGES } from "../rx.js";
+import { RX_FIELDS, RX_MAX_PAGES, RX_STATUSES } from "../rx.js";
 
 export const RX_SCHEMA_VERSION = 1;
 
@@ -155,3 +155,224 @@ export const rxEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("failed"), errorRef: z.string().max(40), seq: z.number().int() }),
 ]);
 export type RxEvent = z.infer<typeof rxEventSchema>;
+
+/*
+ * ---------------------------------------------------------------------------------------------
+ * Task 2.8 additions: the JSON schemas sent to the provider (written by hand, kept in step with
+ * the zod schemas above by a test that feeds both the same fixtures), the job payload and the
+ * contract of the `/rx` routes. Nothing above this line changes meaning.
+ * ---------------------------------------------------------------------------------------------
+ */
+
+const nullableText = { type: ["string", "null"] } as const;
+const box2dJson = {
+  type: "array",
+  items: { type: "number", minimum: 0, maximum: 1000 },
+  minItems: 4,
+  maxItems: 4,
+  description: "[ymin, xmin, ymax, xmax] normalized 0-1000",
+} as const;
+const pageJson = { type: "integer", minimum: 0, maximum: RX_MAX_PAGES - 1 } as const;
+
+/** JSON schema for `rx_extract` (mirrors `rxExtractionSchema`; strict-mode friendly: closed objects, every key required). */
+export const rxExtractionJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["items", "prescriberLegible", "date", "unreadableRegions"],
+  properties: {
+    items: {
+      type: "array",
+      maxItems: 40,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "rawText",
+          "name",
+          "strength",
+          "form",
+          "dose",
+          "frequency",
+          "duration",
+          "route",
+          "notes",
+          "confidence",
+          "box_2d",
+          "page",
+        ],
+        properties: {
+          rawText: { type: "string", maxLength: 300 },
+          name: nullableText,
+          strength: nullableText,
+          form: nullableText,
+          dose: nullableText,
+          frequency: nullableText,
+          duration: nullableText,
+          route: nullableText,
+          notes: nullableText,
+          confidence: { type: "number", minimum: 0, maximum: 1 },
+          box_2d: { ...box2dJson, type: ["array", "null"] },
+          page: pageJson,
+        },
+      },
+    },
+    prescriberLegible: { type: "boolean" },
+    date: nullableText,
+    unreadableRegions: {
+      type: "array",
+      maxItems: 40,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["page", "box_2d"],
+        properties: { page: pageJson, box_2d: box2dJson },
+      },
+    },
+  },
+} as const;
+
+/** JSON schema for `rx_verify` (mirrors `rxVerifyAnswerSchema`): one of three closed shapes per item. */
+export const rxVerifyJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["answers"],
+  properties: {
+    answers: {
+      type: "array",
+      maxItems: 40,
+      items: {
+        anyOf: [
+          {
+            type: "object",
+            additionalProperties: false,
+            required: ["index", "kind", "id"],
+            properties: {
+              index: { type: "integer", minimum: 0 },
+              kind: { type: "string", enum: ["candidate"] },
+              id: { type: "string", description: "id of one of the offered candidates" },
+            },
+          },
+          {
+            type: "object",
+            additionalProperties: false,
+            required: ["index", "kind", "text"],
+            properties: {
+              index: { type: "integer", minimum: 0 },
+              kind: { type: "string", enum: ["other"] },
+              text: { type: "string", maxLength: 200, description: "the text you read" },
+            },
+          },
+          {
+            type: "object",
+            additionalProperties: false,
+            required: ["index", "kind"],
+            properties: {
+              index: { type: "integer", minimum: 0 },
+              kind: { type: "string", enum: ["unreadable"] },
+            },
+          },
+        ],
+      },
+    },
+  },
+} as const;
+
+/** `rx.analyze`: the only job of the `rx` queue; everything else is read from the row. */
+export const rxAnalyzePayloadSchema = z.object({ analysisId: z.uuid() });
+
+/** Redis names shared by the worker (publisher) and the API (SSE relay). */
+export const rxChannel = (analysisId: string): string => `rx:${analysisId}`;
+/** Monotonic event counter of one analysis, so `seq` keeps growing across job retries. */
+export const rxSeqKey = (analysisId: string): string => `rx:${analysisId}:seq`;
+/** The last event published, kept so a client that connects late starts from the current step. */
+export const rxLastEventKey = (analysisId: string): string => `rx:${analysisId}:last`;
+export const RX_EVENT_TTL_SECONDS = 24 * 60 * 60;
+
+/** An owner re-uploading the same pages within this long gets the cached answer for free. */
+export const RX_FREE_CACHE_HOURS = 24;
+/** Near-duplicate hint window and Hamming distance (of the 64-bit dHash), same owner only. */
+export const RX_NEAR_DUPLICATE_DAYS = 7;
+export const RX_NEAR_DUPLICATE_MAX_DISTANCE = 6;
+
+const isoDate = z.iso.datetime({ offset: true });
+
+export const rxCreateResponseSchema = z.object({
+  id: z.uuid(),
+  /** An earlier analysis of the same owner with a look-alike page: offered, never reused silently. */
+  nearDuplicate: z.object({ analysisId: z.uuid(), createdAt: isoDate }).nullable(),
+});
+export type RxCreateResponse = z.infer<typeof rxCreateResponseSchema>;
+
+export const rxViewSchema = z.object({
+  id: z.uuid(),
+  status: z.enum(RX_STATUSES),
+  mode: z.enum(AI_MODES),
+  result: rxResultSchema.nullable(),
+  creditsCharged: z.number().int().min(0),
+  /** True when the answer was copied from an earlier identical analysis (no provider call). */
+  cached: z.boolean(),
+  createdAt: isoDate,
+  queuedAt: isoDate,
+  startedAt: isoDate.nullable(),
+  finishedAt: isoDate.nullable(),
+  errorRef: z.string().nullable(),
+  /** The pages in order; `imageDeleted` once the retention job removed the picture (the result stays). */
+  files: z.array(
+    z.object({ fileId: z.uuid(), pageNo: z.number().int().min(1), imageDeleted: z.boolean() }),
+  ),
+});
+export type RxView = z.infer<typeof rxViewSchema>;
+
+export const rxListQuerySchema = z.object({
+  cursor: z.string().max(200).optional(),
+  /** Matches item names inside the results. */
+  q: z.string().trim().min(1).max(100).optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+export const rxListItemSchema = z.object({
+  id: z.uuid(),
+  status: z.enum(RX_STATUSES),
+  mode: z.enum(AI_MODES),
+  createdAt: isoDate,
+  itemCount: z.number().int().min(0),
+  /** The first few item names, for the history row. */
+  itemNames: z.array(z.string()).max(3),
+  pageCount: z.number().int().min(0),
+  creditsCharged: z.number().int().min(0),
+});
+export const rxListResponseSchema = z.object({
+  items: z.array(rxListItemSchema),
+  nextCursor: z.string().nullable(),
+});
+export type RxListQuery = z.output<typeof rxListQuerySchema>;
+export type RxListResponse = z.output<typeof rxListResponseSchema>;
+
+export const rxItemParamsSchema = z.object({
+  id: z.uuid(),
+  itemIndex: z.coerce.number().int().min(0).max(39),
+});
+
+/** `POST /rx/:id/corrections`. For `field = drug`, `after` is a drug id (a picked candidate) or free text. */
+export const rxCorrectionRequestSchema = z.object({
+  itemIndex: z.number().int().min(0).max(39),
+  field: z.enum(RX_FIELDS),
+  after: z.string().trim().min(1).max(200),
+  consentForEval: z.boolean().default(false),
+});
+export type RxCorrectionRequest = z.infer<typeof rxCorrectionRequestSchema>;
+export const rxCorrectionResponseSchema = z.object({ result: rxResultSchema });
+
+export const rxCandidateSchema = z.object({
+  drugId: z.uuid(),
+  brandEn: z.string(),
+  brandAr: z.string().nullable(),
+  form: z.string().nullable(),
+  strengthText: z.string().nullable(),
+  manufacturer: z.string().nullable(),
+  status: z.enum(["active", "withdrawn"]),
+  score: z.number().min(0).max(1),
+  matchClass: z.enum(["accept", "verify", "unmatched"]),
+});
+export const rxCandidatesResponseSchema = z.object({ candidates: z.array(rxCandidateSchema) });
+export type RxCandidatesResponse = z.output<typeof rxCandidatesResponseSchema>;

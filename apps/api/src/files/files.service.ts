@@ -10,6 +10,7 @@ import {
   type CompleteUploadResponse,
   type CreateUploadInput,
   type CreateUploadResponse,
+  type FileStatusResponse,
   type FileUrlResponse,
   type UploadRejectReason,
 } from "@wasfa/shared/schemas/files";
@@ -132,6 +133,16 @@ export class FilesService {
 
     if (await this.repo.markUploaded(file)) await this.images.process(file.id);
     return { fileId, status: "uploaded" };
+  }
+
+  /** Status and, for a rejected file, the reason code. Someone else's file is `NOT_FOUND`. */
+  async status(user: FileViewer, fileId: string): Promise<FileStatusResponse> {
+    const file = await this.require(user, fileId);
+    return {
+      fileId,
+      status: file.status,
+      rejectReason: file.status === "rejected" ? asReason(file.rejectReason) : null,
+    };
   }
 
   /** A 60 second link to the processed image. Only a processed file has one. */

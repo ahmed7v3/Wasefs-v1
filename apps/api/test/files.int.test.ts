@@ -506,3 +506,39 @@ describe("without storage configuration", () => {
     });
   });
 });
+
+describe("GET /files/:id", () => {
+  it("tells the owner where the upload is, with the reason once rejected", async () => {
+    const person = await user();
+    const created = await createOk(person, jpegLike());
+    const status = (id: string, who = person) =>
+      harness.call("GET", `/files/${id}`, { jar: who.jar });
+
+    expect((await status(created.fileId)).json()).toEqual({
+      fileId: created.fileId,
+      status: "pending",
+      rejectReason: null,
+    });
+    await owner.db
+      .update(files)
+      .set({ status: "rejected", rejectReason: "corrupt_image" })
+      .where(eq(files.id, created.fileId));
+    expect((await status(created.fileId)).json()).toEqual({
+      fileId: created.fileId,
+      status: "rejected",
+      rejectReason: "corrupt_image",
+    });
+  });
+
+  it("hides another user's file and needs a session", async () => {
+    const mine = await user();
+    const intruder = await user();
+    const created = await createOk(mine, jpegLike());
+    await wrongOwnerIsHidden({
+      owner: () => harness.call("GET", `/files/${created.fileId}`, { jar: mine.jar }),
+      intruder: () => harness.call("GET", `/files/${created.fileId}`, { jar: intruder.jar }),
+      stillThere: async () => (await row(created.fileId)).status === "pending",
+    });
+    expect((await harness.call("GET", `/files/${created.fileId}`)).statusCode).toBe(401);
+  });
+});

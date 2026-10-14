@@ -83,13 +83,14 @@ describe("fake adapter", () => {
     expect((error as AiProviderError).code).toBe("timeout");
   });
 
-  it("lists four models and tests the connection", async () => {
+  it("lists the fake models and tests the connection", async () => {
     const models = await adapter.listModels(new AbortController().signal);
     expect(models.map((m) => m.id)).toEqual([
       "fake-echo",
       "fake-json",
       "fake-error-retryable",
       "fake-slow",
+      "fake-think",
     ]);
     expect(models.every((m) => m.capabilities.join() === "json")).toBe(true);
     expect((await adapter.testConnection(new AbortController().signal)).ok).toBe(true);

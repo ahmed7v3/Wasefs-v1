@@ -4,6 +4,9 @@ import { enAdminAi } from "./en.admin-ai.js";
 import { enAdminBilling } from "./en.admin-billing.js";
 import { enAdminDrugs } from "./en.admin-drugs.js";
 import { enAdmin } from "./en.admin.js";
+import { enCapture } from "./en.capture.js";
+import { enChat } from "./en.chat.js";
+import { enRx } from "./en.rx.js";
 
 import type { MessageKey } from "./ar.js";
 
@@ -502,5 +505,8 @@ export const en: Partial<Record<MessageKey, string>> = {
   ...enAdminAi,
   ...enAdminBilling,
   ...enAdminDrugs,
+  ...enRx,
+  ...enCapture,
+  ...enChat,
   ...errorMessages,
 };

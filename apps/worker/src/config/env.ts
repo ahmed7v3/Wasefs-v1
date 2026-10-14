@@ -38,6 +38,8 @@ export const workerEnvSchema = z
     WORKER_CONCURRENCY_IMAGES: concurrency,
     /** ... and on the `drugs` queue (list imports; one at a time is plenty, they are DB-heavy). */
     WORKER_CONCURRENCY_DRUGS: concurrency,
+    /** ... and on the `rx` queue (prescription analysis: provider calls and image crops; 2 at a time). */
+    WORKER_CONCURRENCY_RX: concurrency.default(2),
     /** How long shutdown waits for active jobs before force-closing. */
     WORKER_SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).default(30_000),
 
@@ -91,5 +93,6 @@ export function queueConcurrency(env: WorkerEnv): Record<QueueName, number> {
     credits: env.WORKER_CONCURRENCY_CREDITS,
     drugs: env.WORKER_CONCURRENCY_DRUGS,
     images: env.WORKER_CONCURRENCY_IMAGES,
+    rx: env.WORKER_CONCURRENCY_RX,
   };
 }

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { Inject, Injectable } from "@nestjs/common";
+import { busyLockKey, type BusyKind } from "@wasfa/shared/busy";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import { Redis } from "ioredis";
 
@@ -16,8 +17,8 @@ export const QUOTA_COUNTER_TTL_SECONDS = 2 * 24 * 60 * 60;
 /** A held lock frees itself after this long, so a crashed job never blocks a user for good. */
 export const BUSY_LOCK_TTL_SECONDS = 600;
 
-/** One rx analysis and one chat stream per user at a time. */
-export type BusyKind = "rx" | "chat";
+/** One rx analysis and one chat stream per user at a time (the key is shared with the worker, which frees the rx lock). */
+export type { BusyKind };
 
 export type QuotaOwner =
   { ownerUserId: string; ownerOrgId?: undefined } | { ownerOrgId: string; ownerUserId?: undefined };
@@ -38,7 +39,6 @@ export interface QuotaTicket {
 
 const counterKey = (owner: WalletOwner, task: AiTask, day: string) =>
   `quota:${ownerKey(owner)}:${task}:${day}`;
-const busyKey = (userId: string, kind: BusyKind) => `busy:${userId}:${kind}`;
 const utcDay = (now: Date) => now.toISOString().slice(0, 10);
 
 /** Prescription reading and chat are the long-running tasks; the small helper tasks run freely. */
@@ -125,7 +125,7 @@ export class QuotaService {
 
   /** Frees a user's lock. The worker calls this when an rx job ends, with no ticket at hand. */
   async release(userId: string, kind: BusyKind): Promise<void> {
-    await this.redis.del(busyKey(userId, kind));
+    await this.redis.del(busyLockKey(userId, kind));
   }
 
   /** How many of each task the owner has started today (for `GET /me/credits`). */
@@ -146,7 +146,7 @@ export class QuotaService {
 
   private async acquire(userId: string, kind: BusyKind): Promise<boolean> {
     const result = await this.redis.set(
-      busyKey(userId, kind),
+      busyLockKey(userId, kind),
       randomUUID(),
       "EX",
       BUSY_LOCK_TTL_SECONDS,

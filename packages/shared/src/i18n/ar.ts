@@ -4,6 +4,9 @@ import { arAdminAi } from "./ar.admin-ai.js";
 import { arAdminBilling } from "./ar.admin-billing.js";
 import { arAdminDrugs } from "./ar.admin-drugs.js";
 import { arAdmin } from "./ar.admin.js";
+import { arCapture } from "./ar.capture.js";
+import { arChat } from "./ar.chat.js";
+import { arRx } from "./ar.rx.js";
 
 type ErrorMessageKey = `error.${ErrorCode}`;
 
@@ -512,6 +515,9 @@ export const ar = {
   ...arAdminAi,
   ...arAdminBilling,
   ...arAdminDrugs,
+  ...arRx,
+  ...arCapture,
+  ...arChat,
   ...errorMessages,
 } as const;
 

@@ -1,17 +1,21 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
   RedisBreakerStore,
+  aiPausedError,
   createAdapter,
   createRouter,
   createSpendGuard,
+  type ResolvedRoute,
   type Router,
   type RouterEvent,
   type RouterInput,
   type RouterNote,
   type RouterPorts,
+  type SpendGuard,
 } from "@wasfa/ai";
 import { createAiRuntimePorts } from "@wasfa/db";
 import { decryptSecret } from "@wasfa/shared/crypto";
+import { isAppError } from "@wasfa/shared/errors";
 import { Redis } from "ioredis";
 import { PinoLogger } from "nestjs-pino";
 
@@ -23,7 +27,7 @@ import { SettingsService } from "../settings/settings.service.js";
 
 import { providerKeyContext } from "./provider-key.js";
 
-import type { AiTask } from "@wasfa/shared/ai";
+import type { AiMode, AiTask } from "@wasfa/shared/ai";
 import type { SettingValue } from "@wasfa/shared/settings";
 
 type KillSwitch = SettingValue<"ai">["killSwitch"];
@@ -64,6 +68,8 @@ export function isSwitchedOff(
 @Injectable()
 export class AiRuntimeService {
   private readonly router: Router;
+  private readonly routeLookup: RouterPorts["resolveRoute"];
+  private readonly spendGuard: SpendGuard;
 
   constructor(
     @Inject(DB) handle: DbHandle,
@@ -80,18 +86,20 @@ export class AiRuntimeService {
     const { resolveRoute, recordUsage } = createAiRuntimePorts(handle.db, (key, enc) =>
       decryptSecret(enc, encryptionKey(env), providerKeyContext(key)),
     );
+    this.routeLookup = resolveRoute;
+    this.spendGuard = createSpendGuard(redis, {
+      limits,
+      // No notifier exists yet: the error log (with a stable event name) is the admin alert.
+      onAlert: (alert) => {
+        this.logger.error({ event: "ai.spend_alert", ...alert }, "AI daily spend alert");
+      },
+    });
     this.router = createRouter({
       resolveRoute,
       recordUsage,
       limits,
       breaker: new RedisBreakerStore(redis),
-      spendGuard: createSpendGuard(redis, {
-        limits,
-        // No notifier exists yet: the error log (with a stable event name) is the admin alert.
-        onAlert: (alert) => {
-          this.logger.error({ event: "ai.spend_alert", ...alert }, "AI daily spend alert");
-        },
-      }),
+      spendGuard: this.spendGuard,
       killSwitch: async (task, options) =>
         isSwitchedOff((await this.settings.get("ai")).killSwitch, task, options),
       adapterFor: (model) =>
@@ -113,6 +121,29 @@ export class AiRuntimeService {
   /** Streams the answer and ends with a `result` event; see `Router.run` for the refusals it throws. */
   run(input: RouterInput, signal: AbortSignal): AsyncGenerator<RouterEvent> {
     return this.router.run(input, signal);
+  }
+
+  /** The route the router would use, for estimating a call's worst-case cost before it starts. */
+  route(task: AiTask, planId: string | null, mode: AiMode): Promise<ResolvedRoute | null> {
+    return this.routeLookup(task, planId, mode);
+  }
+
+  /**
+   * The router's first two refusals (kill switches, daily spend cap) asked up front, so a feature
+   * can answer with a plain JSON error before it opens a stream. Throws `ai_paused`.
+   */
+  async assertAvailable(task: AiTask, options: { search: boolean }): Promise<void> {
+    const ai = await this.settings.get("ai");
+    if (isSwitchedOff(ai.killSwitch, task, { search: false })) throw aiPausedError();
+    if (options.search && isSwitchedOff(ai.killSwitch, task, { search: true })) {
+      throw aiPausedError();
+    }
+    try {
+      await this.spendGuard.check(ai.dailyCapUsdMicros);
+    } catch (error) {
+      // A Redis outage must not take the assistant down (the router tolerates it the same way).
+      if (isAppError(error)) throw error;
+    }
   }
 
   private note(note: RouterNote): void {
