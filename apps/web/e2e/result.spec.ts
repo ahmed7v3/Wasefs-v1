@@ -186,7 +186,9 @@ test.describe("print and share", () => {
     const sheet = page.locator("[data-rx-print]");
     await expect(sheet).toBeVisible();
     await expect(sheet).toContainText(t("rx.disclaimer"));
-    await expect(sheet.locator("img")).toHaveCount(0);
+    // No picture of the prescription: the only images are inline SVG (the QR code to the site).
+    await expect(sheet.locator('img:not([src^="data:image/svg"])')).toHaveCount(0);
+    await expect(sheet).toContainText(t("rx.print.heading"));
     await expect(page.locator("aside")).toBeHidden();
     await expect(page.locator(".page-backdrop > header")).toBeHidden();
     await expect(page.getByTestId("rx-viewer")).toBeHidden();
@@ -201,8 +203,12 @@ test.describe("print and share", () => {
     const link = page.getByRole("link", { name: t("rx.action.share") });
     const href = (await link.getAttribute("href")) ?? "";
     expect(href.startsWith("https://wa.me/?text=")).toBe(true);
-    expect(decodeURIComponent(href)).toContain("Augmentin");
-    expect(decodeURIComponent(href)).not.toContain("http://localhost");
+    const text = decodeURIComponent(href);
+    expect(text).toContain("Augmentin");
+    // The report ends with the link to the site, and carries no link to the prescription picture.
+    expect(text.trimEnd().endsWith(new URL(page.url()).origin)).toBe(true);
+    expect(text).not.toContain("X-Amz");
+    expect(text).not.toContain("/files/");
   });
 });
 
