@@ -40,7 +40,9 @@ export function currentValue(item: RxResultItem, field: RxField): string | null 
  * Applies one user fix to a stored result and re-derives what depends on it. Pure.
  *
  * A picked drug is the user's own decision, so the line becomes matched with the highest confidence;
- * free text is an unmatched name and stays capped below "high" (Decision 8). Findings are
+ * free text is an unmatched name and stays capped below "high" (Decision 8), except when the model
+ * read on its own (no database to match against): then the person's own typing is the confirmation
+ * and the line is `high`. A new name makes the line's details stale, so they are dropped. Findings are
  * recomputed for the duplicate-ingredient rule; a strength warning about the line is dropped when the
  * drug or the strength was just changed. Returns `null` when the line does not exist.
  */
@@ -58,13 +60,15 @@ export function applyCorrection(
   let next: RxResultItem = { ...current, verified: "corrected" };
   if (field === "drug") {
     if (drug === null) {
-      const confidence = Math.min(current.confidence, RX_UNMATCHED_CONFIDENCE_CAP);
+      const modelOnly = result.matching === "model";
+      const confidence = modelOnly ? 1 : Math.min(current.confidence, RX_UNMATCHED_CONFIDENCE_CAP);
       next = {
         ...next,
         name: after,
         matchedDrugId: null,
         matchScore: null,
         activeIngredients: [],
+        details: null,
         confidence,
         badge: confidenceBadge(confidence),
       };
@@ -74,6 +78,7 @@ export function applyCorrection(
         name: clamp(drug.brandEn),
         matchedDrugId: drug.id,
         matchScore: 1,
+        details: null,
         activeIngredients: drug.ingredients.slice(0, 10).map((name) => name.slice(0, 120)),
         confidence: 1,
         badge: "high",

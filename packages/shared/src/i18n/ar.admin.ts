@@ -394,6 +394,8 @@ export const arAdmin = {
   "admin.settings.field.rx.maxPages": "أقصى عدد صفحات للروشتة",
   "admin.settings.field.rx.modelWarnings": "تنبيهات يكتبها النموذج",
   "admin.settings.field.rx.verifyMaxItems": "أقصى عدد بنود في إعادة التحقق",
+  "admin.settings.field.rx.drugMatching": "مطابقة الأدوية مع قاعدة البيانات",
+  "admin.settings.field.rx.details": "إضافة تفاصيل الأدوية ونظرة عامة للنتيجة",
   "admin.settings.field.auth.providers": "مزوّدو تسجيل الدخول",
   "admin.settings.field.auth.providers.google": "جوجل",
   "admin.settings.field.auth.providers.facebook": "فيسبوك",

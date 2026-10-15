@@ -105,6 +105,8 @@ export async function rxAnalyzeJob(
       images,
       base,
       verifyMaxItems: rx.verifyMaxItems,
+      drugMatching: rx.drugMatching,
+      details: rx.details,
       signal: budget,
       onStep: async (step, { verifying }) => {
         failedStep = step;

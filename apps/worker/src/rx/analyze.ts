@@ -1,6 +1,8 @@
 import { LedgerError, type Database } from "@wasfa/db";
 import { isAppError } from "@wasfa/shared/errors";
 import {
+  rxDetailsAnswerSchema,
+  rxDetailsJsonSchema,
   rxExtractionJsonSchema,
   rxExtractionSchema,
   rxVerifyAnswerSchema,
@@ -16,12 +18,21 @@ import { RxStepError, callJson, type ModelCall } from "./model-call.js";
 import {
   applyVerification,
   buildResult,
+  isReadable,
   markSkipped,
   matchItems,
+  modelItems,
   pickForVerification,
+  withDetails,
   type WorkItem,
 } from "./pipeline.js";
-import { readMessages, systemPrompt, verifyMessages, type VerifyItem } from "./prompts.js";
+import {
+  detailsMessages,
+  readMessages,
+  systemPrompt,
+  verifyMessages,
+  type VerifyItem,
+} from "./prompts.js";
 import { ingredientsOf } from "./repo.js";
 
 import type { Router, RouterInput } from "@wasfa/ai";
@@ -32,6 +43,9 @@ export type RxStep = (typeof RX_STEPS)[number];
 const ATTEMPT_TIMEOUT_MS = 40_000;
 const READ_MAX_OUTPUT_TOKENS = 8_192;
 const VERIFY_MAX_OUTPUT_TOKENS = 2_048;
+/** The details step is text in, text out: short, and never worth failing an analysis for. */
+const DETAILS_TIMEOUT_MS = 35_000;
+const DETAILS_MAX_OUTPUT_TOKENS = 4_096;
 /** Gemini bills an image at a fixed token count; used only for the spend estimate. */
 const IMAGE_TOKENS = 1_120;
 
@@ -64,6 +78,10 @@ export interface AnalyzeArgs {
   base: AnalyzeBase;
   /** `rx.verifyMaxItems`: how many flagged lines the verification step may re-read. */
   verifyMaxItems: number;
+  /** `rx.drugMatching`: match lines to the drug database and re-read doubtful ones. Off: the model alone. */
+  drugMatching: boolean;
+  /** `rx.details`: add purpose, side effects, precautions and an overview from a text-only call. */
+  details: boolean;
   /** The whole-analysis budget. */
   signal: AbortSignal;
   /** Called as each step starts (progress events, the step named in a failure log). */
@@ -92,6 +110,7 @@ interface Reading {
  */
 export async function analyzeImages(args: AnalyzeArgs): Promise<AnalyzeOutput> {
   const { db, router, images, base, verifyMaxItems, signal: budget } = args;
+  const matching = args.drugMatching ? "database" : "model";
   const step = args.onStep ?? (() => Promise.resolve());
   const system = systemPrompt();
 
@@ -120,62 +139,111 @@ export async function analyzeImages(args: AnalyzeArgs): Promise<AnalyzeOutput> {
   let cost = reading.calls.costUsdMicros;
   const { routeVersion, usageId } = reading.calls;
 
-  // 2. match: deterministic, from the drug database.
-  await step("match", { verifying: false });
-  const items: WorkItem[] = await withRetry(() => matchItems(db, reading.extraction), budget);
+  // 2. match and 3. verify: only with the drug database. Without it the model's reading stands.
+  let items: WorkItem[];
+  if (matching === "model") {
+    items = modelItems(reading.extraction);
+  } else {
+    await step("match", { verifying: false });
+    items = await withRetry(() => matchItems(db, reading.extraction), budget);
 
-  // 3. verify: only the flagged lines, highest risk first.
-  const chosenForVerify = pickForVerification(items, verifyMaxItems).filter((index) => {
-    const item = items[index];
-    return item !== undefined && item.extracted.page < images.length;
-  });
-  if (chosenForVerify.length > 0) {
-    await step("verify", { verifying: true });
-    const offered = new Map(
-      chosenForVerify.map((index) => [index, items[index]?.candidates ?? []] as const),
-    );
-    const verification = await withRetry(async () => {
-      const verifyItems: VerifyItem[] = [];
-      for (const index of chosenForVerify) {
-        const item = items[index];
-        const page = item === undefined ? undefined : images[item.extracted.page];
-        if (item === undefined || page === undefined) continue;
-        verifyItems.push({
-          index,
-          crop: await cropRegion(page, item.extracted.box_2d),
-          candidates: item.candidates,
+    const chosenForVerify = pickForVerification(items, verifyMaxItems).filter((index) => {
+      const item = items[index];
+      return item !== undefined && item.extracted.page < images.length;
+    });
+    if (chosenForVerify.length > 0) {
+      await step("verify", { verifying: true });
+      const offered = new Map(
+        chosenForVerify.map((index) => [index, items[index]?.candidates ?? []] as const),
+      );
+      const verification = await withRetry(async () => {
+        const verifyItems: VerifyItem[] = [];
+        for (const index of chosenForVerify) {
+          const item = items[index];
+          const page = item === undefined ? undefined : images[item.extracted.page];
+          if (item === undefined || page === undefined) continue;
+          verifyItems.push({
+            index,
+            crop: await cropRegion(page, item.extracted.box_2d),
+            candidates: item.candidates,
+          });
+        }
+        return callJson({
+          router,
+          input: {
+            ...base,
+            task: "rx_verify",
+            estimateInputTokens: verifyItems.length * IMAGE_TOKENS + 1_000,
+          },
+          request: {
+            system,
+            messages: verifyMessages(verifyItems),
+            jsonSchema: rxVerifyJsonSchema as unknown as Record<string, unknown>,
+            maxOutputTokens: VERIFY_MAX_OUTPUT_TOKENS,
+          },
+          schema: rxVerifyAnswerSchema,
+          signal: budget,
+          attemptTimeoutMs: ATTEMPT_TIMEOUT_MS,
         });
-      }
-      return callJson({
-        router,
-        input: {
-          ...base,
-          task: "rx_verify",
-          estimateInputTokens: verifyItems.length * IMAGE_TOKENS + 1_000,
-        },
-        request: {
-          system,
-          messages: verifyMessages(verifyItems),
-          jsonSchema: rxVerifyJsonSchema as unknown as Record<string, unknown>,
-          maxOutputTokens: VERIFY_MAX_OUTPUT_TOKENS,
-        },
-        schema: rxVerifyAnswerSchema,
-        signal: budget,
-        attemptTimeoutMs: ATTEMPT_TIMEOUT_MS,
-      });
-    }, budget);
-    cost += verification.costUsdMicros;
-    await applyVerification(db, items, offered, verification.value as RxVerifyAnswer);
+      }, budget);
+      cost += verification.costUsdMicros;
+      await applyVerification(db, items, offered, verification.value as RxVerifyAnswer);
+    }
+    markSkipped(items, new Set(chosenForVerify));
   }
-  markSkipped(items, new Set(chosenForVerify));
 
   // 4. finalize: merge, duplicate-ingredient check, confidence, badge, validation.
   await step("finalize", { verifying: false });
   const drugIds = items.flatMap((item) => (item.chosen === null ? [] : [item.chosen.drugId]));
-  const result: RxResult = await withRetry(async () => {
-    const ingredients = await ingredientsOf(db, [...new Set(drugIds)]);
-    return buildResult(reading.extraction, items, ingredients);
+  let result: RxResult = await withRetry(async () => {
+    const ingredients =
+      matching === "model" ? new Map() : await ingredientsOf(db, [...new Set(drugIds)]);
+    return buildResult(reading.extraction, items, ingredients, matching);
   }, budget);
+
+  // The general information: best effort, never the reason an analysis fails.
+  if (args.details) {
+    const lines = result.items.flatMap((item, index) =>
+      isReadable(item) && (item.name ?? "").trim() !== ""
+        ? [
+            {
+              index,
+              name: item.name ?? "",
+              activeIngredient: item.activeIngredients[0] ?? null,
+              strength: item.strength,
+              form: item.form,
+            },
+          ]
+        : [],
+    );
+    if (lines.length === 0) {
+      result = { ...result, detailsStatus: "unavailable" };
+    } else {
+      try {
+        const answer = await callJson({
+          router,
+          input: {
+            ...base,
+            task: "rx_extract",
+            estimateInputTokens: Math.ceil(system.length / 4) + lines.length * 40,
+          },
+          request: {
+            system,
+            messages: detailsMessages(lines),
+            jsonSchema: rxDetailsJsonSchema as unknown as Record<string, unknown>,
+            maxOutputTokens: DETAILS_MAX_OUTPUT_TOKENS,
+          },
+          schema: rxDetailsAnswerSchema,
+          signal: AbortSignal.any([budget, AbortSignal.timeout(DETAILS_TIMEOUT_MS)]),
+          attemptTimeoutMs: DETAILS_TIMEOUT_MS,
+        });
+        cost += answer.costUsdMicros;
+        result = withDetails(result, answer.value);
+      } catch {
+        result = { ...result, detailsStatus: "unavailable" };
+      }
+    }
+  }
 
   return { result, costUsdMicros: cost, routeVersion, usageId };
 }

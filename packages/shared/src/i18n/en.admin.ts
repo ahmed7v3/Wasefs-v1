@@ -400,6 +400,8 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
   "admin.settings.field.rx.maxPages": "Maximum pages per prescription",
   "admin.settings.field.rx.modelWarnings": "Model-written warnings",
   "admin.settings.field.rx.verifyMaxItems": "Maximum items re-read by verification",
+  "admin.settings.field.rx.drugMatching": "Match drugs against the database",
+  "admin.settings.field.rx.details": "Add drug details and an overview to results",
   "admin.settings.field.auth.providers": "Sign-in providers",
   "admin.settings.field.auth.providers.google": "Google",
   "admin.settings.field.auth.providers.facebook": "Facebook",

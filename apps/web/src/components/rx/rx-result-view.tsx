@@ -31,6 +31,7 @@ import { ErrorNotice, errorMessage } from "../error-notice";
 
 import { RxActions } from "./rx-actions";
 import { RxDisclaimer, RxNotices } from "./rx-notices";
+import { RxOverview } from "./rx-overview";
 import { RxPrintSheet } from "./rx-print-sheet";
 import { RxFailed, RxProgressPanel, RxRefunded } from "./rx-progress-panel";
 import { RxReview } from "./rx-review";
@@ -79,6 +80,7 @@ export function RxResultView({ initial, creditsPerPage, balance }: RxResultViewP
   const images = useRxImages(view.files, result !== null);
 
   const activeIndex = hoverIndex ?? selectedIndex;
+  const modelOnly = result?.matching === "model";
 
   const regions = useMemo<ViewerRegion[]>(() => {
     if (!result) return [];
@@ -89,7 +91,7 @@ export function RxResultView({ initial, creditsPerPage, balance }: RxResultViewP
               id: regionId(index),
               page: item.page,
               box: item.box_2d,
-              label: t("rx.viewer.region", { name: drugTitle(item) }),
+              label: t("rx.viewer.region", { name: drugTitle(item, modelOnly) }),
             },
           ]
         : [],
@@ -102,7 +104,7 @@ export function RxResultView({ initial, creditsPerPage, balance }: RxResultViewP
       kind: "unreadable",
     }));
     return [...itemRegions, ...unreadable];
-  }, [result, items]);
+  }, [result, items, modelOnly]);
 
   // One polite announcement when the analysis ends.
   const phase = progress.phase;
@@ -271,8 +273,10 @@ export function RxResultView({ initial, creditsPerPage, balance }: RxResultViewP
                     onSelect={setSelectedIndex}
                     onReview={setReviewIndex}
                     pending={pending}
+                    modelOnly={modelOnly}
                   />
                 )}
+                <RxOverview result={result} />
                 <RxNotices result={result} />
                 <RxActions
                   analysis={view}
