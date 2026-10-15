@@ -7,6 +7,7 @@ import {
   classifyMatch,
   drugColumns,
   drugImportKeys,
+  DRUG_IMPORT_LIST_SEPARATOR,
   presetMapping,
 } from "../src/drugs.js";
 import {
@@ -179,6 +180,34 @@ describe("presetMapping", () => {
       "Scientific Name": "ingredients",
       STRENGTH: "strength",
     });
+  });
+
+  it("reads the public SFDA drugs-list export (snake_case headers, extra columns ignored)", () => {
+    const mapping = presetMapping("sfda", [
+      "name",
+      "trade_name",
+      "strength",
+      "dosage_form",
+      "price_sar",
+      "sfda_record_id",
+      "detail_url",
+    ]);
+    expect(mapping).toEqual({
+      name: "ingredients",
+      trade_name: "brandEn",
+      strength: "strength",
+      dosage_form: "form",
+    });
+  });
+
+  it("splits a comma list of ingredients, but not a comma inside brackets", () => {
+    const split = (text: string) => text.split(DRUG_IMPORT_LIST_SEPARATOR).map((p) => p.trim());
+    expect(split("SODIUM CHLORIDE,POTASSIUM CHLORIDE,DEXTROSE")).toEqual([
+      "SODIUM CHLORIDE",
+      "POTASSIUM CHLORIDE",
+      "DEXTROSE",
+    ]);
+    expect(split("INSULIN (HUMAN, RECOMBINANT)")).toEqual(["INSULIN (HUMAN, RECOMBINANT)"]);
   });
 
   it("gives a field to one column only", () => {
