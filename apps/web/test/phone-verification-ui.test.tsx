@@ -38,7 +38,10 @@ describe("PhoneVerification", () => {
     expect(await screen.findByText(t("phone.unavailable.title"))).toBeTruthy();
     expect(screen.getByText(t("phone.unavailable.bridgeDown"))).toBeTruthy();
     expect(screen.queryByRole("button", { name: t("phone.verify.start") })).toBeNull();
-    expect(onUnavailable).toHaveBeenCalledTimes(1);
+    // The parent is told from an effect that runs after the notice paints.
+    await waitFor(() => {
+      expect(onUnavailable).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("reports an already verified number once", async () => {
@@ -46,7 +49,9 @@ describe("PhoneVerification", () => {
     const onVerified = vi.fn();
     render(<PhoneVerification onVerified={onVerified} />);
     expect(await screen.findByText(t("phone.verified.title"))).toBeTruthy();
-    expect(onVerified).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(onVerified).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("starts, shows the WhatsApp link and the code, then verifies by polling", async () => {
