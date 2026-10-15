@@ -14,11 +14,16 @@ export const box2dSchema = z
   .tuple([z.number(), z.number(), z.number(), z.number()])
   .refine((b) => b.every((v) => v >= 0 && v <= 1000) && b[0] < b[2] && b[1] < b[3], "bad_box");
 
-const text = z.string().trim().max(200).nullable();
+/**
+ * Free text read from a prescription. A model that writes a little too much must not lose the whole
+ * reading (a long `date` or `notes` once failed an otherwise valid answer): it is trimmed to length.
+ */
+const clip = (max: number) => z.string().transform((value) => value.trim().slice(0, max));
+const text = clip(200).nullable();
 
 /** What the model returns for `rx_extract` (the JSON schema sent to the provider mirrors it). */
 export const rxExtractItemSchema = z.object({
-  rawText: z.string().trim().max(300),
+  rawText: clip(300),
   name: text,
   strength: text,
   form: text,
@@ -39,7 +44,7 @@ export const rxExtractItemSchema = z.object({
 export const rxExtractionSchema = z.object({
   items: z.array(rxExtractItemSchema).max(40),
   prescriberLegible: z.boolean(),
-  date: z.string().trim().max(40).nullable(),
+  date: clip(40).nullable(),
   unreadableRegions: z
     .array(
       z.object({

@@ -38,7 +38,10 @@ function validate(schema: Json, value: unknown): boolean {
   }
   const types = ([] as unknown[]).concat(schema.type ?? []);
   const actual = typeOf(value);
-  if (types.length > 0 && !types.some((t) => t === actual || (t === "number" && actual === "integer"))) {
+  if (
+    types.length > 0 &&
+    !types.some((t) => t === actual || (t === "number" && actual === "integer"))
+  ) {
     return false;
   }
   if (Array.isArray(schema.enum) && !schema.enum.includes(value)) return false;
@@ -97,7 +100,11 @@ const extraction = {
 const extractionCases: [name: string, value: unknown, valid: boolean][] = [
   ["a normal reading", extraction, true],
   ["no items", { ...extraction, items: [], unreadableRegions: [] }, true],
-  ["null fields and no box", { ...extraction, items: [{ ...item, name: null, box_2d: null }] }, true],
+  [
+    "null fields and no box",
+    { ...extraction, items: [{ ...item, name: null, box_2d: null }] },
+    true,
+  ],
   ["confidence above 1", { ...extraction, items: [{ ...item, confidence: 1.4 }] }, false],
   ["negative confidence", { ...extraction, items: [{ ...item, confidence: -0.1 }] }, false],
   ["page out of range", { ...extraction, items: [{ ...item, page: 4 }] }, false],
@@ -227,5 +234,34 @@ describe("duplicateIngredientFindings", () => {
         { activeIngredients: [] },
       ]),
     ).toEqual([]);
+  });
+});
+
+describe("rxExtractionSchema trims over-long text instead of rejecting the reading", () => {
+  const item = {
+    rawText: "Dostinex ".repeat(60),
+    name: "Dostinex",
+    strength: null,
+    form: null,
+    dose: null,
+    frequency: null,
+    duration: null,
+    route: null,
+    notes: "n".repeat(500),
+    confidence: 0.7,
+    box_2d: [10, 10, 50, 90],
+    page: 0,
+  };
+
+  it("keeps a valid reading whose date, notes and raw text are too long", () => {
+    const parsed = rxExtractionSchema.parse({
+      items: [item],
+      prescriberLegible: false,
+      date: "13/12/2022 (the last digit is hard to read, possibly 2023)",
+      unreadableRegions: [],
+    });
+    expect(parsed.date?.length).toBe(40);
+    expect(parsed.items[0]?.notes?.length).toBe(200);
+    expect(parsed.items[0]?.rawText.length).toBe(300);
   });
 });
