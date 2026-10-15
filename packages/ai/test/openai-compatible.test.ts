@@ -81,10 +81,14 @@ describe("openai-compatible stream", () => {
     expect(body).toMatchObject({
       stream: true,
       stream_options: { include_usage: true },
-      response_format: { type: "json_schema", json_schema: { name: "result", strict: true } },
+      response_format: { type: "json_object" },
     });
     expect(body.provider).toBeUndefined();
     expect(body.reasoning).toBeUndefined();
+    // The schema is an instruction in the system message, not a strict response_format.
+    const system = (body.messages as { role: string; content: string }[])[0];
+    expect(system?.role).toBe("system");
+    expect(system?.content).toContain('"type":"object"');
   });
 
   it.each([

@@ -45,12 +45,28 @@ function toContent(message: NormalizedMessage): { role: string; content: unknown
   };
 }
 
+/**
+ * `schemaInPrompt`: for generic OpenAI-compatible servers. Many of them are gateways that forward
+ * `response_format: json_schema` to another vendor (Gemini rejects `type: [x, "null"]`, for one), so
+ * a strict schema fails the whole call with a permanent 400. Plain JSON mode works everywhere; the
+ * schema travels as an instruction and the caller's zod check (plus one repair retry) enforces it.
+ */
 export function buildChatBody(
   req: NormalizedRequest,
   extra?: Record<string, unknown>,
+  schemaInPrompt = false,
 ): Record<string, unknown> {
   const messages: unknown[] = [];
-  if (req.system !== undefined) messages.push({ role: "system", content: req.system });
+  const schemaNote =
+    schemaInPrompt && req.jsonSchema
+      ? `
+
+Return only one JSON object that matches this JSON Schema, with no text before or after it:
+${JSON.stringify(req.jsonSchema)}`
+      : "";
+  if (req.system !== undefined || schemaNote !== "") {
+    messages.push({ role: "system", content: `${req.system ?? ""}${schemaNote}`.trimStart() });
+  }
   for (const message of req.messages) messages.push(toContent(message));
 
   const body: Record<string, unknown> = {
@@ -62,10 +78,12 @@ export function buildChatBody(
   };
   if (req.temperature !== undefined) body.temperature = req.temperature;
   if (req.jsonSchema) {
-    body.response_format = {
-      type: "json_schema",
-      json_schema: { name: "result", strict: true, schema: req.jsonSchema },
-    };
+    body.response_format = schemaInPrompt
+      ? { type: "json_object" }
+      : {
+          type: "json_schema",
+          json_schema: { name: "result", strict: true, schema: req.jsonSchema },
+        };
   }
   return { ...body, ...extra };
 }
@@ -216,7 +234,7 @@ export async function* streamChat(
         Accept: "text/event-stream",
         Authorization: `Bearer ${call.apiKey}`,
       },
-      body: JSON.stringify(buildChatBody(call.req, call.extraBody)),
+      body: JSON.stringify(buildChatBody(call.req, call.extraBody, call.flavor === "compatible")),
       signal,
     });
     if (!response.ok) {
