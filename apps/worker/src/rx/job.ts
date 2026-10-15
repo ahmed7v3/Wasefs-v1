@@ -30,8 +30,8 @@ import type { JobPayload } from "@wasfa/shared/queues";
 
 type RxContext = Pick<JobContext, "db" | "redis" | "logger" | "storage" | "ai">;
 
-/** The whole analysis, pages to settled credits (phase2.md Task 2.8: a 60 second total budget). */
-export const RX_BUDGET_MS = 60_000;
+/** The whole analysis, pages to settled credits. Task 2.8 planned 60 s; reasoning models on hard handwriting need more, and a longer wait is fine because the person can leave the page. */
+export const RX_BUDGET_MS = 90_000;
 
 const walletOf = (row: { ownerUserId: string | null; ownerOrgId: string | null }): WalletOwner => {
   if (row.ownerUserId !== null) return { type: "user", id: row.ownerUserId };

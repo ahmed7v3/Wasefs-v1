@@ -55,6 +55,7 @@ export function buildChatBody(
   req: NormalizedRequest,
   extra?: Record<string, unknown>,
   schemaInPrompt = false,
+  tokenParam: "max_tokens" | "max_completion_tokens" = "max_tokens",
 ): Record<string, unknown> {
   const messages: unknown[] = [];
   const schemaNote =
@@ -74,7 +75,7 @@ ${JSON.stringify(req.jsonSchema)}`
     messages,
     stream: true,
     stream_options: { include_usage: true },
-    max_tokens: req.maxOutputTokens,
+    [tokenParam]: req.maxOutputTokens,
   };
   if (req.temperature !== undefined) body.temperature = req.temperature;
   if (req.jsonSchema) {
@@ -226,17 +227,33 @@ export async function* streamChat(
 ): AsyncGenerator<NormalizedEvent> {
   try {
     if (signal.aborted) throw new AiProviderError("timeout");
-    const response = await call.fetch(joinUrl(call.baseUrl, "/chat/completions"), {
-      method: "POST",
-      headers: {
-        ...call.headers,
-        "Content-Type": "application/json",
-        Accept: "text/event-stream",
-        Authorization: `Bearer ${call.apiKey}`,
-      },
-      body: JSON.stringify(buildChatBody(call.req, call.extraBody, call.flavor === "compatible")),
-      signal,
-    });
+    const compatible = call.flavor === "compatible";
+    const send = (tokenParam: "max_tokens" | "max_completion_tokens") =>
+      call.fetch(joinUrl(call.baseUrl, "/chat/completions"), {
+        method: "POST",
+        headers: {
+          ...call.headers,
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+          Authorization: `Bearer ${call.apiKey}`,
+        },
+        body: JSON.stringify(buildChatBody(call.req, call.extraBody, compatible, tokenParam)),
+        signal,
+      });
+    // OpenAI's reasoning models (often behind a gateway) refuse `max_tokens`, while older servers
+    // (Ollama, some vLLM builds) only know it. Generic servers start with the newer name and switch
+    // once if the answer names the parameter; the other flavours keep `max_tokens`.
+    let tokenParam: "max_tokens" | "max_completion_tokens" = compatible
+      ? "max_completion_tokens"
+      : "max_tokens";
+    let response = await send(tokenParam);
+    if (!response.ok && compatible && [400, 422, 500].includes(response.status)) {
+      const detail = await response.text().catch(() => "");
+      if (/max_completion_tokens|max_tokens/i.test(detail)) {
+        tokenParam = tokenParam === "max_tokens" ? "max_completion_tokens" : "max_tokens";
+        response = await send(tokenParam);
+      }
+    }
     if (!response.ok) {
       void response.body?.cancel().catch(() => undefined);
       throw errorForStatus(response.status);
