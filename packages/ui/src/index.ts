@@ -23,3 +23,4 @@ export * from "./ImageViewer";
 export * from "./RxTable";
 export * from "./StepProgress";
 export * from "./viewer-math";
+export { RxItemDetails, type RxItemDetailsProps } from "./RxItemDetails";

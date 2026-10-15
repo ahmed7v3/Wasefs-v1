@@ -168,6 +168,8 @@ export async function runEval(deps: EvalRunDeps, runId: string): Promise<void> {
           requestId: runId,
         },
         verifyMaxItems: rx.verifyMaxItems,
+        drugMatching: rx.drugMatching,
+        details: false,
         signal: AbortSignal.timeout(EVAL_ITEM_BUDGET_MS),
       });
       const latencyMs = Math.round(performance.now() - started);

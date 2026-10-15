@@ -32,7 +32,7 @@ export function RxNotices({ result }: RxNoticesProps) {
     indexes
       .flatMap((index) => {
         const item = result.items[index];
-        return item ? [drugTitle(item)] : [];
+        return item ? [drugTitle(item, result.matching === "model")] : [];
       })
       .join("، ");
 

@@ -12,6 +12,7 @@ import {
 import {
   RX_SCHEMA_VERSION,
   rxResultSchema,
+  type RxDetailsAnswer,
   type RxExtraction,
   type RxResult,
   type RxResultItem,
@@ -101,6 +102,29 @@ export async function matchItems(db: Database, extraction: RxExtraction): Promis
     });
   }
   return items;
+}
+
+/**
+ * Step 2 without the drug database: no matching, only the dictionary for dose, frequency and
+ * duration. A line the model is unsure of is still flagged, but nothing re-reads it (there is no
+ * candidate list to choose from); its lower confidence is what the person sees.
+ */
+export function modelItems(extraction: RxExtraction): WorkItem[] {
+  return extraction.items.map((extracted) => ({
+    extracted: {
+      ...extracted,
+      dose: normalizeDose(extracted.dose),
+      frequency: normalizeFrequency(extracted.frequency),
+      duration: normalizeDuration(extracted.duration),
+    },
+    candidates: [],
+    matchClass: "unmatched" as const,
+    chosen: null,
+    flagged: extracted.confidence < RX_FLAG_CONFIDENCE,
+    verified: "not_needed" as const,
+    verifyCeiling: undefined,
+    nameOverride: null,
+  }));
 }
 
 /** How urgently a flagged line needs a second look: a strength conflict, then the verify zone, then low confidence. */
@@ -202,17 +226,22 @@ export function buildResult(
   extraction: RxExtraction,
   items: readonly WorkItem[],
   ingredients: ReadonlyMap<string, readonly string[]>,
+  matching: "database" | "model" = "database",
 ): RxResult {
+  const modelOnly = matching === "model";
   const resultItems = items.map((item): RxResultItem => {
     const { extracted, chosen } = item;
     const confidence = finalConfidence({
       model: extracted.confidence,
       match: chosen === null ? null : chosen.score,
       verify: item.verifyCeiling,
+      modelOnly,
     });
     // The cap in finalConfidence already keeps an unmatched line below "high"; this is the seat belt.
+    // Without the database every line is unmatched, so the belt does not apply.
     const rawBadge = confidenceBadge(confidence);
-    const badge = chosen === null && rawBadge === "high" ? "medium" : rawBadge;
+    const badge = !modelOnly && chosen === null && rawBadge === "high" ? "medium" : rawBadge;
+    const generic = clamp(extracted.activeIngredient, 120);
     return {
       rawText: Array.from(extracted.rawText).slice(0, 300).join(""),
       name:
@@ -222,7 +251,11 @@ export function buildResult(
       matchedDrugId: chosen?.drugId ?? null,
       matchScore: chosen?.score ?? null,
       activeIngredients:
-        chosen === null ? [] : [...(ingredients.get(chosen.drugId) ?? [])].slice(0, 10),
+        chosen === null
+          ? generic === null
+            ? []
+            : [generic]
+          : [...(ingredients.get(chosen.drugId) ?? [])].slice(0, 10),
       strength: clamp(extracted.strength, 200),
       form: clamp(extracted.form, 200),
       dose: clamp(extracted.dose, 200),
@@ -257,5 +290,32 @@ export function buildResult(
     prescriberLegible: extraction.prescriberLegible,
     findings,
     unreadableRegions: extraction.unreadableRegions,
+    matching,
+  });
+}
+
+/**
+ * Adds the details step's answer to a finished result. Entries for lines that do not exist are
+ * dropped; a line without an entry simply has no details. Pure.
+ */
+export function withDetails(result: RxResult, answer: RxDetailsAnswer): RxResult {
+  const byIndex = new Map(answer.items.map((entry) => [entry.index, entry] as const));
+  return rxResultSchema.parse({
+    ...result,
+    items: result.items.map((item, index) => {
+      const entry = byIndex.get(index);
+      return entry === undefined
+        ? item
+        : {
+            ...item,
+            details: {
+              purpose: entry.purpose,
+              sideEffects: entry.sideEffects,
+              precautions: entry.precautions,
+            },
+          };
+    }),
+    overview: answer.overview,
+    detailsStatus: "ready",
   });
 }

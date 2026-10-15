@@ -91,6 +91,8 @@ beforeAll(async () => {
   owner = createDb({ url: postgres.ownerUrl, max: 2 });
   worker = createDb({ url: postgres.apiUrl, max: 4 });
   await seedDefaults(owner.db);
+  // The suite below exercises the database-matching pipeline; the model-only mode has its own describe.
+  await setRx({ drugMatching: true, details: false });
   redis = new Redis(redisServer.url, { maxRetriesPerRequest: null });
   subscriber = redis.duplicate();
   subscriber.on("pmessage", (_pattern, channel, message) => {
@@ -161,6 +163,7 @@ const line = (
 ): RxExtraction["items"][number] => ({
   rawText: "Augmentin 1x3",
   name: "Augmentin",
+  activeIngredient: null,
   strength: null,
   form: "tablet",
   dose: null,
@@ -190,12 +193,38 @@ const textOf = (req: Parameters<FakeScript>[0]): string =>
 const isVerifyCall = (req: Parameters<FakeScript>[0]): boolean =>
   textOf(req).includes("Re-read these unclear");
 
+const isDetailsCall = (req: Parameters<FakeScript>[0]): boolean =>
+  textOf(req).includes('Write the "Details step"');
+
+/** The `rx` setting for the next analyses: `null` removes the row, so the defaults apply. */
+async function setRx(value: Record<string, unknown> | null): Promise<void> {
+  if (value === null) {
+    await owner.db.delete(siteSettings).where(eq(siteSettings.key, "rx"));
+    return;
+  }
+  const full = {
+    creditsPerPage: 1,
+    maxPages: 4,
+    modelWarnings: false,
+    verifyMaxItems: 5,
+    ...value,
+  };
+  await owner.db
+    .insert(siteSettings)
+    .values({ key: "rx", value: full })
+    .onConflictDoUpdate({ target: siteSettings.key, set: { value: full } });
+}
+
 /** Scripts a provider that reads `extraction` and, when asked to verify, answers with `verify(candidateIds)`. */
 function provider(
   extraction: RxExtraction,
   verify: (candidates: string[]) => RxVerifyAnswer = () => ({ answers: [] }),
+  details: (lines: string[]) => string = () => "not json",
 ): FakeScript {
   return (req) => {
+    if (isDetailsCall(req)) {
+      return details(textOf(req).split("\n"));
+    }
     if (isVerifyCall(req)) {
       const ids = [...textOf(req).matchAll(/^- ([0-9a-f-]{36}) \|/gm)].map(
         (match) => match[1] ?? "",
@@ -718,5 +747,90 @@ describe("rx.analyze", () => {
     await run(testCase, provider(reading([line()])));
     expect(await eventsOf(testCase.analysisId, 2)).toEqual(events);
     expect(events.map((event) => event.seq)).toEqual([1, 2]);
+  });
+});
+
+describe("rx.analyze without the drug database (the model reads on its own)", () => {
+  beforeAll(async () => {
+    await setRx(null);
+  });
+  afterAll(async () => {
+    await setRx({ drugMatching: true, details: false });
+  });
+
+  it("skips matching and verification, trusts the model's confidence and flags duplicates by generic name", async () => {
+    const testCase = await queued();
+    const adapter = await run(
+      testCase,
+      provider(
+        reading([
+          line({ name: "Panadol", activeIngredient: "paracetamol", confidence: 0.95 }),
+          line({ name: "Adol", activeIngredient: "paracetamol", confidence: 0.62 }),
+        ]),
+        () => {
+          throw new Error("verification must not run");
+        },
+        () => JSON.stringify({ items: [], overview: null }),
+      ),
+    );
+    const row = await analysisOf(testCase.analysisId);
+    expect(row.status).toBe("done");
+    const result = rxResultSchema.parse(row.result);
+    expect(result.matching).toBe("model");
+    expect(result.items.map((item) => item.badge)).toEqual(["high", "medium"]);
+    expect(result.items.every((item) => item.matchedDrugId === null)).toBe(true);
+    expect(result.findings).toEqual([
+      { kind: "duplicate_ingredient", itemIndexes: [0, 1], ingredient: "paracetamol" },
+    ]);
+    // One read call and the details call: no verify.
+    expect(adapter.requests.filter(isVerifyCall)).toHaveLength(0);
+    expect(
+      published.get(`rx:${testCase.analysisId}`)?.map((e) => ("step" in e ? e.step : e.type)),
+    ).toEqual(["read", "finalize", "done"]);
+  });
+
+  it("adds details and an overview from a text-only call, and never sends the image to it", async () => {
+    const testCase = await queued();
+    const adapter = await run(
+      testCase,
+      provider(
+        reading([line({ name: "Dostinex", activeIngredient: "cabergoline" })]),
+        () => ({ answers: [] }),
+        () =>
+          JSON.stringify({
+            items: [
+              {
+                index: 0,
+                purpose: "يُستخدم عادةً لخفض مستوى البرولاكتين.",
+                sideEffects: ["غثيان", "دوخة"],
+                precautions: ["راجع الطبيب قبل الاستخدام أثناء الحمل"],
+              },
+            ],
+            overview: {
+              summary: "أدوية تُستخدم عادةً لاضطرابات هرمونية.",
+              likelyConditions: ["قد يُستخدم في ارتفاع البرولاكتين"],
+            },
+          }),
+      ),
+    );
+    const result = rxResultSchema.parse((await analysisOf(testCase.analysisId)).result);
+    expect(result.detailsStatus).toBe("ready");
+    expect(result.items[0]?.details?.sideEffects).toEqual(["غثيان", "دوخة"]);
+    expect(result.overview?.likelyConditions).toEqual(["قد يُستخدم في ارتفاع البرولاكتين"]);
+    const detailsRequest = adapter.requests.find(isDetailsCall);
+    expect(detailsRequest?.messages.flatMap((m) => m.parts).some((p) => p.type === "image")).toBe(
+      false,
+    );
+  });
+
+  it("keeps a done analysis, without details, when the details step fails", async () => {
+    const testCase = await queued();
+    await run(testCase, provider(reading([line({ name: "Dostinex" })])));
+    const row = await analysisOf(testCase.analysisId);
+    expect(row.status).toBe("done");
+    const result = rxResultSchema.parse(row.result);
+    expect(result.detailsStatus).toBe("unavailable");
+    expect(result.items[0]?.details ?? null).toBeNull();
+    expect(row.creditsCharged).toBeGreaterThan(0);
   });
 });

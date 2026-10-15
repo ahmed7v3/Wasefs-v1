@@ -35,14 +35,16 @@ export interface ConfidenceInput {
   match: number | null;
   /** Ceiling from the verification outcome, if the line went through one. */
   verify?: number | undefined;
+  /** No drug database in play (rx.drugMatching off): the model's confidence stands on its own. */
+  modelOnly?: boolean | undefined;
 }
 
 /**
  * min(model, match, verify). An unmatched name has no match score; it is capped at
  * `RX_UNMATCHED_CONFIDENCE_CAP` instead, so it is never shown as high confidence.
  */
-export function finalConfidence({ model, match, verify }: ConfidenceInput): number {
-  const parts = [model, match ?? RX_UNMATCHED_CONFIDENCE_CAP];
+export function finalConfidence({ model, match, verify, modelOnly }: ConfidenceInput): number {
+  const parts = modelOnly === true ? [model] : [model, match ?? RX_UNMATCHED_CONFIDENCE_CAP];
   if (verify !== undefined) parts.push(verify);
   return Math.round(Math.min(...parts) * 10_000) / 10_000;
 }

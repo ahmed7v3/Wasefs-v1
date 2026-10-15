@@ -135,6 +135,13 @@ export const rxSettingsSchema = z.object({
   modelWarnings: z.boolean().default(false),
   /** Items re-read by the verification pass. */
   verifyMaxItems: z.number().int().min(0).max(20).default(5),
+  /**
+   * Match every line to the drug database and re-read doubtful ones against it. Off by default: the
+   * model reads on its own (with the strong skill prompt) and confidence comes from the model alone.
+   */
+  drugMatching: z.boolean().default(false),
+  /** Add the general information (purpose, side effects, precautions, overview) to every result. */
+  details: z.boolean().default(true),
 });
 
 /** Uploaded images (Phase 2, Task 2.5): how long the pictures are kept; the analysis results stay. */

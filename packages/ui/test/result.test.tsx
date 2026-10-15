@@ -34,6 +34,7 @@ const item = (over: Partial<RxTableItem> = {}): RxTableItem => ({
   route: null,
   badge: "high",
   verified: "not_needed",
+  details: undefined,
   ...over,
 });
 
@@ -288,5 +289,71 @@ describe("CandidatePicker", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: t("rx.picker.save") }));
     expect(onCorrect).toHaveBeenCalledWith({ text: "Zyrtec", consentForEval: true });
+  });
+});
+
+describe("RxTable without the drug database", () => {
+  const unmatched = (over: Partial<RxTableItem> = {}) =>
+    item({ matchedDrugId: null, activeIngredients: [], ...over });
+
+  it("shows the model's name and no 'unconfirmed' badge on a confident line", () => {
+    table([unmatched()], { modelOnly: true });
+    const row = screen.getAllByRole("row")[1]!;
+    expect(within(row).getByText("Augmentin")).toBeTruthy();
+    expect(within(row).queryByText(t("rx.unmatched"))).toBeNull();
+    expect(within(row).getByText(t("rx.badge.high"))).toBeTruthy();
+    expect(within(row).queryByRole("button", { name: /راجع/ })).toBeNull();
+  });
+
+  it("still asks for a look at a medium line", () => {
+    table([unmatched({ badge: "medium" })], { modelOnly: true });
+    const row = screen.getAllByRole("row")[1]!;
+    expect(within(row).getByRole("button", { name: /راجع/ })).toBeTruthy();
+  });
+
+  it("with the database an unmatched line is still unconfirmed", () => {
+    table([unmatched()]);
+    const row = screen.getAllByRole("row")[1]!;
+    expect(within(row).getByText(t("rx.unmatched"))).toBeTruthy();
+  });
+});
+
+describe("RxTable details", () => {
+  const details = {
+    purpose: "يُستخدم عادةً لخفض الحرارة",
+    sideEffects: ["غثيان"],
+    precautions: ["راجع الطبيب في الحمل"],
+  };
+
+  it("has no details button without details", () => {
+    table([item()]);
+    expect(screen.queryByRole("button", { name: /تفاصيل/ })).toBeNull();
+  });
+
+  it("opens and closes the details under the row, announcing the state", () => {
+    table([item({ details })]);
+    const button = screen.getByRole("button", {
+      name: t("rx.item.detailsLabel", { name: "Augmentin" }),
+    });
+    expect(button.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByTestId("rx-item-details")).toBeNull();
+
+    fireEvent.click(button);
+    expect(screen.getByTestId("rx-item-details").textContent).toContain(details.purpose);
+    expect(screen.getByText("غثيان")).toBeTruthy();
+    expect(screen.getByText(t("rx.details.note"))).toBeTruthy();
+    const open = screen.getByRole("button", {
+      name: t("rx.item.hideDetailsLabel", { name: "Augmentin" }),
+    });
+    expect(open.getAttribute("aria-expanded")).toBe("true");
+
+    fireEvent.click(open);
+    expect(screen.queryByTestId("rx-item-details")).toBeNull();
+  });
+
+  it("says so when the model had nothing to say about a medicine", () => {
+    table([item({ details: { purpose: null, sideEffects: [], precautions: [] } })]);
+    fireEvent.click(screen.getByRole("button", { name: /تفاصيل/ }));
+    expect(screen.getByText(t("rx.details.none"))).toBeTruthy();
   });
 });

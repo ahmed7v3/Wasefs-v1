@@ -50,6 +50,45 @@ export function readMessages(pages: readonly PageImage[]): NormalizedMessage[] {
   ];
 }
 
+export interface DetailsLine {
+  /** Index of the line in the result: the answer refers to it. */
+  index: number;
+  name: string;
+  activeIngredient: string | null;
+  strength: string | null;
+  form: string | null;
+}
+
+/**
+ * The details step: medicine names only, as text. No image and nothing about the patient goes to
+ * the provider. The names come from the reading, so they sit inside a `<user_data>` block.
+ */
+export function detailsMessages(lines: readonly DetailsLine[]): NormalizedMessage[] {
+  const listed = lines
+    .map((line) =>
+      [
+        String(line.index),
+        line.name,
+        line.activeIngredient ?? "",
+        line.strength ?? "",
+        line.form ?? "",
+      ].join(" | "),
+    )
+    .join("\n");
+  return [
+    {
+      role: "user",
+      parts: [
+        {
+          type: "text",
+          text: `Write the "Details step" of the skill for these medicines, in Arabic. One entry per line, using the same index. Columns: index | name | active ingredient | strength | form.`,
+        },
+        { type: "text", text: `<user_data>\n${listed}\n</user_data>` },
+      ],
+    },
+  ];
+}
+
 export interface VerifyItem {
   /** Index of the line in the extraction: the answer refers to it. */
   index: number;

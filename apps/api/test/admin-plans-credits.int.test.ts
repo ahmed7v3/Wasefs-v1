@@ -590,11 +590,7 @@ describe("plan assignments", () => {
       email: null,
     });
 
-    const list = await call(
-      "GET",
-      `/admin/plans/assignments?ownerType=org&ownerId=${orgId}`,
-      boss,
-    );
+    const list = await call("GET", `/admin/plans/assignments?ownerType=org&ownerId=${orgId}`, boss);
     const [row] = planAssignmentPageSchema.parse(list.json()).items;
     expect(row).toMatchObject({
       ownerDisplay: { name: "Nile Pharmacy", email: null },
@@ -956,6 +952,9 @@ describe("settings", () => {
       maxPages: 3,
       modelWarnings: false,
       verifyMaxItems: 7,
+      // Not in the PUT above: the defaults (the model reads on its own, with details).
+      drugMatching: false,
+      details: true,
     });
     expect(Object.keys(pub.json<Record<string, unknown>>())).not.toContain("ai");
 

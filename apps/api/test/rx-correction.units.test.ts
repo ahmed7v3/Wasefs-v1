@@ -82,6 +82,29 @@ describe("applyCorrection", () => {
     expect(rxResultSchema.safeParse(applied?.result).success).toBe(true);
   });
 
+  it("makes a typed drug name high when the model read on its own, and drops stale details", () => {
+    const modelOnly: RxResult = {
+      ...result([
+        item({
+          matchedDrugId: null,
+          matchScore: null,
+          confidence: 0.6,
+          badge: "medium",
+          details: { purpose: "x", sideEffects: [], precautions: [] },
+        }),
+      ]),
+      matching: "model",
+    };
+    const applied = applyCorrection(
+      modelOnly,
+      { itemIndex: 0, field: "drug", after: "Adol" },
+      null,
+    );
+    const fixed = applied?.result.items[0];
+    expect(fixed).toMatchObject({ name: "Adol", confidence: 1, badge: "high", details: null });
+    expect(rxResultSchema.safeParse(applied?.result).success).toBe(true);
+  });
+
   it("keeps a typed drug name unmatched and below high", () => {
     const applied = applyCorrection(
       result([item({ matchedDrugId: drug.id, activeIngredients: ["Paracetamol"] })]),

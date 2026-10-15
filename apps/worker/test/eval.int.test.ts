@@ -133,6 +133,7 @@ const extraction: RxExtraction = {
     {
       rawText: "Augmentin 1x3",
       name: "Augmentin",
+      activeIngredient: null,
       strength: null,
       form: "tablet",
       dose: null,

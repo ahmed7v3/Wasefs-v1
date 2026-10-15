@@ -7,6 +7,8 @@ import {
   RX_UNMATCHED_CONFIDENCE_CAP,
 } from "../src/rx-result.js";
 import {
+  rxDetailsAnswerSchema,
+  rxDetailsJsonSchema,
   rxExtractionJsonSchema,
   rxExtractionSchema,
   rxResultSchema,
@@ -78,6 +80,7 @@ function validate(schema: Json, value: unknown): boolean {
 const item = {
   rawText: "Augmentin 1g 1x2 x 7 days",
   name: "Augmentin",
+  activeIngredient: "amoxicillin and clavulanic acid",
   strength: "1 g",
   form: "tablet",
   dose: "1 tab",
@@ -102,7 +105,7 @@ const extractionCases: [name: string, value: unknown, valid: boolean][] = [
   ["no items", { ...extraction, items: [], unreadableRegions: [] }, true],
   [
     "null fields and no box",
-    { ...extraction, items: [{ ...item, name: null, box_2d: null }] },
+    { ...extraction, items: [{ ...item, name: null, activeIngredient: null, box_2d: null }] },
     true,
   ],
   ["confidence above 1", { ...extraction, items: [{ ...item, confidence: 1.4 }] }, false],
@@ -263,5 +266,74 @@ describe("rxExtractionSchema trims over-long text instead of rejecting the readi
     expect(parsed.date?.length).toBe(40);
     expect(parsed.items[0]?.notes?.length).toBe(200);
     expect(parsed.items[0]?.rawText.length).toBe(300);
+  });
+});
+
+describe("model-only results and the details step", () => {
+  const modelItem = (overrides: Partial<RxResultItem> = {}): RxResultItem =>
+    resultItem({
+      matchedDrugId: null,
+      matchScore: null,
+      badge: "high",
+      confidence: 0.92,
+      ...overrides,
+    });
+  const base = {
+    schemaVersion: 1,
+    date: null,
+    prescriberLegible: true,
+    findings: [],
+    unreadableRegions: [],
+  };
+
+  it("lets an unmatched line be high only when the model read it alone", () => {
+    expect(rxResultSchema.safeParse({ ...base, items: [modelItem()] }).success).toBe(false);
+    expect(
+      rxResultSchema.safeParse({ ...base, matching: "database", items: [modelItem()] }).success,
+    ).toBe(false);
+    expect(
+      rxResultSchema.safeParse({ ...base, matching: "model", items: [modelItem()] }).success,
+    ).toBe(true);
+  });
+
+  it("accepts details and an overview, and trims over-long phrases", () => {
+    const parsed = rxResultSchema.parse({
+      ...base,
+      matching: "model",
+      detailsStatus: "ready",
+      overview: { summary: "s".repeat(900), likelyConditions: ["قد يُستخدم في الحساسية"] },
+      items: [
+        modelItem({
+          details: {
+            purpose: "يُستخدم عادةً لخفض الحرارة",
+            sideEffects: ["غثيان"],
+            precautions: [],
+          },
+        }),
+      ],
+    });
+    expect(parsed.overview?.summary.length).toBe(600);
+    expect(parsed.items[0]?.details?.sideEffects).toEqual(["غثيان"]);
+  });
+
+  it("still reads results stored before details existed", () => {
+    expect(rxResultSchema.safeParse({ ...base, items: [resultItem()] }).success).toBe(true);
+  });
+
+  it("validates the details answer", () => {
+    const answer = {
+      items: [{ index: 0, purpose: null, sideEffects: [], precautions: [] }],
+      overview: null,
+    };
+    expect(rxDetailsAnswerSchema.safeParse(answer).success).toBe(true);
+    expect(
+      rxDetailsAnswerSchema.safeParse({ items: [{ index: -1 }], overview: null }).success,
+    ).toBe(false);
+    expect(rxDetailsJsonSchema.required).toEqual(["items", "overview"]);
+  });
+
+  it("finalConfidence keeps the model's own number without the database", () => {
+    expect(finalConfidence({ model: 0.92, match: null, modelOnly: true })).toBe(0.92);
+    expect(finalConfidence({ model: 0.92, match: null })).toBe(RX_UNMATCHED_CONFIDENCE_CAP);
   });
 });

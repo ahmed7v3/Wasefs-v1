@@ -25,6 +25,8 @@ const text = clip(200).nullable();
 export const rxExtractItemSchema = z.object({
   rawText: clip(300),
   name: text,
+  /** The generic (active ingredient) name, when the model is sure of it; `null` otherwise. */
+  activeIngredient: text.optional().default(null),
   strength: text,
   form: text,
   dose: text,
@@ -88,7 +90,26 @@ export type RxConfidenceBadge = (typeof RX_CONFIDENCE_BADGES)[number];
 export const RX_BADGE_HIGH = 0.85;
 export const RX_BADGE_MEDIUM = 0.5;
 
-/** One item as stored and shown. An unmatched drug can never carry the `high` badge. */
+/** General information about one medicine, written by the model from its name only (no image, no patient data). */
+export const rxItemDetailsSchema = z.object({
+  /** What the medicine is generally used for, in one or two sentences. */
+  purpose: clip(300).nullable(),
+  /** Common side effects, short phrases. */
+  sideEffects: z.array(clip(120)).max(6),
+  /** General precautions, short phrases ("avoid with ..."). */
+  precautions: z.array(clip(160)).max(5),
+});
+export type RxItemDetails = z.infer<typeof rxItemDetailsSchema>;
+
+/** A hedged overview of what the medicines are commonly used for together. Never a diagnosis. */
+export const rxOverviewSchema = z.object({
+  summary: clip(600),
+  /** Conditions these medicines are commonly prescribed for, phrased as possibilities. */
+  likelyConditions: z.array(clip(100)).max(5),
+});
+export type RxOverview = z.infer<typeof rxOverviewSchema>;
+
+/** One item as stored and shown. With database matching on, an unmatched drug can never carry the `high` badge. */
 export const rxResultItemSchema = z.object({
   rawText: z.string().max(300),
   name: text,
@@ -105,6 +126,8 @@ export const rxResultItemSchema = z.object({
   confidence: z.number().min(0).max(1),
   badge: z.enum(RX_CONFIDENCE_BADGES),
   verified: z.enum(["not_needed", "confirmed", "corrected", "unreadable", "skipped"]),
+  /** Added after the reading by the details step; absent on older results and when it failed. */
+  details: rxItemDetailsSchema.nullable().optional(),
   box_2d: box2dSchema.nullable(),
   page: z
     .number()
@@ -131,8 +154,16 @@ export const rxResultSchema = z
       )
       .max(40),
     unreadableRegions: rxExtractionSchema.shape.unreadableRegions,
+    /** `model`: lines were not matched to the drug database (rx.drugMatching off). Absent = `database`. */
+    matching: z.enum(["database", "model"]).optional(),
+    overview: rxOverviewSchema.nullable().optional(),
+    /** `unavailable` when the details step failed or is switched off; the reading itself is unaffected. */
+    detailsStatus: z.enum(["ready", "unavailable"]).optional(),
   })
   .superRefine((r, ctx) => {
+    // Without the drug database there is nothing to match against, so confidence comes from the
+    // model alone and an unmatched line may be `high`.
+    if (r.matching === "model") return;
     r.items.forEach((item, i) => {
       if (item.matchedDrugId === null && item.badge === "high") {
         ctx.addIssue({ code: "custom", path: ["items", i, "badge"], message: "unmatched_high" });
@@ -194,6 +225,7 @@ export const rxExtractionJsonSchema = {
         required: [
           "rawText",
           "name",
+          "activeIngredient",
           "strength",
           "form",
           "dose",
@@ -208,6 +240,7 @@ export const rxExtractionJsonSchema = {
         properties: {
           rawText: { type: "string", maxLength: 300 },
           name: nullableText,
+          activeIngredient: nullableText,
           strength: nullableText,
           form: nullableText,
           dose: nullableText,
@@ -381,3 +414,52 @@ export const rxCandidateSchema = z.object({
 });
 export const rxCandidatesResponseSchema = z.object({ candidates: z.array(rxCandidateSchema) });
 export type RxCandidatesResponse = z.output<typeof rxCandidatesResponseSchema>;
+
+/** What the details call returns: one entry per listed medicine, plus the hedged overview. */
+export const rxDetailsAnswerSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        index: z.number().int().min(0),
+        purpose: clip(300).nullable(),
+        sideEffects: z.array(clip(120)).max(6),
+        precautions: z.array(clip(160)).max(5),
+      }),
+    )
+    .max(40),
+  overview: rxOverviewSchema.nullable(),
+});
+export type RxDetailsAnswer = z.infer<typeof rxDetailsAnswerSchema>;
+
+/** JSON schema for the details call (mirrors `rxDetailsAnswerSchema`). */
+export const rxDetailsJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["items", "overview"],
+  properties: {
+    items: {
+      type: "array",
+      maxItems: 40,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["index", "purpose", "sideEffects", "precautions"],
+        properties: {
+          index: { type: "integer", minimum: 0 },
+          purpose: { type: ["string", "null"], maxLength: 300 },
+          sideEffects: { type: "array", maxItems: 6, items: { type: "string", maxLength: 120 } },
+          precautions: { type: "array", maxItems: 5, items: { type: "string", maxLength: 160 } },
+        },
+      },
+    },
+    overview: {
+      type: ["object", "null"],
+      additionalProperties: false,
+      required: ["summary", "likelyConditions"],
+      properties: {
+        summary: { type: "string", maxLength: 600 },
+        likelyConditions: { type: "array", maxItems: 5, items: { type: "string", maxLength: 100 } },
+      },
+    },
+  },
+} as const;
