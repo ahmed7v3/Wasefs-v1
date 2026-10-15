@@ -26,20 +26,18 @@ export function ChatShell({ children }: { children: ReactNode }) {
       <aside className="hidden w-72 shrink-0 border-e border-border/60 pe-4 lg:block">
         <ChatHistory />
       </aside>
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <div className="lg:hidden">
-          <button
-            type="button"
-            aria-expanded={open}
-            onClick={() => {
-              setOpen(true);
-            }}
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-base font-semibold text-primary hover:bg-primary-soft focus-visible:outline-none focus-visible:shadow-focus"
-          >
-            <History aria-hidden className="size-5" />
-            {t("chat.history.open")}
-          </button>
-        </div>
+      <div className="relative flex min-w-0 flex-1 flex-col gap-2">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-label={t("chat.history.open")}
+          onClick={() => {
+            setOpen(true);
+          }}
+          className="absolute end-0 top-0 z-10 inline-flex size-11 items-center justify-center rounded-full text-primary hover:bg-primary-soft focus-visible:outline-none focus-visible:shadow-focus lg:hidden"
+        >
+          <History aria-hidden className="size-5" />
+        </button>
         <div className="min-h-0 flex-1">{children}</div>
       </div>
       <Drawer open={open} onClose={close} label={t("chat.history.title")}>
