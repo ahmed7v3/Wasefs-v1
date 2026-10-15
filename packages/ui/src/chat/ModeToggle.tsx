@@ -38,7 +38,10 @@ export function ModeToggle({
   return (
     <fieldset
       disabled={disabled}
-      className={cn("m-0 flex min-w-0 gap-1 rounded-full bg-neutral-100 p-1", className)}
+      className={cn(
+        "m-0 flex min-w-0 gap-0.5 rounded-full bg-neutral-100 p-0.5 sm:gap-1 sm:p-1",
+        className,
+      )}
     >
       <legend className="sr-only">{t("chat.mode.label")}</legend>
       {MODES.map(({ mode, label, hint }) => {
@@ -49,7 +52,7 @@ export function ModeToggle({
             key={mode}
             title={locked ? t("chat.mode.locked", { mode: text }) : t(hint)}
             className={cn(
-              "relative inline-flex min-h-11 cursor-pointer items-center gap-1 rounded-full px-3 text-sm font-semibold text-text-muted transition-colors duration-150",
+              "relative inline-flex min-h-11 cursor-pointer items-center gap-1 rounded-full px-2.5 text-sm sm:px-3 font-semibold text-text-muted transition-colors duration-150",
               "has-[:checked]:bg-primary has-[:checked]:text-on-primary has-[:focus-visible]:shadow-focus",
               !locked && "hover:text-primary has-[:checked]:hover:text-on-primary",
               (locked || disabled) && "cursor-not-allowed opacity-70",
@@ -71,10 +74,10 @@ export function ModeToggle({
             {locked ? (
               <span
                 aria-hidden
-                className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-2 text-xs text-primary"
+                className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-1.5 text-xs text-primary sm:px-2"
               >
                 <Lock className="size-3" />
-                {t("chat.mode.planBadge")}
+                <span className="hidden sm:inline">{t("chat.mode.planBadge")}</span>
               </span>
             ) : null}
           </label>

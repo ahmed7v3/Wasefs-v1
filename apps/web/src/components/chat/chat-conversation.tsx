@@ -152,7 +152,7 @@ export function ChatConversation({ chatId }: { chatId: string }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <header className="flex flex-wrap items-center gap-2 px-2">
+      <header className="flex flex-wrap items-center gap-2 ps-2 pe-12 lg:pe-2">
         <h1 className="m-0 truncate font-heading text-xl font-semibold text-primary">
           {chat?.title ?? t("chat.untitled")}
         </h1>

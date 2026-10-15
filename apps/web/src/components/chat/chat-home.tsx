@@ -99,7 +99,7 @@ export function ChatHome({
     <div ref={root} className="flex h-full w-full flex-col gap-2">
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         <div className="mx-auto my-auto flex w-full max-w-3xl flex-col gap-4 py-2 sm:gap-8 sm:py-4">
-          <header className="flex flex-col items-center gap-2 text-center sm:gap-3">
+          <header className="flex flex-col items-center gap-2 px-11 text-center sm:gap-3 sm:px-0 lg:px-0">
             <span
               aria-hidden
               className="hidden size-14 items-center justify-center rounded-full bg-primary-soft text-primary sm:inline-flex"

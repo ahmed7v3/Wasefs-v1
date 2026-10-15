@@ -125,6 +125,9 @@ export function Composer({
     hadPages.current = pages.length > 0;
   }, [pages.length]);
 
+  const isDefaultHint =
+    !tooLong && value.length <= CHAT_MESSAGE_MAX_CHARS * 0.8 && !waiting && !unsettled;
+
   const submit = () => {
     if (canSend && !streaming) onSubmit();
   };
@@ -164,22 +167,52 @@ export function Composer({
       <label id={labelId} htmlFor={`${labelId}-input`} className="sr-only">
         {t("chat.composer.label")}
       </label>
-      <textarea
-        id={`${labelId}-input`}
-        ref={textareaRef}
-        value={value}
-        rows={1}
-        autoFocus={autoFocus}
-        placeholder={t("chat.composer.placeholder")}
-        aria-describedby={hintId}
-        aria-invalid={tooLong || undefined}
-        onChange={(event) => {
-          onChange(event.target.value);
-        }}
-        onKeyDown={onKeyDown}
-        className="max-h-none min-h-11 w-full resize-none bg-transparent px-2 py-2 text-base leading-8 text-text placeholder:text-text-muted focus-visible:outline-none"
-      />
-      <p id={hintId} className="px-2 text-xs text-text-muted">
+      <div className="flex items-end gap-2">
+        <textarea
+          id={`${labelId}-input`}
+          ref={textareaRef}
+          value={value}
+          rows={1}
+          autoFocus={autoFocus}
+          placeholder={t("chat.composer.placeholder")}
+          aria-describedby={hintId}
+          aria-invalid={tooLong || undefined}
+          onChange={(event) => {
+            onChange(event.target.value);
+          }}
+          onKeyDown={onKeyDown}
+          className="max-h-none min-h-11 min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-base leading-8 text-text placeholder:text-text-muted focus-visible:outline-none"
+        />
+        {streaming ? (
+          <button
+            type="button"
+            onClick={onStop}
+            aria-label={t("chat.composer.stop")}
+            className="inline-flex size-11 items-center justify-center rounded-full bg-primary text-on-primary hover:bg-primary-hover focus-visible:outline-none focus-visible:shadow-focus"
+          >
+            <Square aria-hidden className="size-4 fill-current" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!canSend}
+            aria-label={t("chat.composer.send")}
+            className="inline-flex size-11 items-center justify-center rounded-full bg-primary text-on-primary transition-colors duration-150 hover:bg-primary-hover focus-visible:outline-none focus-visible:shadow-focus disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {/* The paper plane points at the end of the line, so it mirrors in RTL (DESIGN-SYSTEM §4.4). */}
+            <Send aria-hidden className="size-5 rtl:-scale-x-100" />
+          </button>
+        )}
+      </div>
+      <p
+        id={hintId}
+        className={cn(
+          "px-2 text-xs text-text-muted",
+          // The key hint is for keyboards; the other messages (limits, uploads) always show.
+          isDefaultHint && "hidden sm:block",
+        )}
+      >
         {tooLong
           ? t("chat.composer.tooLong", { max: CHAT_MESSAGE_MAX_CHARS })
           : value.length > CHAT_MESSAGE_MAX_CHARS * 0.8
@@ -192,7 +225,7 @@ export function Composer({
       </p>
       {notice ? <div className="px-2 text-sm text-text-muted">{notice}</div> : null}
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex items-center gap-1 sm:gap-2">
         <button
           type="button"
           disabled={disabled}
@@ -220,7 +253,7 @@ export function Composer({
         >
           <Globe aria-hidden className="size-5" />
         </button>
-        <span className="group relative">
+        <span className="group relative hidden sm:block">
           <button
             type="button"
             aria-label={t("chat.composer.estimateLabel")}
@@ -238,34 +271,13 @@ export function Composer({
           </span>
         </span>
 
-        <div className="ms-auto flex flex-wrap items-center gap-2">
+        <div className="ms-auto flex min-w-0 items-center gap-2">
           <ModeToggle
             value={mode}
             onChange={onModeChange}
             allowed={allowedModes}
             disabled={disabled}
           />
-          {streaming ? (
-            <button
-              type="button"
-              onClick={onStop}
-              aria-label={t("chat.composer.stop")}
-              className="inline-flex size-11 items-center justify-center rounded-full bg-primary text-on-primary hover:bg-primary-hover focus-visible:outline-none focus-visible:shadow-focus"
-            >
-              <Square aria-hidden className="size-4 fill-current" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={submit}
-              disabled={!canSend}
-              aria-label={t("chat.composer.send")}
-              className="inline-flex size-11 items-center justify-center rounded-full bg-primary text-on-primary transition-colors duration-150 hover:bg-primary-hover focus-visible:outline-none focus-visible:shadow-focus disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {/* The paper plane points at the end of the line, so it mirrors in RTL (DESIGN-SYSTEM §4.4). */}
-              <Send aria-hidden className="size-5 rtl:-scale-x-100" />
-            </button>
-          )}
         </div>
       </div>
     </div>
