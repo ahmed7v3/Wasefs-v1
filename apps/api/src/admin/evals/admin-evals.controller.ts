@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from "@nestjs/common";
 import {
   approveCorrectionSchema,
+  approveSharedSchema,
   evalCompareQuerySchema,
   evalIdParamSchema,
   evalItemParamSchema,
@@ -27,6 +28,7 @@ class StartRunDto extends createZodDto(startEvalRunSchema) {}
 class CompareDto extends createZodDto(evalCompareQuerySchema) {}
 class ApproveDto extends createZodDto(approveCorrectionSchema) {}
 class RejectDto extends createZodDto(rejectCorrectionSchema) {}
+class ApproveSharedDto extends createZodDto(approveSharedSchema) {}
 
 /** `/admin/ai/evals`: accuracy evaluation of prescription reading (Task 2.10). Everything needs `evals.run`. */
 @Controller("admin/ai/evals")
@@ -135,6 +137,53 @@ export class AdminEvalsController {
     @AuditCtx() audit: AuditScope,
   ) {
     return this.evals.approve(body, actor.id, audit);
+  }
+
+  // Analyses people rated and agreed to share. Declared before the `:id` run routes' siblings: the
+  // `shared` prefix is its own path, never read as a run id.
+  @Get("shared")
+  @RequirePermission("evals.run")
+  @RateLimit(120)
+  shared() {
+    return this.evals.sharedQueue();
+  }
+
+  @Get("shared/:id")
+  @RequirePermission("evals.run")
+  @RateLimit(120)
+  sharedDetail(@Param() params: IdDto) {
+    return this.evals.sharedDetail(params.id);
+  }
+
+  @Post("shared/:id/approve")
+  @HttpCode(200)
+  @RequirePermission("evals.run")
+  @RateLimit(60)
+  @Audited({
+    action: "eval.shared.approve",
+    targetType: "eval_item",
+    fields: EVAL_AUDIT_FIELDS,
+  })
+  approveShared(
+    @Param() params: IdDto,
+    @Body() body: ApproveSharedDto,
+    @CurrentUser() actor: AuthenticatedUser,
+    @AuditCtx() audit: AuditScope,
+  ) {
+    return this.evals.approveShared(params.id, body, actor.id, audit);
+  }
+
+  @Post("shared/:id/dismiss")
+  @HttpCode(204)
+  @RequirePermission("evals.run")
+  @RateLimit(60)
+  @Audited({
+    action: "eval.shared.dismiss",
+    targetType: "rx_analysis",
+    fields: EVAL_AUDIT_FIELDS,
+  })
+  async dismissShared(@Param() params: IdDto, @AuditCtx() audit: AuditScope): Promise<void> {
+    await this.evals.dismissShared(params.id, audit);
   }
 
   @Post("review-queue/reject")

@@ -64,6 +64,13 @@
       "when": 1791741763641,
       "tag": "0008_ai_product",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792060019832,
+      "tag": "0009_rx_rating",
+      "breakpoints": true
     }
   ]
 }

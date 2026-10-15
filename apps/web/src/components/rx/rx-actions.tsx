@@ -1,7 +1,12 @@
 "use client";
 
 import { t } from "@wasfa/shared/i18n";
-import { rxCreateResponseSchema, type RxResultItem, type RxView } from "@wasfa/shared/schemas/rx";
+import {
+  rxCreateResponseSchema,
+  type RxResult,
+  type RxResultItem,
+  type RxView,
+} from "@wasfa/shared/schemas/rx";
 import { Button, buttonStyles, useToast } from "@wasfa/ui";
 import { Copy, Printer, Share2, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -9,12 +14,18 @@ import { useState } from "react";
 
 import { api } from "../../lib/api-client";
 import { extractErrorRef } from "../../lib/api-error";
-import { buildCopyText, buildShareText, whatsappShareUrl } from "../../lib/rx-text";
+import { buildCopyText, buildShareText, whatsappShareUrl, type RxReport } from "../../lib/rx-text";
 import { errorMessage } from "../error-notice";
 
 export interface RxActionsProps {
   analysis: Pick<RxView, "id" | "mode" | "files">;
   items: readonly RxResultItem[];
+  /** The rest of the result the shared text needs (overview, prescription date, matching mode). */
+  result: Pick<RxResult, "overview" | "date" | "matching">;
+  /** The site address that ends every shared text. */
+  siteUrl: string;
+  /** Today's date, formatted. */
+  reportDate: string;
   /** Credits per page (public `rx` setting); the deep re-run costs this per page. */
   creditsPerPage: number;
   /** The wallet balance, when known. */
@@ -39,7 +50,15 @@ export function canRunDeep(
  * text built by `buildShareText` (no image, no names). The deep re-run posts the same files with
  * `mode: "deep"` and opens the new analysis; its price is shown first and a short balance disables it.
  */
-export function RxActions({ analysis, items, creditsPerPage, balance }: RxActionsProps) {
+export function RxActions({
+  analysis,
+  items,
+  result,
+  siteUrl,
+  reportDate,
+  creditsPerPage,
+  balance,
+}: RxActionsProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [deepBusy, setDeepBusy] = useState(false);
@@ -48,9 +67,32 @@ export function RxActions({ analysis, items, creditsPerPage, balance }: RxAction
   const short = balance !== null && balance < price;
   const deep = canRunDeep(analysis, items);
 
+  const report: RxReport = {
+    items,
+    overview: result.overview,
+    date: result.date,
+    matching: result.matching,
+  };
+  const textOptions = { siteUrl, reportDate };
+  const canShareSheet = typeof navigator !== "undefined" && typeof navigator.share === "function";
+
+  async function shareSheet(): Promise<void> {
+    try {
+      await navigator.share({
+        title: t("rx.share.title"),
+        text: buildShareText(report, textOptions),
+        url: siteUrl,
+      });
+    } catch (error) {
+      // Closing the sheet is not a failure.
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      toast({ tone: "error", title: t("rx.action.shareFailed") });
+    }
+  }
+
   async function copy(): Promise<void> {
     try {
-      await navigator.clipboard.writeText(buildCopyText(items));
+      await navigator.clipboard.writeText(buildCopyText(report, textOptions));
       toast({ tone: "success", title: t("rx.action.copied") });
     } catch {
       toast({ tone: "error", title: t("rx.action.copyFailed") });
@@ -98,8 +140,19 @@ export function RxActions({ analysis, items, creditsPerPage, balance }: RxAction
           <Printer aria-hidden className="size-4" />
           {t("rx.action.print")}
         </Button>
+        {canShareSheet ? (
+          <Button
+            variant="secondary"
+            onClick={() => {
+              void shareSheet();
+            }}
+          >
+            <Share2 aria-hidden className="size-4" />
+            {t("rx.action.shareSheet")}
+          </Button>
+        ) : null}
         <a
-          href={whatsappShareUrl(buildShareText(items))}
+          href={whatsappShareUrl(buildShareText(report, textOptions))}
           target="_blank"
           rel="noopener noreferrer"
           className={buttonStyles({ variant: "secondary" })}

@@ -5,7 +5,7 @@
 import { z } from "zod";
 
 import { AI_MODES } from "../ai.js";
-import { RX_FIELDS, RX_MAX_PAGES, RX_STATUSES } from "../rx.js";
+import { RX_FIELDS, RX_MAX_PAGES, RX_RATING_NOTE_MAX, RX_RATINGS, RX_STATUSES } from "../rx.js";
 
 export const RX_SCHEMA_VERSION = 1;
 
@@ -354,12 +354,29 @@ export const rxViewSchema = z.object({
   startedAt: isoDate.nullable(),
   finishedAt: isoDate.nullable(),
   errorRef: z.string().nullable(),
+  /** What the person said about this analysis, if anything (Task 2.14). */
+  rating: z.enum(RX_RATINGS).nullable().default(null),
+  /** They agreed that the picture and the result may be shown to the team to improve accuracy. */
+  shareForReview: z.boolean().default(false),
   /** The pages in order; `imageDeleted` once the retention job removed the picture (the result stays). */
   files: z.array(
     z.object({ fileId: z.uuid(), pageNo: z.number().int().min(1), imageDeleted: z.boolean() }),
   ),
 });
 export type RxView = z.infer<typeof rxViewSchema>;
+
+/** `POST /rx/:id/rating`: excellent or needs improving, an optional note, and the sharing consent (off by default). */
+export const rxRatingRequestSchema = z.object({
+  rating: z.enum(RX_RATINGS),
+  note: z.string().trim().max(RX_RATING_NOTE_MAX).optional(),
+  shareForReview: z.boolean().default(false),
+});
+export type RxRatingRequest = z.output<typeof rxRatingRequestSchema>;
+export const rxRatingResponseSchema = z.object({
+  rating: z.enum(RX_RATINGS),
+  shareForReview: z.boolean(),
+});
+export type RxRatingResponse = z.output<typeof rxRatingResponseSchema>;
 
 export const rxListQuerySchema = z.object({
   cursor: z.string().max(200).optional(),

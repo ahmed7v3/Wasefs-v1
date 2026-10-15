@@ -32,8 +32,9 @@ import { ErrorNotice, errorMessage } from "../error-notice";
 import { RxActions } from "./rx-actions";
 import { RxDisclaimer, RxNotices } from "./rx-notices";
 import { RxOverview } from "./rx-overview";
-import { RxPrintSheet } from "./rx-print-sheet";
+import { RxPrintSheet, type RxPrintSheetProps } from "./rx-print-sheet";
 import { RxFailed, RxProgressPanel, RxRefunded } from "./rx-progress-panel";
+import { RxRating } from "./rx-rating";
 import { RxReview } from "./rx-review";
 
 export interface RxResultViewProps {
@@ -42,6 +43,10 @@ export interface RxResultViewProps {
   creditsPerPage: number;
   /** The wallet balance, or `null` when it could not be read. */
   balance: number | null;
+  /** The `branding` public setting (the printed report carries its logo). */
+  branding?: RxPrintSheetProps["branding"];
+  /** The site address printed and shared with every report. */
+  siteUrl: string;
 }
 
 const regionId = (index: number): string => `item-${String(index)}`;
@@ -58,7 +63,13 @@ const indexOfRegion = (id: string | null): number | null => {
  * tapping a row outlines its box; tapping a box selects its row. A correction changes the row at
  * once and is confirmed (or rolled back) by the API.
  */
-export function RxResultView({ initial, creditsPerPage, balance }: RxResultViewProps) {
+export function RxResultView({
+  initial,
+  creditsPerPage,
+  balance,
+  branding,
+  siteUrl,
+}: RxResultViewProps) {
   const { toast } = useToast();
   const { view, progress, elapsed, loadError, retryLoad } = useRxAnalysis(initial);
   const [corrected, setCorrected] = useState<RxResult | null>(null);
@@ -81,6 +92,14 @@ export function RxResultView({ initial, creditsPerPage, balance }: RxResultViewP
 
   const activeIndex = hoverIndex ?? selectedIndex;
   const modelOnly = result?.matching === "model";
+  // Today, in Arabic words with Western digits (DESIGN-SYSTEM section 4).
+  const reportDate = useMemo(
+    () =>
+      new Intl.DateTimeFormat("ar", { dateStyle: "long", numberingSystem: "latn" }).format(
+        new Date(),
+      ),
+    [],
+  );
 
   const regions = useMemo<ViewerRegion[]>(() => {
     if (!result) return [];
@@ -278,9 +297,17 @@ export function RxResultView({ initial, creditsPerPage, balance }: RxResultViewP
                 )}
                 <RxOverview result={result} />
                 <RxNotices result={result} />
+                <RxRating
+                  key={view.id}
+                  analysisId={view.id}
+                  initial={{ rating: view.rating, shareForReview: view.shareForReview }}
+                />
                 <RxActions
                   analysis={view}
                   items={items}
+                  result={result}
+                  siteUrl={siteUrl}
+                  reportDate={reportDate}
                   creditsPerPage={creditsPerPage}
                   balance={balance}
                 />
@@ -292,7 +319,14 @@ export function RxResultView({ initial, creditsPerPage, balance }: RxResultViewP
         <RxDisclaimer />
       </div>
 
-      {showResult ? <RxPrintSheet result={{ ...result, items }} /> : null}
+      {showResult ? (
+        <RxPrintSheet
+          result={{ ...result, items }}
+          branding={branding}
+          siteUrl={siteUrl}
+          reportDate={reportDate}
+        />
+      ) : null}
 
       <RxReview
         analysisId={view.id}

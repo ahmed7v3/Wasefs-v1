@@ -6,6 +6,7 @@ import { Tab, TabList, TabPanel, Tabs } from "@wasfa/ui";
 import { EvalsReviewPanel } from "./evals-review-panel";
 import { EvalsRunsPanel } from "./evals-runs-panel";
 import { EvalsSetsPanel } from "./evals-sets-panel";
+import { EvalsSharedPanel } from "./evals-shared-panel";
 
 /** `/admin/ai/evals` (Task 2.10): runs and their comparison, label sets and import, review of user corrections. */
 export function EvalsView() {
@@ -17,6 +18,7 @@ export function EvalsView() {
           <Tab value="runs">{t("admin.evals.tab.runs")}</Tab>
           <Tab value="sets">{t("admin.evals.tab.sets")}</Tab>
           <Tab value="review">{t("admin.evals.tab.review")}</Tab>
+          <Tab value="shared">{t("admin.evals.tab.shared")}</Tab>
         </TabList>
         <TabPanel value="runs" className="pt-5">
           <EvalsRunsPanel />
@@ -26,6 +28,9 @@ export function EvalsView() {
         </TabPanel>
         <TabPanel value="review" className="pt-5">
           <EvalsReviewPanel />
+        </TabPanel>
+        <TabPanel value="shared" className="pt-5">
+          <EvalsSharedPanel />
         </TabPanel>
       </Tabs>
     </div>

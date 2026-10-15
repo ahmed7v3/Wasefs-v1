@@ -16,6 +16,8 @@ Written for the person who runs the money side of Wasfa AI, with no coding neede
 
 How a user is charged: a prescription costs a fixed number of credits per page (setting `rx.creditsPerPage`, shown before they press Analyze). Chat is metered by what the model actually used, rounded up, at least 1 credit per message. Credits are **reserved first** and settled after; if anything fails the reserve is given back. A prescription we cannot read at all is refunded in full. The value of one credit in dollars is `creditValueUsdMicros` (default 10,000 = $0.01).
 
+**Prescription reading switches** (Admin > Settings > `rx`): `drugMatching` (off by default) makes the reading rely on the model alone; switch it on only after the drug database is imported and you have checked, on the evaluation set, that matching helps. `details` (on by default) adds the per-drug information and the overview with one extra short text-only call per analysis (medicine names only, about 400-1,500 output tokens); switch it off to save that cost.
+
 ## 2. Changing a model safely
 
 1. Add the new model in **Models** (type its id, set its prices from the provider's pricing page, leave it enabled but unused).

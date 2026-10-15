@@ -84,7 +84,13 @@ export const evalExpectedSchema = z.object({
     )
     .max(EVAL_MAX_ITEMS_PER_PRESCRIPTION),
   /** Set on items made from user corrections: which ones, so the review queue never offers them twice. */
-  origin: z.object({ correctionIds: z.array(z.uuid()).max(50) }).optional(),
+  origin: z
+    .object({
+      correctionIds: z.array(z.uuid()).max(50).default([]),
+      /** Set on items made from a rated analysis the person agreed to share. */
+      analysisId: z.uuid().optional(),
+    })
+    .optional(),
 });
 export type EvalExpected = z.output<typeof evalExpectedSchema>;
 export type EvalExpectedItem = EvalExpected["items"][number];

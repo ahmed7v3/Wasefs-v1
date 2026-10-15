@@ -14,6 +14,12 @@ export const RX_STATUSES = [
 ] as const;
 export type RxStatus = (typeof RX_STATUSES)[number];
 
+/** What a person says about an analysis: it was excellent, or it needs improving. */
+export const RX_RATINGS = ["good", "bad"] as const;
+export type RxRating = (typeof RX_RATINGS)[number];
+/** The optional note that comes with a rating. */
+export const RX_RATING_NOTE_MAX = 300;
+
 /** The fields of one prescription line a user can correct; also the unit the eval scores. */
 export const RX_FIELDS = [
   "drug",
