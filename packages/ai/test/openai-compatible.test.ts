@@ -110,6 +110,67 @@ describe("openai-compatible stream", () => {
     expect((error as AiProviderError).message).not.toContain("SECRET");
   });
 
+  it("asks for max_completion_tokens first, then falls back to max_tokens if the server only knows that", async () => {
+    const seen: string[] = [];
+    server.use(
+      http.post(`${BASE}/chat/completions`, async ({ request: req }) => {
+        const sent = (await req.json()) as Record<string, unknown>;
+        const name = "max_completion_tokens" in sent ? "max_completion_tokens" : "max_tokens";
+        seen.push(name);
+        if (name === "max_completion_tokens") {
+          return HttpResponse.json(
+            { error: { message: "Unknown parameter: max_completion_tokens" } },
+            { status: 400 },
+          );
+        }
+        return sseResponse([delta({ content: "ok" }, "stop"), "[DONE]"]);
+      }),
+    );
+    const events = await collect(adapter().stream(request(), new AbortController().signal));
+    expect(seen).toEqual(["max_completion_tokens", "max_tokens"]);
+    expect(events.some((event) => event.type === "text")).toBe(true);
+  });
+
+  it("switches from max_tokens when a reasoning model refuses it (reported as a 500)", async () => {
+    const seen: string[] = [];
+    server.use(
+      http.post(`${BASE}/chat/completions`, async ({ request: req }) => {
+        const sent = (await req.json()) as Record<string, unknown>;
+        seen.push("max_tokens" in sent ? "max_tokens" : "max_completion_tokens");
+        if ("max_tokens" in sent) {
+          return HttpResponse.json(
+            {
+              error: {
+                message: "Unsupported parameter: 'max_tokens'. Use 'max_completion_tokens'.",
+              },
+            },
+            { status: 500 },
+          );
+        }
+        return sseResponse([delta({ content: "ok" }, "stop"), "[DONE]"]);
+      }),
+    );
+    // The first request already uses the new name, so nothing is refused here.
+    const events = await collect(adapter().stream(request(), new AbortController().signal));
+    expect(seen).toEqual(["max_completion_tokens"]);
+    expect(events.some((event) => event.type === "text")).toBe(true);
+  });
+
+  it("does not retry a failure that is not about the token parameter", async () => {
+    let calls = 0;
+    server.use(
+      http.post(`${BASE}/chat/completions`, () => {
+        calls += 1;
+        return HttpResponse.json({ error: { message: "bad image" } }, { status: 400 });
+      }),
+    );
+    const { error } = await collectUntilError(
+      adapter().stream(request(), new AbortController().signal),
+    );
+    expect((error as AiProviderError).code).toBe("bad_request");
+    expect(calls).toBe(1);
+  });
+
   it("maps content_filter to a safety finish", async () => {
     server.use(
       http.post(`${BASE}/chat/completions`, () =>
