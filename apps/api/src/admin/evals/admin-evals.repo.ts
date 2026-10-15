@@ -18,6 +18,7 @@ import {
   type AiProvider,
   type AiTaskRoute,
   type FileRecord,
+  type RxAnalysis,
   type RxCorrection,
 } from "@wasfa/db";
 import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
@@ -55,6 +56,12 @@ export interface ItemResultRow {
   latencyMs: number | null;
   error: string | null;
   done: boolean;
+}
+
+export interface SharedRow {
+  analysis: RxAnalysis;
+  /** Pages whose picture still exists. */
+  pages: number;
 }
 
 export interface QueueRow {
@@ -262,6 +269,67 @@ export class AdminEvalsRepo {
       .where(and(eq(rxCorrections.consentForEval, true), this.notYetAdded()))
       .orderBy(desc(rxCorrections.createdAt))
       .limit(limit);
+  }
+
+  /** Not yet in any eval item: `expected.origin.analysisId` names the analysis an item was made from. */
+  private sharedNotYetAdded() {
+    return sql`not exists (
+      select 1 from ${aiEvalItems}
+      where ${aiEvalItems.expected} -> 'origin' ->> 'analysisId' = ${rxAnalyses.id}::text
+    )`;
+  }
+
+  /** Analyses a person rated and agreed to share, newest first, that no eval item was made from yet. */
+  async sharedQueue(limit: number): Promise<SharedRow[]> {
+    return this.db
+      .select({
+        analysis: rxAnalyses,
+        pages: sql<number>`(
+          select count(*)::int from ${rxPages}
+          inner join ${files} on ${files.id} = ${rxPages.fileId}
+          where ${rxPages.analysisId} = ${rxAnalyses.id} and ${files.status} = 'processed'
+        )`,
+      })
+      .from(rxAnalyses)
+      .where(and(eq(rxAnalyses.shareForReview, true), this.sharedNotYetAdded()))
+      .orderBy(desc(rxAnalyses.ratedAt))
+      .limit(limit);
+  }
+
+  /** One shared analysis with its page files (any status: the caller checks them). */
+  async sharedContext(
+    id: string,
+  ): Promise<{ analysis: RxAnalysis; pages: FileRecord[] } | undefined> {
+    const [analysis] = await this.db
+      .select()
+      .from(rxAnalyses)
+      .where(and(eq(rxAnalyses.id, id), eq(rxAnalyses.shareForReview, true)));
+    if (analysis === undefined) return undefined;
+    const pages = await this.db
+      .select({ file: files })
+      .from(rxPages)
+      .innerJoin(files, eq(files.id, rxPages.fileId))
+      .where(eq(rxPages.analysisId, id))
+      .orderBy(asc(rxPages.pageNo));
+    return { analysis, pages: pages.map((page) => page.file) };
+  }
+
+  async sharedAlreadyAdded(id: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(aiEvalItems)
+      .where(sql`${aiEvalItems.expected} -> 'origin' ->> 'analysisId' = ${id}`);
+    return (row?.count ?? 0) > 0;
+  }
+
+  /** Takes the analysis out of the review list: the person's consent no longer reaches an admin. */
+  async dismissShared(id: string): Promise<boolean> {
+    const rows = await this.db
+      .update(rxAnalyses)
+      .set({ shareForReview: false })
+      .where(and(eq(rxAnalyses.id, id), eq(rxAnalyses.shareForReview, true)))
+      .returning({ id: rxAnalyses.id });
+    return rows.length > 0;
   }
 
   async correctionContext(id: string): Promise<CorrectionContext | undefined> {

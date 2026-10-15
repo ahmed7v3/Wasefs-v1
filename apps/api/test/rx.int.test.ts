@@ -897,3 +897,66 @@ describe("GET /rx/:id/events", () => {
     ]);
   });
 });
+
+describe("POST /rx/:id/rating", () => {
+  it("stores the rating with sharing off by default, and shows it in the view", async () => {
+    const who = await user();
+    const id = await analysis(who, [await page(who)]);
+    const res = await harness.call("POST", `/rx/${id}/rating`, {
+      jar: who.jar,
+      body: { rating: "good" },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json()).toEqual({ rating: "good", shareForReview: false });
+    expect(await rowOf(id)).toMatchObject({ rating: "good", shareForReview: false });
+    const view = await harness.call("GET", `/rx/${id}`, { jar: who.jar });
+    expect(view.json()).toMatchObject({ rating: "good", shareForReview: false });
+  });
+
+  it("keeps a scrubbed note and the sharing consent, and a later rating replaces both", async () => {
+    const who = await user();
+    const id = await analysis(who, [await page(who)]);
+    await harness.call("POST", `/rx/${id}/rating`, {
+      jar: who.jar,
+      body: { rating: "good", note: "ممتاز، اتصل بي 01012345678", shareForReview: true },
+    });
+    const first = await rowOf(id);
+    expect(first).toMatchObject({ rating: "good", shareForReview: true });
+    expect(first?.ratingNote).not.toContain("01012345678");
+    await harness.call("POST", `/rx/${id}/rating`, {
+      jar: who.jar,
+      body: { rating: "bad", shareForReview: false },
+    });
+    expect(await rowOf(id)).toMatchObject({
+      rating: "bad",
+      shareForReview: false,
+      ratingNote: null,
+    });
+  });
+
+  it("refuses another person's analysis (404) and one that is not finished (409)", async () => {
+    const owner1 = await user();
+    const stranger = await user();
+    const id = await analysis(owner1, [await page(owner1)]);
+    const foreign = await harness.call("POST", `/rx/${id}/rating`, {
+      jar: stranger.jar,
+      body: { rating: "good" },
+    });
+    expect(foreign.statusCode).toBe(404);
+    const queued = await analysis(owner1, [await page(owner1)], { status: "queued", result: null });
+    const early = await harness.call("POST", `/rx/${queued}/rating`, {
+      jar: owner1.jar,
+      body: { rating: "good" },
+    });
+    expect(early.statusCode).toBe(409);
+  });
+
+  it("rejects a note that is too long or an unknown rating", async () => {
+    const who = await user();
+    const id = await analysis(who, [await page(who)]);
+    for (const body of [{ rating: "meh" }, { rating: "good", note: "x".repeat(301) }]) {
+      const res = await harness.call("POST", `/rx/${id}/rating`, { jar: who.jar, body });
+      expect(res.statusCode).toBe(400);
+    }
+  });
+});

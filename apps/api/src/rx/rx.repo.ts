@@ -99,15 +99,13 @@ export class RxRepo {
   async insert(values: NewRxAnalysis, fileIds: readonly string[]): Promise<void> {
     await this.handle.db.transaction(async (tx) => {
       await tx.insert(rxAnalyses).values(values);
-      await tx
-        .insert(rxPages)
-        .values(
-          fileIds.map((fileId, index) => ({
-            analysisId: values.id as string,
-            pageNo: index + 1,
-            fileId,
-          })),
-        );
+      await tx.insert(rxPages).values(
+        fileIds.map((fileId, index) => ({
+          analysisId: values.id as string,
+          pageNo: index + 1,
+          fileId,
+        })),
+      );
     });
   }
 
@@ -185,6 +183,37 @@ export class RxRepo {
   /** Appends the usage row of a cache hit (cost 0, no provider). */
   recordUsage(row: RuntimeUsageRow): Promise<string> {
     return recordAiUsage(this.handle.db, row);
+  }
+
+  /**
+   * Stores the person's rating, their note and whether they agreed to share the analysis for review.
+   * Only a finished analysis of theirs can be rated; changing the rating later (or withdrawing the
+   * consent) overwrites it. Returns false when there is nothing to rate.
+   */
+  async setRating(
+    userId: string,
+    id: string,
+    values: { rating: "good" | "bad"; note: string | null; shareForReview: boolean },
+  ): Promise<boolean> {
+    const now = new Date();
+    const rows = await this.handle.db
+      .update(rxAnalyses)
+      .set({
+        rating: values.rating,
+        ratingNote: values.note,
+        shareForReview: values.shareForReview,
+        ratedAt: now,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(rxAnalyses.id, id),
+          eq(rxAnalyses.ownerUserId, userId),
+          eq(rxAnalyses.status, "done"),
+        ),
+      )
+      .returning({ id: rxAnalyses.id });
+    return rows.length > 0;
   }
 
   /** The job could not be queued: the analysis ends as failed, with a reference for support. */

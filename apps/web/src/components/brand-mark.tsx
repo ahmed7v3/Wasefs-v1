@@ -22,7 +22,7 @@ export interface BrandMarkProps {
  * Only logos uploaded through /admin/branding (served by our API) are shown: the CSP's img-src allows
  * no other origin, so an external URL typed into the settings would render as a broken image.
  */
-function servedByApi(url: string | null): string | null {
+export function brandLogoSrc(url: string | null): string | null {
   if (url === null) return null;
   try {
     return new URL(url).origin === new URL(publicEnv.NEXT_PUBLIC_API_URL).origin ? url : null;
@@ -38,7 +38,7 @@ function servedByApi(url: string | null): string | null {
  */
 export function BrandMark({ branding }: BrandMarkProps) {
   const name = branding?.nameAr ?? t("brand.name");
-  const logoUrl = servedByApi(branding?.logoUrl ?? null);
+  const logoUrl = brandLogoSrc(branding?.logoUrl ?? null);
   const withName = logoUrl === null || branding?.showNameWithLogo === true;
 
   const { logoWidth, logoHeight } = branding ?? {};

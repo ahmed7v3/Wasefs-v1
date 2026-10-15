@@ -15,6 +15,7 @@ import {
   rxCreateRequestSchema,
   rxItemParamsSchema,
   rxListQuerySchema,
+  rxRatingRequestSchema,
   type RxEvent,
 } from "@wasfa/shared/schemas/rx";
 import { idParamSchema } from "@wasfa/shared/schemas/user";
@@ -34,6 +35,7 @@ class ListRxDto extends createZodDto(rxListQuerySchema) {}
 class RxIdParamDto extends createZodDto(idParamSchema) {}
 class RxItemParamDto extends createZodDto(rxItemParamsSchema) {}
 class CorrectionDto extends createZodDto(rxCorrectionRequestSchema) {}
+class RatingDto extends createZodDto(rxRatingRequestSchema) {}
 
 /** The stream ends after this long even if the analysis never finishes (the job budget is 60 s). */
 export const RX_STREAM_MAX_MS = 5 * 60 * 1000;
@@ -152,6 +154,17 @@ export class RxController {
     @Body() body: CorrectionDto,
   ) {
     return this.rx.correct(user, params.id, body);
+  }
+
+  @Post(":id/rating")
+  @HttpCode(200)
+  @RateLimit(30)
+  rate(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param() params: RxIdParamDto,
+    @Body() body: RatingDto,
+  ) {
+    return this.rx.rate(user, params.id, body);
   }
 
   @Get(":id/candidates/:itemIndex")

@@ -80,22 +80,70 @@ const line = (over: Partial<RxResultItem> = {}): RxResultItem => ({
 });
 
 describe("copy and share text", () => {
-  it("carries the lines and no notes, raw text of matched lines or image", () => {
+  const options = { siteUrl: "https://wasfa.online", reportDate: "15 أكتوبر 2026" };
+  const details = {
+    purpose: "يُستخدم عادةً لخفض الحرارة",
+    sideEffects: ["غثيان", "دوخة"],
+    precautions: ["راجع الطبيب في الحمل"],
+  };
+  const overview = {
+    summary: "أدوية تُستخدم عادةً لاضطرابات هرمونية.",
+    likelyConditions: ["قد يُستخدم في ارتفاع البرولاكتين"],
+  };
+
+  it("carries the lines and no notes or raw text of matched lines, and ends with the site link", () => {
     const items = [
       line(),
       line({ matchedDrugId: null, rawText: "Zyrt?", name: null, badge: "medium" }),
     ];
-    for (const text of [buildCopyText(items), buildShareText(items)]) {
+    const report = { items };
+    for (const text of [buildCopyText(report, options), buildShareText(report, options)]) {
       expect(text).toContain("1. Augmentin");
-      expect(text).toContain(`2. Zyrt? (${t("rx.share.unconfirmed")})`);
+      expect(text).toContain("2. Zyrt?");
+      expect(text).toContain(t("rx.share.review"));
       expect(text).not.toContain("Ahmed");
       expect(text).not.toContain("0100");
-      expect(text).not.toMatch(/https?:/);
+      // The only link is the site's own.
+      expect(text.match(/https?:\/\/\S+/g)).toEqual(["https://wasfa.online"]);
+      expect(text.trimEnd().endsWith("https://wasfa.online")).toBe(true);
     }
-    expect(buildCopyText(items)).toContain(t("rx.disclaimer"));
-    const url = whatsappShareUrl(buildShareText(items));
+    expect(buildCopyText(report, options)).toContain(t("rx.disclaimer"));
+    const url = whatsappShareUrl(buildShareText(report, options));
     expect(url.startsWith("https://wa.me/?text=")).toBe(true);
-    expect(decodeURIComponent(url.slice(url.indexOf("=") + 1))).toBe(buildShareText(items));
+    expect(decodeURIComponent(url.slice(url.indexOf("=") + 1))).toBe(
+      buildShareText(report, options),
+    );
+  });
+
+  it("the share is WhatsApp-formatted and short; the copy is plain and complete", () => {
+    const report = {
+      items: [line({ activeIngredients: ["amoxicillin"], details })],
+      overview,
+      date: "13/12/2025",
+    };
+    const share = buildShareText(report, options);
+    const copy = buildCopyText(report, options);
+    expect(share).toContain("*1. Augmentin*");
+    expect(share).toContain(t("rx.share.purpose", { value: details.purpose }));
+    expect(share).not.toContain("غثيان");
+    expect(share).toContain(t("rx.share.reportDate", { date: options.reportDate }));
+    expect(share).toContain(t("rx.share.rxDate", { date: "13/12/2025" }));
+    expect(share).toContain(overview.summary);
+    expect(share).toContain(t("rx.share.cta", { url: options.siteUrl }));
+    expect(copy).not.toContain("*1. Augmentin*");
+    expect(copy).toContain("1. Augmentin");
+    expect(copy).toContain(t("rx.share.sideEffects", { value: "غثيان؛ دوخة" }));
+    expect(copy).toContain(t("rx.share.precautions", { value: "راجع الطبيب في الحمل" }));
+  });
+
+  it("without the database nothing is 'unconfirmed' and a confident line has no review mark", () => {
+    const items = [
+      line({ matchedDrugId: null, rawText: "Dostenix", name: "Dostinex", badge: "high" }),
+    ];
+    const text = buildShareText({ items, matching: "model" }, options);
+    expect(text).toContain("*1. Dostinex*");
+    expect(text).not.toContain(t("rx.share.review"));
+    expect(text).not.toContain(t("rx.share.unconfirmed"));
   });
 });
 

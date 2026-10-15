@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { RxResultView } from "../../../../../components/rx/rx-result-view";
 import { ApiRequestError } from "../../../../../lib/api-error";
+import { publicEnv } from "../../../../../lib/env";
 import { getPublicSettings } from "../../../../../lib/public-settings";
 import { requireOnboarded, serverApi } from "../../../../../lib/session";
 
@@ -41,6 +42,8 @@ export default async function AnalysisPage({ params }: { params: Promise<{ id: s
       initial={view}
       creditsPerPage={settings.rx.creditsPerPage}
       balance={balance}
+      branding={settings.branding}
+      siteUrl={publicEnv.NEXT_PUBLIC_SITE_URL}
     />
   );
 }

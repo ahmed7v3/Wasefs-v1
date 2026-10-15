@@ -157,6 +157,14 @@ describe("permissions", () => {
       { correctionId: MISSING_ID, setId: MISSING_ID, kind: "printed" },
     ],
     ["POST", "/admin/ai/evals/review-queue/reject", { correctionId: MISSING_ID }],
+    ["GET", "/admin/ai/evals/shared"],
+    ["GET", `/admin/ai/evals/shared/${MISSING_ID}`],
+    [
+      "POST",
+      `/admin/ai/evals/shared/${MISSING_ID}/approve`,
+      { setId: MISSING_ID, kind: "printed" },
+    ],
+    ["POST", `/admin/ai/evals/shared/${MISSING_ID}/dismiss`],
   ];
   it.each(cases)("%s %s needs evals.run", async (method, url, body) => {
     expectError(await call(method, url, nobody, body), 403, "FORBIDDEN");
@@ -688,6 +696,145 @@ describe("review queue", () => {
       "NOT_FOUND",
     );
     expect(await auditActions("eval.correction.reject")).toBe(before + 1);
+  });
+});
+
+describe("analyses people rated and agreed to share", () => {
+  const reading = {
+    schemaVersion: 1,
+    matching: "model",
+    items: [
+      {
+        rawText: "raw",
+        name: "Dostinex",
+        matchedDrugId: null,
+        matchScore: null,
+        activeIngredients: ["cabergoline"],
+        strength: "0.5 mg",
+        form: "tablet",
+        dose: null,
+        frequency: "مرة أسبوعيًا",
+        duration: null,
+        route: null,
+        notes: null,
+        confidence: 0.92,
+        badge: "high",
+        verified: "not_needed",
+        box_2d: null,
+        page: 0,
+      },
+    ],
+    date: null,
+    prescriberLegible: true,
+    findings: [],
+    unreadableRegions: [],
+  };
+
+  async function seedShared(options: { share: boolean; image: boolean }) {
+    const person = await ctx.harness.signedInUser();
+    const analysisId = randomUUID();
+    await ctx.owner.db.insert(rxAnalyses).values({
+      id: analysisId,
+      ownerUserId: person.userId,
+      createdBy: person.userId,
+      status: "done",
+      mode: "balanced",
+      skillVersion: "prescription-analysis@000000000000",
+      result: reading,
+      rating: "good",
+      ratingNote: "ممتاز - تواصل معي 01012345678",
+      shareForReview: options.share,
+      ratedAt: new Date(),
+    });
+    const fileId = randomUUID();
+    const key = `u/${person.userId}/${fileId}/processed`;
+    if (options.image) {
+      await storage.s3.send(
+        new PutObjectCommand({ Bucket: storage.bucket, Key: key, Body: Buffer.from("jpeg-bytes") }),
+      );
+    }
+    await ctx.owner.db.insert(files).values({
+      id: fileId,
+      ownerUserId: person.userId,
+      purpose: "rx_page",
+      r2Key: key,
+      mime: "image/jpeg",
+      bytes: 10,
+      width: 100,
+      height: 200,
+      sha256: "c".repeat(64),
+      dhash: "d".repeat(16),
+      status: options.image ? "processed" : "deleted",
+    });
+    await ctx.owner.db.insert(rxPages).values({ analysisId, pageNo: 1, fileId });
+    return analysisId;
+  }
+
+  it("lists only analyses whose owner agreed, with a scrubbed note and names only", async () => {
+    const shared = await seedShared({ share: true, image: true });
+    const notShared = await seedShared({ share: false, image: true });
+    const res = await call("GET", "/admin/ai/evals/shared", boss);
+    expect(res.statusCode, res.body).toBe(200);
+    const items = res.json<{
+      items: { analysisId: string; note: string | null; itemNames: string[] }[];
+    }>().items;
+    const mine = items.find((item) => item.analysisId === shared);
+    expect(mine).toMatchObject({ itemNames: ["Dostinex"] });
+    expect(mine?.note).not.toContain("01012345678");
+    expect(items.some((item) => item.analysisId === notShared)).toBe(false);
+  });
+
+  it("shows the reading with short-lived picture links, and 404 for one that was not shared", async () => {
+    const shared = await seedShared({ share: true, image: true });
+    const detail = await call("GET", `/admin/ai/evals/shared/${shared}`, boss);
+    expect(detail.statusCode, detail.body).toBe(200);
+    const body = detail.json<{ images: { url: string }[]; result: { items: unknown[] } }>();
+    expect(body.images).toHaveLength(1);
+    expect(body.result.items).toHaveLength(1);
+    const hidden = await seedShared({ share: false, image: true });
+    expectError(await call("GET", `/admin/ai/evals/shared/${hidden}`, boss), 404, "NOT_FOUND");
+  });
+
+  it("approve adds the reading as the label, copies the picture, audits, and cannot repeat", async () => {
+    const setId = await seedSet(0);
+    const shared = await seedShared({ share: true, image: true });
+    const before = await auditActions("eval.shared.approve");
+    const res = await call("POST", `/admin/ai/evals/shared/${shared}/approve`, boss, {
+      setId,
+      kind: "handwritten",
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json()).toMatchObject({ imageCopied: true });
+    const [item] = await ctx.owner.db
+      .select()
+      .from(aiEvalItems)
+      .where(eq(aiEvalItems.setId, setId));
+    const expected = evalExpectedSchema.parse(item?.expected);
+    expect(expected.items[0]).toMatchObject({ name: "Dostinex", strength: "0.5 mg" });
+    expect(expected.origin?.analysisId).toBe(shared);
+    expect(await auditActions("eval.shared.approve")).toBe(before + 1);
+    const listed = await call("GET", "/admin/ai/evals/shared", boss);
+    expect(
+      listed.json<{ items: { analysisId: string }[] }>().items.some((i) => i.analysisId === shared),
+    ).toBe(false);
+    expectError(
+      await call("POST", `/admin/ai/evals/shared/${shared}/approve`, boss, {
+        setId,
+        kind: "printed",
+      }),
+      409,
+      "CONFLICT",
+      "already_added",
+    );
+  });
+
+  it("dismiss withdraws the consent and the analysis leaves the list", async () => {
+    const shared = await seedShared({ share: true, image: false });
+    const res = await call("POST", `/admin/ai/evals/shared/${shared}/dismiss`, boss);
+    expect(res.statusCode, res.body).toBe(204);
+    const [row] = await ctx.owner.db.select().from(rxAnalyses).where(eq(rxAnalyses.id, shared));
+    expect(row?.shareForReview).toBe(false);
+    expectError(await call("GET", `/admin/ai/evals/shared/${shared}`, boss), 404, "NOT_FOUND");
   });
 });
 

@@ -22,6 +22,7 @@ import {
   evalImportFieldsSchema,
   evalRouteSnapshotSchema,
   type ApproveCorrectionInput,
+  type ApproveSharedInput,
   type EvalCompareResponse,
   type EvalImportReport,
   type EvalItemDetail,
@@ -30,6 +31,8 @@ import {
   type EvalRunSummary,
   type EvalSetView,
   type ReviewQueueItem,
+  type SharedAnalysisDetail,
+  type SharedAnalysisList,
   type StartEvalRunInput,
 } from "@wasfa/shared/schemas/admin-evals";
 import { UPLOAD_MAX_BYTES } from "@wasfa/shared/schemas/files";
@@ -541,6 +544,147 @@ export class AdminEvalsService {
       await Promise.all(copied.map((file) => this.storage.remove(file.key)));
       throw error;
     }
+  }
+
+  // --- Analyses people rated and agreed to share ---
+
+  async sharedQueue(): Promise<SharedAnalysisList> {
+    const rows = await this.repo.sharedQueue(REVIEW_QUEUE_LIMIT);
+    return {
+      items: rows.flatMap((row) => {
+        const result = rxResultSchema.safeParse(row.analysis.result);
+        if (!result.success || row.analysis.rating === null || row.analysis.ratedAt === null) {
+          return [];
+        }
+        const note = row.analysis.ratingNote;
+        return [
+          {
+            analysisId: row.analysis.id,
+            rating: row.analysis.rating,
+            note: note === null ? null : redactText(note),
+            itemCount: result.data.items.length,
+            itemNames: result.data.items
+              .flatMap((item) => (item.name === null ? [] : [redactText(item.name)]))
+              .slice(0, 4),
+            imageAvailable: row.pages > 0,
+            ratedAt: row.analysis.ratedAt.toISOString(),
+          },
+        ];
+      }),
+    };
+  }
+
+  /** The reading and 60 second links to its pictures, for the admin to judge the answer by eye. */
+  async sharedDetail(id: string): Promise<SharedAnalysisDetail> {
+    const context = await this.repo.sharedContext(id);
+    if (context === undefined) throw new AppError(ErrorCode.NOT_FOUND);
+    const { analysis, pages } = context;
+    const result = rxResultSchema.safeParse(analysis.result);
+    if (!result.success || analysis.rating === null || analysis.ratedAt === null) {
+      throw conflict("no_result");
+    }
+    const images: SharedAnalysisDetail["images"] = [];
+    if (this.storage.configured) {
+      for (const [index, page] of pages.entries()) {
+        if (page.status !== "processed") continue;
+        images.push({ pageNo: index + 1, url: await this.storage.presignGet(page.r2Key, 60) });
+      }
+    }
+    return {
+      analysisId: analysis.id,
+      rating: analysis.rating,
+      note: analysis.ratingNote === null ? null : redactText(analysis.ratingNote),
+      ratedAt: analysis.ratedAt.toISOString(),
+      result: result.data,
+      images,
+    };
+  }
+
+  /** Adds a shared analysis to an eval set, like a consented correction: reading as the label, picture copied. */
+  async approveShared(
+    id: string,
+    input: ApproveSharedInput,
+    actorId: string,
+    audit: AuditScope,
+  ): Promise<{ itemId: string; imageCopied: boolean }> {
+    const context = await this.repo.sharedContext(id);
+    if (context === undefined) throw new AppError(ErrorCode.NOT_FOUND);
+    const set = await this.repo.findSet(input.setId);
+    if (set === undefined) throw new AppError(ErrorCode.NOT_FOUND);
+    if (await this.repo.sharedAlreadyAdded(id)) throw conflict("already_added");
+
+    const result = rxResultSchema.safeParse(context.analysis.result);
+    if (!result.success) throw conflict("no_result");
+    const lines = result.data.items.flatMap((item) =>
+      item.name === null || item.name.trim() === ""
+        ? []
+        : [
+            {
+              name: item.name,
+              strength: item.strength,
+              form: item.form,
+              frequency: item.frequency,
+              duration: item.duration,
+              route: item.route,
+            },
+          ],
+    );
+    if (lines.length === 0) throw conflict("empty_reading");
+    const expected: EvalExpected = evalExpectedSchema.parse({
+      items: lines,
+      origin: { correctionIds: [], analysisId: id },
+    });
+
+    const pages = context.pages;
+    const copied: { id: string; key: string; from: (typeof pages)[number] }[] = [];
+    let imageCopied = false;
+    if (
+      this.storage.configured &&
+      pages.length > 0 &&
+      pages.every((page) => page.status === "processed")
+    ) {
+      for (const page of pages) {
+        const fileId = randomUUID();
+        const key = evalImageKey(fileId);
+        if (!(await this.storage.copy(page.r2Key, key))) break;
+        copied.push({ id: fileId, key, from: page });
+      }
+      imageCopied = copied.length === pages.length;
+      if (!imageCopied) {
+        await Promise.all(copied.map((file) => this.storage.remove(file.key)));
+        copied.length = 0;
+      }
+    }
+
+    try {
+      const itemId = await this.repo.addItem({
+        setId: set.id,
+        kind: input.kind,
+        expected,
+        images: copied.map((file) => ({
+          id: file.id,
+          ownerUserId: actorId,
+          r2Key: file.key,
+          bytes: file.from.bytes,
+          width: file.from.width,
+          height: file.from.height,
+          sha256: file.from.sha256,
+          dhash: file.from.dhash,
+        })),
+      });
+      audit.targetId = itemId;
+      audit.after = { set: set.key, kind: input.kind, imageCopied };
+      return { itemId, imageCopied };
+    } catch (error) {
+      await Promise.all(copied.map((file) => this.storage.remove(file.key)));
+      throw error;
+    }
+  }
+
+  async dismissShared(id: string, audit: AuditScope): Promise<void> {
+    if (!(await this.repo.dismissShared(id))) throw new AppError(ErrorCode.NOT_FOUND);
+    audit.targetId = id;
+    audit.after = { consent: false };
   }
 
   async reject(correctionId: string, audit: AuditScope): Promise<void> {

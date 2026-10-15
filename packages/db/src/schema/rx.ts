@@ -1,5 +1,12 @@
 import { AI_MODES } from "@wasfa/shared/ai";
-import { RX_FIELDS, RX_INITIALS_MAX_LENGTH, RX_MAX_PAGES, RX_STATUSES } from "@wasfa/shared/rx";
+import {
+  RX_FIELDS,
+  RX_INITIALS_MAX_LENGTH,
+  RX_MAX_PAGES,
+  RX_RATING_NOTE_MAX,
+  RX_RATINGS,
+  RX_STATUSES,
+} from "@wasfa/shared/rx";
 import { sql } from "drizzle-orm";
 import {
   boolean,
@@ -49,10 +56,31 @@ export const rxAnalyses = pgTable(
     startedAt: timestamp({ withTimezone: true }),
     finishedAt: timestamp({ withTimezone: true }),
     errorRef: text(),
+    // The person's verdict on the analysis (Task 2.14). `share_for_review` is their explicit consent
+    // that the image and the result may be shown to an admin to improve accuracy; it is off by default.
+    rating: text({ enum: RX_RATINGS }),
+    ratingNote: text(),
+    shareForReview: boolean().notNull().default(false),
+    ratedAt: timestamp({ withTimezone: true }),
     ...timestamps(),
   },
   (table) => [
     ownerCheck("rx_analyses", table),
+    check(
+      "rx_analyses_rating_check",
+      sql`${table.rating} is null or ${table.rating} in ('good', 'bad')`,
+    ),
+    check(
+      "rx_analyses_rating_note_check",
+      sql`${table.ratingNote} is null or char_length(${table.ratingNote}) <= ${sql.raw(String(RX_RATING_NOTE_MAX))}`,
+    ),
+    check(
+      "rx_analyses_share_needs_rating_check",
+      sql`not ${table.shareForReview} or ${table.rating} is not null`,
+    ),
+    index("rx_analyses_shared_idx")
+      .on(table.ratedAt.desc())
+      .where(sql`${table.shareForReview}`),
     check("rx_analyses_status_check", inList(table.status, RX_STATUSES)),
     check("rx_analyses_mode_check", inList(table.mode, AI_MODES)),
     check("rx_analyses_credits_check", sql`${table.creditsCharged} >= 0`),

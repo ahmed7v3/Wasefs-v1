@@ -7,6 +7,7 @@ import { classifyMatch } from "@wasfa/shared/drugs";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import { newErrorRef, newId } from "@wasfa/shared/ids";
 import { parseStrength } from "@wasfa/shared/normalize";
+import { redactText } from "@wasfa/shared/redact";
 import { RX_MAX_PAGES, RX_SKILL_NAME } from "@wasfa/shared/rx";
 import {
   RX_FREE_CACHE_HOURS,
@@ -24,6 +25,8 @@ import {
   type RxEvent,
   type RxListQuery,
   type RxListResponse,
+  type RxRatingRequest,
+  type RxRatingResponse,
   type RxResult,
   type RxView,
 } from "@wasfa/shared/schemas/rx";
@@ -163,12 +166,38 @@ export class RxService {
       startedAt: row.startedAt?.toISOString() ?? null,
       finishedAt: row.finishedAt?.toISOString() ?? null,
       errorRef: row.errorRef,
+      rating: row.rating,
+      shareForReview: row.shareForReview,
       files: pages.map((page) => ({
         fileId: page.fileId,
         pageNo: page.pageNo,
         imageDeleted: page.fileStatus === "deleted",
       })),
     };
+  }
+
+  /**
+   * "Excellent" or "needs improving", with an optional note. Sharing is a separate, explicit choice
+   * (off unless the person ticked it): only then can an admin see the picture and the reading. The
+   * note is scrubbed of emails, phones and tokens before it is stored.
+   */
+  async rate(
+    user: AuthenticatedUser,
+    id: string,
+    input: RxRatingRequest,
+  ): Promise<RxRatingResponse> {
+    const row = await this.repo.require(user.id, id);
+    if (row.status !== "done") {
+      throw new AppError(ErrorCode.CONFLICT, { details: { reason: "not_ready" } });
+    }
+    const note = input.note === undefined || input.note === "" ? null : redactText(input.note);
+    const saved = await this.repo.setRating(user.id, id, {
+      rating: input.rating,
+      note,
+      shareForReview: input.shareForReview,
+    });
+    if (!saved) throw new AppError(ErrorCode.CONFLICT, { details: { reason: "not_ready" } });
+    return { rating: input.rating, shareForReview: input.shareForReview };
   }
 
   async list(user: AuthenticatedUser, query: RxListQuery): Promise<RxListResponse> {

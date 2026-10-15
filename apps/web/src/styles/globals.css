@@ -353,6 +353,13 @@
     background: #fff;
   }
 
+  /* Keep the navy of the report header and the shaded table head on paper. */
+  [data-rx-print],
+  [data-rx-print] * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
   body:has([data-rx-print]) .page-backdrop {
     background: none;
   }

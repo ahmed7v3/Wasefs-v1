@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { AI_MODES, EVAL_RUN_STATUSES } from "../ai.js";
 import { evalExpectedSchema, evalItemScoreSchema, evalRunMetricsSchema } from "../evals.js";
-import { EVAL_ITEM_KINDS, RX_FIELDS } from "../rx.js";
+import { EVAL_ITEM_KINDS, RX_FIELDS, RX_RATINGS } from "../rx.js";
 
 import { routeModelParamsSchema } from "./admin-ai.js";
 import { rxResultSchema } from "./rx.js";
@@ -237,3 +237,38 @@ export const approveCorrectionResponseSchema = z.object({
 });
 
 export const rejectCorrectionSchema = z.object({ correctionId: z.uuid() });
+
+// --- Analyses people rated and agreed to share ---
+
+export const sharedAnalysisItemSchema = z.object({
+  analysisId: z.uuid(),
+  rating: z.enum(RX_RATINGS),
+  /** The optional note, scrubbed of emails, phones and tokens. */
+  note: z.string().nullable(),
+  itemCount: z.number().int().min(0),
+  /** The first few line names (item text only). */
+  itemNames: z.array(z.string()).max(4),
+  imageAvailable: z.boolean(),
+  ratedAt: isoDate,
+});
+export type SharedAnalysisItem = z.output<typeof sharedAnalysisItemSchema>;
+export const sharedAnalysisListSchema = z.object({ items: z.array(sharedAnalysisItemSchema) });
+export type SharedAnalysisList = z.output<typeof sharedAnalysisListSchema>;
+
+/** One shared analysis in full: the stored reading and short-lived links to its pictures. */
+export const sharedAnalysisDetailSchema = z.object({
+  analysisId: z.uuid(),
+  rating: z.enum(RX_RATINGS),
+  note: z.string().nullable(),
+  ratedAt: isoDate,
+  result: rxResultSchema,
+  /** 60 second links; empty once the pictures were deleted by retention. */
+  images: z.array(z.object({ pageNo: z.number().int().min(1), url: z.string() })),
+});
+export type SharedAnalysisDetail = z.output<typeof sharedAnalysisDetailSchema>;
+
+export const approveSharedSchema = z.object({
+  setId: z.uuid(),
+  kind: z.enum(EVAL_ITEM_KINDS),
+});
+export type ApproveSharedInput = z.output<typeof approveSharedSchema>;
