@@ -84,7 +84,7 @@ export const DRUG_IMPORT_PREVIEW_ROWS = 50;
 export const DRUG_IMPORT_SAMPLE_ROWS = 200;
 export const DRUG_IMPORT_TTL_SECONDS = 24 * 60 * 60;
 /** Splits a cell holding several ingredients or aliases. */
-export const DRUG_IMPORT_LIST_SEPARATOR = /[+;|،\n]|\s\/\s/;
+export const DRUG_IMPORT_LIST_SEPARATOR = /[+;|،\n]|\s\/\s|,(?![^()]*\))/;
 
 /*
  * Column mapping presets per source (header, lowercased, to our field). The real EDA / SFDA exports
@@ -92,6 +92,10 @@ export const DRUG_IMPORT_LIST_SEPARATOR = /[+;|،\n]|\s\/\s/;
  * far; headers that are absent are simply not mapped and the admin fixes the rest in the wizard.
  */
 const SFDA_PRESET: DrugImportMapping = {
+  // The public drugs-list export (snake_case headers): `name` is the generic name, with one entry
+  // per active ingredient separated by commas, and `strength` holds one number per ingredient.
+  name: "ingredients",
+  "dosage form": "form",
   "trade name": "brandEn",
   tradename: "brandEn",
   "arabic trade name": "brandAr",
@@ -143,7 +147,12 @@ export const DRUG_IMPORT_PRESETS: Readonly<Record<DrugSource, DrugImportMapping>
   other: Object.fromEntries(DRUG_IMPORT_FIELDS.map((field) => [field.toLowerCase(), field])),
 };
 
-const headerKey = (header: string): string => normalizeArabic(header).toLowerCase();
+/** `trade_name`, `Trade Name` and ` trade  name ` are the same header. */
+const headerKey = (header: string): string =>
+  normalizeArabic(header)
+    .toLowerCase()
+    .replace(/[_\s]+/g, " ")
+    .trim();
 
 /**
  * The preset's mapping for the headers a file really has (matched ignoring case, spaces at the
