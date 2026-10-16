@@ -49,6 +49,7 @@ describe("visibleNavGroups", () => {
       "/admin/branding",
       "/admin/flags",
       "/admin/whatsapp",
+      "/admin/billing/gateways",
       "/admin/ai",
       "/admin/ai/providers",
       "/admin/ai/models",

@@ -533,6 +533,20 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
     "An external service (mail, WhatsApp, AI, database) did not answer. Check the provider's status, then fix the fault.",
   "admin.issue.explain.INTERNAL":
     "An unexpected server error. Open the events, read the context and stack trace, and search the logs for the support reference.",
+  "admin.issue.explain.PRICE_NOT_AVAILABLE":
+    "A price was asked for a plan in a currency or period with no active price. Check the plan's prices in the catalog if it repeats.",
+  "admin.issue.explain.BELOW_MINIMUM":
+    "The order total after discounts is below the minimum charge. Check the minimum in the billing settings or the stacked discounts.",
+  "admin.issue.explain.FREE_ORDER_NOT_ALLOWED":
+    "A discount made the order free while free orders are switched off. Expected, unless a discount was set to 100% by mistake.",
+  "admin.issue.explain.METHOD_NOT_AVAILABLE":
+    "The customer chose a payment method that is disabled, does not fit the currency or amount, or whose gateway is off. Check the payment methods and gateways.",
+  "admin.issue.explain.QUOTE_EXPIRED":
+    "The price summary expired (15 minutes) or changed before the order was created. Expected; many of them mean customers linger on checkout.",
+  "admin.issue.explain.COUPON_UNAVAILABLE":
+    "The coupon ran out, expired or was used between the quote and the order. Expected with limited coupons.",
+  "admin.issue.explain.INVALID_SIGNATURE":
+    "A payment webhook arrived with a wrong signature and was refused. If it repeats, check the gateway keys; otherwise it may be forged.",
   "admin.issue.explain.unknown":
     "An error code this panel does not know. Read the context and events.",
 };
