@@ -241,8 +241,11 @@ describe("outbox: billing.order_paid", () => {
         return Promise.resolve();
       },
     });
-    await drainOutbox(api.db, handlers);
-    await drainOutbox(api.db, handlers);
+    // Postgres stamps `available_at` in microseconds, `new Date()` in milliseconds: drain a second
+    // ahead so an entry inserted in the same millisecond is already due.
+    const drainAt = new Date(Date.now() + 1_000);
+    await drainOutbox(api.db, handlers, drainAt);
+    await drainOutbox(api.db, handlers, drainAt);
 
     const notes = await owner.db
       .select()

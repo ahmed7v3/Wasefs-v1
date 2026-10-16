@@ -532,6 +532,9 @@ describe("refunds", () => {
 });
 
 describe("outbox", () => {
+  // `available_at` is set by Postgres in microseconds and `new Date()` has milliseconds: a drain in
+  // the same millisecond as the insert would find the entry not yet due. Drain a second ahead.
+  const drainAt = () => new Date(Date.now() + 1_000);
   // Entries left by the activation tests above are drained as no-ops here.
   const quiet: Record<string, OutboxHandler> = {
     "billing.order_paid": () => Promise.resolve(),
@@ -556,11 +559,11 @@ describe("outbox", () => {
       },
       "test.fail": () => Promise.reject(new TypeError("boom")),
     };
-    const first = await drainOutbox(db(), handlers);
+    const first = await drainOutbox(db(), handlers, drainAt());
     expect(first.processed).toBeGreaterThanOrEqual(1);
     expect(first.failed).toBe(1);
     expect(first.parked).toBe(1);
-    const second = await drainOutbox(db(), handlers);
+    const second = await drainOutbox(db(), handlers, drainAt());
     expect(second).toEqual({ processed: 0, failed: 0, parked: 0 });
     expect(runs).toBe(1);
     const [failed] = await db()
@@ -582,13 +585,17 @@ describe("outbox", () => {
         payload: { userId },
         idempotencyKey: `wf-${userId}`,
       });
-    const result = await drainOutbox(db(), {
-      ...quiet,
-      "test.write_then_fail": async (tx) => {
-        await tx.insert(userNotifications).values({ userId, kind: "test.note" });
-        throw new Error("after write");
+    const result = await drainOutbox(
+      db(),
+      {
+        ...quiet,
+        "test.write_then_fail": async (tx) => {
+          await tx.insert(userNotifications).values({ userId, kind: "test.note" });
+          throw new Error("after write");
+        },
       },
-    });
+      drainAt(),
+    );
     expect(result.failed).toBe(1);
     const notes = await db()
       .select()
