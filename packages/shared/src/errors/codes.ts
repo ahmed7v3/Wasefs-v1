@@ -9,6 +9,11 @@ export const ErrorCode = {
   PAYMENT_REQUIRED: "PAYMENT_REQUIRED",
   UPSTREAM_UNAVAILABLE: "UPSTREAM_UNAVAILABLE",
   INTERNAL: "INTERNAL",
+  // Price engine refusals (BILLING §4): the request was understood but cannot be priced.
+  PRICE_NOT_AVAILABLE: "PRICE_NOT_AVAILABLE",
+  BELOW_MINIMUM: "BELOW_MINIMUM",
+  FREE_ORDER_NOT_ALLOWED: "FREE_ORDER_NOT_ALLOWED",
+  METHOD_NOT_AVAILABLE: "METHOD_NOT_AVAILABLE",
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
@@ -86,6 +91,34 @@ export const ERROR_INFO: Record<ErrorCode, ErrorCodeInfo> = {
     message: {
       ar: "حدث خطأ غير متوقع. تواصل مع الدعم وزوّدهم برمز الخطأ.",
       en: "An unexpected error occurred. Contact support and share the error reference.",
+    },
+  },
+  PRICE_NOT_AVAILABLE: {
+    httpStatus: 422,
+    message: {
+      ar: "هذه الباقة غير متاحة بالعملة أو المدة المختارة.",
+      en: "This plan is not available for the selected currency or period.",
+    },
+  },
+  BELOW_MINIMUM: {
+    httpStatus: 422,
+    message: {
+      ar: "المبلغ أقل من الحد الأدنى للدفع.",
+      en: "The amount is below the minimum charge.",
+    },
+  },
+  FREE_ORDER_NOT_ALLOWED: {
+    httpStatus: 422,
+    message: {
+      ar: "الطلبات المجانية غير متاحة حالياً.",
+      en: "Free orders are not available right now.",
+    },
+  },
+  METHOD_NOT_AVAILABLE: {
+    httpStatus: 422,
+    message: {
+      ar: "طريقة الدفع هذه غير متاحة لهذا الطلب.",
+      en: "This payment method is not available for this order.",
     },
   },
 };

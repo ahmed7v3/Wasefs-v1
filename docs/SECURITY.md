@@ -181,6 +181,9 @@ Same columns as 3.1 minus the repeated ones: every route validates input with a 
 | `POST /admin/ai/evals/shared/:id/approve, /dismiss` | cookie + 2FA session | evals.run | copies the picture and the reading into an evaluation set / withdraws the consent | 60/min | `eval.shared.approve`, `eval.shared.dismiss` | Done |
 | `POST /ai/chats/:id/messages (SSE)` | cookie, verified account | — | chat owner, else 404; plan mode and tool entitlement; one stream per user | 20/min + plan daily cap | — | Done |
 | `GET /me/credits, GET /me/usage` | cookie | — | caller's wallet; ledger reasons hide admin notes | 60/min | — | Done |
+| `GET /catalog` | public (the pricing page is seen before sign-in) | — | — | `marketQuerySchema` (`?currency`, `?country` outside production) | 120/min | — | — | — | Done |
+| `POST /billing/quote` | cookie | — | quote is stored for the caller only (`billing:quote:<id>` with an HMAC); the body carries no price; a bad coupon is a generic `invalid`, never a 4xx | `quoteRequestSchema` | 30/min + coupon checks 10/min per user and 30/min per IP | 1 MB | — | — | Done |
+| `GET /me/recommendation` | cookie | — | caller's own credit usage; numbers only | `marketQuerySchema` | 30/min | — | — | — | Done |
 | `GET /admin/ai/providers, /models, /routes, /settings` | cookie + 2FA session | ai.read | platform data | 120/min | — | Done |
 | `POST/PATCH/DELETE /admin/ai/providers` | cookie + 2FA session + fresh auth 10 min | ai.write | platform data; key encrypted, never returned | 30/min | `ai.provider.*` (no key material) | Done |
 | `POST /admin/ai/providers/:id/test, GET .../discover` | cookie + 2FA session | ai.write / ai.read | platform data | 10 / 20 per min | `ai.provider.test` | Done |

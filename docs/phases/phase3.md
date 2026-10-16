@@ -133,8 +133,8 @@ Tables (conventions per DATABASE.md §1; closed sets are tuples in `@wasfa/share
 - **Seed (insert-only):** plans `plus`, `pro`, `clinic` (hidden until the owner publishes prices), tax rule (disabled until the accountant answers), payment methods `kashier_card` (disabled until keys), `instapay` and `vodafone_cash` (enabled, number `01014677026`), default reward program and rules (defaults in REFERRALS §3.3, **`rewards.enabled = false` until the owner switches it on**), referral program `standard`.
 
 Acceptance
-- [ ] Migrations apply on Postgres 18; integration tests assert every CHECK, FK and unique constraint **by name**, including the append-only grants and idempotency keys.
-- [ ] `DATABASE.md` documents each table, ownership and retention (payment proofs: `billing.proofRetentionDays` default 365; `growth_events`: 13 months; `admin_alerts`: 90 days).
+- [x] Migrations apply on Postgres 18; integration tests assert every CHECK, FK and unique constraint **by name**, including the append-only grants and idempotency keys.
+- [x] `DATABASE.md` documents each table, ownership and retention (payment proofs: `billing.proofRetentionDays` default 365; `growth_events`: 13 months; `admin_alerts`: 90 days).
 
 ## Task 3.2 — Price engine and catalog API (WP1)
 
@@ -146,8 +146,8 @@ Acceptance
 4. Quote storage: short-lived (15 min) in Redis with the HMAC hash; checkout order creation (3.3) verifies it.
 
 Acceptance
-- [ ] Engine tests green including property tests; no I/O imports in the engine file (lint rule).
-- [ ] `/catalog` is cacheable (per currency/country), contains no private coupon or deal data; unauthenticated `/billing/quote` ⇒ 401.
+- [x] Engine tests green including property tests; no I/O imports in the engine file (lint rule).
+- [x] `/catalog` is cacheable (per currency/country), contains no private coupon or deal data; unauthenticated `/billing/quote` ⇒ 401.
 
 ## Task 3.3 — Payments core, Kashier, reconciliation (WP2)
 

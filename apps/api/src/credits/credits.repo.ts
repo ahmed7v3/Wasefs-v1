@@ -21,7 +21,7 @@ import {
   type SweepResult,
   type WalletOwner,
 } from "@wasfa/db";
-import { and, desc, eq, ilike, isNull, ne, or, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, isNull, ne, or, sql, type SQL } from "drizzle-orm";
 
 import { afterCursor, escapeLike, stamp, type Cursor } from "../admin/common/keyset.js";
 import { DB, type DbHandle } from "../common/database.js";
@@ -126,6 +126,23 @@ export class CreditsRepo {
   async personalWallet(userId: string): Promise<CreditWallet | undefined> {
     const [wallet] = await this.userWallets.list(userId);
     return wallet;
+  }
+
+  /** Credits the personal wallet of the user spent (settled usage) since `since`; no wallet means 0. */
+  async usedSince(userId: string, since: Date): Promise<number> {
+    const wallet = await this.personalWallet(userId);
+    if (!wallet) return 0;
+    const [row] = await this.handle.db
+      .select({ total: sql<number>`coalesce(sum(-${creditLedger.amount}), 0)::int` })
+      .from(creditLedger)
+      .where(
+        and(
+          eq(creditLedger.walletId, wallet.id),
+          eq(creditLedger.kind, "usage_settle"),
+          gte(creditLedger.createdAt, since),
+        ),
+      );
+    return row?.total ?? 0;
   }
 
   async findWallet(walletId: string): Promise<CreditWallet | undefined> {

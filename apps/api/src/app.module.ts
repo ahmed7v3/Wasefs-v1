@@ -4,7 +4,9 @@ import { APP_FILTER, APP_PIPE } from "@nestjs/core";
 import { AdminModule } from "./admin/admin.module.js";
 import { AuditModule } from "./audit/audit.module.js";
 import { AuthModule } from "./auth/auth.module.js";
+import { BillingModule } from "./billing/billing.module.js";
 import { BrandingModule } from "./branding/branding.module.js";
+import { CatalogModule } from "./catalog/catalog.module.js";
 import { ChatModule } from "./chat/chat.module.js";
 import { AccessModule } from "./common/access.module.js";
 import { DatabaseModule } from "./common/database.js";
@@ -62,6 +64,8 @@ export class AppModule {
         OnboardingModule,
         UsersModule,
         CreditsModule,
+        BillingModule,
+        CatalogModule,
         FilesModule,
         ChatModule,
         RxModule,

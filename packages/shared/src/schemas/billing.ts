@@ -9,6 +9,7 @@ import {
   DISCOUNT_KINDS,
   DISCOUNT_STATUSES,
   MAX_BPS,
+  PAYMENT_METHOD_KINDS,
   PROMOTION_KINDS,
   STACKING_MODES,
 } from "../billing.js";
@@ -195,3 +196,182 @@ export const updateCouponSchema = z
   .partial()
   .refine((value) => Object.keys(value).length > 0, "at least one field");
 export type UpdateCouponInput = z.output<typeof updateCouponSchema>;
+
+// --- Catalog, quote and recommendation responses (Task 3.2) -----------------------------------------
+// Responses are parsed with these schemas before they leave the API, so a column added to a table
+// can never reach the public catalog by accident.
+
+/** `?currency=` and `?country=`: free text on purpose, an unknown value falls back instead of failing. */
+export const marketQuerySchema = z.object({
+  currency: z.string().max(16).optional(),
+  country: z.string().max(8).optional(),
+});
+export type MarketQuery = z.output<typeof marketQuerySchema>;
+
+const localizedSchema = z.object({ ar: z.string(), en: z.string() });
+
+export const catalogPriceSchema = z.object({
+  months: monthsSchema,
+  amountMinor: minorAmountSchema,
+  /** Id of the promotion this price already includes, for the card badge. */
+  promotionId: z.uuid().nullable(),
+  display: z.object({
+    headlineMinor: minorAmountSchema,
+    struckMinor: minorAmountSchema.nullable(),
+    savingsMinor: minorAmountSchema,
+    perMonthMinor: minorAmountSchema,
+  }),
+});
+
+export const catalogPlanSchema = z.object({
+  key: z.string(),
+  audience: z.enum(PLAN_AUDIENCES),
+  names: localizedSchema,
+  tagline: localizedSchema.nullable(),
+  features: planFeaturesSchema,
+  badge: localizedSchema.nullable(),
+  pinRecommended: z.boolean(),
+  trialDays: z.number().int().min(0),
+  monthlyCredits: z.number().int().min(0),
+  maxMembers: z.number().int().positive().nullable(),
+  fairUseNote: localizedSchema.nullable(),
+  prices: z.array(catalogPriceSchema),
+  /** 12 x the monthly price minus the 12-month price, when both exist and it is not negative. */
+  annualSavingsMinor: minorAmountSchema.optional(),
+});
+
+export const catalogPromotionSchema = z.object({
+  id: z.uuid(),
+  title: localizedSchema,
+  badge: localizedSchema.nullable(),
+  /** Only when the promotion has `show_countdown`; always a real, enforced end. */
+  endsAt: z.string().nullable(),
+});
+
+export const catalogCreditPackSchema = z.object({
+  key: z.string(),
+  names: localizedSchema,
+  credits: z.number().int().positive(),
+  bonusCredits: z.number().int().min(0),
+  validMonths: z.number().int().positive(),
+  amountMinor: minorAmountSchema,
+});
+
+export const catalogMethodSchema = z.object({
+  key: z.string(),
+  kind: z.enum(PAYMENT_METHOD_KINDS),
+  names: localizedSchema,
+  feeBps: bpsSchema,
+  feeFixedMinor: minorAmountSchema,
+  feeFree: z.boolean(),
+});
+
+export const catalogResponseSchema = z.object({
+  currency: currencyCodeSchema,
+  country: z
+    .string()
+    .regex(/^[A-Z]{2}$/)
+    .nullable(),
+  plans: z.array(catalogPlanSchema),
+  promotions: z.array(catalogPromotionSchema),
+  creditPacks: z.array(catalogCreditPackSchema),
+  tax: z.object({ mode: z.enum(["inclusive", "added", "none"]) }),
+  methods: z.array(catalogMethodSchema),
+  billing: z.object({
+    trialAvailable: z.boolean(),
+    reviewSlaMinutes: z.number().int(),
+    refundWindowDays: z.number().int(),
+  }),
+});
+export type CatalogResponse = z.output<typeof catalogResponseSchema>;
+export type CatalogPlan = z.output<typeof catalogPlanSchema>;
+
+const quoteLineSchema = z.object({
+  kind: z.enum(["plan", "discount", "proration", "adjustment", "tax", "fee", "bonus"]),
+  labelKey: z.string(),
+  amountMinor: z.number().int(),
+  meta: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
+});
+
+/** Mirror of the engine's `PriceQuote`; the engine stays the source of truth. */
+export const priceQuoteSchema = z.object({
+  quoteVersion: z.literal(1),
+  planKey: z.string(),
+  months: monthsSchema,
+  currency: currencyCodeSchema,
+  lines: z.array(quoteLineSchema),
+  listPriceMinor: minorAmountSchema,
+  subtotalMinor: minorAmountSchema,
+  taxMinor: minorAmountSchema,
+  taxAddedMinor: minorAmountSchema,
+  taxIncludedMinor: minorAmountSchema,
+  taxMode: z.enum(["added", "inclusive"]).nullable(),
+  feeMinor: minorAmountSchema,
+  totalMinor: minorAmountSchema,
+  methodKey: z.string().nullable(),
+  methodOptions: z.array(
+    z.object({
+      key: z.string(),
+      feeMinor: z.number().int(),
+      totalMinor: minorAmountSchema,
+      available: z.boolean(),
+    }),
+  ),
+  isFreeOrder: z.boolean(),
+  grants: z.object({
+    bonusCredits: z.number().int().min(0),
+    extraMonths: z.number().int().min(0),
+  }),
+  applied: z.object({
+    dealId: z.string().optional(),
+    promotionId: z.string().optional(),
+    couponId: z.string().optional(),
+    personalOfferId: z.string().optional(),
+  }),
+  display: z.object({
+    headlineMinor: minorAmountSchema,
+    struckMinor: minorAmountSchema.nullable(),
+    savingsMinor: z.number().int(),
+    savingsBps: z.number().int(),
+    perMonthMinor: minorAmountSchema,
+    feeLine: z.object({
+      amountMinor: minorAmountSchema,
+      show: z.boolean(),
+      items: z.array(z.object({ kind: z.enum(["tax", "fee"]), amountMinor: minorAmountSchema })),
+    }),
+    buttonTotalMinor: minorAmountSchema,
+  }),
+  expiresAt: z.string(),
+});
+
+/** `applied` and `not_applied` are for a usable code; every refusal is one generic `invalid`. */
+export const COUPON_OUTCOMES = ["applied", "not_applied", "invalid"] as const;
+export const couponOutcomeSchema = z.object({
+  status: z.enum(COUPON_OUTCOMES),
+  /** Only for a code that exists, is meant for the caller and starts later. */
+  startsAt: z.string().optional(),
+});
+export type CouponOutcome = z.output<typeof couponOutcomeSchema>;
+
+export const quoteResponseSchema = z.object({
+  quoteId: z.uuid(),
+  quote: priceQuoteSchema,
+  coupon: couponOutcomeSchema.nullable(),
+});
+export type QuoteResponse = z.output<typeof quoteResponseSchema>;
+
+export const recommendationResponseSchema = z.object({
+  usage30dCredits: z.number().int().min(0),
+  currency: currencyCodeSchema,
+  recommended: z
+    .object({
+      planKey: z.string(),
+      months: z.literal(1),
+      amountMinor: minorAmountSchema,
+      perCreditMinor: minorAmountSchema,
+    })
+    .nullable(),
+  packPerCreditMinor: minorAmountSchema.nullable(),
+  currentPlanKey: z.string(),
+});
+export type RecommendationResponse = z.output<typeof recommendationResponseSchema>;

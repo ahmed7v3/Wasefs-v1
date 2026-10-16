@@ -174,6 +174,18 @@ export type AlertChannel = (typeof ALERT_CHANNELS)[number];
 export const ALERT_DELIVERY_STATUSES = ["pending", "sent", "failed", "skipped"] as const;
 export type AlertDeliveryStatus = (typeof ALERT_DELIVERY_STATUSES)[number];
 
+// --- Markets ------------------------------------------------------------------------------------
+
+/**
+ * Currency a visitor from a country most likely pays in (`CF-IPCountry`). Only used when that
+ * currency is enabled in the `currency` setting; every other country falls back to the default.
+ */
+export const COUNTRY_CURRENCY: Readonly<Record<string, string>> = {
+  EG: "EGP",
+  SA: "SAR",
+  AE: "AED",
+};
+
 // --- Public view of the billing setting -------------------------------------------------------
 
 export interface BillingPublicView {
