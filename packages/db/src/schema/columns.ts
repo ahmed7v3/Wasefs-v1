@@ -22,7 +22,8 @@ export const citext = customType<{ data: string }>({
 });
 
 // Values come from our own const tuples, never from users; the pattern keeps it that way.
-const SAFE_LITERAL = /^[a-z][a-z0-9_]*$/;
+// Dots are allowed for dotted identifiers such as alert kinds (`payment.review_needed`).
+const SAFE_LITERAL = /^[a-z][a-z0-9_.]*$/;
 
 function literals(values: readonly string[]): string {
   return values

@@ -41,6 +41,10 @@ const KIND_TONES: Record<CreditLedgerEntryView["kind"], BadgeTone> = {
   release: "neutral",
   refund: "info",
   expiry: "warning",
+  purchase: "success",
+  points_conversion: "success",
+  trial_grant: "success",
+  reward_bonus: "success",
 };
 
 const kindKey = {
@@ -51,6 +55,10 @@ const kindKey = {
   release: "admin.credits.kind.release",
   refund: "admin.credits.kind.refund",
   expiry: "admin.credits.kind.expiry",
+  purchase: "admin.credits.kind.purchase",
+  points_conversion: "admin.credits.kind.points_conversion",
+  trial_grant: "admin.credits.kind.trial_grant",
+  reward_bonus: "admin.credits.kind.reward_bonus",
 } as const;
 
 /** `+12` / `−5`: the sign is text as well as colour. Always a left-to-right run. */

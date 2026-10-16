@@ -1,0 +1,118 @@
+{
+  "currency": "SAR",
+  "settings": {
+    "maxTotalDiscountBps": 7000,
+    "minChargeMinor": 500,
+    "minChargeMode": "raise",
+    "allowFreeOrders": true,
+    "quoteTtlMinutes": 15
+  },
+  "prices": {
+    "plus:1": 1900,
+    "plus:12": 19000,
+    "pro:1": 5900,
+    "pro:12": 59000,
+    "clinic:1": 18900,
+    "clinic:12": 189000
+  },
+  "promotion": {
+    "id": "promo20",
+    "source": "promotion",
+    "kind": "percent",
+    "valueBps": 2000,
+    "scope": {},
+    "stacking": "exclusive",
+    "priority": 0
+  },
+  "coupon": {
+    "id": "coupon10",
+    "source": "coupon",
+    "kind": "percent",
+    "valueBps": 1000,
+    "scope": {},
+    "stacking": "exclusive",
+    "priority": 0
+  },
+  "taxes": {
+    "inclusive": { "id": "vat15i", "rateBps": 1500, "mode": "inclusive" },
+    "added": { "id": "vat15a", "rateBps": 1500, "mode": "added" }
+  },
+  "methods": [
+    { "key": "kashier", "feeBps": 275, "feeFixedMinor": 300 },
+    { "key": "manual", "feeBps": 0, "feeFixedMinor": 0 }
+  ],
+  "cases": [
+    {
+      "name": "plus 1m list",
+      "plan": "plus",
+      "months": 1,
+      "promo": false,
+      "coupon": false,
+      "tax": "none",
+      "method": null,
+      "expected": { "subtotal": 1900, "taxAdded": 0, "taxIncluded": 0, "fee": 0, "total": 1900 }
+    },
+    {
+      "name": "plus 1m promo 20% (1900-380)",
+      "plan": "plus",
+      "months": 1,
+      "promo": true,
+      "coupon": false,
+      "tax": "none",
+      "method": "manual",
+      "expected": { "subtotal": 1520, "taxAdded": 0, "taxIncluded": 0, "fee": 0, "total": 1520 }
+    },
+    {
+      "name": "clinic 1m coupon, inclusive 15%: 17010*15/115 = 2218.7",
+      "plan": "clinic",
+      "months": 1,
+      "promo": false,
+      "coupon": true,
+      "tax": "inclusive",
+      "method": "manual",
+      "expected": {
+        "subtotal": 17010,
+        "taxAdded": 0,
+        "taxIncluded": 2219,
+        "fee": 0,
+        "total": 17010
+      }
+    },
+    {
+      "name": "pro 12m promo, added 15% + kashier: ceil(54580/0.9725)=56124",
+      "plan": "pro",
+      "months": 12,
+      "promo": true,
+      "coupon": false,
+      "tax": "added",
+      "method": "kashier",
+      "expected": {
+        "subtotal": 47200,
+        "taxAdded": 7080,
+        "taxIncluded": 0,
+        "fee": 1844,
+        "total": 56124
+      }
+    },
+    {
+      "name": "plus 12m both: best-of takes the 20% (19000-3800)",
+      "plan": "plus",
+      "months": 12,
+      "promo": true,
+      "coupon": true,
+      "tax": "none",
+      "method": "manual",
+      "expected": { "subtotal": 15200, "taxAdded": 0, "taxIncluded": 0, "fee": 0, "total": 15200 }
+    },
+    {
+      "name": "plus 1m coupon, added 15%: 1710*0.15 = 256.5 rounds half-up to 257",
+      "plan": "plus",
+      "months": 1,
+      "promo": false,
+      "coupon": true,
+      "tax": "added",
+      "method": "manual",
+      "expected": { "subtotal": 1710, "taxAdded": 257, "taxIncluded": 0, "fee": 0, "total": 1967 }
+    }
+  ]
+}

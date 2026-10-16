@@ -352,6 +352,15 @@ export const arAdmin = {
   "admin.settings.uploads.description":
     "المدة التي تُحفظ فيها صور الروشتات قبل حذفها. نتائج التحليل تبقى.",
   "admin.settings.field.uploads.retentionDays": "أيام الاحتفاظ بالصور",
+  "admin.settings.billing.title": "الفوترة",
+  "admin.settings.billing.description":
+    "الحد الأدنى للدفع ومدة صلاحية العرض والطلب وأيام السماح ومهلة الاسترداد وحد الموافقة المزدوجة والتجربة وبيانات الإيصال. المبالغ بوحدات العملة الصغرى.",
+  "admin.settings.rewards.title": "الإحالات والمكافآت",
+  "admin.settings.rewards.description":
+    "تشغيل مكافآت الإحالة وقيمة النقطة وقواعد السحب وحدود مكافحة الاحتيال. متوقفة إلى أن يفعّلها المالك.",
+  "admin.settings.growth.title": "النمو",
+  "admin.settings.growth.description":
+    "رسائل التحويل وتجارب الأوضاع المميزة وعروض دورة حياة العميل وضوابط التجارب.",
   "admin.settings.rx.description": "سعر الصفحة بالنقاط وحدود التحليل. ظاهر للمستخدمين قبل التحليل.",
   "admin.settings.auth.title": "المصادقة",
   "admin.settings.auth.description":

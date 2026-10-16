@@ -5,9 +5,20 @@ import {
   ORG_TYPES,
 } from "@wasfa/shared/identity";
 import { sql } from "drizzle-orm";
-import { check, index, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  check,
+  foreignKey,
+  index,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
 
 import { citext, idColumn, inList, matches, timestamps } from "./columns.js";
+import { organizationJoinLinks } from "./deals.js";
 import { users } from "./users.js";
 
 /*
@@ -24,6 +35,8 @@ export const organizations = pgTable(
     type: text({ enum: ORG_TYPES }).notNull(),
     country: text().notNull(),
     city: text(),
+    // Phase 3 (BILLING §8): may a member fall back to personal credits when the organization wallet is empty?
+    allowPersonalFallback: boolean().notNull().default(false),
     // The founder. RESTRICT: users are anonymized, never deleted, so this row can never dangle.
     createdBy: uuid()
       .notNull()
@@ -50,10 +63,18 @@ export const organizationMembers = pgTable(
     role: text({ enum: ORG_MEMBER_ROLES }).notNull().default("org_member"),
     invitedBy: uuid().references(() => users.id, { onDelete: "set null" }),
     joinedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    // Phase 3: the join link the member arrived through (its deal terms follow the member).
+    joinedViaLinkId: uuid(),
   },
   (table) => [
     primaryKey({ columns: [table.orgId, table.userId], name: "organization_members_pkey" }),
     check("organization_members_role_check", inList(table.role, ORG_MEMBER_ROLES)),
+    // Explicit name: the generated one is over 63 characters.
+    foreignKey({
+      name: "organization_members_join_link_fk",
+      columns: [table.joinedViaLinkId],
+      foreignColumns: [organizationJoinLinks.id],
+    }).onDelete("set null"),
     // "Which organizations am I in?" (the primary key already serves "who is in this org?").
     index("organization_members_user_id_idx").on(table.userId),
   ],

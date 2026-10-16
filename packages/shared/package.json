@@ -85,6 +85,11 @@
       "import": "./dist/money.js",
       "default": "./dist/money.js"
     },
+    "./price-engine": {
+      "types": "./dist/price-engine.d.ts",
+      "import": "./dist/price-engine.js",
+      "default": "./dist/price-engine.js"
+    },
     "./permissions": {
       "types": "./dist/permissions.d.ts",
       "import": "./dist/permissions.js",
@@ -94,6 +99,41 @@
       "types": "./dist/plans.d.ts",
       "import": "./dist/plans.js",
       "default": "./dist/plans.js"
+    },
+    "./billing": {
+      "types": "./dist/billing.d.ts",
+      "import": "./dist/billing.js",
+      "default": "./dist/billing.js"
+    },
+    "./rewards": {
+      "types": "./dist/rewards.d.ts",
+      "import": "./dist/rewards.js",
+      "default": "./dist/rewards.js"
+    },
+    "./growth": {
+      "types": "./dist/growth.d.ts",
+      "import": "./dist/growth.js",
+      "default": "./dist/growth.js"
+    },
+    "./schemas/billing": {
+      "types": "./dist/schemas/billing.d.ts",
+      "import": "./dist/schemas/billing.js",
+      "default": "./dist/schemas/billing.js"
+    },
+    "./schemas/rewards": {
+      "types": "./dist/schemas/rewards.d.ts",
+      "import": "./dist/schemas/rewards.js",
+      "default": "./dist/schemas/rewards.js"
+    },
+    "./schemas/deals": {
+      "types": "./dist/schemas/deals.d.ts",
+      "import": "./dist/schemas/deals.js",
+      "default": "./dist/schemas/deals.js"
+    },
+    "./schemas/growth": {
+      "types": "./dist/schemas/growth.d.ts",
+      "import": "./dist/schemas/growth.js",
+      "default": "./dist/schemas/growth.js"
     },
     "./settings": {
       "types": "./dist/settings.d.ts",
@@ -227,6 +267,7 @@
     "@types/node": "^24.0.0",
     "@wasfa/config": "workspace:*",
     "eslint": "^10.12.0",
+    "fast-check": "^4.10.2",
     "typescript": "^5.9.3",
     "vitest": "^5.0.3"
   }

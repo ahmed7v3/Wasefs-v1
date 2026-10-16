@@ -171,6 +171,136 @@ export function skillEnabledForPlan(
   return rule === undefined || rule === "all" || rule.includes(planKey);
 }
 
+const bps = z.number().int().min(0).max(10_000);
+const nonNegativeInt = z.number().int().min(0).max(1_000_000_000);
+
+/**
+ * Billing (Phase 3, BILLING §11). Admin only: the public catalog gets `billingPublicView()`. Money
+ * is integer minor units; currencies are NOT duplicated here (the public `currency` setting is the
+ * source for checkout currencies).
+ */
+export const billingSettingsSchema = z.object({
+  allowFreeOrders: z.boolean().default(true),
+  /** A positive total below this is raised to it or refused (`minChargeMode`), never silently dropped. */
+  minChargeMinor: nonNegativeInt.default(1_000),
+  minChargeMode: z.enum(["raise", "refuse"]).default("raise"),
+  quoteTtlMinutes: z.number().int().min(1).max(1_440).default(15),
+  orderTtlHours: z.number().int().min(1).max(720).default(24),
+  graceDays: z.number().int().min(0).max(60).default(2),
+  refundWindowDays: z.number().int().min(0).max(365).default(7),
+  maxTotalDiscountBps: bps.default(7_000),
+  /** Manual payments at or above this need a second admin. */
+  fourEyesThresholdMinor: nonNegativeInt.default(500_000),
+  reviewSlaMinutes: z.number().int().min(1).max(10_080).default(120),
+  /** Retention of payment proof images, in days. */
+  proofRetentionDays: z.number().int().min(1).max(3_650).default(365),
+  fx: z
+    .object({ usdToEgp: z.number().positive().max(100_000).default(50) })
+    .default({ usdToEgp: 50 }),
+  /** Legal details printed on receipts (null until the owner enters them). */
+  company: z
+    .object({
+      legalName: z.string().trim().max(200).nullable().default(null),
+      address: z.string().trim().max(500).nullable().default(null),
+      taxId: z.string().trim().max(60).nullable().default(null),
+    })
+    .default({ legalName: null, address: null, taxId: null }),
+  creditPackValidMonths: z.number().int().min(1).max(120).default(12),
+  trial: z
+    .object({
+      /** Credits granted by a trial; 0 turns trials off. */
+      credits: z.number().int().min(0).max(100_000).default(20),
+      oncePerPhone: z.boolean().default(true),
+    })
+    .default({ credits: 20, oncePerPhone: true }),
+});
+
+/**
+ * Referrals, points and withdrawals (Phase 3, REFERRALS-REWARDS §9). Admin only. Off until the owner
+ * switches it on; `killSwitch` stops new rewards and withdrawals at once.
+ */
+export const rewardsSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  killSwitch: z.boolean().default(false),
+  /** Piasters per point: 10 means 1,000 points = 100 EGP. */
+  pointValueMinor: z.number().int().min(1).max(1_000_000).default(10),
+  currency: currencyCode.default("EGP"),
+  minWithdrawalPoints: nonNegativeInt.default(1_000),
+  maxWithdrawalPointsPerMonth: nonNegativeInt.default(100_000),
+  minAccountAgeDays: z.number().int().min(0).max(365).default(7),
+  destinationCooldownHours: z.number().int().min(0).max(720).default(48),
+  holdDaysDefault: z.number().int().min(0).max(365).default(14),
+  fourEyesThresholdPoints: nonNegativeInt.default(50_000),
+  pointsPerCredit: z.number().int().min(1).max(100_000).default(5),
+  creditConversionBonusBps: bps.default(2_000),
+  requireFirstUsage: z.boolean().default(true),
+  weeklyBudgetPoints: nonNegativeInt.default(1_000_000),
+  /** Months after which unused points expire; null = never. */
+  expireAfterMonths: z.number().int().min(1).max(120).nullable().default(null),
+  fraud: z
+    .object({
+      holdSamePhone: z.boolean().default(true),
+      holdSamePayer: z.boolean().default(true),
+      holdSameDevice: z.boolean().default(true),
+      /** Sign-ups per hour of one referrer above which everything is held and an alert is raised. */
+      velocityPerHour: z.number().int().min(1).max(10_000).default(10),
+    })
+    .default({
+      holdSamePhone: true,
+      holdSamePayer: true,
+      holdSameDevice: true,
+      velocityPerHour: 10,
+    }),
+  payoutSlaHours: z.number().int().min(1).max(720).default(48),
+  tiersEnabled: z.boolean().default(false),
+});
+
+/** Conversion prompts, taste grants, lifecycle mail and experiments (Phase 3, GROWTH-STRATEGY §9). Admin only. */
+export const growthSettingsSchema = z.object({
+  prompts: z
+    .object({
+      enabled: z.boolean().default(true),
+      cooldownDays: z.number().int().min(0).max(365).default(7),
+      maxPerSession: z.number().int().min(0).max(10).default(1),
+    })
+    .default({ enabled: true, cooldownDays: 7, maxPerSession: 1 }),
+  taste: z
+    .object({
+      enabled: z.boolean().default(true),
+      /** Global cap of free premium uses per week (cost control). */
+      weeklyCap: z.number().int().min(0).max(1_000_000).default(100),
+    })
+    .default({ enabled: true, weeklyCap: 100 }),
+  proof: z
+    .object({ minCount: z.number().int().min(0).max(1_000_000).default(50) })
+    .default({ minCount: 50 }),
+  mostChosen: z
+    .object({ minSample: z.number().int().min(1).max(1_000_000).default(50) })
+    .default({ minSample: 50 }),
+  marketingMail: z
+    .object({ maxPerWeek: z.number().int().min(0).max(14).default(1) })
+    .default({ maxPerWeek: 1 }),
+  experiments: z
+    .object({
+      /** A variant that worsens a guardrail metric by more than this is flagged red. */
+      guardrailBps: bps.default(500),
+      minSampleSize: z.number().int().min(1).max(10_000_000).default(200),
+    })
+    .default({ guardrailBps: 500, minSampleSize: 200 }),
+  welcomeOffer: z
+    .object({
+      enabled: z.boolean().default(true),
+      validityHours: z.number().int().min(1).max(720).default(48),
+    })
+    .default({ enabled: true, validityHours: 48 }),
+  winback: z
+    .object({
+      enabled: z.boolean().default(true),
+      validityDays: z.number().int().min(1).max(90).default(7),
+    })
+    .default({ enabled: true, validityDays: 7 }),
+});
+
 export const SETTING_VISIBILITIES = ["public", "admin"] as const;
 export type SettingVisibility = (typeof SETTING_VISIBILITIES)[number];
 
@@ -193,6 +323,10 @@ export const SETTINGS_REGISTRY = {
   uploads: { schema: uploadsSettingsSchema, visibility: "admin" },
   /** Admin only: per-plan enablement of assistant skills, edited on `/admin/ai/skills`. */
   skills: { schema: skillsSettingsSchema, visibility: "admin" },
+  /** Admin only: the public catalog shows a subset through `billingPublicView()`, not as a settings key. */
+  billing: { schema: billingSettingsSchema, visibility: "admin" },
+  rewards: { schema: rewardsSettingsSchema, visibility: "admin" },
+  growth: { schema: growthSettingsSchema, visibility: "admin" },
 } as const satisfies Record<string, { schema: z.ZodType; visibility: SettingVisibility }>;
 
 export type SettingsRegistry = typeof SETTINGS_REGISTRY;

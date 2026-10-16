@@ -15,6 +15,15 @@ export const ownerColumns = () => ({
   ownerOrgId: uuid().references(() => organizations.id, { onDelete: "cascade" }),
 });
 
+/**
+ * Owner pattern of money tables (orders, subscriptions, taste grants): the same two columns, but the
+ * organization FK is RESTRICT. Money history must never cascade away with an organization.
+ */
+export const billingOwnerColumns = () => ({
+  ownerUserId: uuid().references(() => users.id, { onDelete: "restrict" }),
+  ownerOrgId: uuid().references(() => organizations.id, { onDelete: "restrict" }),
+});
+
 interface OwnerTable {
   ownerUserId: AnyPgColumn;
   ownerOrgId: AnyPgColumn;

@@ -7,4 +7,5 @@ export * from "./migrations.js";
 export * from "./pg-errors.js";
 export * from "./schema/index.js";
 export * from "./seed-ai.js";
+export * from "./seed-billing.js";
 export * from "./seed-data.js";

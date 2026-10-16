@@ -356,6 +356,15 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
   "admin.settings.uploads.description":
     "How long prescription images are kept before they are deleted. Analysis results stay.",
   "admin.settings.field.uploads.retentionDays": "Days to keep images",
+  "admin.settings.billing.title": "Billing",
+  "admin.settings.billing.description":
+    "Minimum charge, quote and order lifetimes, grace days, refund window, four-eyes threshold, trial and receipt details. Amounts are in minor units.",
+  "admin.settings.rewards.title": "Referrals and rewards",
+  "admin.settings.rewards.description":
+    "Switch referral rewards on, point value, withdrawal rules and fraud limits. Off until the owner enables it.",
+  "admin.settings.growth.title": "Growth",
+  "admin.settings.growth.description":
+    "Conversion prompts, free trials of premium modes, lifecycle offers and experiment guardrails.",
   "admin.settings.rx.description":
     "Price per page in credits and analysis limits. Shown to users before they analyse.",
   "admin.settings.auth.title": "Authentication",

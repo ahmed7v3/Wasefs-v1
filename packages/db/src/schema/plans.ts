@@ -1,12 +1,14 @@
 import { AI_MODES, AI_TASKS } from "@wasfa/shared/ai";
 import { PLAN_AUDIENCES, PLAN_KEY_PATTERN, PLAN_VISIBILITIES } from "@wasfa/shared/plans";
 import { RX_MAX_PAGES } from "@wasfa/shared/rx";
+import { PLAN_FEATURES_MAX, type PlanFeature } from "@wasfa/shared/schemas/billing";
 import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -17,6 +19,7 @@ import {
 
 import { arrayWithin, idColumn, inList, matches, timestamps } from "./columns.js";
 import { ownerCheck, ownerColumns } from "./owner.js";
+import { subscriptions } from "./subscriptions.js";
 import { users } from "./users.js";
 
 /*
@@ -39,6 +42,17 @@ export const plans = pgTable(
     sort: integer().notNull().default(0),
     badgeAr: text(),
     badgeEn: text(),
+    // Phase 3 (BILLING §2.1): marketing copy and the pricing-page card.
+    taglineAr: text(),
+    taglineEn: text(),
+    // Ordered bullet list; shape guarded by `planFeaturesSchema`.
+    features: jsonb().$type<PlanFeature[]>().notNull().default([]),
+    trialDays: integer().notNull().default(0),
+    pinRecommended: boolean().notNull().default(false),
+    // Seat limit of an organization plan (null = no limit).
+    maxMembers: integer(),
+    fairUseNoteAr: text(),
+    fairUseNoteEn: text(),
     ...timestamps(),
   },
   (table) => [
@@ -46,6 +60,12 @@ export const plans = pgTable(
     check("plans_audience_check", inList(table.audience, PLAN_AUDIENCES)),
     check("plans_visibility_check", inList(table.visibility, PLAN_VISIBILITIES)),
     check("plans_monthly_credits_check", sql`${table.monthlyCredits} >= 0`),
+    check(
+      "plans_features_check",
+      sql`case when jsonb_typeof(${table.features}) = 'array' then jsonb_array_length(${table.features}) <= ${sql.raw(String(PLAN_FEATURES_MAX))} else false end`,
+    ),
+    check("plans_trial_days_check", sql`${table.trialDays} between 0 and 365`),
+    check("plans_max_members_check", sql`${table.maxMembers} is null or ${table.maxMembers} > 0`),
     // At most one default plan; the service guarantees there is one.
     uniqueIndex("plans_one_default_idx")
       .on(table.isDefault)
@@ -105,6 +125,8 @@ export const planAssignments = pgTable(
     endsAt: timestamp({ withTimezone: true }),
     assignedBy: uuid().references(() => users.id, { onDelete: "set null" }),
     reason: text(),
+    // The subscription period this assignment realises (null for manual assignments).
+    subscriptionId: uuid().references(() => subscriptions.id, { onDelete: "set null" }),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -115,6 +137,9 @@ export const planAssignments = pgTable(
     ),
     index("plan_assignments_owner_user_starts_idx").on(table.ownerUserId, table.startsAt),
     index("plan_assignments_owner_org_starts_idx").on(table.ownerOrgId, table.startsAt),
+    index("plan_assignments_subscription_idx")
+      .on(table.subscriptionId)
+      .where(sql`${table.subscriptionId} is not null`),
   ],
 );
 
