@@ -147,8 +147,10 @@ const inputArb = (exclusiveOnly = false): fc.Arbitrary<QuoteInput> =>
     });
 
 const RUNS = { numRuns: 10_000 };
+// 10,000 runs take ~2 s locally but can pass 5 s (the vitest default) on a shared CI runner.
+const PROPERTY_TIMEOUT_MS = 60_000;
 
-describe("price engine properties (10,000 baskets)", () => {
+describe("price engine properties (10,000 baskets)", { timeout: PROPERTY_TIMEOUT_MS }, () => {
   it("holds the BILLING §4 invariants and is deterministic", () => {
     fc.assert(
       fc.property(inputArb(), (i) => {
