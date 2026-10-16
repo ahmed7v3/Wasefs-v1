@@ -49,7 +49,7 @@ export class LedgerError extends Error {
   }
 }
 
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+export type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 export const RESERVATION_DEFAULT_TTL_SECONDS = 900;
 const SWEEP_DEFAULT_LIMIT = 500;
@@ -489,7 +489,8 @@ export async function expireUnused(
     const wallet = await lockOwnerWallet(tx, owner);
     const key = `expiry:${wallet.id}:${period}`;
     const existing = await findByKey(tx, key);
-    if (existing) return writeResult(wallet.id, existing, existing.balanceAfter - existing.amount, true);
+    if (existing)
+      return writeResult(wallet.id, existing, existing.balanceAfter - existing.amount, true);
 
     const granted = await findByKey(tx, `grant:${owner.type}:${owner.id}:${period}`);
     if (!granted || granted.amount <= 0) return null;
@@ -525,6 +526,38 @@ export async function refund(
     },
     false,
   );
+}
+
+/**
+ * A credit movement inside a transaction the caller already holds (payment activation, refunds),
+ * so the credits commit or roll back together with the order. Positive amounts are grants;
+ * a negative amount is a clawback that never takes the wallet below zero (it takes what is left,
+ * and writes nothing when nothing is left). Idempotent by key like every other operation.
+ */
+export async function moveCreditsInTransaction(
+  tx: Transaction,
+  owner: WalletOwner,
+  entry: {
+    kind: CreditLedgerKind;
+    amount: number;
+    idempotencyKey: string;
+    reason?: string | undefined;
+    actorId?: string | undefined;
+  },
+): Promise<LedgerWrite | null> {
+  if (!Number.isSafeInteger(entry.amount) || entry.amount === 0) {
+    throw new LedgerError("invalid_amount");
+  }
+  const wallet = await lockOwnerWallet(tx, owner);
+  const existing = await findByKey(tx, entry.idempotencyKey);
+  if (existing) {
+    sameWallet(existing, wallet);
+    return writeResult(wallet.id, existing, existing.balanceAfter - existing.amount, true);
+  }
+  const amount = entry.amount > 0 ? entry.amount : -Math.min(wallet.balance, -entry.amount);
+  if (amount === 0) return null;
+  const { row } = await append(tx, wallet, wallet.balance, { ...entry, amount });
+  return writeResult(wallet.id, row, wallet.balance, false);
 }
 
 /** `YYYY-MM` of a moment, in UTC: the grant period. */

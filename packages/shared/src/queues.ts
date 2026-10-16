@@ -41,6 +41,14 @@ export const creditsMaintenancePayloadSchema = z.object({});
 export const filesRetentionPayloadSchema = z.object({});
 
 /**
+ * Payments (Phase 3, Task 3.3), all scheduled with no payload: `payments.reconcile` asks the
+ * provider about open gateway payments, `payments.expire_orders` closes unpaid orders,
+ * `payments.consistency` checks paid orders against payments and the credit ledger, and
+ * `outbox.drain` runs the side effects committed with money changes (receipts, notifications).
+ */
+export const paymentsMaintenancePayloadSchema = z.object({});
+
+/**
  * Drug list import (Phase 2, Task 2.7). The uploaded file waits in Redis (`drugimport:<batchId>`);
  * `dry_run` reports what a commit would do, `commit` writes it. Rollback is a plain api transaction.
  */
@@ -76,6 +84,12 @@ export const QUEUE_REGISTRY = {
   /** Prescription analysis (Phase 2, Task 2.8): one job per analysis, jobId `rx-<id>`. */
   rx: {
     "rx.analyze": rxAnalyzePayloadSchema,
+  },
+  payments: {
+    "payments.reconcile": paymentsMaintenancePayloadSchema,
+    "payments.expire_orders": paymentsMaintenancePayloadSchema,
+    "payments.consistency": paymentsMaintenancePayloadSchema,
+    "outbox.drain": paymentsMaintenancePayloadSchema,
   },
   /** Accuracy evaluation (Phase 2, Task 2.10): label-set imports and eval runs; no credits, no users. */
   evals: {

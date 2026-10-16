@@ -78,7 +78,13 @@ describe("granting and revoking roles", () => {
       changed: true,
     });
     // the permission cache was cleared, not left to expire in five minutes
-    expect(await mePermissions(target)).toEqual(["issues.read", "orgs.read", "users.read"]);
+    expect(await mePermissions(target)).toEqual([
+      "billing.read",
+      "issues.read",
+      "orgs.read",
+      "users.read",
+      "users.upgrade",
+    ]);
     const [row] = await ctx.owner.db
       .select()
       .from(userRoles)
@@ -266,7 +272,13 @@ describe("role editor", () => {
       expect(byKey.get(key)?.isSystem, key).toBe(true);
     }
     expect(byKey.get("super_admin")?.permissions).toEqual(PERMISSION_KEYS);
-    expect(byKey.get("support")?.permissions).toEqual(["users.read", "orgs.read", "issues.read"]);
+    expect(byKey.get("support")?.permissions).toEqual([
+      "users.read",
+      "orgs.read",
+      "issues.read",
+      "users.upgrade",
+      "billing.read",
+    ]);
     expect(byKey.get("admin")?.holders).toBeGreaterThanOrEqual(1);
 
     const catalog = permissionCatalogSchema.parse(
@@ -305,7 +317,13 @@ describe("role editor", () => {
       "FORBIDDEN",
       "super_admin_only",
     );
-    expect(await permissionsInDb("support")).toEqual(["issues.read", "orgs.read", "users.read"]);
+    expect(await permissionsInDb("support")).toEqual([
+      "billing.read",
+      "issues.read",
+      "orgs.read",
+      "users.read",
+      "users.upgrade",
+    ]);
     expect(await ctx.owner.db.select().from(roles).where(eq(roles.key, key))).toEqual([]);
   });
 

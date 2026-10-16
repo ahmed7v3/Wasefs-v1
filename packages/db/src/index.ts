@@ -4,6 +4,8 @@ export * from "./credits-ledger.js";
 export * from "./drug-import-rollback.js";
 export * from "./drug-matcher.js";
 export * from "./migrations.js";
+export * from "./outbox.js";
+export * from "./payments.js";
 export * from "./pg-errors.js";
 export * from "./schema/index.js";
 export * from "./seed-ai.js";

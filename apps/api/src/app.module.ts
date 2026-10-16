@@ -24,6 +24,7 @@ import { HealthModule } from "./health/health.module.js";
 import { NotificationsModule } from "./notifications/notifications.module.js";
 import { OnboardingModule } from "./onboarding/onboarding.module.js";
 import { OrgsModule } from "./orgs/orgs.module.js";
+import { PaymentsModule } from "./payments/payments.module.js";
 import { PhoneModule } from "./phone/phone.module.js";
 import { RbacModule } from "./rbac/rbac.module.js";
 import { RxModule } from "./rx/rx.module.js";
@@ -66,6 +67,7 @@ export class AppModule {
         CreditsModule,
         BillingModule,
         CatalogModule,
+        PaymentsModule,
         FilesModule,
         ChatModule,
         RxModule,

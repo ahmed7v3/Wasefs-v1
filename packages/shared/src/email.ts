@@ -12,6 +12,7 @@ export const EMAIL_TEMPLATES = [
   "reset_password",
   "org_invite",
   "account_suspended",
+  "payment_receipt",
 ] as const;
 export type EmailTemplate = (typeof EMAIL_TEMPLATES)[number];
 
@@ -56,6 +57,16 @@ export const emailSendPayloadSchema = z.discriminatedUnion("template", [
     inviterName: z.string().trim().max(100).default(""),
   }),
   z.object({ template: z.literal("account_suspended"), ...recipient }),
+  // No secret inside: the link opens the order page, which needs the owner's session anyway.
+  z.object({
+    template: z.literal("payment_receipt"),
+    ...recipient,
+    orderNumber: z.string().min(1).max(40),
+    totalMinor: z.number().int().min(0),
+    currency: z.string().regex(/^[A-Z]{3}$/),
+    taxAndFeesMinor: z.number().int().min(0).default(0),
+    link: z.url().max(2_048),
+  }),
 ]);
 
 export type EmailSendInput = z.input<typeof emailSendPayloadSchema>;

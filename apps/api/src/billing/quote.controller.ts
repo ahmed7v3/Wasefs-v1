@@ -5,7 +5,7 @@ import { resolveMarket } from "../catalog/market.js";
 import { clientIp, compileTrust, type TrustFn } from "../common/client-ip.js";
 import { CurrentUser, type AuthenticatedUser } from "../common/current-user.js";
 import { RateLimit } from "../common/rate-limit.js";
-import { createZodDto } from "../common/validation.js";
+import { createZodDto, parseWithSchema } from "../common/validation.js";
 import { API_ENV } from "../config/config.module.js";
 import { SettingsService } from "../settings/settings.service.js";
 
@@ -14,7 +14,6 @@ import { QuoteService } from "./quote.service.js";
 import type { ApiEnv } from "../config/env.js";
 import type { FastifyRequest } from "fastify";
 
-class QuoteRequestDto extends createZodDto(quoteRequestSchema) {}
 class MarketQueryDto extends createZodDto(marketQuerySchema) {}
 
 @Controller("billing")
@@ -39,7 +38,7 @@ export class QuoteController {
   @RateLimit(30)
   async quote(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: QuoteRequestDto,
+    @Body() body: unknown,
     @Query() query: MarketQueryDto,
     @Req() request: FastifyRequest,
   ) {
@@ -49,6 +48,8 @@ export class QuoteController {
       await this.settings.get("currency"),
       this.env.NODE_ENV === "production",
     );
-    return this.quotes.quote(user.id, body, market, clientIp(request, this.trust));
+    // A union (plan or pack) cannot be a DTO class: parsed here with the same pipe rules.
+    const parsed = parseWithSchema(quoteRequestSchema, body);
+    return this.quotes.quote(user.id, parsed, market, clientIp(request, this.trust));
   }
 }

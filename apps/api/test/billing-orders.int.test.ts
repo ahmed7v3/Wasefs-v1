@@ -1,0 +1,372 @@
+import { randomUUID } from "node:crypto";
+
+import {
+  adminAlerts,
+  coupons,
+  creditLedger,
+  orders,
+  outbox,
+  paymentEvents,
+  paymentMethods,
+  payments,
+  plans,
+} from "@wasfa/db";
+import { FAKE_GATEWAY_DEV_SECRET, type FakeWebhookBody } from "@wasfa/shared/gateways";
+import {
+  createOrderResponseSchema,
+  orderStatusResponseSchema,
+  quoteResponseSchema,
+} from "@wasfa/shared/schemas/billing";
+import { and, count, eq, inArray } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { GatewayRegistry } from "../src/payments/gateway-registry.js";
+import { PaymentsService } from "../src/payments/payments.service.js";
+
+import { AdminTestContext, type Person } from "./support/admin-context.js";
+
+/*
+ * Checkout end to end against Postgres 18 and Redis (Task 3.3): quote -> order -> fake gateway ->
+ * webhook -> activation, plus the refusals (altered/expired quote, other owner's order, bad
+ * signature, amount mismatch) and the free and manual paths.
+ */
+
+const ctx = new AdminTestContext();
+let registry: GatewayRegistry;
+
+beforeAll(async () => {
+  await ctx.start();
+  registry = ctx.app.get(GatewayRegistry);
+  const { db } = ctx.owner;
+  await db
+    .update(plans)
+    .set({ visibility: "public" })
+    .where(inArray(plans.key, ["plus", "pro"]));
+  // A card method served by the scripted fake gateway (never present in production).
+  await db.insert(paymentMethods).values({
+    key: "fake_card",
+    kind: "gateway",
+    provider: "fake",
+    nameAr: "بطاقة تجريبية",
+    nameEn: "Test card",
+    currencies: ["EGP"],
+    feeBps: 275,
+    feeFixedMinor: 300,
+    enabled: true,
+  });
+}, 180_000);
+
+afterAll(async () => {
+  await ctx.stop();
+});
+
+type Who = Pick<Person, "jar" | "userId">;
+
+async function quote(who: Who, body: Record<string, unknown>) {
+  const res = await ctx.harness.call("POST", "/billing/quote", { jar: who.jar, body });
+  expect(res.statusCode, res.body).toBe(200);
+  return quoteResponseSchema.parse(res.json());
+}
+
+async function order(who: Who, body: Record<string, unknown>) {
+  return ctx.harness.call("POST", "/billing/orders", { jar: who.jar, body });
+}
+
+async function cardOrder(
+  who: Who,
+  extra: Record<string, unknown> = { planKey: "plus", months: 1 },
+) {
+  const q = await quote(who, { ...extra, methodKey: "fake_card" });
+  const res = await order(who, { quoteId: q.quoteId, methodKey: "fake_card" });
+  expect(res.statusCode, res.body).toBe(201);
+  return { q, created: createOrderResponseSchema.parse(res.json()) };
+}
+
+function webhook(body: FakeWebhookBody, signature?: string) {
+  const fake = registry.fake;
+  if (!fake) throw new Error("fake gateway missing");
+  return ctx.harness.call("POST", "/webhooks/fake", {
+    body: body as unknown as Record<string, unknown>,
+    origin: null,
+    headers: { "x-fake-signature": signature ?? fake.sign(body) },
+  });
+}
+
+function paid(paymentId: string, amountMinor: number, eventId = randomUUID()): FakeWebhookBody {
+  return {
+    eventId,
+    paymentId,
+    providerRef: `fake_${paymentId}`,
+    state: "succeeded",
+    amountMinor,
+    currency: "EGP",
+  };
+}
+
+async function status(who: Who, orderId: string) {
+  return ctx.harness.call("GET", `/billing/orders/${orderId}`, { jar: who.jar });
+}
+
+describe("POST /billing/orders", () => {
+  it("needs a session", async () => {
+    const res = await ctx.harness.call("POST", "/billing/orders", {
+      body: { quoteId: randomUUID(), methodKey: "fake_card" },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("creates an order and a payment from the stored quote and returns the provider page", async () => {
+    const user = await ctx.harness.signedInUser();
+    const { q, created } = await cardOrder(user);
+    expect(created.status).toBe("pending_payment");
+    expect(created.redirectUrl).toContain("fake=fake_");
+    expect(created.payment?.status).toBe("awaiting_customer");
+    expect(created.payment?.amountMinor).toBe(q.quote.totalMinor);
+    const [row] = await ctx.owner.db.select().from(orders).where(eq(orders.id, created.orderId));
+    expect(row?.totalMinor).toBe(q.quote.totalMinor);
+    expect(row?.quoteHash).toMatch(/^[a-f0-9]{64}$/);
+    // A quote is used once.
+    const again = await order(user, { quoteId: q.quoteId, methodKey: "fake_card" });
+    expect(again.statusCode).toBe(409);
+    expect(again.json()).toMatchObject({ code: "QUOTE_EXPIRED" });
+  });
+
+  it("refuses an altered quote, another user's quote and a mismatched method", async () => {
+    const user = await ctx.harness.signedInUser();
+    const other = await ctx.harness.signedInUser();
+
+    const tampered = await quote(user, { planKey: "plus", months: 1, methodKey: "fake_card" });
+    const key = `billing:quote:${tampered.quoteId}`;
+    const stored = JSON.parse((await ctx.redis.get(key)) ?? "{}") as {
+      quote: { totalMinor: number };
+    };
+    stored.quote.totalMinor = 1;
+    await ctx.redis.set(key, JSON.stringify(stored), "EX", 600);
+    const altered = await order(user, { quoteId: tampered.quoteId, methodKey: "fake_card" });
+    expect(altered.statusCode).toBe(409);
+
+    const mine = await quote(user, { planKey: "plus", months: 1, methodKey: "fake_card" });
+    const stolen = await order(other, { quoteId: mine.quoteId, methodKey: "fake_card" });
+    expect(stolen.statusCode).toBe(409);
+
+    // Priced without a method: the fee is unknown, so the customer must re-quote.
+    const bare = await quote(user, { planKey: "plus", months: 1 });
+    const noMethod = await order(user, { quoteId: bare.quoteId, methodKey: "fake_card" });
+    expect(noMethod.statusCode).toBe(409);
+    expect(
+      await ctx.owner.db
+        .select({ n: count() })
+        .from(orders)
+        .where(eq(orders.ownerUserId, other.userId)),
+    ).toEqual([{ n: 0 }]);
+  });
+
+  it("parallel orders from one quote create exactly one order", async () => {
+    const user = await ctx.harness.signedInUser();
+    const q = await quote(user, { planKey: "plus", months: 1, methodKey: "fake_card" });
+    const responses = await Promise.all(
+      Array.from({ length: 5 }, () => order(user, { quoteId: q.quoteId, methodKey: "fake_card" })),
+    );
+    expect(responses.filter((res) => res.statusCode === 201)).toHaveLength(1);
+    expect(responses.filter((res) => res.statusCode === 409)).toHaveLength(4);
+    const [made] = await ctx.owner.db
+      .select({ n: count() })
+      .from(orders)
+      .where(eq(orders.ownerUserId, user.userId));
+    expect(made?.n).toBe(1);
+  });
+
+  it("refuses an expired quote", async () => {
+    const user = await ctx.harness.signedInUser();
+    const q = await quote(user, { planKey: "plus", months: 1, methodKey: "fake_card" });
+    await ctx.redis.del(`billing:quote:${q.quoteId}`);
+    const res = await order(user, { quoteId: q.quoteId, methodKey: "fake_card" });
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toMatchObject({ code: "QUOTE_EXPIRED" });
+  });
+
+  it("a manual method waits for the customer and needs no provider", async () => {
+    const user = await ctx.harness.signedInUser();
+    const q = await quote(user, { planKey: "plus", months: 1, methodKey: "instapay" });
+    const res = await order(user, { quoteId: q.quoteId, methodKey: "instapay" });
+    expect(res.statusCode, res.body).toBe(201);
+    const created = createOrderResponseSchema.parse(res.json());
+    expect(created.redirectUrl).toBeNull();
+    expect(created.payment?.status).toBe("awaiting_customer");
+    expect(created.payment?.reference).toMatch(/^WSP-[A-Z2-9]{6}$/);
+  });
+
+  it("a 100% coupon makes a free order that is paid at once", async () => {
+    const user = await ctx.harness.signedInUser();
+    const code = `FREE-${randomUUID().slice(0, 6).toUpperCase()}`;
+    await ctx.owner.db.insert(coupons).values({
+      code,
+      kind: "percent",
+      name: "Free",
+      titleAr: "مجاني",
+      titleEn: "Free",
+      value: 10_000,
+      status: "active",
+    });
+    const q = await quote(user, { planKey: "plus", months: 1, couponCode: code });
+    expect(q.quote.totalMinor).toBe(0);
+    const res = await order(user, { quoteId: q.quoteId });
+    expect(res.statusCode, res.body).toBe(201);
+    const created = createOrderResponseSchema.parse(res.json());
+    expect(created.status).toBe("paid");
+    expect(created.payment).toBeNull();
+  });
+
+  it("a credit pack is quoted, paid and its credits granted once", async () => {
+    const user = await ctx.harness.signedInUser();
+    const { q, created } = await cardOrder(user, { packKey: "pack_100" });
+    expect(q.target.kind).toBe("credit_pack");
+    const paymentId = created.payment?.id ?? "";
+    const delivery = paid(paymentId, q.quote.totalMinor);
+    for (let i = 0; i < 3; i++) expect((await webhook(delivery)).statusCode).toBe(200);
+    const rows = await ctx.owner.db
+      .select()
+      .from(creditLedger)
+      .where(eq(creditLedger.idempotencyKey, `order:${created.orderId}`));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.kind).toBe("purchase");
+  });
+});
+
+describe("webhooks and the return page", () => {
+  it("10 duplicate deliveries activate once", async () => {
+    const user = await ctx.harness.signedInUser();
+    const { q, created } = await cardOrder(user);
+    const delivery = paid(created.payment?.id ?? "", q.quote.totalMinor);
+    const responses = await Promise.all(Array.from({ length: 10 }, () => webhook(delivery)));
+    expect(responses.every((res) => res.statusCode === 200)).toBe(true);
+    const outcomes = responses.map((res) => (res.json() as { outcome: string }).outcome);
+    expect(outcomes.filter((outcome) => outcome === "activated")).toHaveLength(1);
+    const queued = await ctx.owner.db
+      .select()
+      .from(outbox)
+      .where(eq(outbox.idempotencyKey, `order_paid:${created.orderId}`));
+    expect(queued).toHaveLength(1);
+  });
+
+  it("return before webhook shows pending, then paid; reading never activates", async () => {
+    const user = await ctx.harness.signedInUser();
+    const { q, created } = await cardOrder(user);
+    const before = orderStatusResponseSchema.parse((await status(user, created.orderId)).json());
+    expect(before.status).toBe("pending_payment");
+    await webhook(paid(created.payment?.id ?? "", q.quote.totalMinor));
+    const after = orderStatusResponseSchema.parse((await status(user, created.orderId)).json());
+    expect(after.status).toBe("paid");
+    expect(after.payments[0]?.status).toBe("succeeded");
+  });
+
+  it("webhook before return: the page finds the order already paid", async () => {
+    const user = await ctx.harness.signedInUser();
+    const { q, created } = await cardOrder(user);
+    await webhook(paid(created.payment?.id ?? "", q.quote.totalMinor));
+    const read = orderStatusResponseSchema.parse((await status(user, created.orderId)).json());
+    expect(read.status).toBe("paid");
+  });
+
+  it("a bad signature is refused with 401 and recorded", async () => {
+    const user = await ctx.harness.signedInUser();
+    const { q, created } = await cardOrder(user);
+    const before = await ctx.owner.db
+      .select({ n: count() })
+      .from(paymentEvents)
+      .where(eq(paymentEvents.signatureOk, false));
+    const res = await webhook(paid(created.payment?.id ?? "", q.quote.totalMinor), "ab".repeat(32));
+    expect(res.statusCode).toBe(401);
+    const after = await ctx.owner.db
+      .select({ n: count() })
+      .from(paymentEvents)
+      .where(eq(paymentEvents.signatureOk, false));
+    expect(after[0]?.n).toBe((before[0]?.n ?? 0) + 1);
+    const read = orderStatusResponseSchema.parse((await status(user, created.orderId)).json());
+    expect(read.status).toBe("pending_payment");
+  });
+
+  it("an amount mismatch is acknowledged, never activates and alerts", async () => {
+    const user = await ctx.harness.signedInUser();
+    const { created } = await cardOrder(user);
+    const paymentId = created.payment?.id ?? "";
+    const res = await webhook(paid(paymentId, 100));
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ outcome: "amount_mismatch" });
+    const read = orderStatusResponseSchema.parse((await status(user, created.orderId)).json());
+    expect(read.status).toBe("pending_payment");
+    const alerts = await ctx.owner.db
+      .select()
+      .from(adminAlerts)
+      .where(
+        and(eq(adminAlerts.refId, paymentId), eq(adminAlerts.kind, "payment.amount_mismatch")),
+      );
+    expect(alerts).toHaveLength(1);
+  });
+
+  it("an unknown gateway is 404", async () => {
+    const res = await ctx.harness.call("POST", "/webhooks/nope", { body: {}, origin: null });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("the fake gateway secret is the dev one (never used in production)", () => {
+    expect(FAKE_GATEWAY_DEV_SECRET).toMatch(/dev/);
+  });
+});
+
+describe("ownership and cancel", () => {
+  it("another owner's order does not exist for the caller", async () => {
+    const owner = await ctx.harness.signedInUser();
+    const stranger = await ctx.harness.signedInUser();
+    const { created } = await cardOrder(owner);
+    expect((await status(stranger, created.orderId)).statusCode).toBe(404);
+    const cancel = await ctx.harness.call("POST", `/billing/orders/${created.orderId}/cancel`, {
+      jar: stranger.jar,
+    });
+    expect(cancel.statusCode).toBe(404);
+  });
+
+  it("the owner cancels an unpaid order; a paid one cannot be canceled", async () => {
+    const user = await ctx.harness.signedInUser();
+    const { created } = await cardOrder(user);
+    const res = await ctx.harness.call("POST", `/billing/orders/${created.orderId}/cancel`, {
+      jar: user.jar,
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(orderStatusResponseSchema.parse(res.json()).status).toBe("canceled");
+    const [attempt] = await ctx.owner.db
+      .select()
+      .from(payments)
+      .where(eq(payments.orderId, created.orderId));
+    expect(attempt?.status).toBe("canceled");
+
+    const second = await cardOrder(user);
+    await webhook(paid(second.created.payment?.id ?? "", second.q.quote.totalMinor));
+    const refused = await ctx.harness.call(
+      "POST",
+      `/billing/orders/${second.created.orderId}/cancel`,
+      { jar: user.jar },
+    );
+    expect(refused.statusCode).toBe(409);
+  });
+});
+
+describe("refunds (service)", () => {
+  it("refunds a gateway payment through the provider", async () => {
+    const user = await ctx.harness.signedInUser();
+    const { q, created } = await cardOrder(user);
+    await webhook(paid(created.payment?.id ?? "", q.quote.totalMinor));
+    const service = ctx.app.get(PaymentsService);
+    const refund = await service.refund({
+      paymentId: created.payment?.id ?? "",
+      amountMinor: q.quote.totalMinor,
+      reason: "customer asked",
+      actorId: user.userId,
+      clawbackCredits: 0,
+    });
+    expect(refund.status).toBe("succeeded");
+    expect(registry.fake?.refunds.at(-1)?.amountMinor).toBe(q.quote.totalMinor);
+    const read = orderStatusResponseSchema.parse((await status(user, created.orderId)).json());
+    expect(read.status).toBe("refunded");
+  });
+});

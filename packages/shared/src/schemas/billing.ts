@@ -9,6 +9,9 @@ import {
   DISCOUNT_KINDS,
   DISCOUNT_STATUSES,
   MAX_BPS,
+  ORDER_KINDS,
+  ORDER_STATUSES,
+  PAYMENT_STATUSES,
   PAYMENT_METHOD_KINDS,
   PROMOTION_KINDS,
   STACKING_MODES,
@@ -37,14 +40,32 @@ export const couponCodeSchema = z
 
 export const paymentMethodKeySchema = z.string().regex(BILLING_KEY_PATTERN);
 
-/** `POST /billing/quote` (and the order request built from a quote). */
-export const quoteRequestSchema = z.object({
+/** `POST /billing/quote` for a plan period. */
+export const planQuoteRequestSchema = z.object({
   planKey: z.string().max(40).regex(PLAN_KEY_PATTERN),
   months: monthsSchema,
   couponCode: couponCodeSchema.optional(),
   methodKey: paymentMethodKeySchema.optional(),
 });
+/** `POST /billing/quote` for a credit pack: no promotions, coupons or proration apply to packs. */
+export const packQuoteRequestSchema = z.strictObject({
+  packKey: z.string().regex(BILLING_KEY_PATTERN),
+  methodKey: paymentMethodKeySchema.optional(),
+});
+export const quoteRequestSchema = z.union([packQuoteRequestSchema, planQuoteRequestSchema]);
+export type PlanQuoteRequest = z.output<typeof planQuoteRequestSchema>;
+export type PackQuoteRequest = z.output<typeof packQuoteRequestSchema>;
 export type QuoteRequest = z.output<typeof quoteRequestSchema>;
+
+/** What a quote buys; stored with the quote and signed with it, so checkout cannot swap it. */
+export const quoteTargetSchema = z.object({
+  kind: z.enum(["subscription", "upgrade", "credit_pack"]),
+  key: z.string(),
+  planId: z.uuid().nullable(),
+  packId: z.uuid().nullable(),
+  months: monthsSchema.nullable(),
+});
+export type QuoteTarget = z.output<typeof quoteTargetSchema>;
 
 export const PLAN_FEATURES_MAX = 30;
 
@@ -356,9 +377,64 @@ export type CouponOutcome = z.output<typeof couponOutcomeSchema>;
 export const quoteResponseSchema = z.object({
   quoteId: z.uuid(),
   quote: priceQuoteSchema,
+  target: quoteTargetSchema,
   coupon: couponOutcomeSchema.nullable(),
 });
 export type QuoteResponse = z.output<typeof quoteResponseSchema>;
+
+// --- Orders (Task 3.3) --------------------------------------------------------------------------
+
+/** `POST /billing/orders`: the client names a stored quote and the method it was priced with. */
+export const createOrderSchema = z.strictObject({
+  quoteId: z.uuid(),
+  methodKey: paymentMethodKeySchema.optional(),
+  locale: z.enum(["ar", "en"]).default("ar"),
+});
+export type CreateOrderInput = z.output<typeof createOrderSchema>;
+
+export const createOrderResponseSchema = z.object({
+  orderId: z.uuid(),
+  orderNumber: z.string(),
+  status: z.enum(ORDER_STATUSES),
+  /** Gateway methods: where to send the customer. Manual methods and free orders: null. */
+  redirectUrl: z.string().nullable(),
+  payment: z
+    .object({
+      id: z.uuid(),
+      reference: z.string(),
+      methodKey: z.string(),
+      status: z.enum(PAYMENT_STATUSES),
+      amountMinor: minorAmountSchema,
+      currency: currencyCodeSchema,
+    })
+    .nullable(),
+});
+export type CreateOrderResponse = z.output<typeof createOrderResponseSchema>;
+
+export const orderIdParamSchema = z.object({ id: z.uuid() });
+
+/** `GET /billing/orders/:id`: a status read for the return page; it never changes anything. */
+export const orderStatusResponseSchema = z.object({
+  id: z.uuid(),
+  number: z.string(),
+  kind: z.enum(ORDER_KINDS),
+  status: z.enum(ORDER_STATUSES),
+  currency: currencyCodeSchema,
+  totalMinor: minorAmountSchema,
+  expiresAt: z.string(),
+  paidAt: z.string().nullable(),
+  payments: z.array(
+    z.object({
+      id: z.uuid(),
+      reference: z.string(),
+      methodKey: z.string(),
+      status: z.enum(PAYMENT_STATUSES),
+      failureCode: z.string().nullable(),
+      createdAt: z.string(),
+    }),
+  ),
+});
+export type OrderStatusResponse = z.output<typeof orderStatusResponseSchema>;
 
 export const recommendationResponseSchema = z.object({
   usage30dCredits: z.number().int().min(0),

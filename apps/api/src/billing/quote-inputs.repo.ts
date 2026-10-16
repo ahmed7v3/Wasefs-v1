@@ -284,6 +284,30 @@ export class QuoteInputsRepo {
       .orderBy(creditPacks.sort, creditPacks.key);
   }
 
+  /** An active pack with its active price in `currency`, for a pack quote. */
+  async packForQuote(
+    key: string,
+    currency: string,
+  ): Promise<{ id: string; key: string; amountMinor: number } | undefined> {
+    const [row] = await this.handle.db
+      .select({
+        id: creditPacks.id,
+        key: creditPacks.key,
+        amountMinor: creditPackPrices.amountMinor,
+      })
+      .from(creditPacks)
+      .innerJoin(creditPackPrices, eq(creditPackPrices.packId, creditPacks.id))
+      .where(
+        and(
+          eq(creditPacks.key, key),
+          eq(creditPacks.active, true),
+          eq(creditPackPrices.active, true),
+          eq(creditPackPrices.currency, currency),
+        ),
+      );
+    return row;
+  }
+
   // --- History of one user ----------------------------------------------------------------------
 
   async hasPaidOrder(userId: string): Promise<boolean> {

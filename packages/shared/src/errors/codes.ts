@@ -14,6 +14,11 @@ export const ErrorCode = {
   BELOW_MINIMUM: "BELOW_MINIMUM",
   FREE_ORDER_NOT_ALLOWED: "FREE_ORDER_NOT_ALLOWED",
   METHOD_NOT_AVAILABLE: "METHOD_NOT_AVAILABLE",
+  // Checkout (BILLING §5): the quote must be re-requested, or a limited coupon ran out meanwhile.
+  QUOTE_EXPIRED: "QUOTE_EXPIRED",
+  COUPON_UNAVAILABLE: "COUPON_UNAVAILABLE",
+  // A webhook whose signature does not verify (recorded, never processed).
+  INVALID_SIGNATURE: "INVALID_SIGNATURE",
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
@@ -120,6 +125,24 @@ export const ERROR_INFO: Record<ErrorCode, ErrorCodeInfo> = {
       ar: "طريقة الدفع هذه غير متاحة لهذا الطلب.",
       en: "This payment method is not available for this order.",
     },
+  },
+  QUOTE_EXPIRED: {
+    httpStatus: 409,
+    message: {
+      ar: "انتهت صلاحية ملخص السعر أو تغيّر. راجع الملخص من جديد ثم ادفع.",
+      en: "The price summary expired or changed. Review it again, then pay.",
+    },
+  },
+  COUPON_UNAVAILABLE: {
+    httpStatus: 409,
+    message: {
+      ar: "لم يعد هذا الكود متاحاً. راجع الملخص من جديد.",
+      en: "This code is no longer available. Review the summary again.",
+    },
+  },
+  INVALID_SIGNATURE: {
+    httpStatus: 401,
+    message: { ar: "توقيع غير صالح.", en: "Invalid signature." },
   },
 };
 

@@ -12,9 +12,13 @@ import {
 } from "@wasfa/shared/price-engine";
 import {
   priceQuoteSchema,
+  quoteTargetSchema,
   type CouponOutcome,
+  type PackQuoteRequest,
+  type PlanQuoteRequest,
   type QuoteRequest,
   type QuoteResponse,
+  type QuoteTarget,
 } from "@wasfa/shared/schemas/billing";
 import { Redis } from "ioredis";
 import { z } from "zod";
@@ -38,11 +42,21 @@ const COUPON_IP_LIMIT = { max: 30, windowSeconds: 60 };
 const quoteKey = (quoteId: string) => `billing:quote:${quoteId}`;
 
 const storedQuoteSchema = z.object({
-  v: z.literal(1),
+  v: z.literal(2),
   userId: z.string(),
-  hash: z.string(),
+  target: quoteTargetSchema,
   quote: priceQuoteSchema,
+  /** HMAC over `{ userId, target, quote }`: nobody may edit, re-own or re-target the quote. */
+  signature: z.string(),
 });
+
+/** A stored quote that passed every check, ready for `POST /billing/orders`. */
+export interface CheckoutQuote {
+  quote: PriceQuote;
+  target: QuoteTarget;
+  /** `quote_hash` of the order: HMAC over the quote alone. */
+  hash: string;
+}
 
 const INVALID_COUPON: CouponOutcome = { status: "invalid" };
 
@@ -104,6 +118,11 @@ export class QuoteService {
    * Anything else is `null`, with no hint which of the three failed.
    */
   async load(quoteId: string, userId: string): Promise<PriceQuote | null> {
+    return (await this.loadForCheckout(quoteId, userId))?.quote ?? null;
+  }
+
+  /** `load` plus what the quote buys and the order's `quote_hash`. */
+  async loadForCheckout(quoteId: string, userId: string): Promise<CheckoutQuote | null> {
     if (!z.uuid().safeParse(quoteId).success) return null;
     let raw: string | null;
     try {
@@ -120,13 +139,29 @@ export class QuoteService {
     }
     const stored = storedQuoteSchema.safeParse(data);
     if (!stored.success || stored.data.userId !== userId) return null;
-    // Hash the quote as stored, not as parsed: an unknown extra key must break the signature too.
-    const rawQuote = (data as { quote: unknown }).quote;
-    const expected = Buffer.from(this.hmac(rawQuote), "hex");
-    const actual = Buffer.from(stored.data.hash, "hex");
+    // Sign what was stored, not what was parsed: an unknown extra key must break the signature too.
+    const envelope = data as { quote: unknown; target: unknown };
+    const expected = Buffer.from(
+      this.hmac({ userId, target: envelope.target, quote: envelope.quote }),
+      "hex",
+    );
+    const actual = Buffer.from(stored.data.signature, "hex");
     if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null;
-    // Shape checked above by `priceQuoteSchema`, signature by the HMAC.
-    return rawQuote as PriceQuote;
+    // Shape checked above by the schemas, integrity by the HMAC.
+    const quote = envelope.quote as PriceQuote;
+    return { quote, target: stored.data.target, hash: this.hashQuote(quote) };
+  }
+
+  /**
+   * A quote is used once. Removing it is the claim: of two concurrent orders from the same quote,
+   * exactly one sees `true` (Redis `DEL` answers 1 to one caller only).
+   */
+  async claim(quoteId: string): Promise<boolean> {
+    try {
+      return (await this.redis.del(quoteKey(quoteId))) === 1;
+    } catch (cause) {
+      throw new AppError(ErrorCode.UPSTREAM_UNAVAILABLE, { cause });
+    }
   }
 
   async quote(
@@ -135,6 +170,59 @@ export class QuoteService {
     market: Market,
     ip: string,
     now = new Date(),
+  ): Promise<QuoteResponse> {
+    return "packKey" in request
+      ? this.quotePack(userId, request, market, now)
+      : this.quotePlan(userId, request, market, ip, now);
+  }
+
+  /** Credit packs: list price, tax and the method fee. Discounts and proration belong to plans. */
+  private async quotePack(
+    userId: string,
+    request: PackQuoteRequest,
+    market: Market,
+    now: Date,
+  ): Promise<QuoteResponse> {
+    const { currency, country } = market;
+    const [billing, pack, taxRule, methods, packs, paid] = await Promise.all([
+      this.settings.get("billing"),
+      this.repo.packForQuote(request.packKey, currency),
+      this.repo.taxRuleFor(country),
+      this.repo.enabledMethods(currency, country),
+      this.repo.creditPacks(currency),
+      this.repo.hasPaidOrder(userId),
+    ]);
+    if (!pack) throw new AppError(ErrorCode.NOT_FOUND);
+    const result = priceQuote({
+      price: { planKey: pack.key, months: 1, currency, amountMinor: pack.amountMinor },
+      discounts: [],
+      deal: null,
+      taxRule: taxRule ? { id: taxRule.id, rateBps: taxRule.rateBps, mode: taxRule.mode } : null,
+      methods: methods.map(toMethodInput),
+      methodKey: request.methodKey ?? null,
+      history: { isFirstPurchase: !paid, upgradeFrom: null },
+      settings: engineSettings(billing, packs),
+      now,
+      country,
+    });
+    if (!result.ok) throw new AppError(ErrorCode[result.code]);
+    const target: QuoteTarget = {
+      kind: "credit_pack",
+      key: pack.key,
+      planId: null,
+      packId: pack.id,
+      months: null,
+    };
+    const quoteId = await this.store(userId, target, result.quote, billing.quoteTtlMinutes);
+    return { quoteId, quote: result.quote, target, coupon: null };
+  }
+
+  private async quotePlan(
+    userId: string,
+    request: PlanQuoteRequest,
+    market: Market,
+    ip: string,
+    now: Date,
   ): Promise<QuoteResponse> {
     if (request.couponCode !== undefined) {
       await this.limiter.hit(
@@ -199,26 +287,31 @@ export class QuoteService {
     if (!result.ok) throw new AppError(ErrorCode[result.code]);
 
     const coupon = couponCheck ? this.couponOutcome(couponCheck, result.quote, input) : null;
-
-    const quoteId = randomUUID();
-    const stored = {
-      v: 1,
-      userId,
-      request,
-      quote: result.quote,
-      hash: this.hashQuote(result.quote),
+    const target: QuoteTarget = {
+      kind: upgradeFrom ? "upgrade" : "subscription",
+      key: plan.key,
+      planId: plan.id,
+      packId: null,
+      months: request.months,
     };
+    const quoteId = await this.store(userId, target, result.quote, billing.quoteTtlMinutes);
+    return { quoteId, quote: result.quote, target, coupon };
+  }
+
+  private async store(
+    userId: string,
+    target: QuoteTarget,
+    quote: PriceQuote,
+    ttlMinutes: number,
+  ): Promise<string> {
+    const quoteId = randomUUID();
+    const stored = { v: 2, userId, target, quote, signature: this.hmac({ userId, target, quote }) };
     try {
-      await this.redis.set(
-        quoteKey(quoteId),
-        JSON.stringify(stored),
-        "EX",
-        billing.quoteTtlMinutes * 60,
-      );
+      await this.redis.set(quoteKey(quoteId), JSON.stringify(stored), "EX", ttlMinutes * 60);
     } catch (cause) {
       throw new AppError(ErrorCode.UPSTREAM_UNAVAILABLE, { cause });
     }
-    return { quoteId, quote: result.quote, coupon };
+    return quoteId;
   }
 
   private hmac(value: unknown): string {

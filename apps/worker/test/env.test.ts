@@ -22,6 +22,7 @@ describe("workerEnvSchema", () => {
       drugs: 1,
       rx: 2,
       evals: 1,
+      payments: 1,
     });
     expect(env.MAIL_DAILY_CAP).toBe(280);
     expect(env.SMTP_PORT).toBe(587);
@@ -46,6 +47,7 @@ describe("workerEnvSchema", () => {
       drugs: 2,
       rx: 3,
       evals: 1,
+      payments: 1,
     });
   });
 

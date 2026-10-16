@@ -61,6 +61,11 @@ export const ar = {
   "email.suspended.intro":
     "تم إيقاف حسابك في وصفة AI مؤقتًا، ولن تتمكن من تسجيل الدخول حتى تتم مراجعته.",
   "email.suspended.contact": "إن كنت ترى أن هذا حدث بالخطأ فتواصل مع فريق الدعم وسنراجع حسابك.",
+  "email.receipt.subject": "إيصال الدفع للطلب {number}",
+  "email.receipt.intro": "استلمنا دفعتك بنجاح، وتم تفعيل طلبك {number}.",
+  "email.receipt.total": "الإجمالي المدفوع: {total}",
+  "email.receipt.taxAndFees": "منها الضريبة والرسوم: {amount}",
+  "email.receipt.button": "عرض الطلب والإيصال",
   "ui.required": "(مطلوب)",
   "ui.close": "إغلاق",
   "ui.showPassword": "إظهار كلمة المرور",

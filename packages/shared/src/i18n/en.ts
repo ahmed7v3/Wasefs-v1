@@ -54,6 +54,11 @@ export const en: Partial<Record<MessageKey, string>> = {
     "Your Wasfa AI account has been suspended and you cannot sign in until it is reviewed.",
   "email.suspended.contact":
     "If you think this is a mistake, contact support and we will review your account.",
+  "email.receipt.subject": "Payment receipt for order {number}",
+  "email.receipt.intro": "We received your payment and order {number} is now active.",
+  "email.receipt.total": "Total paid: {total}",
+  "email.receipt.taxAndFees": "Including tax and fees: {amount}",
+  "email.receipt.button": "View order and receipt",
   "ui.required": "(required)",
   "ui.close": "Close",
   "ui.showPassword": "Show password",

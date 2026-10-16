@@ -44,6 +44,18 @@ function templateInput(payload: EmailSendPayload, key: Buffer): TemplateInput {
   if (payload.template === "account_suspended") {
     return { template: payload.template, locale: payload.locale, name: payload.name };
   }
+  if (payload.template === "payment_receipt") {
+    return {
+      template: payload.template,
+      locale: payload.locale,
+      name: payload.name,
+      link: payload.link,
+      orderNumber: payload.orderNumber,
+      totalMinor: payload.totalMinor,
+      currency: payload.currency,
+      taxAndFeesMinor: payload.taxAndFeesMinor,
+    };
+  }
   let link: string;
   try {
     link = decryptSecret(payload.encryptedLink, key, emailSecretContext(payload.template));

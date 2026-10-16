@@ -42,6 +42,14 @@ export const workerEnvSchema = z
     WORKER_CONCURRENCY_RX: concurrency.default(2),
     /** ... and on the `evals` queue (accuracy runs spend provider money; one run at a time, items inside it run 2 at a time). */
     WORKER_CONCURRENCY_EVALS: concurrency,
+    /** ... and on the `payments` queue (reconciliation, order expiry, outbox; one at a time keeps them ordered). */
+    WORKER_CONCURRENCY_PAYMENTS: concurrency,
+    /** The web app origin (first entry of the api's `WEB_ORIGIN` list): links in receipts point there. */
+    WEB_ORIGIN: z
+      .string()
+      .default("http://localhost:3000")
+      .transform((value) => value.split(",")[0]?.trim() ?? "")
+      .pipe(z.url()),
     /** How long shutdown waits for active jobs before force-closing. */
     WORKER_SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).default(30_000),
 
@@ -97,5 +105,6 @@ export function queueConcurrency(env: WorkerEnv): Record<QueueName, number> {
     images: env.WORKER_CONCURRENCY_IMAGES,
     rx: env.WORKER_CONCURRENCY_RX,
     evals: env.WORKER_CONCURRENCY_EVALS,
+    payments: env.WORKER_CONCURRENCY_PAYMENTS,
   };
 }

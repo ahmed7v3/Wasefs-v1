@@ -162,8 +162,9 @@ Acceptance
 7. Refund support in the service (admin UI comes in 3.8): gateway refund, status transitions, effects (subscription/credits/rewards hooks through interfaces).
 
 Acceptance
-- [ ] Tests: success, failure, expiry, duplicate webhooks ×10 ⇒ one activation, bad signature ⇒ 401 + recorded, **amount mismatch ⇒ no activation + alert**, webhook before return, return before webhook, reconcile picks up a lost webhook, crash between commit and outbox is safe.
-- [ ] Orders cannot be created from an altered or expired quote; a user cannot read or pay another owner's order (`NOT_FOUND`).
+- [x] Tests: success, failure, expiry, duplicate webhooks ×10 ⇒ one activation, bad signature ⇒ 401 + recorded, **amount mismatch ⇒ no activation + alert**, webhook before return, return before webhook, reconcile picks up a lost webhook, crash between commit and outbox is safe.
+- [x] Orders cannot be created from an altered or expired quote; a user cannot read or pay another owner's order (`NOT_FOUND`).
+- [ ] Kashier verified against a real test-mode payment with recorded fixtures (blocked on Task 3.0).
 
 ## Task 3.4 — Manual payments and the admin alert service (WP2)
 
@@ -407,6 +408,20 @@ Release A ─► WP10 (3.15)          Release B ─► WP9 (3.14) ─► (WP11 3
 
 ## Notes
 _(agent fills in deviations here)_
+
+### Task 3.3 (WP2, payments core)
+- **Where the state machine lives.** `packages/db/src/payments.ts` (and `outbox.ts`), plain functions over a `Database` like the credits ledger, so the API (checkout, webhooks, refunds) and the worker (reconciliation, expiry, outbox) run the same transactions. Gateway adapters live in `packages/shared/src/gateways.ts` for the same reason (the worker's reconciliation calls `getStatus`). Nothing outside the Kashier block of that file depends on Kashier's fields.
+- **Kashier is UNVERIFIED.** Task 3.0's spike has not run (no test credentials yet). The adapter follows Kashier's public documentation (hosted page hash `HMAC(paymentApiKey, "/?payment=<mid>.<orderId>.<amount>.<currency>")`, webhook header `x-kashier-signature` over the sorted `data.signatureKeys`, status `GET /payments/orders/<merchantOrderId>`, refund `PUT /v3/orders/<id>/`). `kashier_card` stays disabled until the spike records real fixtures under `apps/api/test/fixtures/kashier/` and the unit tests use them.
+- **Our id at the provider is the payment id**, not the order id, so a retried attempt (card failed, then card again) is a new provider order.
+- **Quotes carry their target.** A stored quote is `{ v: 2, userId, target, quote, signature }`; the signature covers user, target (kind, plan/pack id, months) and quote, so an order cannot be re-owned or re-targeted. `orders.quote_hash` stays the HMAC of the quote alone. Credit packs are quoted with `{ packKey, methodKey? }` (no discounts or proration for packs).
+- **An order needs a quote priced with its method** (the fee depends on it); otherwise `QUOTE_EXPIRED` asks the client to re-quote. A quote is claimed atomically (Redis `DEL` = 1) before the order is written: of concurrent requests with one quote, exactly one creates an order.
+- **Late provider successes count.** `failed/expired/canceled -> succeeded` is allowed for provider-verified events; reconciliation keeps asking about expired gateway payments for 24 h. An expired order paid late is activated (coupon re-taken if it still has room, otherwise kept and alerted). A second success on an already paid order is recorded and alerted (`payment.review_needed`, critical) for a manual refund.
+- **Amount mismatch** (amount or currency reported by the provider differs from the order, or none reported) fails the attempt and raises a `payment.amount_mismatch` row in `admin_alerts`; fan-out to email/Telegram arrives with Task 3.4's `AdminAlertService`.
+- **Subscription activation is a hook** (`PaymentHooks`, bound to `NO_SUBSCRIPTION_HOOKS` in the API's `PAYMENT_HOOKS` and the worker's payments runtime). Until Task 3.5 lands, a paid subscription order is marked paid with its outbox event but creates no period; 3.5 must backfill paid orders without a subscription. Credit packs are fully handled (ledger kind `purchase`, key `order:<id>`). Purchased-pack expiry (`valid_months`) is not enforced yet.
+- **Outbox.** Topics `billing.order_paid` (in-app notification + `payment_receipt` mail, job id `outbox-<entry id>`) and `billing.order_refunded` (notification). A topic without a handler is parked for a day, never dropped. Drained every 30 s.
+- **Worker schedules:** `payments.reconcile` and `payments.expire_orders` every 5 min, `payments.consistency` nightly 02:20 UTC (logs `payments.drift`, ids only), `outbox.drain` every 30 s. The worker now needs `WEB_ORIGIN` (receipt links) and has `WORKER_CONCURRENCY_PAYMENTS`.
+- **Refunds** are in `PaymentsService.refund` (record `approved` -> provider refund or the admin's transfer reference -> one transaction with states, credit clawback never below zero, `onRefund` hook, outbox). The admin endpoint, fresh auth and audit come with Task 3.8.
+- **Not in 3.3:** the payment-failure spike alert (`payment.failure_spike`) and the settlement CSV import of BILLING §5.6 (admin console, Task 3.8).
 
 ## Open questions
 1. **WhatsApp alerts to admins (owner decision).** The Phase 1 bridge is receive-only to avoid bans, because an unofficial client can lose the number (which would also break phone verification). The plan keeps it off by default and, if enabled, sends only to admins who opted in by messaging the bridge first, at most 20 messages/day. The safer official route is the WhatsApp Cloud API with a template message. Which do you want: (a) email + Telegram only, (b) the opt-in bridge, (c) the official API later?

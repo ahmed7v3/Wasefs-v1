@@ -1,3 +1,5 @@
+import { formatMoney } from "@wasfa/shared/money";
+
 import { assertWebLink, renderLayout, tr, type Rendered } from "./layout.js";
 
 import type { Locale } from "@wasfa/shared/i18n";
@@ -15,7 +17,17 @@ export type TemplateInput =
       orgName: string;
       inviterName: string;
     }
-  | { template: "account_suspended"; locale: Locale; name: string };
+  | { template: "account_suspended"; locale: Locale; name: string }
+  | {
+      template: "payment_receipt";
+      locale: Locale;
+      name: string;
+      link: string;
+      orderNumber: string;
+      totalMinor: number;
+      currency: string;
+      taxAndFeesMinor: number;
+    };
 
 /** Arabic-first RTL HTML plus a plain-text alternative for every template. */
 export function renderEmail(input: TemplateInput): Rendered {
@@ -74,5 +86,27 @@ export function renderEmail(input: TemplateInput): Rendered {
           ignoreNote: false,
         },
       });
+    case "payment_receipt": {
+      const money = (minor: number) => formatMoney(minor, input.currency, locale);
+      const paragraphs = [
+        tr(locale, "email.receipt.intro", { number: input.orderNumber }),
+        tr(locale, "email.receipt.total", { total: money(input.totalMinor) }),
+      ];
+      if (input.taxAndFeesMinor > 0) {
+        paragraphs.push(
+          tr(locale, "email.receipt.taxAndFees", { amount: money(input.taxAndFeesMinor) }),
+        );
+      }
+      return renderLayout({
+        locale,
+        name,
+        subject: tr(locale, "email.receipt.subject", { number: input.orderNumber }),
+        block: {
+          paragraphs,
+          action: { label: tr(locale, "email.receipt.button"), link: assertWebLink(input.link) },
+          ignoreNote: false,
+        },
+      });
+    }
   }
 }

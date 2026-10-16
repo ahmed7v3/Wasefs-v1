@@ -20,6 +20,11 @@
       "import": "./dist/auth-settings.js",
       "default": "./dist/auth-settings.js"
     },
+    "./gateways": {
+      "types": "./dist/gateways.d.ts",
+      "import": "./dist/gateways.js",
+      "default": "./dist/gateways.js"
+    },
     "./crypto": {
       "types": "./dist/crypto.d.ts",
       "import": "./dist/crypto.js",
