@@ -7,11 +7,18 @@ import {
   orders,
   outbox,
   paymentEvents,
+  paymentGateways,
   paymentMethods,
   payments,
   plans,
 } from "@wasfa/db";
-import { FAKE_GATEWAY_DEV_SECRET, type FakeWebhookBody } from "@wasfa/shared/gateways";
+import { decodeEncryptionKey, encryptSecret } from "@wasfa/shared/crypto";
+import {
+  FAKE_GATEWAY_DEV_SECRET,
+  gatewayCredentialsContext,
+  kashierWebhookSignature,
+  type FakeWebhookBody,
+} from "@wasfa/shared/gateways";
 import {
   createOrderResponseSchema,
   orderStatusResponseSchema,
@@ -234,6 +241,65 @@ describe("POST /billing/orders", () => {
 });
 
 describe("webhooks and the return page", () => {
+  it("applies a verified payment webhook after its configured gateway is disabled", async () => {
+    const credentials = {
+      merchantId: "MID-123-456",
+      paymentApiKey: "made-up-payment-api-key",
+      secretKey: "made-up-secret-key",
+    };
+    await ctx.owner.db.insert(paymentGateways).values({
+      key: "kashier",
+      provider: "kashier",
+      mode: "test",
+      credentialsEnc: encryptSecret(
+        JSON.stringify(credentials),
+        decodeEncryptionKey(ctx.env.ENCRYPTION_KEY),
+        gatewayCredentialsContext("kashier"),
+      ),
+      merchantRef: credentials.merchantId,
+      keyHint: "…-key",
+      credentialsUpdatedAt: new Date(),
+      enabled: true,
+    });
+    await ctx.owner.db
+      .update(paymentMethods)
+      .set({ enabled: true })
+      .where(eq(paymentMethods.key, "kashier_card"));
+    const user = await ctx.harness.signedInUser();
+    const q = await quote(user, { planKey: "plus", months: 1, methodKey: "kashier_card" });
+    const createdResponse = await order(user, { quoteId: q.quoteId, methodKey: "kashier_card" });
+    expect(createdResponse.statusCode, createdResponse.body).toBe(201);
+    const created = createOrderResponseSchema.parse(createdResponse.json());
+    const paymentId = created.payment?.id ?? "";
+    await ctx.owner.db
+      .update(paymentGateways)
+      .set({ enabled: false })
+      .where(eq(paymentGateways.key, "kashier"));
+
+    const data = {
+      merchantOrderId: paymentId,
+      status: "CAPTURED",
+      amount: (q.quote.totalMinor / 100).toFixed(2),
+      currency: "EGP",
+      transactionId: `made-up-${paymentId}`,
+      signatureKeys: ["merchantOrderId", "status", "amount", "currency", "transactionId"],
+    };
+    const delivery = await ctx.harness.call("POST", "/webhooks/kashier", {
+      origin: null,
+      body: { event: "pay", data },
+      headers: { "x-kashier-signature": kashierWebhookSignature(credentials.paymentApiKey, data) },
+    });
+    expect(delivery.statusCode, delivery.body).toBe(200);
+    expect(delivery.json()).toMatchObject({ outcome: "activated" });
+    const read = orderStatusResponseSchema.parse((await status(user, created.orderId)).json());
+    expect(read.status).toBe("paid");
+    const recorded = await ctx.owner.db
+      .select()
+      .from(paymentEvents)
+      .where(and(eq(paymentEvents.paymentId, paymentId), eq(paymentEvents.provider, "kashier")));
+    expect(recorded).toHaveLength(1);
+  });
+
   it("10 duplicate deliveries activate once", async () => {
     const user = await ctx.harness.signedInUser();
     const { q, created } = await cardOrder(user);
@@ -352,21 +418,54 @@ describe("ownership and cancel", () => {
 });
 
 describe("refunds (service)", () => {
-  it("refunds a gateway payment through the provider", async () => {
+  it("records an owner-issued gateway refund reference without calling the provider", async () => {
     const user = await ctx.harness.signedInUser();
     const { q, created } = await cardOrder(user);
     await webhook(paid(created.payment?.id ?? "", q.quote.totalMinor));
     const service = ctx.app.get(PaymentsService);
-    const refund = await service.refund({
+    const input = {
       paymentId: created.payment?.id ?? "",
       amountMinor: q.quote.totalMinor,
       reason: "customer asked",
       actorId: user.userId,
       clawbackCredits: 0,
+    };
+    await expect(service.refund(input)).rejects.toMatchObject({
+      code: "VALIDATION_FAILED",
+      details: { fields: ["transferReference"] },
     });
+    const refund = await service.refund({ ...input, transferReference: "KASH-REFUND-1" });
     expect(refund.status).toBe("succeeded");
-    expect(registry.fake?.refunds.at(-1)?.amountMinor).toBe(q.quote.totalMinor);
+    expect(refund.transferReference).toBe("KASH-REFUND-1");
+    expect(registry.fake && "refund" in registry.fake).toBe(false);
     const read = orderStatusResponseSchema.parse((await status(user, created.orderId)).json());
     expect(read.status).toBe("refunded");
+  });
+
+  it("alerts once when a verified provider reports an unrecorded refund", async () => {
+    const user = await ctx.harness.signedInUser();
+    const { q, created } = await cardOrder(user);
+    const paymentId = created.payment?.id ?? "";
+    await webhook(paid(paymentId, q.quote.totalMinor));
+    const refundReport = {
+      ...paid(paymentId, q.quote.totalMinor, randomUUID()),
+      state: "refunded" as const,
+    };
+    await webhook(refundReport);
+    await webhook(refundReport);
+    const alerts = await ctx.owner.db
+      .select()
+      .from(adminAlerts)
+      .where(
+        and(
+          eq(adminAlerts.kind, "payment.review_needed"),
+          eq(adminAlerts.refType, "payment"),
+          eq(adminAlerts.refId, paymentId),
+        ),
+      );
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]?.severity).toBe("warning");
+    const read = orderStatusResponseSchema.parse((await status(user, created.orderId)).json());
+    expect(read.status).toBe("paid");
   });
 });

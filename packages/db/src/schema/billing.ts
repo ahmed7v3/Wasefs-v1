@@ -214,6 +214,12 @@ export const paymentGateways = pgTable(
     provider: text().notNull(),
     mode: text({ enum: GATEWAY_MODES }).notNull().default("test"),
     credentialsEnc: text(),
+    merchantRef: text(),
+    credentialsUpdatedAt: timestamp({ withTimezone: true }),
+    verifiedAt: timestamp({ withTimezone: true }),
+    lastWebhookAt: timestamp({ withTimezone: true }),
+    lastWebhookOk: boolean(),
+    lastWebhookError: text(),
     // Last 4 characters of the main key, safe to show.
     keyHint: text(),
     enabled: boolean().notNull().default(false),
@@ -226,6 +232,46 @@ export const paymentGateways = pgTable(
     check("payment_gateways_key_check", matches(table.key, BILLING_KEY_PATTERN.source)),
     check("payment_gateways_provider_check", matches(table.provider, BILLING_KEY_PATTERN.source)),
     check("payment_gateways_mode_check", inList(table.mode, GATEWAY_MODES)),
+  ],
+);
+
+export const GATEWAY_TEST_STATUSES = ["pending", "succeeded", "failed", "mismatch"] as const;
+
+/** Isolated gateway verification attempts; these rows never enter order/payment accounting. */
+export const paymentGatewayTests = pgTable(
+  "payment_gateway_tests",
+  {
+    id: idColumn(),
+    gatewayKey: text().notNull(),
+    mode: text({ enum: GATEWAY_MODES }).notNull(),
+    providerOrderId: text().notNull().unique("payment_gateway_tests_provider_order_id_key"),
+    amountMinor: integer().notNull(),
+    currency: text().notNull(),
+    status: text({ enum: GATEWAY_TEST_STATUSES }).notNull().default("pending"),
+    webhookReceivedAt: timestamp({ withTimezone: true }),
+    webhookState: text(),
+    webhookAmountMinor: integer(),
+    webhookCurrency: text(),
+    statusCheckedAt: timestamp({ withTimezone: true }),
+    statusState: text(),
+    statusAmountMinor: integer(),
+    statusCurrency: text(),
+    createdBy: uuid().references(() => users.id, { onDelete: "set null" }),
+    ...timestamps(),
+  },
+  (table) => [
+    check("payment_gateway_tests_mode_check", inList(table.mode, GATEWAY_MODES)),
+    check("payment_gateway_tests_status_check", inList(table.status, GATEWAY_TEST_STATUSES)),
+    check("payment_gateway_tests_amount_check", sql`${table.amountMinor} > 0`),
+    check(
+      "payment_gateway_tests_currency_check",
+      matches(table.currency, CURRENCY_CODE_PATTERN.source),
+    ),
+    index("payment_gateway_tests_gateway_status_created_idx").on(
+      table.gatewayKey,
+      table.status,
+      table.createdAt,
+    ),
   ],
 );
 
@@ -458,6 +504,8 @@ export type PaymentMethod = typeof paymentMethods.$inferSelect;
 export type NewPaymentMethod = typeof paymentMethods.$inferInsert;
 export type PaymentGateway = typeof paymentGateways.$inferSelect;
 export type NewPaymentGateway = typeof paymentGateways.$inferInsert;
+export type PaymentGatewayTest = typeof paymentGatewayTests.$inferSelect;
+export type NewPaymentGatewayTest = typeof paymentGatewayTests.$inferInsert;
 export type Order = typeof orders.$inferSelect;
 export type NewOrder = typeof orders.$inferInsert;
 export type Payment = typeof payments.$inferSelect;

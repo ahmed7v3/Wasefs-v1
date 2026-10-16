@@ -165,6 +165,11 @@
       "import": "./dist/schemas/admin-ai.js",
       "default": "./dist/schemas/admin-ai.js"
     },
+    "./schemas/admin-billing-gateways": {
+      "types": "./dist/schemas/admin-billing-gateways.d.ts",
+      "import": "./dist/schemas/admin-billing-gateways.js",
+      "default": "./dist/schemas/admin-billing-gateways.js"
+    },
     "./schemas/admin": {
       "types": "./dist/schemas/admin.d.ts",
       "import": "./dist/schemas/admin.js",

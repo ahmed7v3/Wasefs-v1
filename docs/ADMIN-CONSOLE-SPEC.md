@@ -114,7 +114,7 @@ Simple CRUD list with prices per currency, bonus credits, validity, visibility; 
 ### 5.5 Payment methods, fees and tax (`/admin/billing/methods`)
 - **Methods** as cards: Kashier card (status test/live pill, "اختبار الاتصال"), InstaPay, Vodafone Cash, plus "إضافة طريقة". Each has: enable switch, display names, instructions editor with `{amount}` `{reference}` `{account}` chips and a live preview of the customer screen, **account number and holder** (manual), fee (percent + fixed), min/max, currencies/countries, proof required, SLA text.
 - Editing a manual account number uses the protected flow in BILLING §12 (fresh auth + 2FA, diff, all-channel notice, 10-minute cooldown, visible countdown with a cancel button).
-- **Gateways**: keys entered once, shown masked, "test connection", mode switch test/live with a typed confirmation.
+- **Gateways** (`/admin/billing/gateways`): Kashier credentials are write-only and masked; changing them or switching mode disables the gateway and linked methods, sends a critical alert, and starts a 10-minute cooldown. Admins test connectivity, copy the webhook URL, run a real EGP test payment and check both its signed webhook and the status API result. The gateway can be enabled only after this end-to-end verification; the owner then enables `kashier_card` from the linked payment methods. Live mode and live test payments require typing `LIVE`.
 - **Tax rules**: country, rate, inclusive/added, with a preview of how checkout will show it.
 - **Fee presentation preview**: the checkout summary rendered with the current rules, so the admin sees the "quiet fees" layout before publishing.
 

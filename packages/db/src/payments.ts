@@ -26,7 +26,7 @@ import type { AlertKind, AlertSeverity, OrderKind, PaymentStatus } from "@wasfa/
 
 /*
  * The payment state machine and activation (BILLING §5.2–§5.4, §7.4). Plain functions over a
- * `Database`, like the credits ledger, so the API (checkout, webhooks, refunds) and the worker
+ * `Database`, like the credits ledger, so the API (checkout, webhooks, refund recording) and the worker
  * (reconciliation, expiry) run the very same transactions.
  *
  * Rules every operation follows:
@@ -669,7 +669,7 @@ export interface ProviderEvent {
 }
 
 export type ProviderEventOutcome =
-  "duplicate" | "unknown_payment" | "ignored" | "failed" | ActivationOutcome;
+  "duplicate" | "unknown_payment" | "ignored" | "test" | "failed" | ActivationOutcome;
 
 /**
  * Applies one verified webhook delivery or reconciliation poll. Recording the event and acting on
@@ -731,7 +731,19 @@ export async function applyProviderEvent(
       });
       return "failed";
     }
-    // `pending` / `refunded` deliveries are recorded only: refunds start on our side (§7.4).
+    if (event.state === "refunded") {
+      const { payment } = await lockOrderAndPayment(tx, paymentId);
+      if (payment.status !== "refunded" && payment.status !== "partially_refunded") {
+        await raiseAdminAlert(tx, {
+          kind: "payment.review_needed",
+          severity: "warning",
+          refType: "payment",
+          refId: payment.id,
+          summary: `Provider reports a refund for payment ${payment.reference}; record the refund in the admin.`,
+          link: `/admin/billing/payments/${payment.id}`,
+        });
+      }
+    }
     return "ignored";
   });
 }
@@ -769,6 +781,15 @@ export async function enabledGateway(
     .select()
     .from(paymentGateways)
     .where(and(eq(paymentGateways.key, key), eq(paymentGateways.enabled, true)));
+  return row;
+}
+
+/** A configured gateway row, regardless of whether new checkouts are enabled. */
+export async function configuredGateway(
+  db: Database,
+  key: string,
+): Promise<PaymentGateway | undefined> {
+  const [row] = await db.select().from(paymentGateways).where(eq(paymentGateways.key, key));
   return row;
 }
 
@@ -856,7 +877,7 @@ export async function openRefund(db: Database, request: RefundRequest): Promise<
 }
 
 /**
- * Step 2, after the money went back (gateway refund call, or a manual transfer the admin made):
+ * Step 2, after the owner issued the refund externally and supplied its reference:
  * the refund succeeds and its effects apply in one transaction — payment and order states, the
  * subscription hook, the credit clawback.
  */

@@ -187,7 +187,7 @@ interface PaymentGateway {
   createCheckout(input: { order; payment; returnUrl; webhookUrl; customer }): Promise<{ redirectUrl: string; providerRef: string }>;
   verifyWebhook(raw: Buffer, headers: Headers): Promise<GatewayEvent>;   // signature check, constant-time compare
   getStatus(providerRef: string): Promise<GatewayStatus>;                // reconciliation; never trust the return URL
-  refund?(providerRef: string, amountMinor: number, reason: string): Promise<{ providerRef: string }>;
+  testConnection(): Promise<{ ok: boolean; errorCode: string | null }>;   // read-only credential check; there is no refund call
 }
 ```
 - **Kashier** is the first adapter. Its exact request/hash/webhook fields are pinned in Task 3.0's spike and recorded in the phase Notes; nothing outside `kashier.gateway.ts` may depend on them. Cards are entered only on Kashier's hosted page (PCI scope stays "redirect": no card data touches our servers).
@@ -255,7 +255,7 @@ proration_credit = min(daily_value × remaining_days, discounted_new_price)
 The new period starts now and runs the full purchased length; credits for the new plan are granted immediately for the current month. Shown to the customer as one line: "رصيد المدة المتبقية من باقتك الحالية".
 
 ### 7.4 Refunds
-Policy values live in settings (`refundWindowDays` default 7). Phase 3 refunds are **admin-initiated** (the customer asks through support): refund of the whole payment or an amount, reason required, fresh auth, audited. Effects (all in one transaction): payment/order refunded, subscription ended or shortened as chosen, unused plan credits clawed back (never below zero; used credits are the admin's call, shown as "credits used: N" before confirming), referral rewards for that order reversed (REFERRALS-REWARDS §5.4), coupon redemption kept (a refund does not re-enable a single-use coupon unless the admin ticks it). Gateway payments are refunded through `gateway.refund`; manual payments are refunded outside the app and then **marked refunded with the transfer reference**.
+Policy values live in settings (`refundWindowDays` default 7). Phase 3 refunds are **admin-initiated** (the customer asks through support): refund of the whole payment or an amount, reason and the external refund reference required, fresh auth, audited. The owner issues every refund in the provider's dashboard (or by bank/wallet transfer) first and then records it here with that reference: **our code never calls a provider refund API**. Effects (all in one transaction): payment/order refunded, subscription ended or shortened as chosen, unused plan credits clawed back (never below zero; used credits are the admin's call, shown as "credits used: N" before confirming), referral rewards for that order reversed (REFERRALS-REWARDS §5.4), coupon redemption kept (a refund does not re-enable a single-use coupon unless the admin ticks it).
 
 ---
 

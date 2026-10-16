@@ -14,6 +14,7 @@ import {
   orders,
   outbox,
   paymentEvents,
+  paymentGatewayTests,
   paymentGateways,
   paymentMethods,
   payments,
@@ -71,6 +72,10 @@ const SPEC: NameSpec = {
     "payment_gateways_key_check",
     "payment_gateways_provider_check",
     "payment_gateways_mode_check",
+    "payment_gateway_tests_mode_check",
+    "payment_gateway_tests_status_check",
+    "payment_gateway_tests_amount_check",
+    "payment_gateway_tests_currency_check",
     "payment_methods_key_check",
     "payment_methods_kind_check",
     "payment_methods_provider_check",
@@ -150,6 +155,7 @@ const SPEC: NameSpec = {
     "orders_number_key",
     "payment_events_provider_event_id_key",
     "payment_gateways_key_key",
+    "payment_gateway_tests_provider_order_id_key",
     "payment_methods_key_key",
     "payments_reference_key",
     "plan_prices_plan_months_currency_key",
@@ -167,6 +173,7 @@ const SPEC: NameSpec = {
     "payments_method_txn_id_key",
     "payments_order_idx",
     "payments_review_queue_idx",
+    "payment_gateway_tests_gateway_status_created_idx",
     "refunds_provider_ref_key",
     "refunds_payment_idx",
     "coupon_redemptions_coupon_owner_user_idx",
@@ -192,6 +199,7 @@ const SPEC: NameSpec = {
     ["orders_plan_id_plans_id_fk", "restrict"],
     ["orders_pack_id_credit_packs_id_fk", "restrict"],
     ["payment_events_payment_id_payments_id_fk", "set null"],
+    ["payment_gateway_tests_created_by_users_id_fk", "set null"],
     ["payments_order_id_orders_id_fk", "restrict"],
     ["payments_proof_file_id_files_id_fk", "set null"],
     ["payments_reviewed_by_users_id_fk", "set null"],
@@ -411,6 +419,15 @@ function checkCases(): Case[] {
       provider: "kashier",
       ...overrides,
     }) as typeof paymentGateways.$inferInsert;
+  const gatewayTest = (overrides: object = {}) =>
+    ({
+      gatewayKey: "kashier",
+      mode: "test",
+      providerOrderId: unique("gwtest"),
+      amountMinor: 100,
+      currency: "EGP",
+      ...overrides,
+    }) as typeof paymentGatewayTests.$inferInsert;
   const tax = (overrides: object = {}) =>
     ({
       nameAr: "ضريبة",
@@ -630,6 +647,34 @@ function checkCases(): Case[] {
         db()
           .insert(paymentGateways)
           .values(gateway({ mode: "staging" })),
+    ],
+    [
+      "payment_gateway_tests_mode_check",
+      () =>
+        db()
+          .insert(paymentGatewayTests)
+          .values(gatewayTest({ mode: "staging" })),
+    ],
+    [
+      "payment_gateway_tests_status_check",
+      () =>
+        db()
+          .insert(paymentGatewayTests)
+          .values(gatewayTest({ status: "waiting" })),
+    ],
+    [
+      "payment_gateway_tests_amount_check",
+      () =>
+        db()
+          .insert(paymentGatewayTests)
+          .values(gatewayTest({ amountMinor: 0 })),
+    ],
+    [
+      "payment_gateway_tests_currency_check",
+      () =>
+        db()
+          .insert(paymentGatewayTests)
+          .values(gatewayTest({ currency: "egp" })),
     ],
 
     // Orders.
@@ -1123,6 +1168,20 @@ describe("Phase 3 billing schema: unique constraints and idempotency keys", () =
     await db().insert(paymentGateways).values(gateway);
     expect(await rejection(() => db().insert(paymentGateways).values(gateway))).toBe(
       "payment_gateways_key_key",
+    );
+  });
+
+  it("gateway test provider order ids are unique", async () => {
+    const row = {
+      gatewayKey: "kashier",
+      mode: "test",
+      providerOrderId: unique("gwtest"),
+      amountMinor: 100,
+      currency: "EGP",
+    } as const;
+    await db().insert(paymentGatewayTests).values(row);
+    expect(await rejection(() => db().insert(paymentGatewayTests).values(row))).toBe(
+      "payment_gateway_tests_provider_order_id_key",
     );
   });
 

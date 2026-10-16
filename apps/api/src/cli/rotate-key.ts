@@ -1,5 +1,6 @@
-import { aiProviders, waSessions } from "@wasfa/db";
+import { aiProviders, paymentGateways, waSessions } from "@wasfa/db";
 import { decryptSecret, encryptSecret, keyId } from "@wasfa/shared/crypto";
+import { gatewayCredentialsContext } from "@wasfa/shared/gateways";
 import { and, eq } from "drizzle-orm";
 
 import { providerKeyContext } from "../ai-runtime/provider-key.js";
@@ -8,6 +9,7 @@ import type { Database } from "@wasfa/db";
 
 export interface RotateResult {
   providers: number;
+  gateways: number;
   waSessions: number;
   /** Rows left untouched because they were already sealed with the new key. */
   alreadyCurrent: number;
@@ -28,7 +30,7 @@ export async function rotateEncryptionKey(
 ): Promise<RotateResult> {
   const keys = [newKey, oldKey];
   const newPrefix = `v2.${keyId(newKey)}.`;
-  const result: RotateResult = { providers: 0, waSessions: 0, alreadyCurrent: 0 };
+  const result: RotateResult = { providers: 0, gateways: 0, waSessions: 0, alreadyCurrent: 0 };
 
   try {
     await db.transaction(async (tx) => {
@@ -45,6 +47,21 @@ export async function rotateEncryptionKey(
           .set({ apiKeyEnc: encryptSecret(plain, newKey, context) })
           .where(eq(aiProviders.id, row.id));
         result.providers += 1;
+      }
+
+      for (const row of await tx.select().from(paymentGateways)) {
+        if (row.credentialsEnc === null) continue;
+        if (row.credentialsEnc.startsWith(newPrefix)) {
+          result.alreadyCurrent += 1;
+          continue;
+        }
+        const context = gatewayCredentialsContext(row.key);
+        const plain = decryptSecret(row.credentialsEnc, keys, context);
+        await tx
+          .update(paymentGateways)
+          .set({ credentialsEnc: encryptSecret(plain, newKey, context) })
+          .where(eq(paymentGateways.id, row.id));
+        result.gateways += 1;
       }
 
       for (const row of await tx.select().from(waSessions)) {

@@ -1,4 +1,6 @@
 import { createHmac } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import { describe, expect, it, vi } from "vitest";
 
@@ -16,10 +18,13 @@ import {
 } from "../src/gateways.js";
 
 /*
- * Adapter behaviour that does not need the provider. The Kashier field names and hash schemes
- * here follow Kashier's documentation; Task 3.0's spike replaces the hand-made payloads below with
- * recorded fixtures before `kashier_card` is enabled.
+ * Adapter behaviour that does not need the provider. Status responses come from a real test-mode
+ * payment (`fixtures/kashier/`, card and session data removed); the webhook payloads are still
+ * hand-made from Kashier's documentation until a delivery is recorded.
  */
+
+const fixture = (name: string): string =>
+  readFileSync(fileURLToPath(new URL(`./fixtures/kashier/${name}`, import.meta.url)), "utf8");
 
 const credentials = { merchantId: "MID-1-1", paymentApiKey: "pay-key", secretKey: "secret-key" };
 const kashier = createKashierGateway({ mode: "test", credentials });
@@ -128,6 +133,67 @@ describe("kashier", () => {
     await expect(down.getStatus("pay-1", null)).rejects.toBeInstanceOf(GatewayUnavailableError);
   });
 
+  it("reads a recorded captured payment with its amount under response.order", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(fixture("status-captured.json"), { status: 200 }));
+    const gateway = createKashierGateway({ mode: "test", credentials, fetch: fetchMock });
+    const status = await gateway.getStatus("dab47e4c-12cf-45c3-bcc6-920744c72d31", null);
+    expect(status).toEqual({
+      paymentId: "dab47e4c-12cf-45c3-bcc6-920744c72d31",
+      providerRef: "c24f669e-8729-47cf-a36e-220f14f5a8cf",
+      state: "succeeded",
+      amountMinor: 10_000,
+      currency: "EGP",
+      failureCode: null,
+    });
+  });
+
+  it("treats a recorded 404 (customer never paid) as pending, not as an outage", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(fixture("status-not-found.json"), { status: 404 }));
+    const gateway = createKashierGateway({ mode: "test", credentials, fetch: fetchMock });
+    expect(await gateway.getStatus("pay-1", null)).toMatchObject({
+      state: "pending",
+      providerRef: null,
+      amountMinor: null,
+    });
+  });
+
+  it.each([200, 404])("accepts %s as an authenticated connection response", async (status) => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}", { status }));
+    const gateway = createKashierGateway({ mode: "test", credentials, fetch: fetchMock });
+    expect(await gateway.testConnection()).toEqual({ ok: true, errorCode: null });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toMatch(/^https:\/\/test-api\.kashier\.io\/payments\/orders\/gwprobe-/);
+    expect((init.headers as Record<string, string>).Authorization).toBe("secret-key");
+  });
+
+  it.each([401, 403])("returns auth for %s", async (status) => {
+    const gateway = createKashierGateway({
+      mode: "test",
+      credentials,
+      fetch: vi.fn().mockResolvedValue(new Response("", { status })),
+    });
+    expect(await gateway.testConnection()).toEqual({ ok: false, errorCode: "auth" });
+  });
+
+  it("returns unavailable for 5xx and network errors", async () => {
+    const down = createKashierGateway({
+      mode: "test",
+      credentials,
+      fetch: vi.fn().mockResolvedValue(new Response("", { status: 503 })),
+    });
+    const network = createKashierGateway({
+      mode: "test",
+      credentials,
+      fetch: vi.fn().mockRejectedValue(new Error("network")),
+    });
+    expect(await down.testConnection()).toEqual({ ok: false, errorCode: "unavailable" });
+    expect(await network.testConnection()).toEqual({ ok: false, errorCode: "unavailable" });
+  });
+
   it("parses sealed credentials strictly", () => {
     expect(parseKashierCredentials(JSON.stringify(credentials))).toEqual(credentials);
     expect(parseKashierCredentials("{}")).toBeNull();
@@ -169,8 +235,10 @@ describe("fake gateway", () => {
       locale: "en",
     });
     expect((await fake.getStatus("p-2", null)).state).toBe("pending");
+    expect(await fake.testConnection()).toEqual({ ok: true, errorCode: null });
     fake.unavailable = true;
     await expect(fake.getStatus("p-2", null)).rejects.toBeInstanceOf(GatewayUnavailableError);
+    expect(await fake.testConnection()).toEqual({ ok: false, errorCode: "unavailable" });
   });
 });
 

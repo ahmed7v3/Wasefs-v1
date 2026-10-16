@@ -1,6 +1,7 @@
 import {
   Building2,
   ClipboardCheck,
+  CreditCard,
   Coins,
   Cpu,
   Database,
@@ -125,6 +126,13 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
         description: "admin.nav.whatsapp.description",
         icon: MessageCircle,
         permission: "settings.read",
+      },
+      {
+        href: "/admin/billing/gateways",
+        label: "admin.nav.gatewaySettings",
+        description: "admin.nav.gatewaySettings.description",
+        icon: CreditCard,
+        permission: "billing.read",
       },
     ],
   },

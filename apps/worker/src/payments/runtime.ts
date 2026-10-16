@@ -1,4 +1,9 @@
-import { NO_SUBSCRIPTION_HOOKS, enabledGateway, type Database, type PaymentHooks } from "@wasfa/db";
+import {
+  NO_SUBSCRIPTION_HOOKS,
+  configuredGateway,
+  type Database,
+  type PaymentHooks,
+} from "@wasfa/db";
 import { decodeEncryptionKey, decryptSecret } from "@wasfa/shared/crypto";
 import { emailSendPayloadSchema, type EmailSendInput } from "@wasfa/shared/email";
 import {
@@ -39,7 +44,7 @@ export function createPaymentsRuntime(
   return {
     async gateway(gatewayKey) {
       if (gatewayKey === "fake") return fake;
-      const row = await enabledGateway(db, gatewayKey);
+      const row = await configuredGateway(db, gatewayKey);
       if (!row?.credentialsEnc) return null;
       try {
         return gatewayFromConfig({

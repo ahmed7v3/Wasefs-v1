@@ -4,6 +4,7 @@ import { enAdminAi } from "./en.admin-ai.js";
 import { enAdminBilling } from "./en.admin-billing.js";
 import { enAdminDrugs } from "./en.admin-drugs.js";
 import { enAdminEvals } from "./en.admin-evals.js";
+import { enAdminGateways } from "./en.admin-gateways.js";
 import { enAdmin } from "./en.admin.js";
 import { enCapture } from "./en.capture.js";
 import { enChat } from "./en.chat.js";
@@ -154,7 +155,8 @@ export const en: Partial<Record<MessageKey, string>> = {
     "You have reached today's limit for this feature. Try tomorrow or upgrade your plan.",
   "ai.reason.busy": "You already have a task running. Wait for it to finish, then try again.",
   "ai.reason.insufficient_credits": "You do not have enough credits for this.",
-  "ai.reason.storage_not_configured": "Image upload is not enabled yet. We will let you know when it is.",
+  "ai.reason.storage_not_configured":
+    "Image upload is not enabled yet. We will let you know when it is.",
   "form.required": "This field is required.",
   "form.tooShort": "Must be at least {min} characters.",
   "form.tooLong": "Must be at most {max} characters.",
@@ -349,7 +351,8 @@ export const en: Partial<Record<MessageKey, string>> = {
     "Your setup state changed. Refresh and continue where you left off.",
   "dashboard.title": "Home",
   "dashboard.greeting": "Hello {name}, ready when you are",
-  "dashboard.lead": "Start here: capture a prescription, ask the assistant, or pick up where you left off.",
+  "dashboard.lead":
+    "Start here: capture a prescription, ask the assistant, or pick up where you left off.",
   "dashboard.verify.title": "Finish verifying your account",
   "dashboard.verify.body": "You cannot use the tools until your email or phone number is verified.",
   "dashboard.verify.email":
@@ -502,6 +505,7 @@ export const en: Partial<Record<MessageKey, string>> = {
   ...enAdmin,
   ...enAdminAi,
   ...enAdminBilling,
+  ...enAdminGateways,
   ...enAdminDrugs,
   ...enAdminEvals,
   ...enRx,

@@ -1,10 +1,10 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 
 import { fromMinor, toMinor } from "./money.js";
 import { canonicalJson } from "./price-engine.js";
 
 /*
- * Payment gateway adapters (BILLING §5.6). The API (checkout, webhooks, refunds) and the worker
+ * Payment gateway adapters (BILLING §5.6). The API (checkout, webhooks, status) and the worker
  * (reconciliation) use the same adapters, so they live here rather than in one app. Everything a
  * provider calls a field name stays inside its adapter: the rest of the code only sees the types
  * below. Cards are entered on the provider's hosted page; no card data ever reaches our servers.
@@ -56,14 +56,11 @@ export interface PaymentGateway {
   ): GatewayEvent;
   /** Reconciliation: never trust the return URL, ask the provider. */
   getStatus(paymentId: string, providerRef: string | null): Promise<GatewayStatus>;
-  refund?(input: {
-    paymentId: string;
-    providerRef: string;
-    amountMinor: number;
-    currency: string;
-    reason: string;
-  }): Promise<{ providerRef: string }>;
+  /** Checks provider authentication without moving money. */
+  testConnection(): Promise<{ ok: boolean; errorCode: string | null }>;
 }
+
+export const GATEWAY_TEST_ORDER_PREFIX = "gwtest-";
 
 export class GatewaySignatureError extends Error {
   constructor(message = "Invalid webhook signature") {
@@ -103,16 +100,18 @@ export function sameHex(actual: string, expected: string): boolean {
 /**
  * Kashier hosted payment page.
  *
- * UNVERIFIED: the field names, hash schemes and endpoints below follow Kashier's public
- * documentation and have not yet been checked against a real test-mode payment. Task 3.0's spike
- * pins them with recorded fixtures (`apps/api/test/fixtures/kashier/`); until then the
- * `kashier_card` method stays disabled. Nothing outside this block depends on Kashier's fields.
+ * Verified against a real test-mode payment (2026-10-16, fixtures in
+ * `packages/shared/test/fixtures/kashier/`): the checkout hash, the secret-key status call and its
+ * shape (amount and currency under `response.order`, 404 for an order the customer never paid).
+ * Still UNVERIFIED: the webhook body and signature (no public URL during the spike; the return
+ * redirect is signed the same way, HMAC(paymentApiKey) over `key=value&...`).
+ * Nothing outside this block depends on Kashier's fields.
  */
 export interface KashierCredentials {
   merchantId: string;
   /** "Payment API key": signs the checkout hash and the webhook signature. */
   paymentApiKey: string;
-  /** "Secret key": authorizes server-to-server calls (status, refund). */
+  /** "Secret key": authorizes server-to-server calls (status). */
   secretKey: string;
 }
 
@@ -125,7 +124,6 @@ export interface KashierOptions {
 export const KASHIER_URLS = {
   checkout: "https://checkout.kashier.io/",
   api: { test: "https://test-api.kashier.io", live: "https://api.kashier.io" },
-  fep: { test: "https://test-fep.kashier.io", live: "https://fep.kashier.io" },
 } as const;
 
 const KASHIER_SIGNATURE_HEADER = "x-kashier-signature";
@@ -181,7 +179,18 @@ export function createKashierGateway(options: KashierOptions): PaymentGateway {
   const { credentials, mode } = options;
   const http = options.fetch ?? fetch;
 
-  async function call(url: string, init: RequestInit): Promise<Record<string, unknown>> {
+  /** The JSON body, or null when Kashier answers 404 and the caller allowed it. */
+  async function call(
+    url: string,
+    init: RequestInit,
+    allowNotFound: true,
+  ): Promise<Record<string, unknown> | null>;
+  async function call(url: string, init: RequestInit): Promise<Record<string, unknown>>;
+  async function call(
+    url: string,
+    init: RequestInit,
+    allowNotFound = false,
+  ): Promise<Record<string, unknown> | null> {
     let response: Response;
     try {
       response = await http(url, {
@@ -196,6 +205,7 @@ export function createKashierGateway(options: KashierOptions): PaymentGateway {
     } catch (cause) {
       throw new GatewayUnavailableError("Kashier is unreachable", { cause });
     }
+    if (allowNotFound && response.status === 404) return null;
     if (!response.ok) throw new GatewayUnavailableError(`Kashier answered ${response.status}`);
     const body: unknown = await response.json().catch(() => null);
     if (body === null || typeof body !== "object") {
@@ -273,44 +283,56 @@ export function createKashierGateway(options: KashierOptions): PaymentGateway {
       const body = await call(
         `${KASHIER_URLS.api[mode]}/payments/orders/${encodeURIComponent(paymentId)}`,
         { method: "GET" },
+        true,
       );
+      // The customer never reached the payment step: Kashier has no order for this id yet.
+      if (body === null) {
+        return {
+          paymentId,
+          providerRef: null,
+          state: "pending",
+          amountMinor: null,
+          currency: null,
+          failureCode: null,
+        };
+      }
       const response =
         body.response !== null && typeof body.response === "object"
           ? (body.response as Record<string, unknown>)
           : body;
-      const currency = str(response.currency);
+      const order =
+        response.order !== null && typeof response.order === "object"
+          ? (response.order as Record<string, unknown>)
+          : response;
+      const currency = str(order.currency);
       const state = kashierState(response.status);
       return {
         paymentId,
         providerRef: str(response.kashierOrderId) ?? str(response.orderId),
         state,
-        amountMinor: minorOrNull(response.amount, currency),
+        amountMinor: minorOrNull(order.amount, currency),
         currency,
         failureCode: state === "failed" ? "declined" : null,
       };
     },
-
-    async refund(input) {
-      const body = await call(
-        `${KASHIER_URLS.fep[mode]}/v3/orders/${encodeURIComponent(input.providerRef)}/`,
-        {
-          method: "PUT",
-          body: JSON.stringify({
-            apiOperation: "REFUND",
-            reason: input.reason,
-            transaction: { amount: Number(fromMinor(input.amountMinor, input.currency)) },
-          }),
-        },
-      );
-      const response =
-        body.response !== null && typeof body.response === "object"
-          ? (body.response as Record<string, unknown>)
-          : body;
-      const ref = str(response.transactionId) ?? str(response.refundId);
-      if (!ref || kashierState(response.status) === "failed") {
-        throw new GatewayUnavailableError("Kashier refused the refund");
+    async testConnection() {
+      try {
+        const response = await http(
+          `${KASHIER_URLS.api[mode]}/payments/orders/gwprobe-${randomUUID()}`,
+          {
+            method: "GET",
+            headers: { Authorization: credentials.secretKey, Accept: "application/json" },
+            signal: AbortSignal.timeout(15_000),
+          },
+        );
+        if (response.status === 200 || response.status === 404)
+          return { ok: true, errorCode: null };
+        if (response.status === 401 || response.status === 403)
+          return { ok: false, errorCode: "auth" };
+        return { ok: false, errorCode: "unavailable" };
+      } catch {
+        return { ok: false, errorCode: "unavailable" };
       }
-      return { providerRef: ref };
     },
   };
 }
@@ -336,7 +358,6 @@ export interface FakeWebhookBody {
 
 export interface FakeGateway extends PaymentGateway {
   readonly statuses: Map<string, GatewayStatus>;
-  readonly refunds: Array<{ providerRef: string; amountMinor: number }>;
   /** Signs a body the way the fake provider would. */
   sign(body: FakeWebhookBody): string;
   /** When true, `getStatus` throws (provider down). */
@@ -345,13 +366,11 @@ export interface FakeGateway extends PaymentGateway {
 
 export function createFakeGateway(secret: string): FakeGateway {
   const statuses = new Map<string, GatewayStatus>();
-  const refunds: Array<{ providerRef: string; amountMinor: number }> = [];
   const sign = (body: FakeWebhookBody) => hmacHex(secret, canonicalJson(body));
 
   const gateway: FakeGateway = {
     key: "fake",
     statuses,
-    refunds,
     sign,
     unavailable: false,
 
@@ -406,10 +425,10 @@ export function createFakeGateway(secret: string): FakeGateway {
       );
     },
 
-    refund(input) {
-      refunds.push({ providerRef: input.providerRef, amountMinor: input.amountMinor });
+    testConnection() {
       return Promise.resolve({
-        providerRef: `fake_refund_${String(refunds.length)}_${input.paymentId}`,
+        ok: !gateway.unavailable,
+        errorCode: gateway.unavailable ? "unavailable" : null,
       });
     },
   };

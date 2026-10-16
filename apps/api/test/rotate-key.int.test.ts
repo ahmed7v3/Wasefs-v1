@@ -1,7 +1,8 @@
 import { randomBytes } from "node:crypto";
 
-import { aiProviders, createDb, seedDefaults, waSessions } from "@wasfa/db";
+import { aiProviders, createDb, paymentGateways, seedDefaults, waSessions } from "@wasfa/db";
 import { decryptSecret, encryptSecret, keyId, sealedKeyId } from "@wasfa/shared/crypto";
+import { gatewayCredentialsContext } from "@wasfa/shared/gateways";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -41,22 +42,44 @@ describe("rotateEncryptionKey", () => {
       key: "creds",
       value: encryptSecret("{}", oldKey, "wa_session:t:creds"),
     });
+    const gatewayContext = gatewayCredentialsContext("kashier");
+    await owner.db.insert(paymentGateways).values({
+      key: "kashier",
+      provider: "kashier",
+      mode: "test",
+      credentialsEnc: encryptSecret(
+        JSON.stringify({
+          merchantId: "MID-123-456",
+          paymentApiKey: "made-up-payment-key",
+          secretKey: "made-up-secret-key",
+        }),
+        oldKey,
+        gatewayContext,
+      ),
+    });
 
     const before = await providerRow("gemini");
     const dry = await rotateEncryptionKey(owner.db, oldKey, newKey, { dryRun: true });
-    expect(dry).toMatchObject({ providers: 1, waSessions: 1 });
+    expect(dry).toMatchObject({ providers: 1, gateways: 1, waSessions: 1 });
     expect((await providerRow("gemini"))?.apiKeyEnc).toBe(before?.apiKeyEnc);
 
     const real = await rotateEncryptionKey(owner.db, oldKey, newKey);
-    expect(real).toMatchObject({ providers: 1, waSessions: 1 });
+    expect(real).toMatchObject({ providers: 1, gateways: 1, waSessions: 1 });
+    const gatewayCiphertext =
+      (await owner.db.select().from(paymentGateways).where(eq(paymentGateways.key, "kashier")))[0]
+        ?.credentialsEnc ?? "";
+    expect(sealedKeyId(gatewayCiphertext)).toBe(keyId(newKey));
+    expect(JSON.parse(decryptSecret(gatewayCiphertext, newKey, gatewayContext))).toMatchObject({
+      merchantId: "MID-123-456",
+    });
     const sealed = (await providerRow("gemini"))?.apiKeyEnc ?? "";
     expect(sealedKeyId(sealed)).toBe(keyId(newKey));
     expect(decryptSecret(sealed, newKey, ctx)).toBe("provider-secret");
     expect(() => decryptSecret(sealed, oldKey, ctx)).toThrow();
 
     const again = await rotateEncryptionKey(owner.db, oldKey, newKey);
-    expect(again).toMatchObject({ providers: 0, waSessions: 0 });
-    expect(again.alreadyCurrent).toBeGreaterThanOrEqual(2);
+    expect(again).toMatchObject({ providers: 0, gateways: 0, waSessions: 0 });
+    expect(again.alreadyCurrent).toBeGreaterThanOrEqual(3);
   });
 
   it("aborts without changing anything when a value opens with neither key", async () => {

@@ -10,6 +10,8 @@ import {
   openRefund,
   orders,
   paymentMethods,
+  paymentGatewayTests,
+  paymentGateways,
   payments,
   recordRejectedEvent,
   transitionPayment,
@@ -109,6 +111,54 @@ export class PaymentsRepo {
   async payment(paymentId: string): Promise<Payment | undefined> {
     const [row] = await this.handle.db.select().from(payments).where(eq(payments.id, paymentId));
     return row;
+  }
+
+  async recordWebhook(gatewayKey: string, ok: boolean, error: string | null): Promise<void> {
+    await this.handle.db
+      .update(paymentGateways)
+      .set({
+        lastWebhookAt: new Date(),
+        lastWebhookOk: ok,
+        lastWebhookError: error,
+      })
+      .where(eq(paymentGateways.key, gatewayKey));
+  }
+
+  async configuredGateway(gatewayKey: string): Promise<boolean> {
+    const [row] = await this.handle.db
+      .select({ id: paymentGateways.id })
+      .from(paymentGateways)
+      .where(eq(paymentGateways.key, gatewayKey));
+    return row !== undefined;
+  }
+
+  async recordGatewayTestWebhook(input: {
+    gatewayKey: string;
+    providerOrderId: string;
+    state: string;
+    amountMinor: number | null;
+    currency: string | null;
+  }): Promise<boolean> {
+    const [row] = await this.handle.db
+      .select({ id: paymentGatewayTests.id })
+      .from(paymentGatewayTests)
+      .where(
+        and(
+          eq(paymentGatewayTests.gatewayKey, input.gatewayKey),
+          eq(paymentGatewayTests.providerOrderId, input.providerOrderId),
+        ),
+      );
+    if (!row) return false;
+    await this.handle.db
+      .update(paymentGatewayTests)
+      .set({
+        webhookReceivedAt: new Date(),
+        webhookState: input.state,
+        webhookAmountMinor: input.amountMinor,
+        webhookCurrency: input.currency,
+      })
+      .where(eq(paymentGatewayTests.id, row.id));
+    return true;
   }
 
   openRefund(request: RefundRequest): Promise<Refund> {

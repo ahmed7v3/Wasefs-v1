@@ -4,6 +4,7 @@ import { arAdminAi } from "./ar.admin-ai.js";
 import { arAdminBilling } from "./ar.admin-billing.js";
 import { arAdminDrugs } from "./ar.admin-drugs.js";
 import { arAdminEvals } from "./ar.admin-evals.js";
+import { arAdminGateways } from "./ar.admin-gateways.js";
 import { arAdmin } from "./ar.admin.js";
 import { arCapture } from "./ar.capture.js";
 import { arChat } from "./ar.chat.js";
@@ -514,6 +515,7 @@ export const ar = {
   ...arAdmin,
   ...arAdminAi,
   ...arAdminBilling,
+  ...arAdminGateways,
   ...arAdminDrugs,
   ...arAdminEvals,
   ...arRx,

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { enabledGateway } from "@wasfa/db";
+import { enabledGateway, paymentGateways } from "@wasfa/db";
 import { decryptSecret } from "@wasfa/shared/crypto";
 import {
   FAKE_GATEWAY_DEV_SECRET,
@@ -9,6 +9,7 @@ import {
   type FakeGateway,
   type PaymentGateway,
 } from "@wasfa/shared/gateways";
+import { eq } from "drizzle-orm";
 
 import { DB, type DbHandle } from "../common/database.js";
 import { API_ENV } from "../config/config.module.js";
@@ -40,6 +41,22 @@ export class GatewayRegistry {
     const cached = this.cache.get(key);
     if (cached && cached.until > Date.now()) return cached.gateway;
     const row = await enabledGateway(this.handle.db, key);
+    const gateway = this.build(row);
+    this.cache.set(key, { gateway, until: Date.now() + CACHE_MS });
+    return gateway;
+  }
+
+  /** Builds an adapter for admin verification, including disabled gateways. Never cached. */
+  async forAdmin(key: string): Promise<PaymentGateway | null> {
+    if (key === "fake") return this.fake;
+    const [row] = await this.handle.db
+      .select()
+      .from(paymentGateways)
+      .where(eq(paymentGateways.key, key));
+    return this.build(row);
+  }
+
+  private build(row: Awaited<ReturnType<typeof enabledGateway>>): PaymentGateway | null {
     let gateway: PaymentGateway | null = null;
     if (row?.credentialsEnc) {
       try {
@@ -57,7 +74,6 @@ export class GatewayRegistry {
         gateway = null;
       }
     }
-    this.cache.set(key, { gateway, until: Date.now() + CACHE_MS });
     return gateway;
   }
 

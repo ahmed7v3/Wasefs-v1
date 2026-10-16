@@ -4,6 +4,7 @@ import {
   createDb,
   createOrder,
   creditPacks,
+  paymentGateways,
   drainOutbox,
   orders,
   outbox,
@@ -12,14 +13,19 @@ import {
   userNotifications,
   users,
 } from "@wasfa/db";
-import { createFakeGateway } from "@wasfa/shared/gateways";
+import { decodeEncryptionKey, encryptSecret } from "@wasfa/shared/crypto";
+import { createFakeGateway, gatewayCredentialsContext } from "@wasfa/shared/gateways";
 import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { Redis } from "ioredis";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { outboxHandlers } from "../src/jobs/outbox.job.js";
 import { RECONCILE_QUIET_MS, reconcilePayments } from "../src/jobs/payments.job.js";
+import { createPaymentsRuntime } from "../src/payments/runtime.js";
 
+import { TEST_ENCRYPTION_KEY, testEnv } from "./support/env.js";
 import { startPostgres, type TestPostgres } from "./support/postgres.js";
+import { startRedis, type TestRedis } from "./support/redis.js";
 
 import type { EmailSendInput } from "@wasfa/shared/email";
 
@@ -30,15 +36,18 @@ import type { EmailSendInput } from "@wasfa/shared/email";
  */
 
 let postgres: TestPostgres;
+let redisServer: TestRedis;
 let owner: ReturnType<typeof createDb>;
 let api: ReturnType<typeof createDb>;
+let redis: Redis;
 let packId: string;
 let counter = 0;
 
 beforeAll(async () => {
-  postgres = await startPostgres();
+  [postgres, redisServer] = await Promise.all([startPostgres(), startRedis()]);
   owner = createDb({ url: postgres.ownerUrl, max: 2 });
   api = createDb({ url: postgres.apiUrl, max: 4 });
+  redis = new Redis(redisServer.url, { maxRetriesPerRequest: null });
   await seedDefaults(owner.db);
   const [pack] = await owner.db.select().from(creditPacks).limit(1);
   if (!pack) throw new Error("no pack seeded");
@@ -48,10 +57,12 @@ beforeAll(async () => {
 afterAll(async () => {
   await api?.close();
   await owner?.close();
+  await redis?.quit();
+  await redisServer?.stop();
   await postgres?.stop();
 });
 
-async function openOrder() {
+async function openOrder(gateway: "fake" | "kashier" = "fake") {
   const [user] = await owner.db
     .insert(users)
     .values({ name: "Buyer", email: `buyer-${String(++counter)}@example.com`, locale: "en" })
@@ -75,7 +86,7 @@ async function openOrder() {
       totalMinor: 7_900,
       applied: {},
       expiresAt: new Date(Date.now() + 3_600_000),
-      method: { key: "fake_card", gateway: "fake" },
+      method: { key: gateway === "fake" ? "fake_card" : "kashier_card", gateway },
     },
     NO_SUBSCRIPTION_HOOKS,
   );
@@ -85,6 +96,58 @@ async function openOrder() {
 }
 
 describe("payments.reconcile", () => {
+  it("reconciles an open payment through a configured gateway that is disabled", async () => {
+    const credentials = {
+      merchantId: "MID-123-456",
+      paymentApiKey: "made-up-payment-api-key",
+      secretKey: "made-up-secret-key",
+    };
+    await owner.db.insert(paymentGateways).values({
+      key: "kashier",
+      provider: "kashier",
+      mode: "test",
+      credentialsEnc: encryptSecret(
+        JSON.stringify(credentials),
+        decodeEncryptionKey(TEST_ENCRYPTION_KEY),
+        gatewayCredentialsContext("kashier"),
+      ),
+      merchantRef: credentials.merchantId,
+      keyHint: "…-key",
+      credentialsUpdatedAt: new Date(),
+      enabled: true,
+    });
+    const { order } = await openOrder("kashier");
+    await owner.db
+      .update(paymentGateways)
+      .set({ enabled: false })
+      .where(eq(paymentGateways.key, "kashier"));
+    const runtime = createPaymentsRuntime(testEnv(redisServer.url), api.db, redis);
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({
+        response: {
+          status: "CAPTURED",
+          order: { amount: "79.00", currency: "EGP" },
+          orderId: "made-up-provider-order",
+        },
+      }),
+    );
+    try {
+      const result = await reconcilePayments(
+        api.db,
+        (key) => runtime.gateway(key),
+        NO_SUBSCRIPTION_HOOKS,
+        new Date(Date.now() + RECONCILE_QUIET_MS + 60_000),
+      );
+      expect(result.applied).toBe(1);
+      const [paid] = await owner.db.select().from(orders).where(eq(orders.id, order.id));
+      expect(paid?.status).toBe("paid");
+      expect(fetchMock).toHaveBeenCalledOnce();
+    } finally {
+      fetchMock.mockRestore();
+      await runtime.close();
+    }
+  });
+
   it("picks up a payment whose webhook was lost, once", async () => {
     const { order, payment } = await openOrder();
     const fake = createFakeGateway("secret");
