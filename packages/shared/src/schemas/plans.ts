@@ -5,6 +5,7 @@ import { PLAN_AUDIENCES, PLAN_KEY_PATTERN, PLAN_VISIBILITIES } from "../plans.js
 import { RX_MAX_PAGES } from "../rx.js";
 
 import { cursorQuerySchema } from "./admin.js";
+import { planFeaturesSchema } from "./billing.js";
 import { creditReasonSchema, planSummarySchema, walletOwnerSchema } from "./credits.js";
 
 /*
@@ -53,6 +54,14 @@ export const updatePlanSchema = z
     sort: planFields.sort,
     badgeAr: planFields.badgeAr,
     badgeEn: planFields.badgeEn,
+    taglineAr: z.string().trim().max(240).nullable(),
+    taglineEn: z.string().trim().max(240).nullable(),
+    features: planFeaturesSchema,
+    trialDays: z.number().int().min(0).max(365),
+    pinRecommended: z.boolean(),
+    maxMembers: z.number().int().positive().nullable(),
+    fairUseNoteAr: z.string().trim().max(2_000).nullable(),
+    fairUseNoteEn: z.string().trim().max(2_000).nullable(),
   })
   .partial()
   .refine((value) => Object.keys(value).length > 0, "at least one field");

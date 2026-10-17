@@ -107,9 +107,11 @@ export const QUEUE_REGISTRY = {
     "alerts.retention": paymentsMaintenancePayloadSchema,
     "payment-methods.apply-due": paymentsMaintenancePayloadSchema,
     "payments.review-sla": paymentsMaintenancePayloadSchema,
+    "payments.failure_spike": paymentsMaintenancePayloadSchema,
     // Subscriptions (BILLING §7): period ends, grace, grants, reminders; and the paid-order backfill.
     "subscriptions.lifecycle": paymentsMaintenancePayloadSchema,
     "subscriptions.backfill": paymentsMaintenancePayloadSchema,
+    "promotions.status": paymentsMaintenancePayloadSchema,
   },
   /** Accuracy evaluation (Phase 2, Task 2.10): label-set imports and eval runs; no credits, no users. */
   evals: {

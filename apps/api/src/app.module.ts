@@ -19,6 +19,7 @@ import { RedisModule } from "./common/redis.js";
 import { ZodValidationPipe } from "./common/validation.js";
 import { ConfigModule } from "./config/config.module.js";
 import { ContactModule } from "./contact/contact.module.js";
+import { CouponsModule } from "./coupons/coupons.module.js";
 import { CreditsModule } from "./credits/credits.module.js";
 import { FilesModule } from "./files/files.module.js";
 import { FlagsModule } from "./flags/flags.module.js";
@@ -70,6 +71,7 @@ export class AppModule {
         UsersModule,
         CreditsModule,
         BillingModule,
+        CouponsModule,
         CatalogModule,
         PaymentsModule,
         FilesModule,

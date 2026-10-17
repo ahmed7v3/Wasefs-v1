@@ -5,6 +5,7 @@ import {
   BILLING_MAX_MONTHS,
   BILLING_MIN_MONTHS,
   COUPON_CODE_PATTERN,
+  COUPON_REDEMPTION_STATUSES,
   CURRENCY_CODE_PATTERN,
   DISCOUNT_KINDS,
   DISCOUNT_STATUSES,
@@ -17,6 +18,7 @@ import {
   STACKING_MODES,
 } from "../billing.js";
 import { PLAN_AUDIENCES, PLAN_KEY_PATTERN } from "../plans.js";
+import { QUOTE_ERROR_CODES } from "../price-engine.js";
 
 /*
  * Billing contract (Phase 3, Task 3.1). The client never sends a price: a quote request names the
@@ -83,7 +85,10 @@ export type PlanFeature = z.output<typeof planFeatureSchema>;
 
 const discountScopeFields = {
   planIds: z.array(z.uuid()).max(50).default([]),
-  months: z.array(monthsSchema).max(BILLING_MAX_MONTHS).default([]),
+  months: z
+    .array(z.union([z.literal(1), z.literal(3), z.literal(6), z.literal(12)]))
+    .max(4)
+    .default([]),
   audience: z.enum(PLAN_AUDIENCES).default("any"),
   countries: z
     .array(z.string().regex(/^[A-Z]{2}$/))
@@ -97,8 +102,8 @@ const discountCommonFields = {
   name: z.string().trim().min(1).max(120),
   titleAr: z.string().trim().min(1).max(120),
   titleEn: z.string().trim().min(1).max(120),
-  badgeAr: z.string().trim().min(1).max(24).nullable().default(null),
-  badgeEn: z.string().trim().min(1).max(24).nullable().default(null),
+  badgeAr: z.string().trim().min(1).max(40).nullable().default(null),
+  badgeEn: z.string().trim().min(1).max(40).nullable().default(null),
   value: z.number().int().min(0).max(1_000_000_000),
   currency: currencyCodeSchema.nullable().default(null),
   ...discountScopeFields,
@@ -108,7 +113,30 @@ const discountCommonFields = {
   perOwnerLimit: z.number().int().min(1).max(1_000).nullable().default(null),
   stacking: z.enum(STACKING_MODES).default("exclusive"),
   priority: z.number().int().min(-10_000).max(10_000).default(0),
-  status: z.enum(DISCOUNT_STATUSES).default("draft"),
+};
+
+/**
+ * Zod 4 applies a field default even under `.partial()`, so a PATCH naming one field would reset
+ * every other defaulted field. Update schemas therefore use the same rules without the defaults.
+ */
+const discountUpdateFields = {
+  name: discountCommonFields.name,
+  titleAr: discountCommonFields.titleAr,
+  titleEn: discountCommonFields.titleEn,
+  badgeAr: discountCommonFields.badgeAr.unwrap(),
+  badgeEn: discountCommonFields.badgeEn.unwrap(),
+  planIds: discountScopeFields.planIds.unwrap(),
+  months: discountScopeFields.months.unwrap(),
+  audience: discountScopeFields.audience.unwrap(),
+  countries: discountScopeFields.countries.unwrap(),
+  newCustomersOnly: discountScopeFields.newCustomersOnly.unwrap(),
+  minAmountMinor: discountScopeFields.minAmountMinor.unwrap(),
+  startsAt: discountCommonFields.startsAt.unwrap(),
+  endsAt: discountCommonFields.endsAt.unwrap(),
+  maxRedemptions: discountCommonFields.maxRedemptions.unwrap(),
+  perOwnerLimit: discountCommonFields.perOwnerLimit.unwrap(),
+  stacking: discountCommonFields.stacking.unwrap(),
+  priority: discountCommonFields.priority.unwrap(),
 };
 
 interface DiscountShape {
@@ -119,13 +147,22 @@ interface DiscountShape {
   endsAt: string | null;
 }
 
-/** The cross-field rules the database also enforces by CHECK (value range per kind, currency only for `fixed`, period order). */
+/** Shared cross-field validation for value ranges, fixed currency and date order. */
 function refineDiscount(value: DiscountShape, ctx: z.RefinementCtx): void {
   if (value.kind === "percent" && (value.value < 1 || value.value > MAX_BPS)) {
     ctx.addIssue({ code: "custom", path: ["value"], message: "percent is 1-10000 bps" });
   }
   if (value.kind !== "percent" && value.value < 1) {
     ctx.addIssue({ code: "custom", path: ["value"], message: "must be positive" });
+  }
+  if (value.kind === "bonus_credits" && value.value > 100_000) {
+    ctx.addIssue({ code: "custom", path: ["value"], message: "must be at most 100000" });
+  }
+  if (value.kind === "extra_months" && value.value > 24) {
+    ctx.addIssue({ code: "custom", path: ["value"], message: "must be at most 24" });
+  }
+  if (value.kind === "trial_extension" && (value.value < 1 || value.value > 365)) {
+    ctx.addIssue({ code: "custom", path: ["value"], message: "must be 1-365 days" });
   }
   if ((value.kind === "fixed") !== (value.currency !== null)) {
     ctx.addIssue({
@@ -160,19 +197,7 @@ export type CreatePromotionInput = z.output<typeof createPromotionSchema>;
 /** Kind and value are fixed once a discount exists: redemptions reference what was promised. */
 export const updatePromotionSchema = z
   .object({
-    name: discountCommonFields.name,
-    titleAr: discountCommonFields.titleAr,
-    titleEn: discountCommonFields.titleEn,
-    badgeAr: discountCommonFields.badgeAr,
-    badgeEn: discountCommonFields.badgeEn,
-    ...discountScopeFields,
-    startsAt: discountCommonFields.startsAt,
-    endsAt: discountCommonFields.endsAt,
-    maxRedemptions: discountCommonFields.maxRedemptions,
-    perOwnerLimit: discountCommonFields.perOwnerLimit,
-    stacking: discountCommonFields.stacking,
-    priority: discountCommonFields.priority,
-    status: discountCommonFields.status,
+    ...discountUpdateFields,
     showOnPricing: z.boolean(),
     showCountdown: z.boolean(),
   })
@@ -187,9 +212,8 @@ export const createCouponSchema = z
     code: couponCodeSchema,
     targetUserId: z.uuid().nullable().default(null),
     targetOrgId: z.uuid().nullable().default(null),
-    campaign: z.string().trim().min(1).max(80).nullable().default(null),
+    campaign: z.string().trim().min(1).max(60).nullable().default(null),
     referralCodeId: z.uuid().nullable().default(null),
-    batch: z.string().trim().min(1).max(80).nullable().default(null),
   })
   .superRefine(refineDiscount)
   .refine((value) => value.targetUserId === null || value.targetOrgId === null, {
@@ -199,25 +223,123 @@ export const createCouponSchema = z
 export type CreateCouponInput = z.output<typeof createCouponSchema>;
 
 export const updateCouponSchema = z
-  .object({
-    name: discountCommonFields.name,
-    titleAr: discountCommonFields.titleAr,
-    titleEn: discountCommonFields.titleEn,
-    badgeAr: discountCommonFields.badgeAr,
-    badgeEn: discountCommonFields.badgeEn,
-    ...discountScopeFields,
-    startsAt: discountCommonFields.startsAt,
-    endsAt: discountCommonFields.endsAt,
-    maxRedemptions: discountCommonFields.maxRedemptions,
-    perOwnerLimit: discountCommonFields.perOwnerLimit,
-    stacking: discountCommonFields.stacking,
-    priority: discountCommonFields.priority,
-    status: discountCommonFields.status,
-  })
+  .object(discountUpdateFields)
   .partial()
   .refine((value) => Object.keys(value).length > 0, "at least one field");
 export type UpdateCouponInput = z.output<typeof updateCouponSchema>;
 
+export const discountListQuerySchema = z.object({
+  status: z.enum(DISCOUNT_STATUSES).optional(),
+  q: z.string().trim().max(120).optional(),
+  batch: z.string().trim().max(80).optional(),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(30),
+});
+export type DiscountListQuery = z.output<typeof discountListQuerySchema>;
+export const promotionListQuerySchema = discountListQuerySchema.omit({ batch: true });
+export const discountIdParamSchema = z.object({ id: z.uuid() });
+export const couponBatchParamSchema = z.object({
+  batch: z.string().regex(/^[A-Z0-9-]{1,40}$/),
+});
+export const bulkCouponSchema = z
+  .object({
+    count: z.number().int().min(1).max(5000),
+    prefix: z
+      .string()
+      .regex(/^[A-Z0-9]{1,12}$/)
+      .optional(),
+    length: z.number().int().min(6).max(16).default(8),
+    ...discountCommonFields,
+    kind: z.enum(DISCOUNT_KINDS),
+    campaign: z.string().trim().min(1).max(60).nullable().default(null),
+    referralCodeId: z.uuid().nullable().default(null),
+  })
+  .superRefine(refineDiscount);
+export type BulkCouponInput = z.output<typeof bulkCouponSchema>;
+export const couponCheckSchema = z.object({
+  code: couponCodeSchema,
+  planKey: z.string().max(40).regex(PLAN_KEY_PATTERN),
+  months: z.union([z.literal(1), z.literal(3), z.literal(6), z.literal(12)]),
+});
+export const simulateBillingSchema = z.object({
+  userId: z.uuid().optional(),
+  planKey: z.string().max(40).regex(PLAN_KEY_PATTERN),
+  months: z.union([z.literal(1), z.literal(3), z.literal(6), z.literal(12)]),
+  couponCode: couponCodeSchema.optional(),
+  methodKey: paymentMethodKeySchema.optional(),
+  currency: currencyCodeSchema.optional(),
+  country: z
+    .string()
+    .regex(/^[A-Z]{2}$/)
+    .optional(),
+});
+export type SimulateBillingInput = z.output<typeof simulateBillingSchema>;
+
+export const discountViewSchema = z.object({
+  id: z.uuid(),
+  kind: z.enum(DISCOUNT_KINDS),
+  name: z.string(),
+  titleAr: z.string(),
+  titleEn: z.string(),
+  badgeAr: z.string().nullable(),
+  badgeEn: z.string().nullable(),
+  value: z.number().int(),
+  currency: currencyCodeSchema.nullable(),
+  planIds: z.array(z.uuid()),
+  months: z.array(z.union([z.literal(1), z.literal(3), z.literal(6), z.literal(12)])),
+  audience: z.enum(PLAN_AUDIENCES),
+  countries: z.array(z.string().regex(/^[A-Z]{2}$/)),
+  newCustomersOnly: z.boolean(),
+  minAmountMinor: minorAmountSchema.nullable(),
+  startsAt: z.string().nullable(),
+  endsAt: z.string().nullable(),
+  maxRedemptions: z.number().int().nullable(),
+  perOwnerLimit: z.number().int().nullable(),
+  redeemedCount: z.number().int(),
+  stacking: z.enum(STACKING_MODES),
+  priority: z.number().int(),
+  status: z.enum(DISCOUNT_STATUSES),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export const promotionViewSchema = discountViewSchema.extend({
+  showOnPricing: z.boolean(),
+  showCountdown: z.boolean(),
+});
+export const promotionListResponseSchema = z.object({
+  items: z.array(promotionViewSchema),
+  nextCursor: z.string().nullable(),
+});
+export const couponViewSchema = discountViewSchema.extend({
+  code: couponCodeSchema,
+  targetUserId: z.uuid().nullable(),
+  targetOrgId: z.uuid().nullable(),
+  campaign: z.string().nullable(),
+  referralCodeId: z.uuid().nullable(),
+  batch: z.string().nullable(),
+});
+export const couponListResponseSchema = z.object({
+  items: z.array(couponViewSchema),
+  nextCursor: z.string().nullable(),
+});
+export const couponRedemptionViewSchema = z.object({
+  orderNumber: z.string(),
+  ownerType: z.enum(["user", "org"]),
+  ownerId: z.uuid(),
+  status: z.enum(COUPON_REDEMPTION_STATUSES),
+  reservedAt: z.string(),
+  confirmedAt: z.string().nullable(),
+  releasedAt: z.string().nullable(),
+  discountMinor: z.number().int(),
+});
+export const couponDetailViewSchema = couponViewSchema.extend({
+  redemptions: z.array(couponRedemptionViewSchema).max(50),
+});
+export const bulkCouponResponseSchema = z.object({
+  batch: z.string().regex(/^[A-Z0-9-]{1,40}$/),
+  count: z.number().int().min(1).max(5000),
+});
+export const couponBatchTransitionResponseSchema = z.object({ changed: z.number().int().min(0) });
 // --- Catalog, quote and recommendation responses (Task 3.2) -----------------------------------------
 // Responses are parsed with these schemas before they leave the API, so a column added to a table
 // can never reach the public catalog by accident.
@@ -381,6 +503,24 @@ export const quoteResponseSchema = z.object({
   coupon: couponOutcomeSchema.nullable(),
 });
 export type QuoteResponse = z.output<typeof quoteResponseSchema>;
+
+/** `POST /admin/billing/simulate` (Task 3.6): the engine quote for an admin, with why each discount won or lost. */
+export const simulateBillingResponseSchema = z.object({
+  quote: priceQuoteSchema.nullable(),
+  error: z.enum(QUOTE_ERROR_CODES).nullable(),
+  coupon: couponOutcomeSchema.nullable(),
+  candidates: z.array(
+    z.object({
+      id: z.uuid(),
+      source: z.enum(["promotion", "coupon", "personal_offer"]),
+      name: z.string().nullable(),
+      kind: z.enum(["percent", "fixed", "bonus_credits", "extra_months"]),
+      aloneSavingMinor: z.number().int(),
+      eligible: z.boolean(),
+      chosen: z.boolean(),
+    }),
+  ),
+});
 
 // --- Orders (Task 3.3) --------------------------------------------------------------------------
 

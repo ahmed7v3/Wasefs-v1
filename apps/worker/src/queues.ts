@@ -26,12 +26,14 @@ import { heartbeatJob } from "./jobs/health.job.js";
 import { imageProcessJob } from "./jobs/image.job.js";
 import { drainOutboxJob } from "./jobs/outbox.job.js";
 import { applyDuePaymentMethodChangesJob } from "./jobs/payment-method-account-changes.job.js";
+import { paymentsFailureSpikeJob } from "./jobs/payments-failure-spike.job.js";
 import { paymentsReviewSlaJob } from "./jobs/payments-review-sla.job.js";
 import {
   expireOrdersJob,
   paymentsConsistencyJob,
   reconcilePaymentsJob,
 } from "./jobs/payments.job.js";
+import { promotionsStatusJob } from "./jobs/promotions.job.js";
 import { rxAnalyzeJob } from "./jobs/rx.job.js";
 import { subscriptionsBackfillJob, subscriptionsLifecycleJob } from "./jobs/subscriptions.job.js";
 import { customerNotifyJob, customerWhatsappCheckJob } from "./notifications/customer.job.js";
@@ -108,8 +110,10 @@ export const HANDLERS: Handlers = {
     "alerts.retention": alertsRetentionJob,
     "payment-methods.apply-due": applyDuePaymentMethodChangesJob,
     "payments.review-sla": paymentsReviewSlaJob,
+    "payments.failure_spike": paymentsFailureSpikeJob,
     "subscriptions.lifecycle": subscriptionsLifecycleJob,
     "subscriptions.backfill": subscriptionsBackfillJob,
+    "promotions.status": promotionsStatusJob,
   },
 };
 
@@ -208,10 +212,12 @@ const OUTBOX_DRAIN_INTERVAL_MS = 30 * 1000;
 const ALERT_RETENTION_PATTERN = "15 2 * * *";
 const PAYMENT_METHOD_APPLY_INTERVAL_MS = 60_000;
 const PAYMENT_REVIEW_SLA_INTERVAL_MS = 30 * 60_000;
+const PAYMENTS_FAILURE_SPIKE_INTERVAL_MS = 5 * 60_000;
 /** Period ends, grace and anniversary grants are due at any minute; reminders count in days. */
 const SUBSCRIPTIONS_LIFECYCLE_INTERVAL_MS = 15 * 60_000;
 /** Nightly at 02:40 UTC: paid subscription orders that still have no period (also run at start). */
 const SUBSCRIPTIONS_BACKFILL_PATTERN = "40 2 * * *";
+const PROMOTIONS_STATUS_INTERVAL_MS = 60_000;
 
 /** Registers repeatable jobs. Upserting by id is idempotent, so restarts never duplicate them. */
 export async function registerSchedules(queues: readonly Queue[]): Promise<void> {
@@ -288,6 +294,11 @@ export async function registerSchedules(queues: readonly Queue[]): Promise<void>
     { name: "payments.review-sla", data: {} },
   );
   await payments.upsertJobScheduler(
+    "payments.failure_spike",
+    { every: PAYMENTS_FAILURE_SPIKE_INTERVAL_MS },
+    { name: "payments.failure_spike", data: {} },
+  );
+  await payments.upsertJobScheduler(
     "alerts.retention",
     { pattern: ALERT_RETENTION_PATTERN, tz: "UTC" },
     { name: "alerts.retention", data: {} },
@@ -311,6 +322,11 @@ export async function registerSchedules(queues: readonly Queue[]): Promise<void>
     "subscriptions.lifecycle",
     { every: SUBSCRIPTIONS_LIFECYCLE_INTERVAL_MS },
     { name: "subscriptions.lifecycle", data: {} },
+  );
+  await payments.upsertJobScheduler(
+    "promotions.status",
+    { every: PROMOTIONS_STATUS_INTERVAL_MS },
+    { name: "promotions.status", data: {} },
   );
   await payments.upsertJobScheduler(
     "subscriptions.backfill",

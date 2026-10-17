@@ -156,6 +156,12 @@ export class QuoteInputsRepo {
     return row;
   }
 
+  /** Admin previews may price hidden plans, while all other quote checks stay unchanged. */
+  async planForSimulation(key: string): Promise<Plan | undefined> {
+    const [row] = await this.handle.db.select().from(plans).where(eq(plans.key, key));
+    return row;
+  }
+
   async activePrice(
     planId: string,
     months: number,

@@ -254,6 +254,21 @@ export const billingSettingsSchema = z.object({
   /** Manual payments at or above this need a second admin. */
   fourEyesThresholdMinor: nonNegativeInt.default(500_000),
   reviewSlaMinutes: z.number().int().min(1).max(10_080).default(120),
+  failureSpike: z
+    .object({
+      enabled: z.boolean().default(true),
+      windowMinutes: z.number().int().min(5).max(120).default(15),
+      minFailures: z.number().int().min(1).max(1_000).default(5),
+      rateBps: z.number().int().min(1).max(10_000).default(5_000),
+      cooldownMinutes: z.number().int().min(5).max(1_440).default(60),
+    })
+    .default({
+      enabled: true,
+      windowMinutes: 15,
+      minFailures: 5,
+      rateBps: 5_000,
+      cooldownMinutes: 60,
+    }),
   /** Retention of payment proof images, in days. */
   proofRetentionDays: z.number().int().min(1).max(3_650).default(365),
   fx: z

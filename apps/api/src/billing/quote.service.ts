@@ -1,6 +1,7 @@
 import { createHmac, hkdfSync, randomUUID, timingSafeEqual } from "node:crypto";
 
 import { Inject, Injectable } from "@nestjs/common";
+import { normalizeCouponCode } from "@wasfa/shared/coupon-codes";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import {
   canonicalJson,
@@ -9,16 +10,19 @@ import {
   type PaymentMethodInput,
   type PriceQuote,
   type QuoteInput,
+  type QuoteResult,
 } from "@wasfa/shared/price-engine";
 import {
   priceQuoteSchema,
   quoteTargetSchema,
+  simulateBillingResponseSchema,
   type CouponOutcome,
   type PackQuoteRequest,
   type PlanQuoteRequest,
   type QuoteRequest,
   type QuoteResponse,
   type QuoteTarget,
+  type SimulateBillingInput,
 } from "@wasfa/shared/schemas/billing";
 import { Redis } from "ioredis";
 import { z } from "zod";
@@ -67,11 +71,20 @@ interface CouponRefusal {
   def?: undefined;
 }
 interface CouponCandidate {
-  outcome?: undefined;
+  outcome?: CouponOutcome;
   coupon: Coupon;
   def: DiscountDef;
 }
 type CouponCheck = CouponRefusal | CouponCandidate;
+
+interface PlanInputs {
+  plan: Plan;
+  input: QuoteInput;
+  result: QuoteResult;
+  couponCheck: CouponCheck | null;
+  target: QuoteTarget;
+  names: ReadonlyMap<string, string>;
+}
 
 function toMethodInput(method: MethodSummary): PaymentMethodInput {
   return {
@@ -176,6 +189,75 @@ export class QuoteService {
       : this.quotePlan(userId, request, market, ip, now);
   }
 
+  async checkCouponCode(
+    userId: string,
+    request: Pick<PlanQuoteRequest, "planKey" | "months"> & { code: string },
+    market: Market,
+    ip: string,
+    now = new Date(),
+  ): Promise<CouponOutcome> {
+    await this.hitCouponLimits(userId, ip);
+    const inputs = await this.planInputs(
+      userId,
+      { ...request, couponCode: request.code },
+      market,
+      now,
+    );
+    if (!inputs.result.ok) throw new AppError(ErrorCode[inputs.result.code]);
+    return inputs.couponCheck
+      ? this.checkedCouponOutcome(inputs.couponCheck, inputs.result.quote, inputs.input)
+      : INVALID_COUPON;
+  }
+
+  async simulate(request: SimulateBillingInput, market: Market, now = new Date()) {
+    const resolvedMarket = {
+      currency: request.currency ?? market.currency,
+      country: request.country ?? market.country,
+    };
+    const inputs = await this.planInputs(
+      request.userId,
+      {
+        planKey: request.planKey,
+        months: request.months,
+        couponCode: request.couponCode,
+        methodKey: request.methodKey,
+      },
+      resolvedMarket,
+      now,
+      { includeHidden: true },
+    );
+    const quote = inputs.result.ok ? inputs.result.quote : null;
+    const noDiscount = priceQuote({ ...inputs.input, discounts: [] });
+    const coupon = inputs.couponCheck
+      ? quote
+        ? this.couponOutcome(inputs.couponCheck, quote, inputs.input)
+        : (inputs.couponCheck.outcome ?? INVALID_COUPON)
+      : null;
+    const candidates = inputs.input.discounts.map((discount) => {
+      const alone = priceQuote({ ...inputs.input, discounts: [discount] });
+      const eligible = alone.ok && Object.values(alone.quote.applied).includes(discount.id);
+      const bonus = discount.kind === "bonus_credits" || discount.kind === "extra_months";
+      return {
+        id: discount.id,
+        source: discount.source,
+        name: inputs.names.get(discount.id) ?? null,
+        kind: discount.kind,
+        aloneSavingMinor:
+          !bonus && noDiscount.ok && alone.ok
+            ? noDiscount.quote.subtotalMinor - alone.quote.subtotalMinor
+            : 0,
+        eligible,
+        chosen: quote !== null && Object.values(quote.applied).includes(discount.id),
+      };
+    });
+    return simulateBillingResponseSchema.parse({
+      quote,
+      error: inputs.result.ok ? null : inputs.result.code,
+      coupon,
+      candidates,
+    });
+  }
+
   /** Credit packs: list price, tax and the method fee. Discounts and proration belong to plans. */
   private async quotePack(
     userId: string,
@@ -224,53 +306,70 @@ export class QuoteService {
     ip: string,
     now: Date,
   ): Promise<QuoteResponse> {
-    if (request.couponCode !== undefined) {
-      await this.limiter.hit(
-        `coupon:user:${userId}`,
-        COUPON_USER_LIMIT.max,
-        COUPON_USER_LIMIT.windowSeconds,
-      );
-      await this.limiter.hit(`coupon:ip:${ip}`, COUPON_IP_LIMIT.max, COUPON_IP_LIMIT.windowSeconds);
-    }
+    await this.hitCouponLimits(userId, ip, request.couponCode !== undefined);
+    const inputs = await this.planInputs(userId, request, market, now);
+    if (!inputs.result.ok) throw new AppError(ErrorCode[inputs.result.code]);
+    const coupon = inputs.couponCheck
+      ? this.couponOutcome(inputs.couponCheck, inputs.result.quote, inputs.input)
+      : null;
+    const quoteId = await this.store(
+      userId,
+      inputs.target,
+      inputs.result.quote,
+      inputs.input.settings.quoteTtlMinutes,
+    );
+    return { quoteId, quote: inputs.result.quote, target: inputs.target, coupon };
+  }
 
-    const plan = await this.repo.publicPlan(request.planKey);
-    // Organization plans are bought by the organization (WP6); a hidden plan does not exist here.
+  private async hitCouponLimits(userId: string, ip: string, enabled = true): Promise<void> {
+    if (!enabled) return;
+    await this.limiter.hit(
+      `coupon:user:${userId}`,
+      COUPON_USER_LIMIT.max,
+      COUPON_USER_LIMIT.windowSeconds,
+    );
+    await this.limiter.hit(`coupon:ip:${ip}`, COUPON_IP_LIMIT.max, COUPON_IP_LIMIT.windowSeconds);
+  }
+
+  private async planInputs(
+    userId: string | undefined,
+    request: PlanQuoteRequest,
+    market: Market,
+    now: Date,
+    options: { includeHidden?: boolean } = {},
+  ): Promise<PlanInputs> {
+    const plan = options.includeHidden
+      ? await this.repo.planForSimulation(request.planKey)
+      : await this.repo.publicPlan(request.planKey);
     if (!plan || plan.audience === "organization") throw new AppError(ErrorCode.NOT_FOUND);
-
     const { currency, country } = market;
     const [billing, priceRow, promotions, offers, taxRule, methods, packs] = await Promise.all([
       this.settings.get("billing"),
       this.repo.activePrice(plan.id, request.months, currency),
       this.repo.activePromotions(now),
-      this.repo.personalOfferDiscounts(userId, now),
+      userId ? this.repo.personalOfferDiscounts(userId, now) : Promise.resolve([]),
       this.repo.taxRuleFor(country),
       this.repo.enabledMethods(currency, country),
       this.repo.creditPacks(currency),
     ]);
     const [isFirstPurchase, upgradeFrom, deal, couponCheck] = await Promise.all([
-      this.repo.hasPaidOrder(userId).then((paid) => !paid),
-      this.upgradeBasis(userId, plan, currency),
-      this.deals.resolve(userId, plan.key, request.months, currency, now),
+      userId ? this.repo.hasPaidOrder(userId).then((paid) => !paid) : Promise.resolve(true),
+      userId ? this.upgradeBasis(userId, plan, currency) : Promise.resolve(null),
+      userId
+        ? this.deals.resolve(userId, plan.key, request.months, currency, now)
+        : Promise.resolve(null),
       request.couponCode === undefined
         ? Promise.resolve(null)
         : this.checkCoupon(request.couponCode, userId, now),
     ]);
-
-    const automatic = [
-      ...promotions
-        .filter((entry) => audienceFits(entry.promotion.audience, "individual"))
-        .map((entry) => entry.def),
-      ...offers,
-    ];
+    const promotionEntries = promotions.filter((entry) =>
+      audienceFits(entry.promotion.audience, "individual"),
+    );
+    const automatic = [...promotionEntries.map((entry) => entry.def), ...offers];
     const discounts = couponCheck?.def ? [...automatic, couponCheck.def] : automatic;
     const input: QuoteInput = {
       price: priceRow
-        ? {
-            planKey: plan.key,
-            months: request.months,
-            currency,
-            amountMinor: priceRow.amountMinor,
-          }
+        ? { planKey: plan.key, months: request.months, currency, amountMinor: priceRow.amountMinor }
         : null,
       discounts,
       deal,
@@ -282,11 +381,7 @@ export class QuoteService {
       now,
       country,
     };
-
     const result = priceQuote(input);
-    if (!result.ok) throw new AppError(ErrorCode[result.code]);
-
-    const coupon = couponCheck ? this.couponOutcome(couponCheck, result.quote, input) : null;
     const target: QuoteTarget = {
       kind: upgradeFrom ? "upgrade" : "subscription",
       key: plan.key,
@@ -294,8 +389,11 @@ export class QuoteService {
       packId: null,
       months: request.months,
     };
-    const quoteId = await this.store(userId, target, result.quote, billing.quoteTtlMinutes);
-    return { quoteId, quote: result.quote, target, coupon };
+    const names = new Map(
+      promotionEntries.map((entry) => [entry.promotion.id, entry.promotion.name]),
+    );
+    if (couponCheck?.coupon) names.set(couponCheck.coupon.id, couponCheck.coupon.name);
+    return { plan, input, result, couponCheck, target, names };
   }
 
   private async store(
@@ -341,8 +439,12 @@ export class QuoteService {
    * someone else all look the same (`invalid`): the answer must not let anyone probe for codes.
    * Eligibility by plan, period and country is the engine's call.
    */
-  private async checkCoupon(code: string, userId: string, now: Date): Promise<CouponCheck> {
-    const coupon = await this.repo.findCoupon(code);
+  private async checkCoupon(
+    code: string,
+    userId: string | undefined,
+    now: Date,
+  ): Promise<CouponCheck> {
+    const coupon = await this.repo.findCoupon(normalizeCouponCode(code));
     if (!coupon) return { outcome: INVALID_COUPON };
     if (
       (coupon.targetUserId !== null && coupon.targetUserId !== userId) ||
@@ -355,27 +457,50 @@ export class QuoteService {
       return { outcome: INVALID_COUPON };
     }
     if (
+      userId !== undefined &&
       coupon.perOwnerLimit !== null &&
       (await this.repo.couponUsesByUser(coupon.id, userId)) >= coupon.perOwnerLimit
     ) {
       return { outcome: INVALID_COUPON };
     }
-    // The caller is eligible: a code that starts later may say when ("starts on ...").
-    if (coupon.startsAt !== null && coupon.startsAt > now) {
-      return { outcome: { status: "invalid", startsAt: coupon.startsAt.toISOString() } };
-    }
     const def = await this.repo.couponDef(coupon);
-    return def ? { coupon, def } : { outcome: INVALID_COUPON };
+    if (!def) return { outcome: INVALID_COUPON };
+    // The engine checks plan, period and country before the future start is disclosed.
+    if (coupon.startsAt !== null && coupon.startsAt > now) {
+      return {
+        coupon,
+        def,
+        outcome: { status: "invalid", startsAt: coupon.startsAt.toISOString() },
+      };
+    }
+    return { coupon, def };
   }
 
   /** `applied`, `not_applied` (valid, but another discount was better) or `invalid` (no effect here at all). */
   private couponOutcome(check: CouponCheck, final: PriceQuote, input: QuoteInput): CouponOutcome {
-    if (check.outcome) return check.outcome;
+    if (check.coupon === undefined || check.outcome) return check.outcome ?? INVALID_COUPON;
     if (final.applied.couponId === check.coupon.id) return { status: "applied" };
     // Alone, would the code have done anything? If not, it is ineligible here (plan, period, country...).
     const alone = priceQuote({ ...input, discounts: [check.def] });
     return alone.ok && alone.quote.applied.couponId === check.coupon.id
       ? { status: "not_applied" }
+      : INVALID_COUPON;
+  }
+
+  private checkedCouponOutcome(
+    check: CouponCheck,
+    final: PriceQuote,
+    input: QuoteInput,
+  ): CouponOutcome {
+    if (check.coupon === undefined || check.outcome?.startsAt === undefined) {
+      return this.couponOutcome(check, final, input);
+    }
+    const eligibleFromPlan = priceQuote({
+      ...input,
+      discounts: [{ ...check.def, startsAt: null }],
+    });
+    return eligibleFromPlan.ok && eligibleFromPlan.quote.applied.couponId === check.def.id
+      ? check.outcome
       : INVALID_COUPON;
   }
 }

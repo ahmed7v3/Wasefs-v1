@@ -431,3 +431,37 @@ Open security items from Phase 0 and design decisions. Each has an owner task; n
 | `GET /me/notification-prefs`, `PUT /me/notification-prefs` | Cookie session | Shared zod body (`{ whatsapp: boolean }`); own row only; 409 `phone_not_verified` without a verified phone; updates the bridge's opt-out set at once; 60 and 10/min | Row in `notification_prefs` |
 | `PUT /admin/whatsapp/customer-messages` | Cookie + MFA session, `settings.write`, fresh auth ≤10 min | Shared zod body (switch, caps 1-2000 and 1-10, hours with end after start); merged into the `whatsapp` setting; 10/min | `setting.update` audit row |
 | `GET /me/orders/:id/receipt` | Cookie session | UUID param; caller's own paid/refunded orders only, anything else `NOT_FOUND`; buyer email and phone masked | Read only |
+
+
+### Task 3.6 endpoint register
+
+| Route | Authentication / permission | Boundary and protections | Audit / status |
+| --- | --- | --- | --- |
+| `GET /admin/billing/promotions`, `/promotions/:id` | Cookie + MFA session, `billing.read` | Shared list/UUID schemas; keyset page, 1–100 rows; 120/min | Read only |
+| `POST /admin/billing/promotions`, `PATCH` and `DELETE /promotions/:id`, `POST /promotions/:id/{pause,end,duplicate}` | Cookie + MFA session, `promotions.write` | Shared billing schemas; 30/min; only drafts with no redemptions can be deleted | `promotion.created|updated|deleted|paused|ended|duplicated` |
+| `POST /admin/billing/promotions/:id/{publish,resume}` | Cookie + MFA session, `promotions.write`, fresh auth ≤10 min | Shared UUID schema; guarded lifecycle update; 30/min | `promotion.published|resumed` |
+| `GET /admin/billing/coupons`, `/coupons/:id` | Cookie + MFA session, `billing.read` | Shared list/UUID schemas; keyset page ≤100; detail returns the latest 50 redemption rows | Read only |
+| `POST /admin/billing/coupons`, `PATCH` and `DELETE /coupons/:id`, `POST /coupons/:id/{pause,end}` | Cookie + MFA session, `coupons.write` | Shared billing schemas; 30/min; normalized unique codes; only unused drafts can be deleted | `coupon.created|updated|deleted|paused|ended` |
+| `POST /admin/billing/coupons/:id/{publish,resume}` | Cookie + MFA session, `coupons.write`, fresh auth ≤10 min | Shared UUID schema; guarded lifecycle update; 30/min | `coupon.published|resumed` |
+| `POST /admin/billing/coupons/bulk` | Cookie + MFA session, `coupons.write`, fresh auth ≤10 min | Shared bulk schema; 1–5000 rows; collision retry limit 5; one transaction | `coupon.bulk_created` |
+| `POST /admin/billing/coupons/batches/:batch/{publish,pause,resume,end}` | Cookie + MFA session, `coupons.write`; publish/resume need fresh auth ≤10 min | Shared batch schema; set-based guarded transition; 30/min | `coupon.batch_<action>` |
+| `GET /admin/billing/coupons/batches/:batch/export` | Cookie + MFA session, `billing.read` | Batch schema; CSV cells escaped against formula injection; 30/min | `coupon.batch_exported` |
+| `POST /admin/billing/simulate` | Cookie + MFA session, `billing.read` | Shared simulator schema; 30/min; hidden plans allowed; no quote or Redis state stored | Read only |
+| `POST /billing/coupons/check` | Cookie session | Shared coupon-check schema; 10/min per user and 30/min per IP plus 30/min route limit; generic invalid response | Read only |
+
+### Task 3.8 endpoint register
+
+| Route | Authentication / permission | Boundary and protections | Audit / status |
+| --- | --- | --- | --- |
+| `GET /admin/search` | Cookie + MFA session, any of `users.read`, `billing.read`, `referrals.read` | Shared trimmed query schema (2–80 chars); permission-filtered groups; at most five results per group; contact details masked; 60/min | `admin.search` only when user matches are returned; query text excluded |
+| `GET /admin/billing/counts` | Cookie + MFA session, any of `payments.review`, `withdrawals.review`, `referrals.read` | Empty shared query schema; counts are `null` for groups the caller cannot read; 120/min | Read only |
+| `GET /admin/billing/overview` | Cookie + MFA session, `billing.read` | Shared range schema; custom range limited to 366 days; 60-second Redis cache; per-currency money aggregates; 30/min | Read only |
+| `GET /admin/billing/payments`, `/payments/:id/record`, `/orders`, `/orders/:id`, `/refunds` | Cookie + MFA session, `billing.read` | Shared filters and keyset cursors; explicit response shapes; contact and transaction identifiers masked; proof links and sealed values excluded; 60/min | Record drawer logs `payment.record_opened` |
+| `POST /admin/billing/orders/:id/resend-receipt` | Cookie + MFA session, `billing.write` | Paid orders only; receipt mail job deduplicated within one minute; 5/min | `order.receipt_resent`; does not replay the paid-order topic |
+| `POST /admin/billing/payments/:id/refund/preview`, `/refund` | Cookie + MFA session, `payments.refund`; refund also requires fresh auth ≤10 min | Shared amount/reason/reference/clawback schemas; preview is read-only; own payments refused; clawback capped; 20/min preview and 5/min refund | `payment.refunded` records amount, clawback and transfer reference, no PII |
+| `GET /admin/billing/subscriptions`, `/subscriptions/:id` | Cookie + MFA session, `billing.read` | Shared filters and keyset cursor; user labels masked; details include event timeline and latest 20 owner orders; 60/min | Read only |
+| `POST /admin/billing/subscriptions/:id/extend`, `/end`, `/cancel-at-period-end` | Cookie + MFA session, `users.upgrade`, fresh auth ≤10 min | Shared reason schema (3–500 chars); 10/min; extend by 1–24 months or to a future date; database subscription state machine and assignment sync; 409 `no_live_subscription` when nothing live is left | `subscription.admin_extend|admin_end|cancel_at_period_end` with the reason (dates are not written as text: the audit redactor scrubs digit runs); the state machine also writes `subscription.extended|ended` |
+| `GET /admin/billing/plans`, `POST /plans/:id/prices/preview`, `PUT /plans/:id/prices` | Cookie + MFA session; `billing.read` for reads/preview, `billing.write` for publish | Shared price matrix schema; integer minor units; margin check blocks negative prices unless explicitly overridden; a null amount switches a cell off (rows are never deleted), cells not sent are untouched; publish needs a reason and fresh auth; 10/min write | `plan.prices_published` includes price diff |
+| `GET /admin/billing/credit-packs`, `POST /credit-packs`, `PATCH /credit-packs/:id`, `PUT /credit-packs/:id/prices` | Cookie + MFA session; `billing.read` for reads, `billing.write` for writes | Shared key and integer price schemas; deactivation replaces deletion; price writes require fresh auth ≤10 min | Writes audited; no delete route |
+| `GET /admin/billing/methods`, `PATCH /methods/:key` | Cookie + MFA session; `billing.read` / `billing.write`; patch requires fresh auth ≤10 min | Account destination masked on reads and excluded from PATCH schema; gateway methods require enabled, verified gateway; 20/min write | Before/after only changed public fields; audited |
+| `GET /admin/billing/tax-rules`, `POST /tax-rules`, `PATCH /tax-rules/:id` | Cookie + MFA session; `billing.read` / `billing.write`; writes require fresh auth ≤10 min | Shared tax schema; one active rule per country/default; replacement deactivates the previous rule in the same transaction | Writes audited |

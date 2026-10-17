@@ -311,6 +311,46 @@ function monthsBought(order: Order): number {
   return (order.months ?? 0) + (Number.isInteger(extra) && extra > 0 ? extra : 0);
 }
 
+export type RefundSubscriptionEffect =
+  | { effect: "ends_now"; newPeriodEnd: Date }
+  | { effect: "shortened"; newPeriodEnd: Date }
+  | { effect: "downgrade_removed"; newPeriodEnd: Date }
+  | { effect: "unchanged"; newPeriodEnd: Date };
+
+/** Pure refund outcome shared by the admin preview and the refund transaction. */
+export function refundSubscriptionEffect(
+  subscription: Subscription,
+  order: Order,
+  full: boolean,
+  now: Date,
+  options: { conflictingDowngrade?: boolean } = {},
+): RefundSubscriptionEffect {
+  if (!full || options.conflictingDowngrade || !LIVE.includes(subscription.status)) {
+    return { effect: "unchanged", newPeriodEnd: subscription.currentPeriodEnd };
+  }
+  const pending = subscription.pendingChange
+    ? pendingChangeSchema.safeParse(subscription.pendingChange)
+    : null;
+  if (pending?.success && pending.data.orderId === order.id) {
+    return { effect: "downgrade_removed", newPeriodEnd: subscription.currentPeriodEnd };
+  }
+  const shortened = addMonthsClamped(subscription.currentPeriodEnd, -monthsBought(order));
+  if (
+    shortened.getTime() <= now.getTime() ||
+    shortened.getTime() <= subscription.currentPeriodStart.getTime()
+  ) {
+    const end = new Date(Math.max(now.getTime(), subscription.currentPeriodStart.getTime() + 1));
+    return {
+      effect: "ends_now",
+      newPeriodEnd:
+        subscription.currentPeriodEnd.getTime() > end.getTime()
+          ? end
+          : subscription.currentPeriodEnd,
+    };
+  }
+  return { effect: "shortened", newPeriodEnd: shortened };
+}
+
 function priceSnapshot(order: Order, plan: Plan): Record<string, unknown> {
   return {
     planKey: plan.key,
@@ -495,30 +535,25 @@ export async function applyRefundToSubscription(
   if (!event) return;
   const subscription = await lockById(tx, event.subscriptionId);
   await writeEvent(tx, subscription.id, "refund_applied", { refundId, orderId: order.id, full });
-  // A conflicting downgrade order never changed access, so its refund changes nothing either.
-  if (!full || event.data.conflict === true || !LIVE.includes(subscription.status)) return;
+  const outcome = refundSubscriptionEffect(subscription, order, full, now, {
+    conflictingDowngrade: event.data.conflict === true,
+  });
+  if (outcome.effect === "unchanged") return;
   const graceDays = await graceDaysOf(tx);
 
-  const pending = subscription.pendingChange
-    ? pendingChangeSchema.safeParse(subscription.pendingChange)
-    : null;
-  if (pending?.success && pending.data.orderId === order.id) {
+  if (outcome.effect === "downgrade_removed") {
     const cleared = await update(tx, subscription.id, { pendingChange: null });
     await syncAssignment(tx, cleared, graceDays);
     return;
   }
 
   const months = monthsBought(order);
-  const shortened = addMonthsClamped(subscription.currentPeriodEnd, -months);
-  if (
-    shortened.getTime() <= now.getTime() ||
-    shortened.getTime() <= subscription.currentPeriodStart.getTime()
-  ) {
+  if (outcome.effect === "ends_now") {
     await endNow(tx, subscription, now, graceDays, { refundId });
     return;
   }
   const kept = await update(tx, subscription.id, {
-    currentPeriodEnd: shortened,
+    currentPeriodEnd: outcome.newPeriodEnd,
     monthsPaid: Math.max(0, subscription.monthsPaid - months),
   });
   await syncAssignment(tx, kept, graceDays);

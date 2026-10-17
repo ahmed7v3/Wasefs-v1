@@ -293,6 +293,8 @@ Phase 2 left organization wallets unbuilt. Phase 3 completes them:
 
 Alert kinds in Phase 3: `payment.review_needed`, `payment.review_overdue`, `payment.amount_mismatch`, `payment.failure_spike`, `withdrawal.requested`, `withdrawal.overdue`, `reward.fraud_flag`, `credits.reconcile_drift`, `points.reconcile_drift`, `refund.requested`. Messages contain order/withdrawal number, amount, masked person, age and a deep link; never proof images, full phone numbers or destinations.
 
+The `payment.failure_spike` job alerts once per gateway method when its latest status changes in `billing.failureSpike.windowMinutes` include at least `billing.failureSpike.minFailures` failures and a failed/(failed + succeeded) rate at least `billing.failureSpike.rateBps / 10,000`; `billing.failureSpike.enabled` and `billing.failureSpike.cooldownMinutes` control whether and how often it alerts.
+
 ---
 
 ## 11. Settings (registry keys added in Phase 3)
