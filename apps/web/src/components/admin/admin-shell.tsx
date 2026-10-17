@@ -11,8 +11,12 @@ import { AccountMenu } from "../shell/account-menu";
 import { Drawer } from "../shell/drawer";
 
 import { AdminNav } from "./admin-nav";
+import { CommandPalette } from "./command-palette";
 
 import type { ReactNode } from "react";
+
+/** Who may use the global finder: it searches only what the account is allowed to read. */
+const SEARCH_PERMISSIONS = ["users.read", "billing.read", "referrals.read"] as const;
 
 export interface AdminShellProps {
   user: { name: string; image: string | null };
@@ -65,7 +69,12 @@ export function AdminShell({ user, permissions, branding, children }: AdminShell
               {title ? t(title.label) : t("admin.title")}
             </h1>
           </div>
-          <AccountMenu {...user} />
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            {SEARCH_PERMISSIONS.some((permission) => permissions.includes(permission)) ? (
+              <CommandPalette />
+            ) : null}
+            <AccountMenu {...user} />
+          </div>
         </header>
         <main id="main" className="min-w-0 flex-1 p-4 pb-16 sm:p-6 sm:pb-16">
           {children}

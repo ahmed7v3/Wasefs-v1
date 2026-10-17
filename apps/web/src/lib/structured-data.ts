@@ -1,3 +1,5 @@
+import { fromMinor } from "@wasfa/shared/money";
+
 import type { PublicSettings } from "@wasfa/shared/settings";
 
 /*
@@ -102,4 +104,37 @@ export function serializeJsonLd(data: JsonLd): string {
     .replace(/</g, String.raw`\u003c`)
     .replaceAll(String.fromCharCode(0x2028), String.raw`\u2028`)
     .replaceAll(String.fromCharCode(0x2029), String.raw`\u2029`);
+}
+
+export interface ProductOffer {
+  /** Plan and period, e.g. "بلس - شهر واحد". */
+  name: string;
+  amountMinor: number;
+  currency: string;
+}
+
+/**
+ * The paid plans as one schema.org `Product` with an `Offer` per plan price, straight from the
+ * catalog the page shows (no number is typed twice). Prices are exact decimal strings.
+ */
+export function productJsonLd(
+  settings: PublicSettings,
+  siteUrl: string,
+  input: { name: string; description: string; offers: readonly ProductOffer[] },
+): JsonLd {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: input.name,
+    description: input.description,
+    brand: { "@type": "Brand", name: settings.branding.nameAr },
+    offers: input.offers.map((offer) => ({
+      "@type": "Offer",
+      name: offer.name,
+      price: fromMinor(offer.amountMinor, offer.currency),
+      priceCurrency: offer.currency,
+      availability: "https://schema.org/InStock",
+      url: absolute("/pricing", siteUrl),
+    })),
+  };
 }

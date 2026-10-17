@@ -7,6 +7,7 @@ import { SiteBrandMark } from "../site-brand-mark";
 const NAV = [
   { href: "/#how-it-works", label: "marketing.nav.how" },
   { href: "/#features", label: "marketing.nav.features" },
+  { href: "/pricing", label: "billing.nav.pricing" },
   { href: "/#faq", label: "marketing.nav.faq" },
 ] as const;
 

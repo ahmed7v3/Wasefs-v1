@@ -28,7 +28,7 @@ export function ContactHub({ contact }: { contact: ContactSettings }) {
 
   return (
     // Above the layout (z-20), below drawers and dialogs (z-30); clear of the iOS home indicator.
-    <div className="fixed end-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-20">
+    <div className="fixed end-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-20 print:hidden">
       <PopoverMenu
         label={t("contactHub.open")}
         placement="above"

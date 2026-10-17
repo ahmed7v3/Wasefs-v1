@@ -23,6 +23,7 @@ const TAGLINE = "مساعدك الطبي الذكي لتحليل الروشتا�
 /** One image per page: file name (under public/og) and the headline. Keep in step with content/. */
 const PAGES = [
   { file: "home", title: "افهم روشتتك في ثوانٍ", subtitle: TAGLINE },
+  { file: "pricing", title: "الأسعار والباقات", subtitle: BRAND },
   { file: "privacy", title: "سياسة الخصوصية", subtitle: BRAND },
   { file: "terms", title: "شروط الاستخدام", subtitle: BRAND },
   { file: "disclaimer", title: "إخلاء المسؤولية الطبية", subtitle: BRAND },

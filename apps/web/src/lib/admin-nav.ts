@@ -1,6 +1,7 @@
 import {
   Building2,
   ClipboardCheck,
+  CircleDollarSign,
   CreditCard,
   Coins,
   Cpu,
@@ -13,15 +14,23 @@ import {
   Layers,
   LayoutDashboard,
   MessageCircle,
+  Landmark,
   Palette,
   PackageOpen,
+  Percent,
   Receipt,
+  ReceiptText,
+  Repeat,
   Route,
   ScrollText,
   Settings,
   ShieldCheck,
+  Tags,
+  Ticket,
   TriangleAlert,
+  Undo2,
   Users,
+  Wallet,
 } from "lucide-react";
 
 import type { MessageKey } from "@wasfa/shared/i18n";
@@ -40,6 +49,8 @@ export interface AdminNavItem {
   icon: LucideIcon;
   /** The read permission of the page; `null` means any account that may enter the admin area. */
   permission: Permission | null;
+  /** Count of work waiting for this page (`GET /admin/billing/counts`); hidden when null or zero. */
+  badge?: "paymentsToReview";
 }
 
 export interface AdminNavGroup {
@@ -59,6 +70,89 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
         description: "admin.nav.overview.description",
         icon: LayoutDashboard,
         permission: null,
+      },
+    ],
+  },
+  {
+    id: "revenue",
+    label: "admin.nav.group.revenue",
+    items: [
+      {
+        href: "/admin/billing",
+        label: "admin.nav.billingOverview",
+        description: "admin.nav.billingOverview.description",
+        icon: CircleDollarSign,
+        permission: "billing.read",
+      },
+      {
+        href: "/admin/billing/payments",
+        label: "admin.nav.payments",
+        description: "admin.nav.payments.description",
+        icon: Wallet,
+        permission: "billing.read",
+        badge: "paymentsToReview",
+      },
+      {
+        href: "/admin/billing/subscriptions",
+        label: "admin.nav.subscriptions",
+        description: "admin.nav.subscriptions.description",
+        icon: Repeat,
+        permission: "billing.read",
+      },
+      {
+        href: "/admin/billing/orders",
+        label: "admin.nav.orders",
+        description: "admin.nav.orders.description",
+        icon: ReceiptText,
+        permission: "billing.read",
+      },
+      {
+        href: "/admin/billing/refunds",
+        label: "admin.nav.refunds",
+        description: "admin.nav.refunds.description",
+        icon: Undo2,
+        permission: "billing.read",
+      },
+    ],
+  },
+  {
+    id: "pricing",
+    label: "admin.nav.group.pricing",
+    items: [
+      {
+        href: "/admin/billing/plans",
+        label: "admin.nav.pricingPlans",
+        description: "admin.nav.pricingPlans.description",
+        icon: Tags,
+        permission: "billing.read",
+      },
+      {
+        href: "/admin/billing/promotions",
+        label: "admin.nav.promotions",
+        description: "admin.nav.promotions.description",
+        icon: Percent,
+        permission: "billing.read",
+      },
+      {
+        href: "/admin/billing/coupons",
+        label: "admin.nav.coupons",
+        description: "admin.nav.coupons.description",
+        icon: Ticket,
+        permission: "billing.read",
+      },
+      {
+        href: "/admin/billing/credit-packs",
+        label: "admin.nav.creditPacks",
+        description: "admin.nav.creditPacks.description",
+        icon: Coins,
+        permission: "billing.read",
+      },
+      {
+        href: "/admin/billing/methods",
+        label: "admin.nav.paymentMethods",
+        description: "admin.nav.paymentMethods.description",
+        icon: Landmark,
+        permission: "billing.read",
       },
     ],
   },

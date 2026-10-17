@@ -5,7 +5,9 @@ import { arAdminBilling } from "./ar.admin-billing.js";
 import { arAdminDrugs } from "./ar.admin-drugs.js";
 import { arAdminEvals } from "./ar.admin-evals.js";
 import { arAdminGateways } from "./ar.admin-gateways.js";
+import { arAdminRevenue } from "./ar.admin-revenue.js";
 import { arAdmin } from "./ar.admin.js";
+import { arBilling } from "./ar.billing.js";
 import { arCapture } from "./ar.capture.js";
 import { arChat } from "./ar.chat.js";
 import { arDashboard } from "./ar.dashboard.js";
@@ -571,12 +573,14 @@ export const ar = {
   ...arAdminAi,
   ...arAdminBilling,
   ...arAdminGateways,
+  ...arAdminRevenue,
   ...arAdminDrugs,
   ...arAdminEvals,
   ...arRx,
   ...arCapture,
   ...arChat,
   ...arDashboard,
+  ...arBilling,
   ...errorMessages,
 } as const;
 

@@ -37,7 +37,7 @@ export function AppShell({ user, showAdmin = false, branding, children }: AppShe
 
   return (
     <div className="page-backdrop flex min-h-dvh flex-col">
-      <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between gap-3 bg-bg/80 px-3 backdrop-blur sm:px-6">
+      <header className="sticky top-0 z-10 flex h-16 print:hidden shrink-0 items-center justify-between gap-3 bg-bg/80 px-3 backdrop-blur sm:px-6">
         <div className="flex items-center gap-1 sm:gap-3">
           <button
             type="button"
@@ -55,11 +55,11 @@ export function AppShell({ user, showAdmin = false, branding, children }: AppShe
         <AccountMenu {...user} />
       </header>
 
-      <div className="flex flex-1 px-3 pb-3 sm:px-6 sm:pb-6">
-        <div className="flex min-w-0 flex-1 overflow-hidden rounded-2xl border border-border/50 bg-surface shadow-raised">
+      <div className="flex flex-1 px-3 pb-3 sm:px-6 sm:pb-6 print:p-0">
+        <div className="flex min-w-0 flex-1 overflow-hidden rounded-2xl border border-border/50 bg-surface shadow-raised print:rounded-none print:border-0 print:shadow-none">
           <aside
             className={cn(
-              "hidden shrink-0 flex-col gap-4 border-e border-border/60 p-3 lg:flex",
+              "hidden shrink-0 flex-col gap-4 border-e border-border/60 p-3 lg:flex print:hidden",
               collapsed ? "w-18" : "w-64",
             )}
           >
@@ -82,7 +82,7 @@ export function AppShell({ user, showAdmin = false, branding, children }: AppShe
               </span>
             </button>
           </aside>
-          <main id="main" className="min-w-0 flex-1 p-4 pb-8 sm:p-8 sm:pb-12">
+          <main id="main" className="min-w-0 flex-1 p-4 pb-8 sm:p-8 sm:pb-12 print:p-0">
             {children}
           </main>
         </div>

@@ -11,6 +11,7 @@ import {
   signedInAccount,
 } from "./support/accounts";
 import { expectAccessible } from "./support/axe";
+import { createOrderViaApi } from "./support/billing";
 import { expect, test } from "./support/fixtures";
 import {
   answerAccountType,
@@ -28,7 +29,7 @@ import { bridgeConnected, bridgeGone } from "./support/whatsapp";
 
 const PUBLIC_PAGES = ["/login", "/register", "/forgot-password", "/verify-email"];
 /** Pages another part of the product adds; they are checked as soon as they exist. */
-const MARKETING_PAGES = ["/", "/contact", "/privacy"];
+const MARKETING_PAGES = ["/", "/pricing", "/contact", "/privacy"];
 
 for (const path of PUBLIC_PAGES) {
   test(`public page ${path}`, async ({ page }) => {
@@ -132,4 +133,41 @@ test("admin pages", async ({ context, page, urls, redis }) => {
     await page.goto(path);
     await expectAccessible(page, path);
   }
+});
+
+test("billing pages: checkout, both order states and the billing account", async ({
+  context,
+  page,
+  urls,
+  redis,
+}) => {
+  const account = await signedInAccount(context, urls, redis, newAccount("A11yBill"));
+  await finishOnboarding(page.request, urls, account.name);
+
+  await page.goto("/checkout?plan=plus&months=1");
+  await expectAccessible(page, "/checkout");
+
+  // A card order waiting for the provider, and a transfer order showing its instructions.
+  const card = await createOrderViaApi(context, urls, {
+    planKey: "plus",
+    months: 1,
+    methodKey: "fake_card",
+  });
+  await page.goto(`/checkout/${card.orderId}`);
+  await expect(page.getByTestId("order-state-title")).toBeVisible();
+  await expectAccessible(page, "/checkout/<order> (card, waiting)");
+
+  const transfer = await createOrderViaApi(context, urls, {
+    planKey: "pro",
+    months: 1,
+    methodKey: "instapay",
+  });
+  await page.goto(`/checkout/${transfer.orderId}`);
+  await expect(page.getByTestId("manual-amount")).toBeVisible();
+  await expectAccessible(page, "/checkout/<order> (transfer instructions)");
+
+  await page.goto("/billing");
+  await expect(page.getByTestId("current-plan")).toBeVisible();
+  await expect(page.getByText(t("billing.orders.complete")).first()).toBeVisible();
+  await expectAccessible(page, "/billing");
 });

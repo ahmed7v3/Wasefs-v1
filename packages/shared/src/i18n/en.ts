@@ -5,7 +5,9 @@ import { enAdminBilling } from "./en.admin-billing.js";
 import { enAdminDrugs } from "./en.admin-drugs.js";
 import { enAdminEvals } from "./en.admin-evals.js";
 import { enAdminGateways } from "./en.admin-gateways.js";
+import { enAdminRevenue } from "./en.admin-revenue.js";
 import { enAdmin } from "./en.admin.js";
+import { enBilling } from "./en.billing.js";
 import { enCapture } from "./en.capture.js";
 import { enChat } from "./en.chat.js";
 import { enDashboard } from "./en.dashboard.js";
@@ -564,11 +566,13 @@ export const en: Partial<Record<MessageKey, string>> = {
   ...enAdminAi,
   ...enAdminBilling,
   ...enAdminGateways,
+  ...enAdminRevenue,
   ...enAdminDrugs,
   ...enAdminEvals,
   ...enRx,
   ...enCapture,
   ...enChat,
   ...enDashboard,
+  ...enBilling,
   ...errorMessages,
 };

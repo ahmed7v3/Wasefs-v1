@@ -276,6 +276,23 @@ The UI package knows nothing about the API, R2, pdf.js or libheif. Sub-component
 
 **Share and copy.** Text is built only from structured fields (never notes, initials, date or files). Share is a link to `https://wa.me/?text=`.
 
+### 5.7 Billing (Task 3.7) — `packages/ui/src/billing`
+
+The pricing page, checkout and billing account are built from these (all strings through `billing.*` keys; money only through `formatMoney`, `tabular-nums`, never computed in the UI). The rules of BILLING §6 and GROWTH-STRATEGY §2 are part of the components: no countdown without a real `endsAt`, no fee added after Pay.
+
+| Component | Notes |
+|---|---|
+| `PlanCard` | Article with badges, name, price slot, feature list (check / dash plus a spoken "غير مشمولة"), choose button; the recommended plan has a `primary` ring. |
+| `PriceTag` | Amount in `font-heading` bold; the struck old price is read as "السعر قبل الخصم". |
+| `PromoBadge` | `Badge` (success by default) with a tag icon; always has text. |
+| `Countdown` | Renders nothing without a real server `endsAt`; once-a-minute under reduced motion. |
+| `ComparisonTable` | A real `<table>` (caption, column and row headers) in its own focusable scroll box; yes/no spoken in words. |
+| `CheckoutSummary` | Plan line, discount line in `success`, one native `<details>` «الضريبة والرسوم» line (hidden only when there is no tax or fee), «الإجمالي» at `text-3xl sm:text-4xl`; the total is a polite live region. |
+| `MethodPicker` | Native radios in a `fieldset`, 56 px rows, fee at the inline end ("بدون رسوم" / "+ 7.20 ج.م"). |
+| `ProofUploader` | `CaptureSurface` (compact, one page) for the transfer screenshot. |
+| `CopyField` | LTR value box and a copy button; "تم النسخ" is announced politely. |
+| `ReceiptSheet` | Card on screen; under `@media print` plain, borderless, black on white (the shell chrome carries `print:hidden`). |
+
 ---
 
 ## 6. Forms

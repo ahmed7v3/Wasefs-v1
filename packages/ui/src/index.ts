@@ -15,6 +15,7 @@ export * from "./spinner";
 export * from "./tabs";
 export * from "./textarea";
 export * from "./toast";
+export * from "./billing";
 export * from "./capture";
 export * from "./chat";
 export * from "./CandidatePicker";

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { isNavActive, visibleNavGroups } from "../../lib/admin-nav";
+import { useAdminCounts } from "../../lib/use-admin-counts";
 
 export interface AdminNavProps {
   permissions: readonly string[];
@@ -20,6 +21,7 @@ export interface AdminNavProps {
 export function AdminNav({ permissions, onNavigate }: AdminNavProps) {
   const pathname = usePathname();
   const groups = visibleNavGroups(permissions);
+  const counts = useAdminCounts(permissions);
 
   return (
     <nav aria-label={t("admin.nav.label")} className="flex flex-col gap-5">
@@ -30,6 +32,8 @@ export function AdminNav({ permissions, onNavigate }: AdminNavProps) {
             {group.items.map((item) => {
               const active = isNavActive(item.href, pathname);
               const Icon = item.icon;
+              const waiting = item.badge ? counts?.[item.badge] : null;
+              const badge = waiting ? waiting : null;
               return (
                 <li key={item.href}>
                   <Link
@@ -45,6 +49,12 @@ export function AdminNav({ permissions, onNavigate }: AdminNavProps) {
                   >
                     <Icon aria-hidden className="size-5 shrink-0" />
                     {t(item.label)}
+                    {badge ? (
+                      <span className="ms-auto inline-flex min-w-6 items-center justify-center rounded-full bg-warning-soft px-2 text-sm font-semibold tabular-nums text-warning">
+                        {badge}
+                        <span className="sr-only"> {t("admin.nav.badge.waiting")}</span>
+                      </span>
+                    ) : null}
                   </Link>
                 </li>
               );

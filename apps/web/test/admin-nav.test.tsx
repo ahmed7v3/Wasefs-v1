@@ -42,6 +42,16 @@ describe("visibleNavGroups", () => {
   it("shows everything to a holder of the whole catalog (super_admin)", () => {
     expect(hrefs(PERMISSION_KEYS)).toEqual([
       "/admin",
+      "/admin/billing",
+      "/admin/billing/payments",
+      "/admin/billing/subscriptions",
+      "/admin/billing/orders",
+      "/admin/billing/refunds",
+      "/admin/billing/plans",
+      "/admin/billing/promotions",
+      "/admin/billing/coupons",
+      "/admin/billing/credit-packs",
+      "/admin/billing/methods",
       "/admin/users",
       "/admin/orgs",
       "/admin/roles",
