@@ -1,5 +1,10 @@
 import { SUBSCRIPTION_HOOKS, configuredGateway, type Database, type PaymentHooks } from "@wasfa/db";
 import { decodeEncryptionKey, decryptSecret } from "@wasfa/shared/crypto";
+import {
+  customerMessagePayloadSchema,
+  type CustomerMessageInput,
+  type CustomerWhatsappCheckPayload,
+} from "@wasfa/shared/customer-messages";
 import { emailSendPayloadSchema, type EmailSendInput } from "@wasfa/shared/email";
 import {
   FAKE_GATEWAY_DEV_SECRET,
@@ -30,6 +35,17 @@ export interface PaymentsRuntime {
       windowStart: string;
     },
     delayMs: number,
+  ): Promise<void>;
+  /** `customer.notify`, now or after `delayMs`; `jobId` collapses duplicates. */
+  enqueueCustomerMessage(
+    payload: CustomerMessageInput,
+    jobId: string,
+    delayMs?: number,
+  ): Promise<void>;
+  enqueueCustomerCheck(
+    payload: CustomerWhatsappCheckPayload,
+    delayMs: number,
+    jobId: string,
   ): Promise<void>;
   close(): Promise<void>;
 }
@@ -71,6 +87,18 @@ export function createPaymentsRuntime(
     async enqueueAlertDigest(input, delayMs) {
       const jobId = `alert-digest-${input.adminUserId}-${input.channel}-${Date.parse(input.windowStart)}`;
       await notifications.add("alerts.digest", input, { jobId, delay: Math.max(1, delayMs) });
+    },
+    async enqueueCustomerMessage(payload, jobId, delayMs = 0) {
+      await notifications.add("customer.notify", customerMessagePayloadSchema.parse(payload), {
+        jobId,
+        ...(delayMs > 0 ? { delay: delayMs } : {}),
+      });
+    },
+    async enqueueCustomerCheck(payload, delayMs, jobId) {
+      await notifications.add("customer.whatsapp_check", payload, {
+        jobId,
+        delay: Math.max(1, delayMs),
+      });
     },
     async close() {
       await notifications.close();

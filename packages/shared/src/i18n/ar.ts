@@ -39,6 +39,30 @@ export const ar = {
   "phone.reply.invalid": "الرمز غير صحيح أو منتهي الصلاحية",
   "phone.reply.alertsOn": "تم استلام طلب التنبيهات",
   "phone.reply.alertsOff": "تم استلام طلب إيقاف التنبيهات",
+  "account.notifications.whatsappLabel": "استلام إشعاراتي على واتساب",
+  "account.notifications.whatsappHint":
+    "تفاصيل الاشتراك والدفع والتذكيرات على رقمك المؤكد. عند الإيقاف تصلك بالبريد الإلكتروني.",
+  "account.notifications.whatsappInactive":
+    "رسائل واتساب غير مفعّلة حالياً؛ تصلك الإشعارات بالبريد الإلكتروني.",
+  "account.notifications.saved": "تم حفظ تفضيلات الإشعارات",
+  "phone.reply.messagesOff": "تم إيقاف رسائل واتساب",
+  "phone.reply.messagesOn": "تم تشغيل رسائل واتساب",
+  "whatsapp.customer.subscriptionActivated":
+    "تم تفعيل باقة {plan} حتى {date}. رصيدك الشهري: {credits} رصيد. رقم الطلب: {number}.",
+  "whatsapp.customer.paymentReceived": "استلمنا دفعتك للطلب {number} بقيمة {total}. شكراً لك.",
+  "whatsapp.customer.reminder.ending":
+    "تذكير: ينتهي اشتراكك في باقة {plan} يوم {date}. جدّده بضغطة واحدة:",
+  "whatsapp.customer.reminder.grace":
+    "انتهت مدة باقة {plan} يوم {date}، وما زالت مزاياها متاحة لك لأيام قليلة. جدّد الآن:",
+  "whatsapp.customer.reminder.expired":
+    "انتهى اشتراكك في باقة {plan} وعاد حسابك إلى الباقة المجانية. يمكنك التجديد في أي وقت:",
+  "whatsapp.customer.paymentRejected":
+    "لم نتمكن من تأكيد دفع الطلب {number}: {reason}. يمكنك إرسال إثبات جديد:",
+  "whatsapp.customer.paymentResubmit": "نحتاج إلى إثبات دفع أوضح للطلب {number}. أرسله من هنا:",
+  "whatsapp.customer.orderRefunded": "تم رد مبلغ {amount} للطلب {number}.",
+  "whatsapp.customer.offer": "عرض خاص لك: {title}. ينتهي يوم {date}.",
+  "whatsapp.customer.note": "ملاحظة: {note}",
+  "whatsapp.customer.footer": "وصفة AI · لإيقاف رسائل واتساب أرسل كلمة: إيقاف",
   "email.greeting": "مرحبًا {name}،",
   "email.greetingAnonymous": "مرحبًا،",
   "email.linkFallback": "إن لم يعمل الزر، انسخ الرابط التالي والصقه في المتصفح:",

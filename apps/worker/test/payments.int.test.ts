@@ -27,6 +27,7 @@ import { TEST_ENCRYPTION_KEY, testEnv } from "./support/env.js";
 import { startPostgres, type TestPostgres } from "./support/postgres.js";
 import { startRedis, type TestRedis } from "./support/redis.js";
 
+import type { OutboxPostCommitAction } from "@wasfa/db";
 import type { EmailSendInput } from "@wasfa/shared/email";
 
 /*
@@ -215,7 +216,7 @@ describe("payments.reconcile", () => {
 });
 
 describe("outbox: billing.order_paid", () => {
-  it("writes one notification and queues one receipt per paid order", async () => {
+  it("writes one notification and hands one receipt to the customer channel per paid order", async () => {
     const { user, order, payment } = await openOrder();
     const fake = createFakeGateway("secret");
     fake.statuses.set(payment.id, {
@@ -246,8 +247,12 @@ describe("outbox: billing.order_paid", () => {
     // Postgres stamps `available_at` in microseconds, `new Date()` in milliseconds: drain a second
     // ahead so an entry inserted in the same millisecond is already due.
     const drainAt = new Date(Date.now() + 1_000);
-    await drainOutbox(api.db, handlers, drainAt);
-    await drainOutbox(api.db, handlers, drainAt);
+    const actions: OutboxPostCommitAction[] = [];
+    const collect = async (action: OutboxPostCommitAction) => {
+      actions.push(action);
+    };
+    await drainOutbox(api.db, handlers, drainAt, 50, collect);
+    await drainOutbox(api.db, handlers, drainAt, 50, collect);
 
     const notes = await owner.db
       .select()
@@ -255,9 +260,19 @@ describe("outbox: billing.order_paid", () => {
       .where(eq(userNotifications.userId, user.id));
     expect(notes).toHaveLength(1);
     expect(notes[0]?.kind).toBe("billing.order_paid");
-    const receipts = mails.filter((mail) => mail.payload.to === user.email);
+    // The receipt goes through `customer.notify` (mailed in any case, WhatsApp too when possible).
+    expect(mails).toHaveLength(0);
+    const receipts = actions.flatMap((action) =>
+      action.kind === "customer_message" && action.payload.userId === user.id ? [action] : [],
+    );
     expect(receipts).toHaveLength(1);
     expect(receipts[0]?.payload).toMatchObject({
+      key: `order_paid:${order.id}`,
+      kind: "payment_received",
+      emailAlways: true,
+      path: `/billing/orders/${order.id}`,
+    });
+    expect(receipts[0]?.payload.email).toMatchObject({
       template: "payment_receipt",
       orderNumber: order.number,
       totalMinor: 7_900,
@@ -268,6 +283,6 @@ describe("outbox: billing.order_paid", () => {
       .from(outbox)
       .where(eq(outbox.idempotencyKey, `order_paid:${order.id}`));
     expect(entry?.processedAt).not.toBeNull();
-    expect(receipts[0]?.jobId).toBe(`outbox-${entry?.id ?? ""}`);
+    expect(receipts[0]?.jobId).toBe(`customer-order_paid-${order.id}`);
   });
 });

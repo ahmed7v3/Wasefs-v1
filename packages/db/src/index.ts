@@ -5,6 +5,7 @@ export * from "./credits-ledger.js";
 export * from "./drug-import-rollback.js";
 export * from "./drug-matcher.js";
 export * from "./migrations.js";
+export * from "./notification-prefs.js";
 export * from "./outbox.js";
 export * from "./payments.js";
 export * from "./pg-errors.js";

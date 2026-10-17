@@ -1,5 +1,9 @@
 import { Body, Controller, Get, HttpCode, Post, Put, Req } from "@nestjs/common";
-import { linkWhatsappSchema, setPhoneVerificationSchema } from "@wasfa/shared/schemas/admin";
+import {
+  customerMessagesSettingsSchema,
+  linkWhatsappSchema,
+  setPhoneVerificationSchema,
+} from "@wasfa/shared/schemas/admin";
 
 import { AuditCtx, Audited, type AuditScope } from "../../audit/audited.decorator.js";
 import { CurrentUser, type AuthenticatedUser } from "../../common/current-user.js";
@@ -14,6 +18,7 @@ import type { FastifyRequest } from "fastify";
 
 class LinkWhatsappDto extends createZodDto(linkWhatsappSchema) {}
 class SetPhoneVerificationDto extends createZodDto(setPhoneVerificationSchema) {}
+class CustomerMessagesDto extends createZodDto(customerMessagesSettingsSchema) {}
 
 // The number and the kill switch are settings, so `SettingsService.set` writes their
 // `setting.update` audit rows itself; only `unlink` needs `@Audited`.
@@ -64,5 +69,18 @@ export class AdminWhatsappController {
     @Body() body: SetPhoneVerificationDto,
   ) {
     return this.whatsapp.setVerification(actor.id, request, body.enabled);
+  }
+
+  /** Customer notifications on WhatsApp: on/off, caps and sending hours. */
+  @Put("customer-messages")
+  @RequirePermission("settings.write")
+  @RequireFreshAuth(10)
+  @RateLimit(10)
+  setCustomerMessages(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Req() request: FastifyRequest,
+    @Body() body: CustomerMessagesDto,
+  ) {
+    return this.whatsapp.setCustomerMessages(actor.id, request, body);
   }
 }

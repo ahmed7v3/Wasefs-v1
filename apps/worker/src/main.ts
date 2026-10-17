@@ -5,6 +5,7 @@ import { createAiRuntime } from "./ai/runtime.js";
 import { runAlertOptInLoop } from "./alerts/wa-optins.loop.js";
 import { loadEnv, queueConcurrency } from "./config/env.js";
 import { createLogger } from "./logger.js";
+import { runCustomerPrefLoop } from "./notifications/customer-prefs.loop.js";
 import { createEmailRuntime } from "./notifications/email.js";
 import { createPaymentsRuntime } from "./payments/runtime.js";
 import { closeWorkers, registerSchedules, startWorkers } from "./queues.js";
@@ -16,6 +17,11 @@ const logger = createLogger(env);
 // BullMQ's blocking commands must never be cut short, hence no per-request retry limit.
 const connection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 const alertOptinRedis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
+// STOP / START from customers, popped on a blocking connection of its own.
+const customerPrefsRedis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
+customerPrefsRedis.on("error", (error: Error) => {
+  logger.error({ reason: error.message }, "Customer preference Redis connection error");
+});
 connection.on("error", (error: Error) => {
   logger.error({ reason: error.message }, "Redis connection error");
 });
@@ -49,6 +55,14 @@ void runAlertOptInLoop({
 }).catch((error: Error) => {
   logger.error({ reason: error.message }, "Alert opt-in loop stopped");
 });
+void runCustomerPrefLoop({
+  redis: customerPrefsRedis,
+  db,
+  logger,
+  signal: alertOptinAbort.signal,
+}).catch((error: Error) => {
+  logger.error({ reason: error.message }, "Customer preference loop stopped");
+});
 logger.info(
   {
     queues: queues.map((queue) => queue.name),
@@ -76,6 +90,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   // After the workers: a job that was still running needs the pool until it settles.
   await closeDb();
   await alertOptinRedis.quit().catch(() => alertOptinRedis.disconnect());
+  await customerPrefsRedis.quit().catch(() => customerPrefsRedis.disconnect());
   email.transport.close();
   storage?.close();
   await connection.quit().catch(() => {

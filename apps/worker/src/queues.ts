@@ -34,6 +34,7 @@ import {
 } from "./jobs/payments.job.js";
 import { rxAnalyzeJob } from "./jobs/rx.job.js";
 import { subscriptionsBackfillJob, subscriptionsLifecycleJob } from "./jobs/subscriptions.job.js";
+import { customerNotifyJob, customerWhatsappCheckJob } from "./notifications/customer.job.js";
 import { emailSendJob, type EmailRuntime } from "./notifications/email.js";
 
 import type { AiRuntime } from "./ai/runtime.js";
@@ -76,6 +77,8 @@ export const HANDLERS: Handlers = {
     "alerts.deliver": alertDeliveryJob,
     "alerts.digest": alertDigestJob,
     "alerts.sweep_pending": pendingDeliverySweepJob,
+    "customer.notify": customerNotifyJob,
+    "customer.whatsapp_check": customerWhatsappCheckJob,
   },
   credits: {
     "credits.sweep_reservations": sweepReservationsJob,

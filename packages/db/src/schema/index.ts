@@ -14,6 +14,7 @@ export * from "./feature-flags.js";
 export * from "./files.js";
 export * from "./growth.js";
 export * from "./onboarding.js";
+export * from "./notification-prefs.js";
 export * from "./organizations.js";
 export * from "./plans.js";
 export * from "./promotions.js";

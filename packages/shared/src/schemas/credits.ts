@@ -102,7 +102,7 @@ export const meCreditsResponseSchema = z.object({
   wallet: z.object({ ownerType: z.literal("user"), balance: z.number().int() }),
   plan: planSummarySchema.omit({ id: true }),
   monthlyCredits: z.number().int(),
-  /** First day of the next UTC month, when the monthly grant arrives. */
+  /** When the next monthly grant arrives: the first of next UTC month, or a subscriber's next anniversary. */
   nextGrantAt: isoDate,
   /** Today (UTC) against the plan's daily caps, for every task the plan allows. */
   today: z.array(

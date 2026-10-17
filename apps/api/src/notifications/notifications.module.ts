@@ -3,6 +3,9 @@ import { Global, Module, type DynamicModule } from "@nestjs/common";
 import { AUTH_MAILER } from "../auth/mailer.js";
 
 import { EmailQueue } from "./email-queue.js";
+import { MeNotificationPrefsController } from "./me-notification-prefs.controller.js";
+import { NotificationPrefsRepo } from "./notification-prefs.repo.js";
+import { NotificationPrefsService } from "./notification-prefs.service.js";
 import { QueueMailer } from "./queue-mailer.js";
 
 /**
@@ -15,8 +18,11 @@ export class NotificationsModule {
   static register(options: { authMailer: boolean }): DynamicModule {
     return {
       module: NotificationsModule,
+      controllers: [MeNotificationPrefsController],
       providers: [
         EmailQueue,
+        NotificationPrefsRepo,
+        NotificationPrefsService,
         ...(options.authMailer
           ? [QueueMailer, { provide: AUTH_MAILER, useExisting: QueueMailer }]
           : []),

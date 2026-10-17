@@ -107,6 +107,27 @@ export const arAdmin = {
   "admin.whatsapp.verification.offBody":
     "لن يستطيع المستخدمون التحقق من هواتفهم عبر واتساب حتى تعيد تفعيله.",
   "admin.whatsapp.verification.offConfirm": "إيقاف التحقق",
+  "admin.whatsapp.customer.title": "رسائل العملاء على واتساب",
+  "admin.whatsapp.customer.lead":
+    "تفاصيل الاشتراك والدفع والتذكيرات تصل على واتساب للعملاء الذين أكدوا رقمهم عبر هذا الرقم، وبالبريد لغيرهم. يستطيع العميل إيقافها بإرسال: إيقاف.",
+  "admin.whatsapp.customer.label": "إرسال رسائل العملاء على واتساب",
+  "admin.whatsapp.customer.risk":
+    "إرسال رسائل لم يبدأها العميل قد يعرّض الرقم للحظر من واتساب، وعندها يتوقف تأكيد أرقام الهواتف أيضاً. ابدأ بحد يومي صغير وراقب الحساب.",
+  "admin.whatsapp.customer.sentToday": "اليوم: {sent} من {cap}",
+  "admin.whatsapp.customer.dailyCap": "الحد اليومي لكل العملاء",
+  "admin.whatsapp.customer.perUserDailyCap": "الحد اليومي لكل عميل",
+  "admin.whatsapp.customer.startHour": "بداية الإرسال (ساعة)",
+  "admin.whatsapp.customer.endHour": "نهاية الإرسال (ساعة)",
+  "admin.whatsapp.customer.hoursHint":
+    "بتوقيت {timezone}. الرسائل خارج هذه الساعات تنتظر بداية الفترة التالية.",
+  "admin.whatsapp.customer.range": "رقم صحيح من {min} إلى {max}",
+  "admin.whatsapp.customer.hoursOrder": "يجب أن تكون النهاية بعد البداية",
+  "admin.whatsapp.customer.save": "حفظ الإعدادات",
+  "admin.whatsapp.customer.saved": "تم حفظ إعدادات رسائل العملاء",
+  "admin.whatsapp.customer.onTitle": "تشغيل رسائل العملاء على واتساب؟",
+  "admin.whatsapp.customer.onBody":
+    "سيبدأ الرقم المربوط بإرسال رسائل لم يبدأها العملاء، وهذا قد يؤدي إلى حظره. تُرسل فقط لمن أكد رقمه عبر واتساب، ضمن الحدود والساعات المحددة.",
+  "admin.whatsapp.customer.onConfirm": "تشغيل الرسائل",
   "admin.whatsapp.verification.onDone": "تم تفعيل التحقق من الهاتف.",
   "admin.whatsapp.verification.offDone": "تم إيقاف التحقق من الهاتف.",
   "admin.nav.audit": "سجل التدقيق",

@@ -12,13 +12,19 @@ import {
   organizationMembers,
   plans,
   subscriptions,
+  refunds,
   type OutboxHandler,
+  type OutboxPostCommitAction,
 } from "@wasfa/db";
 import { ALERT_CHANNELS } from "@wasfa/shared/billing";
+import { type CustomerMessageInput } from "@wasfa/shared/customer-messages";
+import { formatMoney } from "@wasfa/shared/money";
 import { ALERT_KIND_PERMISSION } from "@wasfa/shared/permissions";
 import { SUBSCRIPTION_REMINDER_SLOTS } from "@wasfa/shared/subscriptions";
 import { and, desc, eq, gte, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
+
+import { jobIdFor } from "../notifications/customer-channel.js";
 
 import type { PaymentsRuntime } from "../payments/runtime.js";
 import type { JobContext } from "../queues.js";
@@ -31,6 +37,13 @@ const reminderPayload = z.object({
   subscriptionId: z.uuid(),
   slot: z.enum(SUBSCRIPTION_REMINDER_SLOTS),
 });
+
+/** A customer notification, queued after the outbox transaction commits. */
+function customerMessage(payload: CustomerMessageInput): OutboxPostCommitAction {
+  return { kind: "customer_message", payload, jobId: jobIdFor("customer", payload.key) };
+}
+
+const dayOf = (date: Date) => date.toISOString().slice(0, 10);
 
 /** The outbox topics this worker knows. A topic without a handler is parked, never dropped. */
 export function outboxHandlers(
@@ -141,9 +154,20 @@ export function outboxHandlers(
         },
         link: `/billing/orders/${row.order.id}`,
       });
-      if (row.owner.status === "active") {
-        await runtime.enqueueEmail(
-          {
+      if (row.owner.status !== "active") return;
+      const path = `/billing/orders/${row.order.id}`;
+      return [
+        customerMessage({
+          key: `payment_rejected:${paymentId}:${String(row.payment.proofSubmissions)}`,
+          userId: row.owner.id,
+          kind: "payment_rejected",
+          params: {
+            number: row.order.number,
+            reason: row.payment.rejectReason ?? "other",
+            ...(row.payment.reviewNote ? { note: row.payment.reviewNote } : {}),
+          },
+          path,
+          email: {
             template: "billing_payment_rejected",
             to: row.owner.email,
             name: row.owner.name,
@@ -151,11 +175,10 @@ export function outboxHandlers(
             orderNumber: row.order.number,
             reason: row.payment.rejectReason ?? "other",
             note: row.payment.reviewNote,
-            link: `${runtime.webOrigin}/billing/orders/${row.order.id}`,
+            link: `${runtime.webOrigin}${path}`,
           },
-          `outbox-${entry.id}`,
-        );
-      }
+        }),
+      ];
     },
     "billing.payment_resubmit": async (tx, entry) => {
       const { paymentId } = paymentPayload.parse(entry.payload);
@@ -172,20 +195,29 @@ export function outboxHandlers(
         params: { orderNumber: row.order.number, note: row.payment.reviewNote },
         link: `/billing/orders/${row.order.id}`,
       });
-      if (row.owner.status === "active") {
-        await runtime.enqueueEmail(
-          {
+      if (row.owner.status !== "active") return;
+      const path = `/billing/orders/${row.order.id}`;
+      return [
+        customerMessage({
+          key: `payment_resubmit:${paymentId}:${String(row.payment.proofSubmissions)}`,
+          userId: row.owner.id,
+          kind: "payment_resubmit",
+          params: {
+            number: row.order.number,
+            ...(row.payment.reviewNote ? { note: row.payment.reviewNote } : {}),
+          },
+          path,
+          email: {
             template: "billing_payment_resubmit",
             to: row.owner.email,
             name: row.owner.name,
             locale: row.owner.locale,
             orderNumber: row.order.number,
             note: row.payment.reviewNote,
-            link: `${runtime.webOrigin}/billing/orders/${row.order.id}`,
+            link: `${runtime.webOrigin}${path}`,
           },
-          `outbox-${entry.id}`,
-        );
-      }
+        }),
+      ];
     },
     /**
      * BILLING §7.2: 7/3/1 days before the end, during grace, and at expiry, with the one-tap renew
@@ -227,6 +259,7 @@ export function outboxHandlers(
         .from(users)
         .where(inArray(users.id, recipientIds));
       const path = `/billing/renew?sub=${subscription.id}`;
+      const actions: OutboxPostCommitAction[] = [];
       for (const recipient of recipients) {
         if (recipient.status !== "active") continue;
         await tx.insert(userNotifications).values({
@@ -239,20 +272,28 @@ export function outboxHandlers(
           },
           link: path,
         });
-        await runtime.enqueueEmail(
-          {
-            template: "subscription_reminder",
-            to: recipient.email,
-            name: recipient.name,
-            locale: recipient.locale,
-            slot,
-            planName: recipient.locale === "en" ? plan.nameEn : plan.nameAr,
-            endsAt: subscription.currentPeriodEnd.toISOString(),
-            link: `${runtime.webOrigin}${path}`,
-          },
-          `outbox-${entry.id}-${recipient.id}`,
+        const planName = recipient.locale === "en" ? plan.nameEn : plan.nameAr;
+        actions.push(
+          customerMessage({
+            key: `sub_reminder:${subscription.id}:${String(subscription.currentPeriodEnd.getTime())}:${slot}:${recipient.id}`,
+            userId: recipient.id,
+            kind: "subscription_reminder",
+            params: { plan: planName, date: dayOf(subscription.currentPeriodEnd), slot },
+            path,
+            email: {
+              template: "subscription_reminder",
+              to: recipient.email,
+              name: recipient.name,
+              locale: recipient.locale,
+              slot,
+              planName,
+              endsAt: subscription.currentPeriodEnd.toISOString(),
+              link: `${runtime.webOrigin}${path}`,
+            },
+          }),
         );
       }
+      return actions;
     },
     /** BILLING §5.3 step 6: in-app notification and the receipt mail. */
     "billing.order_paid": async (tx, entry) => {
@@ -261,6 +302,7 @@ export function outboxHandlers(
       if (!order?.ownerUserId) return; // Organization receipts arrive with WP6.
       const [owner] = await tx
         .select({
+          id: users.id,
           email: users.email,
           name: users.name,
           locale: users.locale,
@@ -268,7 +310,8 @@ export function outboxHandlers(
         })
         .from(users)
         .where(eq(users.id, order.ownerUserId));
-      const link = `${runtime.webOrigin}/billing/orders/${order.id}`;
+      const path = `/billing/orders/${order.id}`;
+      const link = `${runtime.webOrigin}${path}`;
       await tx.insert(userNotifications).values({
         userId: order.ownerUserId,
         kind: "billing.order_paid",
@@ -280,20 +323,46 @@ export function outboxHandlers(
         link: `/billing/orders/${order.id}`,
       });
       if (!owner || owner.status === "deleted") return;
-      await runtime.enqueueEmail(
-        {
-          template: "payment_receipt",
-          to: owner.email,
-          name: owner.name,
-          locale: owner.locale,
-          orderNumber: order.number,
-          totalMinor: order.totalMinor,
-          currency: order.currency,
-          taxAndFeesMinor: order.taxMinor + order.feeMinor,
-          link,
-        },
-        `outbox-${entry.id}`,
-      );
+      // A subscription order says what was activated; a credit pack, what was paid.
+      const [period] =
+        order.kind === "credit_pack"
+          ? []
+          : await tx
+              .select({ subscription: subscriptions, plan: plans })
+              .from(subscriptions)
+              .innerJoin(plans, eq(plans.id, subscriptions.planId))
+              .where(eq(subscriptions.lastOrderId, order.id))
+              .limit(1);
+      const total = formatMoney(order.totalMinor, order.currency, owner.locale);
+      return [
+        customerMessage({
+          key: `order_paid:${order.id}`,
+          userId: owner.id,
+          kind: period ? "subscription_activated" : "payment_received",
+          params: period
+            ? {
+                plan: owner.locale === "en" ? period.plan.nameEn : period.plan.nameAr,
+                date: dayOf(period.subscription.currentPeriodEnd),
+                credits: period.plan.monthlyCredits,
+                number: order.number,
+              }
+            : { number: order.number, total },
+          path,
+          // The receipt is a document: it is mailed whether or not WhatsApp also gets a message.
+          emailAlways: true,
+          email: {
+            template: "payment_receipt",
+            to: owner.email,
+            name: owner.name,
+            locale: owner.locale,
+            orderNumber: order.number,
+            totalMinor: order.totalMinor,
+            currency: order.currency,
+            taxAndFeesMinor: order.taxMinor + order.feeMinor,
+            link,
+          },
+        }),
+      ];
     },
     "billing.order_refunded": async (tx, entry) => {
       const { orderId, refundId } = refundPayload.parse(entry.payload);
@@ -305,6 +374,24 @@ export function outboxHandlers(
         params: { orderNumber: order.number, refundId },
         link: `/billing/orders/${order.id}`,
       });
+      const [refund] = await tx.select().from(refunds).where(eq(refunds.id, refundId));
+      const [owner] = await tx
+        .select({ locale: users.locale })
+        .from(users)
+        .where(eq(users.id, order.ownerUserId));
+      if (!refund || !owner) return;
+      return [
+        customerMessage({
+          key: `order_refunded:${refundId}`,
+          userId: order.ownerUserId,
+          kind: "order_refunded",
+          params: {
+            number: order.number,
+            amount: formatMoney(refund.amountMinor, refund.currency, owner.locale),
+          },
+          path: `/billing/orders/${order.id}`,
+        }),
+      ];
     },
   };
 }
@@ -323,6 +410,8 @@ export async function drainOutboxJob(
   const result = await drainOutbox(db, outboxHandlers(payments), new Date(), 50, async (action) => {
     if (action.kind === "alert_delivery") {
       await payments.enqueueAlertDelivery(action.deliveryId, action.jobId);
+    } else if (action.kind === "customer_message") {
+      await payments.enqueueCustomerMessage(action.payload, action.jobId);
     } else {
       await payments.enqueueAlertDigest(
         {

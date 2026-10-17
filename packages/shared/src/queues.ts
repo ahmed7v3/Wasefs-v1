@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+import {
+  customerMessagePayloadSchema,
+  customerWhatsappCheckPayloadSchema,
+} from "./customer-messages.js";
 import { emailSendPayloadSchema } from "./email.js";
 import { evalImportPayloadSchema, evalRunPayloadSchema } from "./schemas/admin-evals.js";
 import { imageProcessPayloadSchema } from "./schemas/files.js";
@@ -74,6 +78,9 @@ export const QUEUE_REGISTRY = {
       windowStart: z.iso.datetime(),
     }),
     "alerts.sweep_pending": z.object({}),
+    // Customer notifications: WhatsApp when the customer can get it there, else email.
+    "customer.notify": customerMessagePayloadSchema,
+    "customer.whatsapp_check": customerWhatsappCheckPayloadSchema,
   },
   credits: {
     "credits.sweep_reservations": creditsMaintenancePayloadSchema,

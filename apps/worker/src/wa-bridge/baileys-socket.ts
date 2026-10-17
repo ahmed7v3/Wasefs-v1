@@ -1,3 +1,8 @@
+import {
+  WA_CUSTOMER_OPTOUT_SET,
+  WA_CUSTOMER_PREFS_LIST,
+  waCustomerPrefCommandSchema,
+} from "@wasfa/shared/customer-messages";
 import { WA_INBOUND_MAXLEN, WA_INBOUND_STREAM, WA_REPLY_STREAM } from "@wasfa/shared/schemas/phone";
 import { waAlertOptInSchema } from "@wasfa/shared/schemas/wa-alert";
 import makeWASocket, {
@@ -12,6 +17,7 @@ import makeWASocket, {
 import { usePostgresAuthState } from "./auth-state.js";
 import {
   extractAlertOptInCommand,
+  extractCustomerPrefCommand,
   extractInbound,
   isDirectJid,
   type RawMessage,
@@ -71,6 +77,30 @@ export function createBaileysSessionOpener(
         );
         await socket.readMessages([message.key]).catch(() => undefined);
         logger.info("WhatsApp alert preference command queued");
+        continue;
+      }
+      const preference = await extractCustomerPrefCommand(raw, socket.signalRepository.lidMapping);
+      if (preference) {
+        const command = waCustomerPrefCommandSchema.parse(preference);
+        const messageId = raw.key.id;
+        if (!messageId) continue;
+        await guard.noteInbound(command.jid, messageId);
+        // Effective at once for anything already queued; the worker records it on the account.
+        if (command.action === "stop") await redis.sadd(WA_CUSTOMER_OPTOUT_SET, command.jid);
+        else await redis.srem(WA_CUSTOMER_OPTOUT_SET, command.jid);
+        await redis.lpush(WA_CUSTOMER_PREFS_LIST, JSON.stringify(command));
+        await redis.xadd(
+          WA_REPLY_STREAM,
+          "*",
+          "data",
+          JSON.stringify({
+            inboundId: messageId,
+            jid: command.jid,
+            outcome: command.action === "stop" ? "messages_off" : "messages_on",
+          }),
+        );
+        await socket.readMessages([message.key]).catch(() => undefined);
+        logger.info({ action: command.action }, "WhatsApp customer preference command queued");
         continue;
       }
       const result = await extractInbound(raw, socket.signalRepository.lidMapping);

@@ -32,6 +32,15 @@ function status(overrides: Partial<AdminWhatsappStatus> = {}): AdminWhatsappStat
     phoneVerification: "whatsapp_inbound",
     available: false,
     unavailableReason: "bridge_down",
+    customerMessages: {
+      enabled: false,
+      dailyCap: 300,
+      perUserDailyCap: 3,
+      timezone: "Africa/Cairo",
+      startHour: 9,
+      endHour: 21,
+      sentToday: 0,
+    },
     ...overrides,
   };
 }
@@ -52,7 +61,10 @@ beforeEach(() => {
     }
     if (path.endsWith("/admin/whatsapp/link")) return Promise.resolve(json({ id: "cmd-1" }, 202));
     if (path.endsWith("/admin/whatsapp/unlink")) return Promise.resolve(json({ id: "cmd-2" }, 202));
-    if (path.endsWith("/admin/whatsapp/verification")) {
+    if (
+      path.endsWith("/admin/whatsapp/verification") ||
+      path.endsWith("/admin/whatsapp/customer-messages")
+    ) {
       return Promise.resolve(json(current));
     }
     return Promise.resolve(json({}, 404));
@@ -120,7 +132,10 @@ describe("the status card", () => {
     expect(await screen.findByText(t("admin.whatsapp.readOnlyNote"))).toBeTruthy();
     expect(screen.queryByRole("button", { name: t("admin.whatsapp.unlink.button") })).toBeNull();
     expect(screen.queryByRole("form", { name: t("admin.whatsapp.link.title") })).toBeNull();
-    expect(screen.getByRole<HTMLInputElement>("switch").disabled).toBe(true);
+    for (const toggle of screen.getAllByRole<HTMLInputElement>("switch")) {
+      expect(toggle.disabled).toBe(true);
+    }
+    expect(screen.queryByRole("button", { name: t("admin.whatsapp.customer.save") })).toBeNull();
   });
 });
 
@@ -256,7 +271,9 @@ describe("the pairing code", () => {
     });
     renderView();
     expect(await screen.findByText(t("admin.whatsapp.pairing.error.timeout"))).toBeTruthy();
-    await userEvent.click(screen.getByRole("button", { name: t("admin.whatsapp.pairing.dismiss") }));
+    await userEvent.click(
+      screen.getByRole("button", { name: t("admin.whatsapp.pairing.dismiss") }),
+    );
     expect(screen.queryByText(t("admin.whatsapp.pairing.error.timeout"))).toBeNull();
   });
 });
@@ -309,7 +326,9 @@ describe("unlinking and the verification switch", () => {
 
   it("asks before switching verification off, and switches it on without asking", async () => {
     renderView();
-    const toggle = await screen.findByRole<HTMLInputElement>("switch");
+    const toggle = await screen.findByRole<HTMLInputElement>("switch", {
+      name: t("admin.whatsapp.verification.label"),
+    });
     expect(toggle.checked).toBe(true);
 
     await userEvent.click(toggle);
@@ -329,7 +348,9 @@ describe("unlinking and the verification switch", () => {
   it("turns verification on straight away when it is off", async () => {
     current = status({ phoneVerification: "disabled" });
     renderView();
-    const toggle = await screen.findByRole<HTMLInputElement>("switch");
+    const toggle = await screen.findByRole<HTMLInputElement>("switch", {
+      name: t("admin.whatsapp.verification.label"),
+    });
     expect(toggle.checked).toBe(false);
     await userEvent.click(toggle);
     await waitFor(() => {
@@ -338,5 +359,55 @@ describe("unlinking and the verification switch", () => {
     expect(JSON.parse(String(calls("PUT", "/admin/whatsapp/verification")[0]?.[1]?.body))).toEqual({
       enabled: true,
     });
+  });
+});
+
+describe("customer messages on WhatsApp", () => {
+  const customerSwitch = () =>
+    screen.findByRole<HTMLInputElement>("switch", { name: t("admin.whatsapp.customer.label") });
+
+  it("asks before turning them on, warns about the ban risk, and sends the caps and hours", async () => {
+    renderView();
+    expect(await screen.findByText(t("admin.whatsapp.customer.risk"))).toBeTruthy();
+    const toggle = await customerSwitch();
+    expect(toggle.checked).toBe(false);
+    await userEvent.click(toggle);
+    expect(calls("PUT", "/admin/whatsapp/customer-messages")).toHaveLength(0);
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: t("admin.whatsapp.customer.onConfirm") }),
+    );
+    await waitFor(() => {
+      expect(calls("PUT", "/admin/whatsapp/customer-messages")).toHaveLength(1);
+    });
+    expect(
+      JSON.parse(String(calls("PUT", "/admin/whatsapp/customer-messages")[0]?.[1]?.body)),
+    ).toEqual({ enabled: true, dailyCap: 300, perUserDailyCap: 3, startHour: 9, endHour: 21 });
+  });
+
+  it("shows today's count and refuses hours that end before they start", async () => {
+    current = status({
+      customerMessages: {
+        enabled: true,
+        dailyCap: 50,
+        perUserDailyCap: 2,
+        timezone: "Africa/Cairo",
+        startHour: 9,
+        endHour: 21,
+        sentToday: 12,
+      },
+    });
+    renderView();
+    expect(
+      await screen.findByText(t("admin.whatsapp.customer.sentToday", { sent: "12", cap: "50" })),
+    ).toBeTruthy();
+    const end = screen.getByRole<HTMLInputElement>("textbox", {
+      name: (name) => name.includes(t("admin.whatsapp.customer.endHour")),
+    });
+    await userEvent.clear(end);
+    await userEvent.type(end, "8");
+    await userEvent.click(screen.getByRole("button", { name: t("admin.whatsapp.customer.save") }));
+    expect(await screen.findByText(t("admin.whatsapp.customer.hoursOrder"))).toBeTruthy();
+    expect(calls("PUT", "/admin/whatsapp/customer-messages")).toHaveLength(0);
   });
 });

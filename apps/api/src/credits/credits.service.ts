@@ -12,6 +12,7 @@ import {
 } from "@wasfa/db";
 import { AI_MODES, type AiMode } from "@wasfa/shared/ai";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
+import { anniversaries } from "@wasfa/shared/subscriptions";
 import { PinoLogger } from "nestjs-pino";
 
 import { decodeCursor, toPage } from "../admin/common/keyset.js";
@@ -89,6 +90,19 @@ export function chatFeatures(allowed: readonly PlanEntitlement[]): MeCreditsResp
 /** First moment of the next UTC month: when the monthly grant job next gives credits. */
 export function nextGrantAt(now: Date): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+}
+
+/**
+ * A subscriber is paid on the period's anniversaries; past the last one, the calendar grant takes
+ * over again when the period ends, so that is the next date shown.
+ */
+export function nextGrantFor(
+  now: Date,
+  period: { start: Date; end: Date; source: string } | undefined,
+): Date {
+  if (!period || period.source === "trial") return nextGrantAt(now);
+  const next = anniversaries(period.start, period.end).find((at) => at.getTime() > now.getTime());
+  return next ?? (period.end > now ? period.end : nextGrantAt(now));
 }
 
 /**
@@ -177,9 +191,10 @@ export class CreditsService {
   /** `GET /me/credits`: the caller's personal wallet and plan. No wallet yet reads as a zero balance. */
   async forUser(userId: string, now = new Date()): Promise<MeCreditsResponse> {
     const owner = { type: "user", id: userId } as const;
-    const [wallet, plan] = await Promise.all([
+    const [wallet, plan, period] = await Promise.all([
       this.repo.personalWallet(userId),
       this.plans.effectivePlan(owner, now),
+      this.repo.activeSubscriptionPeriod(userId),
     ]);
     const allowed = (await this.plans.entitlementsOf(plan)).filter((item) => item.allowed);
     const tasks = allowed.map((item) => item.task);
@@ -191,7 +206,7 @@ export class CreditsService {
       wallet: { ownerType: "user", balance: wallet?.balance ?? 0 },
       plan: { key: plan.key, nameAr: plan.nameAr, nameEn: plan.nameEn },
       monthlyCredits: plan.monthlyCredits,
-      nextGrantAt: nextGrantAt(now).toISOString(),
+      nextGrantAt: nextGrantFor(now, period).toISOString(),
       today: allowed.map((item) => ({
         task: item.task,
         used: used.get(item.task) ?? 0,

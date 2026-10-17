@@ -392,6 +392,24 @@ export const linkWhatsappSchema = z.object({ number: phoneNumberSchema });
 /** `PUT /admin/whatsapp/verification`: the phone-verification kill switch. */
 export const setPhoneVerificationSchema = z.object({ enabled: z.boolean() });
 
+/**
+ * `PUT /admin/whatsapp/customer-messages`: customer notifications from the linked number. The
+ * same shape as the `whatsapp.customerMessages` setting it writes.
+ */
+export const customerMessagesSettingsSchema = z
+  .object({
+    enabled: z.boolean(),
+    dailyCap: z.number().int().min(1).max(2_000),
+    perUserDailyCap: z.number().int().min(1).max(10),
+    startHour: z.number().int().min(0).max(23),
+    endHour: z.number().int().min(1).max(24),
+  })
+  .refine((value) => value.endHour > value.startHour, {
+    message: "endHour must be after startHour",
+    path: ["endHour"],
+  });
+export type CustomerMessagesSettingsInput = z.output<typeof customerMessagesSettingsSchema>;
+
 export const adminWhatsappPairingSchema = z.object({
   id: z.string(),
   cmd: z.enum(["link", "unlink"]),
@@ -419,6 +437,16 @@ export const adminWhatsappStatusSchema = z.object({
   phoneVerification: z.enum(PHONE_VERIFICATION_MODES),
   available: z.boolean(),
   unavailableReason: z.enum(["disabled", "not_configured", "bridge_down"]).optional(),
+  /** Customer notifications over WhatsApp: the settings and today's count (UTC day). */
+  customerMessages: z.object({
+    enabled: z.boolean(),
+    dailyCap: z.number().int(),
+    perUserDailyCap: z.number().int(),
+    timezone: z.string(),
+    startHour: z.number().int(),
+    endHour: z.number().int(),
+    sentToday: z.number().int().min(0),
+  }),
 });
 export type AdminWhatsappStatus = z.output<typeof adminWhatsappStatusSchema>;
 

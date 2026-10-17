@@ -113,6 +113,27 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
   "admin.whatsapp.verification.offBody":
     "Users cannot verify their phones through WhatsApp until you turn it back on.",
   "admin.whatsapp.verification.offConfirm": "Turn off",
+  "admin.whatsapp.customer.title": "Customer messages on WhatsApp",
+  "admin.whatsapp.customer.lead":
+    "Subscription, payment and reminder messages go on WhatsApp to customers who verified their phone through this number, and by email to everyone else. A customer stops them by sending: STOP.",
+  "admin.whatsapp.customer.label": "Send customer messages on WhatsApp",
+  "admin.whatsapp.customer.risk":
+    "Messages the customer did not start can get the number banned by WhatsApp, which also stops phone verification. Start with a small daily cap and watch the account.",
+  "admin.whatsapp.customer.sentToday": "Today: {sent} of {cap}",
+  "admin.whatsapp.customer.dailyCap": "Daily cap, all customers",
+  "admin.whatsapp.customer.perUserDailyCap": "Daily cap per customer",
+  "admin.whatsapp.customer.startHour": "Sending starts (hour)",
+  "admin.whatsapp.customer.endHour": "Sending ends (hour)",
+  "admin.whatsapp.customer.hoursHint":
+    "In {timezone}. Messages outside these hours wait for the next window.",
+  "admin.whatsapp.customer.range": "A whole number from {min} to {max}",
+  "admin.whatsapp.customer.hoursOrder": "The end must be after the start",
+  "admin.whatsapp.customer.save": "Save settings",
+  "admin.whatsapp.customer.saved": "Customer message settings saved",
+  "admin.whatsapp.customer.onTitle": "Turn on customer messages on WhatsApp?",
+  "admin.whatsapp.customer.onBody":
+    "The linked number will start sending messages customers did not start, which can get it banned. They go only to customers who verified their phone on WhatsApp, within the caps and hours set here.",
+  "admin.whatsapp.customer.onConfirm": "Turn on messages",
   "admin.whatsapp.verification.onDone": "Phone verification is on.",
   "admin.whatsapp.verification.offDone": "Phone verification is off.",
   "admin.nav.audit": "Audit log",

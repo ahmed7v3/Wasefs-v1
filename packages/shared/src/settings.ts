@@ -99,6 +99,38 @@ export const freeTierSettingsSchema = z.object({
  */
 export const whatsappSettingsSchema = z.object({
   number: phoneNumberSchema.nullable().default(null),
+  /**
+   * Customer notifications sent from that number (owner decision, 2026-10-17). Off until the owner
+   * switches it on in /admin/whatsapp. Only customers whose phone was verified through this
+   * WhatsApp number receive them, within the caps and the sending hours; the rest get email.
+   */
+  customerMessages: z
+    .object({
+      enabled: z.boolean().default(false),
+      /** Messages to customers per UTC day, all customers together. */
+      dailyCap: z.number().int().min(1).max(2_000).default(300),
+      /** Messages per customer per UTC day. */
+      perUserDailyCap: z.number().int().min(1).max(10).default(3),
+      timezone: z
+        .string()
+        .refine(isTimeZone, { message: "Unknown IANA time zone" })
+        .default("Africa/Cairo"),
+      /** Messages outside [startHour, endHour) wait for the next window. */
+      startHour: z.number().int().min(0).max(23).default(9),
+      endHour: z.number().int().min(1).max(24).default(21),
+    })
+    .refine((value) => value.endHour > value.startHour, {
+      message: "endHour must be after startHour",
+      path: ["endHour"],
+    })
+    .default({
+      enabled: false,
+      dailyCap: 300,
+      perUserDailyCap: 3,
+      timezone: "Africa/Cairo",
+      startHour: 9,
+      endHour: 21,
+    }),
 });
 
 /** A zone `Intl` can format with; a bad value would make every business-hours check throw. */

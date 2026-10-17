@@ -20,6 +20,7 @@ import {
   type SettleResult,
   type SweepResult,
   type WalletOwner,
+  subscriptions,
 } from "@wasfa/db";
 import { and, desc, eq, gte, ilike, isNull, ne, or, sql, type SQL } from "drizzle-orm";
 
@@ -120,6 +121,22 @@ export class CreditsRepo {
     options: { reason: string; idempotencyKey: string },
   ): Promise<LedgerWrite> {
     return refundLedger(this.handle.db, owner, amount, options);
+  }
+
+  /** The user's active subscription period, if any (its anniversaries replace the calendar grant). */
+  async activeSubscriptionPeriod(
+    userId: string,
+  ): Promise<{ start: Date; end: Date; source: string } | undefined> {
+    const [row] = await this.handle.db
+      .select({
+        start: subscriptions.currentPeriodStart,
+        end: subscriptions.currentPeriodEnd,
+        source: subscriptions.source,
+      })
+      .from(subscriptions)
+      .where(and(eq(subscriptions.ownerUserId, userId), eq(subscriptions.status, "active")))
+      .limit(1);
+    return row;
   }
 
   /** The signed-in user's own wallet; `undefined` until it is first used. */

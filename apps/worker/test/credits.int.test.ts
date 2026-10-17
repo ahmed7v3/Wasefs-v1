@@ -268,7 +268,8 @@ describe("credits.grant_monthly", () => {
       .from(creditWallets)
       .where(and(inArray(creditWallets.ownerUserId, ids), eq(creditWallets.balance, 30)));
     expect(granted[0]?.n).toBe(total);
-  });
+    // 437 users granted one by one: well inside 30 s alone, not under a full parallel suite run.
+  }, 120_000);
 
   it("logs counts only", async () => {
     lines.length = 0;

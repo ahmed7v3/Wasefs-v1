@@ -30,6 +30,32 @@ export const en: Partial<Record<MessageKey, string>> = {
   "phone.reply.invalid": "The code is incorrect or has expired",
   "phone.reply.alertsOn": "Alert preference request received",
   "phone.reply.alertsOff": "Alert preference request received",
+  "account.notifications.whatsappLabel": "Get my notifications on WhatsApp",
+  "account.notifications.whatsappHint":
+    "Subscription, payment and reminder messages on your verified number. When off, they come by email.",
+  "account.notifications.whatsappInactive":
+    "WhatsApp messages are not active right now; notifications come by email.",
+  "account.notifications.saved": "Notification preferences saved",
+  "phone.reply.messagesOff": "WhatsApp messages turned off",
+  "phone.reply.messagesOn": "WhatsApp messages turned on",
+  "whatsapp.customer.subscriptionActivated":
+    "Your {plan} plan is active until {date}. Monthly credits: {credits}. Order: {number}.",
+  "whatsapp.customer.paymentReceived":
+    "We received your payment for order {number}: {total}. Thank you.",
+  "whatsapp.customer.reminder.ending":
+    "Reminder: your {plan} subscription ends on {date}. Renew in one tap:",
+  "whatsapp.customer.reminder.grace":
+    "Your {plan} plan ended on {date}; its features stay on for a few more days. Renew now:",
+  "whatsapp.customer.reminder.expired":
+    "Your {plan} subscription ended and your account is back on the free plan. You can renew any time:",
+  "whatsapp.customer.paymentRejected":
+    "We could not confirm the payment for order {number}: {reason}. You can send a new proof:",
+  "whatsapp.customer.paymentResubmit":
+    "We need a clearer payment proof for order {number}. Send it here:",
+  "whatsapp.customer.orderRefunded": "A refund of {amount} was issued for order {number}.",
+  "whatsapp.customer.offer": "A special offer for you: {title}. Ends on {date}.",
+  "whatsapp.customer.note": "Note: {note}",
+  "whatsapp.customer.footer": "Wasfa AI · To stop WhatsApp messages, send: STOP",
   "email.greeting": "Hello {name},",
   "email.greetingAnonymous": "Hello,",
   "email.linkFallback": "If the button does not work, copy this link into your browser:",

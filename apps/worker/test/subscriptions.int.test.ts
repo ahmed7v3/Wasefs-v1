@@ -25,6 +25,7 @@ import { subscriptionsLifecycleJob } from "../src/jobs/subscriptions.job.js";
 
 import { startPostgres, type TestPostgres } from "./support/postgres.js";
 
+import type { OutboxPostCommitAction } from "@wasfa/db";
 import type { EmailSendInput } from "@wasfa/shared/email";
 
 /*
@@ -139,10 +140,34 @@ describe("subscriptions.lifecycle", () => {
       enqueueAlertDelivery: async () => undefined,
       enqueueAlertDigest: async () => undefined,
     });
-    await drainOutbox(worker.db, handlers, new Date());
-    const reminders = mails.filter((mail) => mail.payload.template === "subscription_reminder");
+    const actions: OutboxPostCommitAction[] = [];
+    await drainOutbox(worker.db, handlers, new Date(), 50, async (action) => {
+      actions.push(action);
+    });
+    expect(mails).toHaveLength(0);
+    const activated = actions.flatMap((action) =>
+      action.kind === "customer_message" && action.payload.kind === "subscription_activated"
+        ? [action.payload]
+        : [],
+    );
+    expect(activated).toHaveLength(1);
+    expect(activated[0]).toMatchObject({
+      userId,
+      emailAlways: true,
+      params: { credits: 150, date: end.toISOString().slice(0, 10) },
+    });
+    const reminders = actions.flatMap((action) =>
+      action.kind === "customer_message" && action.payload.kind === "subscription_reminder"
+        ? [action.payload]
+        : [],
+    );
     expect(reminders).toHaveLength(1);
-    expect(reminders[0]?.payload).toMatchObject({
+    expect(reminders[0]).toMatchObject({
+      userId,
+      params: { slot: "d7" },
+      path: `/billing/renew?sub=${sub.id}`,
+    });
+    expect(reminders[0]?.email).toMatchObject({
       template: "subscription_reminder",
       slot: "d7",
       link: `https://wasfa.example/billing/renew?sub=${sub.id}`,

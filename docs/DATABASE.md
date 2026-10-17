@@ -359,3 +359,7 @@ Not added yet, on purpose: a trigram index for admin user search by name/email/p
 ### Task 3.5 schema additions (migration 0015)
 
 `subscription_events.type` adds `resumed`. `subscription_events_order_idx` (partial, on `data->>'orderId'`) serves the per-order idempotency of activation, the refund lookup and the backfill. The lifecycle keeps one open `plan_assignments` row per live subscription whose `ends_at` is always the moment access stops (period end, plus `billing.graceDays` for a paid, not-canceled period). Subscription grants use ledger keys `grant:<ownerType>:<ownerId>:<YYYY-MM>:<subscriptionId>:p<periodStartMs>` and trial grants `trial:<subscriptionId>`; their expiries `expiry:<walletId>:<grantKey>`.
+
+### Customer notification preferences (migration 0016)
+
+`notification_prefs` (one row per user, absent = defaults): `whatsapp_opted_out_at` and `whatsapp_opted_out_via` (`whatsapp` for a STOP sent to our number, `account` for the switch on the account page), both null or both set (CHECK). `wasfa_api` may SELECT, INSERT and UPDATE. Deleted with the user (cascade); an anonymized account loses its phone, so it is never messaged anyway. Whether WhatsApp is possible at all comes from `users.phone_verified_at`.

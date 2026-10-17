@@ -206,6 +206,8 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       WA_ALERTS_ENABLED: ${WA_ALERTS_ENABLED:-false}
+      # Customer messages may link to this site only (first entry of the web origins).
+      WEB_ORIGIN: ${WEB_ORIGIN:-https://wasfa.online}
     networks: [internal, egress]
     depends_on:
       postgres:

@@ -285,7 +285,7 @@ Design in phase1.md Task 1.5. The security properties that must hold:
 
 **Rules enforced in code (`guard.ts`) and documented here:**
 
-1. Our number **never starts a conversation**, never sends to a number that did not message it first within the last 24 h, never joins groups, never posts statuses, never sends media or links.
+1. Our number **never starts a conversation**, never sends to a number that did not message it first within the last 24 h, never joins groups, never posts statuses, never sends media or links. **Exception (Decision 50):** customer notifications to verified numbers, under the rules of §8.1.
 2. At most **one short reply** per verification ("verified" or "wrong or expired code"), sent only in the user's own conversation after a random 2-6 s delay with a typing indicator. Global cap: 1 reply per 3 s and 300 per day; above the cap it stays silent (the web UI shows the outcome anyway).
 3. Inbound messages are marked read. Only 1:1 text messages are processed; groups, statuses, broadcasts, media and calls are ignored.
 4. One linked session, one server IP, no frequent re-pairing; reconnect with exponential backoff; on `loggedOut` stop and alert the admin; **never auto-re-pair**.
@@ -303,6 +303,20 @@ Design in phase1.md Task 1.5. The security properties that must hold:
 - **Health**: the bridge writes `wa:heartbeat` every 30 s with its state (`connecting | connected | disconnected | logged_out`); `GET /phone/verify/status` reports `available` and why not. `/health/ready` does not depend on it. After `loggedOut` the bridge also sets `wa:alert` for the future admin dashboard.
 - **Control channel (admin to bridge)**: the api never talks to WhatsApp. `POST /admin/whatsapp/link|unlink` (`settings.write`, fresh auth, 10/min) pushes `{ id, cmd: "link", number } | { id, cmd: "unlink" }` on the Redis list `wa:commands` (`LPUSH` + `LTRIM` to 20 + a 5-minute expiry, so a command queued while the bridge is down cannot fire later); the bridge pops it (`BRPOP`, FIFO) on a connection of its own, validates it with the shared zod schema (anything else is dropped), and answers in `wa:pairing` (`requested | code | linked | already_linked | unlinked | error`, 180 s expiry, fixed machine reasons only, the number masked to its last four digits). The api refuses `link` unless the bridge is idle and logged out (409 while a number is linked or reconnecting, 502 while the bridge is down), so the saved number (`site_settings.whatsapp.number`; `WHATSAPP_NUMBER` is only the fallback) can never name a different number than the one linked. An admin-started pairing gives up after 180 s, on any connection failure other than WhatsApp's own post-pairing restart, and leaves no half-linked session. **Anti-ban rules are untouched**: linking is the only thing the commands can do; they cannot send a message.
 - **Unverified in this repository**: the Baileys socket glue (`wa-bridge/main.ts`) has not run against real WhatsApp. The spike (can the sender's number be resolved from a LID?) and the end-to-end checks of Task 1.5 need the dedicated number and are tracked in phase1.md.
+
+### 8.1 Customer notifications from the bridge (Decision 50, 2026-10-17)
+
+The one place our number writes first. The worker decides (`apps/worker/src/notifications/customer-channel.ts`), the bridge enforces (`wa-bridge/customer-messages.ts`), and every rule below is tested:
+
+1. **Who:** only an active account whose phone is **verified** (it sent our number the code, so the chat exists and they started it), that has not sent **STOP** (`إيقاف` / `STOP`; `تشغيل` / `START` undoes it) or switched WhatsApp off on the account page. Everyone else gets email.
+2. **Switch:** `whatsapp.customerMessages.enabled` (off by default), set in `/admin/whatsapp` with fresh auth and audited. The bridge rereads it every 30 s, so turning it off also stops messages already queued.
+3. **Volume:** an owner-set daily total (default 300) and per-customer daily cap (default 3), reserved atomically by the worker; the bridge counts real sends against the same total as a backstop. Over a cap means email.
+4. **Hours:** only inside the sending window (default 09:00-21:00 Africa/Cairo); a message outside it waits for the next window.
+5. **Content:** keyed templates only (the producer passes a kind and parameters, never text), at most 1,000 characters, links only to `WEB_ORIGIN`'s host (anything else is refused), and every message ends with the STOP instruction. No media.
+6. **Pace:** 2-6 s randomised delay and at least 3 s between any two outgoing messages (replies, admin alerts and customer messages share one slot).
+7. **Exactly once, or email:** each message has an id derived from its notification key; the bridge claims it once (`SET NX`) and records `sent`, `failed` or why it refused; a message older than 3 minutes is dropped. Four minutes after queueing the worker claims it too and, unless it was `sent`, mails the customer instead. Receipts are always mailed (documents) and also sent on WhatsApp when possible.
+8. **Logs** carry the message kind and the outcome, never the phone number, the chat id or the text.
+
 
 ---
 
@@ -414,4 +428,6 @@ Open security items from Phase 0 and design decisions. Each has an owner task; n
 | `POST /me/subscription/renew-quote` | Cookie session | Shared zod body (`methodKey?`, `months?`); the plan always comes from the caller's subscription, never the client; same pricing path and limit as `POST /billing/quote` (30/min) | Signed quote in Redis |
 | `POST /me/trial` | Cookie session + verified account | Shared zod body (`planKey`); 5/min IP and 5/hour per account; once per account and per verified phone (stored as a hash in the event, never the number), a transaction lock per phone | `subscription_events` `created` |
 | `GET /me/orders` | Cookie session | Shared keyset query; `owner_user_id = caller` | Read only |
+| `GET /me/notification-prefs`, `PUT /me/notification-prefs` | Cookie session | Shared zod body (`{ whatsapp: boolean }`); own row only; 409 `phone_not_verified` without a verified phone; updates the bridge's opt-out set at once; 60 and 10/min | Row in `notification_prefs` |
+| `PUT /admin/whatsapp/customer-messages` | Cookie + MFA session, `settings.write`, fresh auth ≤10 min | Shared zod body (switch, caps 1-2000 and 1-10, hours with end after start); merged into the `whatsapp` setting; 10/min | `setting.update` audit row |
 | `GET /me/orders/:id/receipt` | Cookie session | UUID param; caller's own paid/refunded orders only, anything else `NOT_FOUND`; buyer email and phone masked | Read only |

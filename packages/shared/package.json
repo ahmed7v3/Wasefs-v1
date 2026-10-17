@@ -115,6 +115,11 @@
       "import": "./dist/subscriptions.js",
       "default": "./dist/subscriptions.js"
     },
+    "./customer-messages": {
+      "types": "./dist/customer-messages.d.ts",
+      "import": "./dist/customer-messages.js",
+      "default": "./dist/customer-messages.js"
+    },
     "./alert-safety": {
       "types": "./dist/alert-safety.d.ts",
       "import": "./dist/alert-safety.js",
@@ -139,6 +144,11 @@
       "types": "./dist/schemas/subscriptions.d.ts",
       "import": "./dist/schemas/subscriptions.js",
       "default": "./dist/schemas/subscriptions.js"
+    },
+    "./schemas/notification-prefs": {
+      "types": "./dist/schemas/notification-prefs.d.ts",
+      "import": "./dist/schemas/notification-prefs.js",
+      "default": "./dist/schemas/notification-prefs.js"
     },
     "./schemas/rewards": {
       "types": "./dist/schemas/rewards.d.ts",
