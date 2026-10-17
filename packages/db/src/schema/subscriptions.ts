@@ -99,6 +99,10 @@ export const subscriptionEvents = pgTable(
     check("subscription_events_type_check", inList(table.type, SUBSCRIPTION_EVENT_TYPES)),
     check("subscription_events_data_check", sql`jsonb_typeof(${table.data}) = 'object'`),
     index("subscription_events_subscription_created_idx").on(table.subscriptionId, table.createdAt),
+    // Activation is idempotent per order, and refunds find the period an order bought.
+    index("subscription_events_order_idx")
+      .on(sql`(${table.data}->>'orderId')`)
+      .where(sql`(${table.data}->>'orderId') is not null`),
   ],
 );
 

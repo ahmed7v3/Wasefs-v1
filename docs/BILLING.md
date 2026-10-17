@@ -239,11 +239,12 @@ Phase 3 sells **prepaid periods**, not auto-renewing card subscriptions (Decisio
 ### 7.2 Rules
 - **Same plan, new payment while active**: extend, starting at the current `period_end` (no overlap lost).
 - **Different plan, higher**: *upgrade now* (§7.3).
-- **Different plan, lower**: scheduled at period end (`pending_change`), nothing refunded.
+- **Different plan, lower**: scheduled at period end (`pending_change`), nothing refunded. A second lower-plan order for the *same* plan adds its months; for a *different* plan the first change is kept and an admin alert asks for a refund or re-target. In grace (the period already ended) a lower plan starts at once.
 - **Expiry**: at `period_end` the subscription enters `grace` for `settings.billing.graceDays` (default 2): access continues, daily reminders stop at the third, then `expired` and the assignment ends, so the owner falls back to the default plan. Unused plan credits do not carry over.
 - **Plan credits**: granted **monthly on the subscription anniversary** (a 12-month prepayment receives 12 monthly grants), idempotency key `grant:<owner>:<YYYY-MM>:<subscription>`. Purchased packs never expire inside `valid_months` (default 12).
 - **Trial**: `plans.trial_days` once per owner and per verified phone; grants `trial_credits` (setting), no payment, no card; ends back on the default plan. `source = trial`.
-- **Cancel**: sets `cancel_at_period_end`; access continues to the end; no refund unless §7.4.
+- **Cancel**: sets `cancel_at_period_end`; access continues to the end (no grace afterwards); no refund unless §7.4. Resume clears it before the end.
+- **Access end on record**: the subscription's open `plan_assignments` row always ends when access stops if nothing else happens (period end, plus grace for a paid period that is not canceled), so a late or stopped worker never extends access.
 - **Reminders** (worker): 7, 3 and 1 day before the end, and on expiry, each with a one-tap renew link that pre-fills the order. Then win-back (GROWTH-STRATEGY §6).
 
 ### 7.3 Upgrade proration

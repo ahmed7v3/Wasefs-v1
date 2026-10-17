@@ -560,6 +560,36 @@ export async function moveCreditsInTransaction(
   return writeResult(wallet.id, row, wallet.balance, false);
 }
 
+/**
+ * Expires the unused part of one earlier grant (`grantKey`) inside the caller's transaction: the
+ * same rule as `expireUnused` (min(balance, that grant's amount)), for grants that are not
+ * calendar months (subscription anniversaries, trials). Idempotent per wallet and grant; writes
+ * nothing when the grant does not exist or nothing is left.
+ */
+export async function expireGrantInTransaction(
+  tx: Transaction,
+  owner: WalletOwner,
+  grantKey: string,
+): Promise<LedgerWrite | null> {
+  const wallet = await lockOwnerWallet(tx, owner);
+  const key = `expiry:${wallet.id}:${grantKey}`;
+  const existing = await findByKey(tx, key);
+  if (existing) {
+    return writeResult(wallet.id, existing, existing.balanceAfter - existing.amount, true);
+  }
+  const granted = await findByKey(tx, grantKey);
+  if (!granted || granted.amount <= 0 || granted.walletId !== wallet.id) return null;
+  const amount = Math.min(wallet.balance, granted.amount);
+  if (amount <= 0) return null;
+  const { row } = await append(tx, wallet, wallet.balance, {
+    kind: "expiry",
+    amount: -amount,
+    idempotencyKey: key,
+    reason: `expired:${grantKey.split(":")[0] ?? "grant"}`,
+  });
+  return writeResult(wallet.id, row, wallet.balance, false);
+}
+
 /** `YYYY-MM` of a moment, in UTC: the grant period. */
 export function grantPeriod(now: Date): string {
   return now.toISOString().slice(0, 7);

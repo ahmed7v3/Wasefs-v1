@@ -120,6 +120,7 @@ export const SUBSCRIPTION_EVENT_TYPES = [
   "canceled",
   "admin_changed",
   "refund_applied",
+  "resumed",
 ] as const;
 export type SubscriptionEventType = (typeof SUBSCRIPTION_EVENT_TYPES)[number];
 

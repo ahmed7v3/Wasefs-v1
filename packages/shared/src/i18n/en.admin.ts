@@ -546,6 +546,20 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
     "The price summary expired (15 minutes) or changed before the order was created. Expected; many of them mean customers linger on checkout.",
   "admin.issue.explain.COUPON_UNAVAILABLE":
     "The coupon ran out, expired or was used between the quote and the order. Expected with limited coupons.",
+  "admin.issue.explain.DUPLICATE_TXN":
+    "The customer sent a transaction id already used on the same payment method. A typo or an attempt to reuse an old proof; compare the two orders.",
+  "admin.issue.explain.PROOF_LIMIT":
+    "The customer reached the proof limit (3 submissions) or was rejected twice. They need a new order or support.",
+  "admin.issue.explain.PROOF_PROCESSING":
+    "The proof was submitted before its image finished processing. Expected and temporary; the customer retries in seconds.",
+  "admin.issue.explain.PROOF_NOT_ALLOWED":
+    "The payment does not accept a proof in its current state (order expired, already under review, or an unusable file). Expected when the order timed out.",
+  "admin.issue.explain.TRIAL_UNAVAILABLE":
+    "A trial was asked for a plan without one, trial credits are 0 in the settings, or the customer already has a subscription. Expected.",
+  "admin.issue.explain.TRIAL_USED":
+    "The trial was already used on this account or on the same phone number. Expected; many of them may mean trial farming.",
+  "admin.issue.explain.PHONE_VERIFICATION_REQUIRED":
+    "Trials need a verified phone number and the customer has not verified one yet. Expected.",
   "admin.issue.explain.INVALID_SIGNATURE":
     "A payment webhook arrived with a wrong signature and was refused. If it repeats, check the gateway keys; otherwise it may be forged.",
   "admin.issue.explain.unknown":

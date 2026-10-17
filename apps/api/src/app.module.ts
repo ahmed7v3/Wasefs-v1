@@ -31,6 +31,7 @@ import { PhoneModule } from "./phone/phone.module.js";
 import { RbacModule } from "./rbac/rbac.module.js";
 import { RxModule } from "./rx/rx.module.js";
 import { SettingsModule } from "./settings/settings.module.js";
+import { SubscriptionsModule } from "./subscriptions/subscriptions.module.js";
 import { UsersModule } from "./users/users.module.js";
 
 import type { ApiEnv } from "./config/env.js";
@@ -76,6 +77,7 @@ export class AppModule {
         RxModule,
         AdminModule,
         AlertsModule,
+        SubscriptionsModule,
         OrgsModule,
         HealthModule,
         ...extraImports,

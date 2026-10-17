@@ -88,6 +88,16 @@ export const ar = {
   "email.paymentResubmit.body": "يرجى إرسال إثبات دفع جديد للطلب {number}.",
   "email.paymentResubmit.note": "ملاحظة من المراجع: {note}",
   "email.paymentResubmit.button": "إرسال إثبات جديد",
+  "email.subscriptionReminder.ending.subject": "ينتهي اشتراكك في {plan} يوم {date}",
+  "email.subscriptionReminder.ending.body":
+    "ينتهي اشتراكك في باقة {plan} يوم {date}. جدّده بضغطة واحدة لتستمر دون انقطاع.",
+  "email.subscriptionReminder.grace.subject": "انتهت مدة اشتراكك في {plan}",
+  "email.subscriptionReminder.grace.body":
+    "انتهت مدة باقة {plan} يوم {date}، وما زالت مزاياها متاحة لك لأيام قليلة. جدّد الآن لتحتفظ بها.",
+  "email.subscriptionReminder.expired.subject": "انتهى اشتراكك في {plan}",
+  "email.subscriptionReminder.expired.body":
+    "انتهى اشتراكك في باقة {plan} وعاد حسابك إلى الباقة المجانية. يمكنك التجديد في أي وقت.",
+  "email.subscriptionReminder.button": "تجديد الاشتراك",
   "ui.required": "(مطلوب)",
   "ui.close": "إغلاق",
   "ui.showPassword": "إظهار كلمة المرور",

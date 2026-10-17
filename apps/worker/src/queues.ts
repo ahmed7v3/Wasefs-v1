@@ -33,6 +33,7 @@ import {
   reconcilePaymentsJob,
 } from "./jobs/payments.job.js";
 import { rxAnalyzeJob } from "./jobs/rx.job.js";
+import { subscriptionsBackfillJob, subscriptionsLifecycleJob } from "./jobs/subscriptions.job.js";
 import { emailSendJob, type EmailRuntime } from "./notifications/email.js";
 
 import type { AiRuntime } from "./ai/runtime.js";
@@ -104,6 +105,8 @@ export const HANDLERS: Handlers = {
     "alerts.retention": alertsRetentionJob,
     "payment-methods.apply-due": applyDuePaymentMethodChangesJob,
     "payments.review-sla": paymentsReviewSlaJob,
+    "subscriptions.lifecycle": subscriptionsLifecycleJob,
+    "subscriptions.backfill": subscriptionsBackfillJob,
   },
 };
 
@@ -202,6 +205,10 @@ const OUTBOX_DRAIN_INTERVAL_MS = 30 * 1000;
 const ALERT_RETENTION_PATTERN = "15 2 * * *";
 const PAYMENT_METHOD_APPLY_INTERVAL_MS = 60_000;
 const PAYMENT_REVIEW_SLA_INTERVAL_MS = 30 * 60_000;
+/** Period ends, grace and anniversary grants are due at any minute; reminders count in days. */
+const SUBSCRIPTIONS_LIFECYCLE_INTERVAL_MS = 15 * 60_000;
+/** Nightly at 02:40 UTC: paid subscription orders that still have no period (also run at start). */
+const SUBSCRIPTIONS_BACKFILL_PATTERN = "40 2 * * *";
 
 /** Registers repeatable jobs. Upserting by id is idempotent, so restarts never duplicate them. */
 export async function registerSchedules(queues: readonly Queue[]): Promise<void> {
@@ -297,6 +304,18 @@ export async function registerSchedules(queues: readonly Queue[]): Promise<void>
     { every: OUTBOX_DRAIN_INTERVAL_MS },
     { name: "outbox.drain", data: {} },
   );
+  await payments.upsertJobScheduler(
+    "subscriptions.lifecycle",
+    { every: SUBSCRIPTIONS_LIFECYCLE_INTERVAL_MS },
+    { name: "subscriptions.lifecycle", data: {} },
+  );
+  await payments.upsertJobScheduler(
+    "subscriptions.backfill",
+    { pattern: SUBSCRIPTIONS_BACKFILL_PATTERN, tz: "UTC" },
+    { name: "subscriptions.backfill", data: {} },
+  );
+  // Once at start too: orders paid while the activation hook was a no-op get their period now.
+  await payments.add("subscriptions.backfill", {});
 }
 
 interface Closable {

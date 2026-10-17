@@ -110,6 +110,11 @@
       "import": "./dist/billing.js",
       "default": "./dist/billing.js"
     },
+    "./subscriptions": {
+      "types": "./dist/subscriptions.d.ts",
+      "import": "./dist/subscriptions.js",
+      "default": "./dist/subscriptions.js"
+    },
     "./alert-safety": {
       "types": "./dist/alert-safety.d.ts",
       "import": "./dist/alert-safety.js",
@@ -129,6 +134,11 @@
       "types": "./dist/schemas/billing.d.ts",
       "import": "./dist/schemas/billing.js",
       "default": "./dist/schemas/billing.js"
+    },
+    "./schemas/subscriptions": {
+      "types": "./dist/schemas/subscriptions.d.ts",
+      "import": "./dist/schemas/subscriptions.js",
+      "default": "./dist/schemas/subscriptions.js"
     },
     "./schemas/rewards": {
       "types": "./dist/schemas/rewards.d.ts",

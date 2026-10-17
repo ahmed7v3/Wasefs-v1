@@ -16,8 +16,8 @@ const FIRST_ID = "00000000-0000-0000-0000-000000000000";
 
 /**
  * Users who are due the monthly grant of `period` and have not got it yet, by id after `afterId`.
- * "Due": an active, verified account whose effective plan (the newest open assignment, else the
- * default plan) gives more than zero credits. An unverified account cannot use the AI features, so
+ * "Due": an active, verified account without a live subscription whose effective plan (the newest
+ * open assignment, else the default plan) gives more than zero credits. An unverified account cannot use the AI features, so
  * it is not paid before it is verified; the daily run picks it up the day it is.
  */
 export async function findGrantCandidates(
@@ -51,6 +51,13 @@ export async function findGrantCandidates(
       and (u.email_verified or u.phone_verified)
       and u.id > ${afterId ?? FIRST_ID}::uuid
       and p.monthly_credits > 0
+      -- A live subscription is paid on its own anniversaries (subscriptions.lifecycle).
+      and not exists (
+        select 1
+        from subscriptions s
+        where s.owner_user_id = u.id
+          and s.status in ('trialing', 'active', 'grace')
+      )
       and not exists (
         select 1
         from credit_ledger l

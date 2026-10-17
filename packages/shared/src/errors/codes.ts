@@ -21,6 +21,10 @@ export const ErrorCode = {
   PROOF_LIMIT: "PROOF_LIMIT",
   PROOF_PROCESSING: "PROOF_PROCESSING",
   PROOF_NOT_ALLOWED: "PROOF_NOT_ALLOWED",
+  // Trials (BILLING §7.2): once per owner and per verified phone.
+  TRIAL_UNAVAILABLE: "TRIAL_UNAVAILABLE",
+  TRIAL_USED: "TRIAL_USED",
+  PHONE_VERIFICATION_REQUIRED: "PHONE_VERIFICATION_REQUIRED",
   // A webhook whose signature does not verify (recorded, never processed).
   INVALID_SIGNATURE: "INVALID_SIGNATURE",
 } as const;
@@ -170,6 +174,27 @@ export const ERROR_INFO: Record<ErrorCode, ErrorCodeInfo> = {
     message: {
       ar: "لا يمكن إرسال إثبات لهذا الدفع في حالته الحالية.",
       en: "A proof cannot be submitted for this payment in its current state.",
+    },
+  },
+  TRIAL_UNAVAILABLE: {
+    httpStatus: 409,
+    message: {
+      ar: "التجربة المجانية غير متاحة لهذه الباقة الآن.",
+      en: "A free trial is not available for this plan right now.",
+    },
+  },
+  TRIAL_USED: {
+    httpStatus: 409,
+    message: {
+      ar: "استُخدمت التجربة المجانية من قبل على هذا الحساب أو رقم الهاتف.",
+      en: "The free trial was already used on this account or phone number.",
+    },
+  },
+  PHONE_VERIFICATION_REQUIRED: {
+    httpStatus: 403,
+    message: {
+      ar: "أكّد رقم هاتفك أولاً لتبدأ التجربة المجانية.",
+      en: "Verify your phone number first to start the free trial.",
     },
   },
   INVALID_SIGNATURE: {

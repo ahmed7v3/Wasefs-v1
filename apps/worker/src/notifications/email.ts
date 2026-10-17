@@ -86,6 +86,17 @@ function templateInput(payload: EmailSendPayload, key: Buffer): TemplateInput {
       link: payload.link,
     };
   }
+  if (payload.template === "subscription_reminder") {
+    return {
+      template: payload.template,
+      locale: payload.locale,
+      name: payload.name,
+      slot: payload.slot,
+      planName: payload.planName,
+      endsAt: payload.endsAt,
+      link: payload.link,
+    };
+  }
   if (payload.template === "alert_digest") {
     return {
       template: payload.template,

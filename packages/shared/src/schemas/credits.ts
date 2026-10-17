@@ -113,6 +113,17 @@ export const meCreditsResponseSchema = z.object({
       dailyCap: z.number().int().min(0).nullable(),
     }),
   ),
+  /** This UTC month against the plan's monthly caps, for every task the plan allows. */
+  thisMonth: z
+    .array(
+      z.object({
+        task: z.enum(AI_TASKS),
+        used: z.number().int().min(0),
+        /** Null = no monthly cap. */
+        monthlyCap: z.number().int().min(0).nullable(),
+      }),
+    )
+    .optional(),
   /** What the assistant composer may offer: the modes the plan allows and whether web search is on. */
   chat: z.object({
     modes: z.array(z.enum(AI_MODES)),

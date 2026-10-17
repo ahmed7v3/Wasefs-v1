@@ -1,5 +1,5 @@
 import { Module } from "@nestjs/common";
-import { NO_SUBSCRIPTION_HOOKS } from "@wasfa/db";
+import { SUBSCRIPTION_HOOKS } from "@wasfa/db";
 
 import { AuthModule } from "../auth/auth.module.js";
 import { BillingModule } from "../billing/billing.module.js";
@@ -26,8 +26,8 @@ import { WebhooksController } from "./webhooks.controller.js";
     OrdersService,
     ManualPaymentsRepo,
     ManualPaymentsService,
-    // Task 3.5 (WP3) replaces this binding with the subscriptions service.
-    { provide: PAYMENT_HOOKS, useValue: NO_SUBSCRIPTION_HOOKS },
+    // Activation and refunds create, extend, switch or shorten the subscription period.
+    { provide: PAYMENT_HOOKS, useValue: SUBSCRIPTION_HOOKS },
   ],
   exports: [GatewayRegistry, PaymentsRepo, PaymentsService, PAYMENT_HOOKS],
 })

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { LOCALES } from "./i18n/index.js";
+import { SUBSCRIPTION_REMINDER_SLOTS } from "./subscriptions.js";
 
 /*
  * Transactional email: what the api may ask the worker to send. Templates are keyed, never free
@@ -17,6 +18,7 @@ export const EMAIL_TEMPLATES = [
   "billing_payment_resubmit",
   "admin_alert",
   "alert_digest",
+  "subscription_reminder",
 ] as const;
 export type EmailTemplate = (typeof EMAIL_TEMPLATES)[number];
 
@@ -97,6 +99,15 @@ export const emailSendPayloadSchema = z.discriminatedUnion("template", [
     ...recipient,
     count: z.number().int().min(1),
     summaries: z.array(z.string().trim().min(1).max(500)).max(5),
+    link: z.url().max(2_048),
+  }),
+  // The renew link pre-fills a quote for the same plan; it carries no secret.
+  z.object({
+    template: z.literal("subscription_reminder"),
+    ...recipient,
+    slot: z.enum(SUBSCRIPTION_REMINDER_SLOTS),
+    planName: z.string().trim().min(1).max(120),
+    endsAt: z.iso.datetime({ offset: true }),
     link: z.url().max(2_048),
   }),
 ]);

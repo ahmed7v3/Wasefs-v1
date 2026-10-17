@@ -404,3 +404,14 @@ Open security items from Phase 0 and design decisions. Each has an owner task; n
 | `POST /admin/alerts/:alertId/resolve`                                         | Cookie + MFA session, `alerts.receive` plus alert-kind permission and `payments.review` or `billing.write` | Shared UUID schema; dynamic permission check                                                                                                           | No audit                                                           |
 | `GET /admin/billing/methods/:key/account-change`                              | Cookie + MFA session, `billing.write`                             | Shared key schema; 60/min IP                                                                                                                           | Read only                                                          |
 | `POST /admin/billing/methods/:key/account-change`, `/cancel`                  | Cookie + MFA session, `billing.write`, fresh auth ≤10 min         | Shared account/TOTP schemas; 5/min IP; requested change applies after 10 minutes; request verifies a current Better Auth TOTP                          | Audited; only masked account values are kept in audit payloads     |
+
+### Task 3.5 endpoint register
+
+| Route | Authentication / permission | Boundary and protections | Audit / status |
+| --- | --- | --- | --- |
+| `GET /me/subscription` | Cookie session | Caller's own live subscription only; `trialAvailable` is a boolean (never says whose trial used a phone); 60/min | Read only |
+| `POST /me/subscription/cancel`, `/resume` | Cookie session | No body; owner-scoped row lock; idempotent; 10/min | `subscription_events` (`canceled`, `resumed`) |
+| `POST /me/subscription/renew-quote` | Cookie session | Shared zod body (`methodKey?`, `months?`); the plan always comes from the caller's subscription, never the client; same pricing path and limit as `POST /billing/quote` (30/min) | Signed quote in Redis |
+| `POST /me/trial` | Cookie session + verified account | Shared zod body (`planKey`); 5/min IP and 5/hour per account; once per account and per verified phone (stored as a hash in the event, never the number), a transaction lock per phone | `subscription_events` `created` |
+| `GET /me/orders` | Cookie session | Shared keyset query; `owner_user_id = caller` | Read only |
+| `GET /me/orders/:id/receipt` | Cookie session | UUID param; caller's own paid/refunded orders only, anything else `NOT_FOUND`; buyer email and phone masked | Read only |

@@ -4,6 +4,7 @@ import { formatMoney } from "@wasfa/shared/money";
 import { assertWebLink, renderLayout, tr, type Rendered } from "./layout.js";
 
 import type { MessageKey, Locale } from "@wasfa/shared/i18n";
+import type { SubscriptionReminderSlot } from "@wasfa/shared/subscriptions";
 
 export type { Rendered } from "./layout.js";
 
@@ -34,6 +35,15 @@ export type TemplateInput =
       locale: Locale;
       name: string;
       summary: string;
+      link: string;
+    }
+  | {
+      template: "subscription_reminder";
+      locale: Locale;
+      name: string;
+      slot: SubscriptionReminderSlot;
+      planName: string;
+      endsAt: string;
       link: string;
     }
   | {
@@ -182,6 +192,27 @@ export function renderEmail(input: TemplateInput): Rendered {
           ],
           action: {
             label: tr(locale, "email.paymentRejected.button"),
+            link: assertWebLink(input.link),
+          },
+          ignoreNote: false,
+        },
+      });
+    }
+    case "subscription_reminder": {
+      // d7/d3/d1: before the end; g1-g3: in grace; expired: after it.
+      const stage =
+        input.slot === "expired" ? "expired" : input.slot.startsWith("g") ? "grace" : "ending";
+      const params = { plan: input.planName, date: input.endsAt.slice(0, 10) };
+      return renderLayout({
+        locale,
+        name,
+        subject: tr(locale, `email.subscriptionReminder.${stage}.subject` as MessageKey, params),
+        block: {
+          paragraphs: [
+            tr(locale, `email.subscriptionReminder.${stage}.body` as MessageKey, params),
+          ],
+          action: {
+            label: tr(locale, "email.subscriptionReminder.button"),
             link: assertWebLink(input.link),
           },
           ignoreNote: false,

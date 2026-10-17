@@ -1,9 +1,4 @@
-import {
-  NO_SUBSCRIPTION_HOOKS,
-  configuredGateway,
-  type Database,
-  type PaymentHooks,
-} from "@wasfa/db";
+import { SUBSCRIPTION_HOOKS, configuredGateway, type Database, type PaymentHooks } from "@wasfa/db";
 import { decodeEncryptionKey, decryptSecret } from "@wasfa/shared/crypto";
 import { emailSendPayloadSchema, type EmailSendInput } from "@wasfa/shared/email";
 import {
@@ -22,7 +17,7 @@ import type { Redis } from "ioredis";
 /** What the payments jobs need beyond the database: provider adapters, hooks, mail, links. */
 export interface PaymentsRuntime {
   gateway(key: string): Promise<PaymentGateway | null>;
-  /** Same binding as the api's `PAYMENT_HOOKS` (Task 3.5 replaces both with the subscriptions hooks). */
+  /** Same binding as the api's `PAYMENT_HOOKS`: the subscriptions hooks. */
   hooks: PaymentHooks;
   webOrigin: string;
   /** Queues a mail; `jobId` makes a repeated call (outbox retry) a no-op while the job exists. */
@@ -65,7 +60,7 @@ export function createPaymentsRuntime(
         return null;
       }
     },
-    hooks: NO_SUBSCRIPTION_HOOKS,
+    hooks: SUBSCRIPTION_HOOKS,
     webOrigin: env.WEB_ORIGIN,
     async enqueueEmail(payload, jobId) {
       await notifications.add("email.send", emailSendPayloadSchema.parse(payload), { jobId });

@@ -9,10 +9,14 @@ import {
   adminAlertPrefs,
   alertDeliveries,
   payments,
+  organizationMembers,
+  plans,
+  subscriptions,
   type OutboxHandler,
 } from "@wasfa/db";
 import { ALERT_CHANNELS } from "@wasfa/shared/billing";
 import { ALERT_KIND_PERMISSION } from "@wasfa/shared/permissions";
+import { SUBSCRIPTION_REMINDER_SLOTS } from "@wasfa/shared/subscriptions";
 import { and, desc, eq, gte, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 
@@ -23,6 +27,10 @@ import type { JobPayload } from "@wasfa/shared/queues";
 const orderPayload = z.object({ orderId: z.uuid() });
 const refundPayload = z.object({ orderId: z.uuid(), refundId: z.uuid() });
 const paymentPayload = z.object({ paymentId: z.uuid() });
+const reminderPayload = z.object({
+  subscriptionId: z.uuid(),
+  slot: z.enum(SUBSCRIPTION_REMINDER_SLOTS),
+});
 
 /** The outbox topics this worker knows. A topic without a handler is parked, never dropped. */
 export function outboxHandlers(
@@ -176,6 +184,73 @@ export function outboxHandlers(
             link: `${runtime.webOrigin}/billing/orders/${row.order.id}`,
           },
           `outbox-${entry.id}`,
+        );
+      }
+    },
+    /**
+     * BILLING §7.2: 7/3/1 days before the end, during grace, and at expiry, with the one-tap renew
+     * link. An organization's subscription reminds its admins.
+     */
+    "subscriptions.reminder": async (tx, entry) => {
+      const { subscriptionId, slot } = reminderPayload.parse(entry.payload);
+      const [row] = await tx
+        .select({ subscription: subscriptions, plan: plans })
+        .from(subscriptions)
+        .innerJoin(plans, eq(plans.id, subscriptions.planId))
+        .where(eq(subscriptions.id, subscriptionId));
+      if (!row) return;
+      const { subscription, plan } = row;
+      const recipientIds = subscription.ownerUserId
+        ? [subscription.ownerUserId]
+        : subscription.ownerOrgId
+          ? (
+              await tx
+                .select({ userId: organizationMembers.userId })
+                .from(organizationMembers)
+                .where(
+                  and(
+                    eq(organizationMembers.orgId, subscription.ownerOrgId),
+                    eq(organizationMembers.role, "org_admin"),
+                  ),
+                )
+            ).map((member) => member.userId)
+          : [];
+      if (recipientIds.length === 0) return;
+      const recipients = await tx
+        .select({
+          id: users.id,
+          email: users.email,
+          name: users.name,
+          locale: users.locale,
+          status: users.status,
+        })
+        .from(users)
+        .where(inArray(users.id, recipientIds));
+      const path = `/billing/renew?sub=${subscription.id}`;
+      for (const recipient of recipients) {
+        if (recipient.status !== "active") continue;
+        await tx.insert(userNotifications).values({
+          userId: recipient.id,
+          kind: "billing.subscription_reminder",
+          params: {
+            slot,
+            planKey: plan.key,
+            endsAt: subscription.currentPeriodEnd.toISOString(),
+          },
+          link: path,
+        });
+        await runtime.enqueueEmail(
+          {
+            template: "subscription_reminder",
+            to: recipient.email,
+            name: recipient.name,
+            locale: recipient.locale,
+            slot,
+            planName: recipient.locale === "en" ? plan.nameEn : plan.nameAr,
+            endsAt: subscription.currentPeriodEnd.toISOString(),
+            link: `${runtime.webOrigin}${path}`,
+          },
+          `outbox-${entry.id}-${recipient.id}`,
         );
       }
     },

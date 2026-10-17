@@ -82,6 +82,16 @@ export const en: Partial<Record<MessageKey, string>> = {
   "email.paymentResubmit.body": "Please submit new payment proof for order {number}.",
   "email.paymentResubmit.note": "Reviewer note: {note}",
   "email.paymentResubmit.button": "Submit new proof",
+  "email.subscriptionReminder.ending.subject": "Your {plan} subscription ends on {date}",
+  "email.subscriptionReminder.ending.body":
+    "Your {plan} plan ends on {date}. Renew in one tap to keep it without a break.",
+  "email.subscriptionReminder.grace.subject": "Your {plan} period has ended",
+  "email.subscriptionReminder.grace.body":
+    "Your {plan} plan ended on {date}; its features stay on for a few more days. Renew now to keep them.",
+  "email.subscriptionReminder.expired.subject": "Your {plan} subscription has ended",
+  "email.subscriptionReminder.expired.body":
+    "Your {plan} subscription ended and your account is back on the free plan. You can renew any time.",
+  "email.subscriptionReminder.button": "Renew subscription",
   "ui.required": "(required)",
   "ui.close": "Close",
   "ui.showPassword": "Show password",

@@ -355,3 +355,7 @@ Not added yet, on purpose: a trigram index for admin user search by name/email/p
 ### Task 3.4 schema additions (migration 0014)
 
 `payments.sender_phone_enc` stores the sender's full Egyptian mobile number sealed with AES-256-GCM; only the review detail decrypts it. `files.purpose` includes `payment_proof`; a partial SHA-256 index supports cross-owner duplicate lookup. `payment_method_account_changes` records old/new account snapshots, requester, reason, ten-minute effective time and pending/applied/canceled state; a partial unique index permits one pending change per method. `admin_alerts.kind` includes three account-change alert kinds. Migration 0014 was generated with Drizzle, hand-edited for the role grants, and is applied by the Testcontainers migration fixture. The DB migration integration test asserts the new CHECK names, partial unique index and encrypted phone column.
+
+### Task 3.5 schema additions (migration 0015)
+
+`subscription_events.type` adds `resumed`. `subscription_events_order_idx` (partial, on `data->>'orderId'`) serves the per-order idempotency of activation, the refund lookup and the backfill. The lifecycle keeps one open `plan_assignments` row per live subscription whose `ends_at` is always the moment access stops (period end, plus `billing.graceDays` for a paid, not-canceled period). Subscription grants use ledger keys `grant:<ownerType>:<ownerId>:<YYYY-MM>:<subscriptionId>:p<periodStartMs>` and trial grants `trial:<subscriptionId>`; their expiries `expiry:<walletId>:<grantKey>`.

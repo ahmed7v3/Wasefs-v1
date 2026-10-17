@@ -182,11 +182,11 @@ export class CreditsService {
       this.plans.effectivePlan(owner, now),
     ]);
     const allowed = (await this.plans.entitlementsOf(plan)).filter((item) => item.allowed);
-    const used = await this.quota.usedToday(
-      owner,
-      allowed.map((item) => item.task),
-      now,
-    );
+    const tasks = allowed.map((item) => item.task);
+    const [used, usedMonth] = await Promise.all([
+      this.quota.usedToday(owner, tasks, now),
+      this.quota.usedThisMonth(owner, tasks, now),
+    ]);
     return {
       wallet: { ownerType: "user", balance: wallet?.balance ?? 0 },
       plan: { key: plan.key, nameAr: plan.nameAr, nameEn: plan.nameEn },
@@ -196,6 +196,11 @@ export class CreditsService {
         task: item.task,
         used: used.get(item.task) ?? 0,
         dailyCap: item.dailyCap,
+      })),
+      thisMonth: allowed.map((item) => ({
+        task: item.task,
+        used: usedMonth.get(item.task) ?? 0,
+        monthlyCap: item.monthlyCap,
       })),
       chat: chatFeatures(allowed),
     };

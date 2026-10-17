@@ -14,6 +14,8 @@ import type { AiMode, AiTask } from "@wasfa/shared/ai";
 
 /** Counters live two days: a UTC day plus the margin for clock skew and late readers. */
 export const QUOTA_COUNTER_TTL_SECONDS = 2 * 24 * 60 * 60;
+/** Monthly counters: the longest UTC month plus the same margin. */
+export const QUOTA_MONTH_COUNTER_TTL_SECONDS = 35 * 24 * 60 * 60;
 /** A held lock frees itself after this long, so a crashed job never blocks a user for good. */
 export const BUSY_LOCK_TTL_SECONDS = 600;
 
@@ -40,6 +42,7 @@ export interface QuotaTicket {
 const counterKey = (owner: WalletOwner, task: AiTask, day: string) =>
   `quota:${ownerKey(owner)}:${task}:${day}`;
 const utcDay = (now: Date) => now.toISOString().slice(0, 10);
+const utcMonth = (now: Date) => now.toISOString().slice(0, 7);
 
 /** Prescription reading and chat are the long-running tasks; the small helper tasks run freely. */
 export function busyKindOf(task: AiTask): BusyKind | null {
@@ -74,8 +77,8 @@ export class QuotaService {
 
   /**
    * Throws `PAYMENT_REQUIRED` (`plan_feature`) when the plan does not allow the task or mode,
-   * `CONFLICT` (`busy`) when the user already has one running, and `QUOTA_EXCEEDED` (`daily_cap`)
-   * when today's allowance is used up. On success the caller holds the lock and must call
+   * `CONFLICT` (`busy`) when the user already has one running, and `QUOTA_EXCEEDED` (`daily_cap`
+   * or `monthly_cap`) when today's or this UTC month's allowance is used up. On success the caller holds the lock and must call
    * `release()` when the work ends (success, failure or cancel); the day's count is spent.
    */
   async check(input: QuotaCheckInput, now = new Date()): Promise<QuotaTicket> {
@@ -91,6 +94,7 @@ export class QuotaService {
       throw new AppError(ErrorCode.CONFLICT, { details: { reason: "busy" } });
     }
 
+    const counted: string[] = [];
     try {
       if (entitlement.dailyCap !== null) {
         const key = counterKey(owner, input.task, utcDay(now));
@@ -105,6 +109,23 @@ export class QuotaService {
           // Over: give the slot back so refused attempts never push the counter ever higher.
           await this.redis.decr(key);
           throw new AppError(ErrorCode.QUOTA_EXCEEDED, { details: { reason: "daily_cap" } });
+        }
+        counted.push(key);
+      }
+      if (entitlement.monthlyCap !== null) {
+        const key = counterKey(owner, input.task, utcMonth(now));
+        const [incremented] = (await this.redis
+          .multi()
+          .incr(key)
+          .expire(key, QUOTA_MONTH_COUNTER_TTL_SECONDS)
+          .exec()) ?? [undefined];
+        const used = incremented?.[1];
+        if (typeof used !== "number") throw new Error("Quota counter unavailable");
+        if (used > entitlement.monthlyCap) {
+          // Give back this month's slot and today's: a refused attempt spends neither.
+          await this.redis.decr(key);
+          for (const spent of counted) await this.redis.decr(spent);
+          throw new AppError(ErrorCode.QUOTA_EXCEEDED, { details: { reason: "monthly_cap" } });
         }
       }
     } catch (error) {
@@ -138,6 +159,22 @@ export class QuotaService {
     const used = new Map<AiTask, number>();
     if (tasks.length === 0) return used;
     const values = await this.redis.mget(tasks.map((task) => counterKey(owner, task, day)));
+    tasks.forEach((task, index) => {
+      used.set(task, Math.max(0, Number(values[index] ?? 0)));
+    });
+    return used;
+  }
+
+  /** How many of each task the owner has started this UTC month (for `GET /me/credits`). */
+  async usedThisMonth(
+    owner: WalletOwner,
+    tasks: readonly AiTask[],
+    now = new Date(),
+  ): Promise<Map<AiTask, number>> {
+    const month = utcMonth(now);
+    const used = new Map<AiTask, number>();
+    if (tasks.length === 0) return used;
+    const values = await this.redis.mget(tasks.map((task) => counterKey(owner, task, month)));
     tasks.forEach((task, index) => {
       used.set(task, Math.max(0, Number(values[index] ?? 0)));
     });
