@@ -210,7 +210,7 @@ Acceptance
 6. **Simulator endpoint** `POST /admin/billing/simulate {userId|orgId, planKey, months, couponCode?}` returning the engine's quote with explanations (reused by admin screens).
 
 Acceptance
-- [ ] Tests: **100 concurrent redemptions of a 10-use coupon ⇒ exactly 10**, per-owner limit, private coupon rejected for others, expired/paused/ineligible all give the same generic message, redemption released on order expiry, best-of vs stacking cases, bulk generation produces unique codes.
+- [x] Tests: **100 concurrent redemptions of a 10-use coupon ⇒ exactly 10**, per-owner limit, private coupon rejected for others, expired/paused/ineligible all give the same generic message, redemption released on order expiry, best-of vs stacking cases, bulk generation produces unique codes.
 
 ## Task 3.7 — Web: pricing, checkout, billing account (WP4)
 
@@ -225,7 +225,7 @@ Acceptance
 7. Strings via i18n only; RTL at 360/1440; no inline styles (CSP); icons from lucide.
 
 Acceptance
-- [ ] Playwright (fake gateway): free → pricing → checkout → pay → plan active; coupon good/bad; method change updates total; **E2E asserts the total and fee line are visible before the Pay click and equal the button text**; manual flow including rejection and resubmission; upgrade with proration; renewal from a reminder link; expired order.
+- [x] Playwright (fake gateway): free → pricing → checkout → pay → plan active; coupon good/bad; method change updates total; **E2E asserts the total and fee line are visible before the Pay click and equal the button text**; manual flow including rejection and resubmission; upgrade with proration; renewal from a reminder link; expired order.
 - [ ] axe clean at 360/1440; Lighthouse targets met on `/pricing` and the checkout page.
 
 ## Task 3.8 — Admin billing console (WP5)
@@ -240,8 +240,8 @@ Acceptance
 6. Every write audited; money actions with `ReasonDialog` and fresh auth; calm 403 states; mobile layout for the review queue.
 
 Acceptance
-- [ ] E2E: admin creates a plan price and a promotion and sees it on `/pricing`; approves a manual payment from the queue with keyboard shortcuts; issues a partial refund; creates 50 coupons and downloads the CSV; changes the InstaPay number and observes the cooldown/notices.
-- [ ] Permission tests: each page and API route denies a role lacking its permission.
+- [x] E2E: admin creates a plan price and a promotion and sees it on `/pricing`; approves a manual payment from the queue with keyboard shortcuts; issues a partial refund; creates 50 coupons and downloads the CSV; changes the InstaPay number and observes the cooldown/notices.
+- [x] Permission tests: each page and API route denies a role lacking its permission.
 
 ### Release A gate
 - [ ] Workspace lint, typecheck, tests, E2E and CI green; deployed through the normal pipeline; `migrate` ran the new migrations.
@@ -464,6 +464,15 @@ _(agent fills in deviations here)_
 - **Ships off.** The owner turns it on in `/admin/whatsapp` (it needs a linked number). Advice recorded with Decision 50: start with a small daily total (for example 50) and raise it while the number stays healthy.
 - **Bugs found and fixed on the way:** relinking the WhatsApp number used to overwrite the whole `whatsapp` setting (it now keeps the rest); the bridge's day format (`YYYYMMDD`) did not match the api's, so the admin count would have read 0 (one shared `waCustomerDay`); a raw `Date` in the opt-out upsert would have failed every STOP.
 - **Also fixed:** `GET /me/credits` `nextGrantAt` now shows a subscriber's next anniversary (or the period end after the last one) instead of the calendar month; the Phase 2 test "covers more users than one batch" (437 serial grants) times out under a full parallel run on a clean checkout too, so it now has a 120 s budget.
+
+### Tasks 3.6, 3.7, 3.8 (WP3, WP4, WP5; commits deafc68, ce3b136, ca9f94f)
+- **Build method.** Codex (gpt-6-luna) produced the first drafts of 3.6 and 3.8 API, stopped early twice (usage limit, 2026-10-17), and its partial code was reviewed and finished by builders. The orchestrator re-ran every gate and E2E run itself before each commit. Spec gap found and filled: the `payment.failure_spike` job (BILLING §10), committed in deafc68.
+- **3.6 fixes found in review:** PATCH reset defaulted fields under zod 4 partials (fixed with update schemas without defaults); a raw `Date` in SQL; the 5,000-coupon bulk insert now goes in chunks of 500 (Postgres bind-parameter limit); the coupon check gives one generic answer for every refusal.
+- **3.8 API fixes found in review:** needsReview=false enabled the filter; price publish deactivated cells not sent; method PATCH now needs an enabled, verified gateway; fraud holds count `referrals.status = held`; rewards accrued no longer double-counts releases.
+- **Catalog cache (ce3b136).** The catalog cache was cleared by a topic that nothing published, so admin price changes stayed hidden for up to 60 s (API) and 300 s (Next). Admin pricing writes now publish the invalidation after commit; the web revalidation is 60 s. The Playwright admin test caught this.
+- **E2E (run separately per file, `--workers=1`):** billing.spec.ts 10/10; admin-billing.spec.ts 8/8. Running both files together let one test's data (a 10% launch promotion) affect the other; keep them separate.
+- **Not done (open):** Lighthouse on `/pricing` and checkout (3.7 acceptance); a Kashier test-mode run for the webhook and refund fixtures (Task 3.3, still open). Existing Phase 1 a11y tests (register, forgot-password, verify-email, contact, the phone steps of onboarding) time out on `networkidle` or wait for a WhatsApp message in this environment; they were not re-run on the base commit, so their status is unknown.
+- **Not built (known gaps):** purchased credit packs do not expire after `valid_months` (see 3.5); organisation billing waits for Task 3.9; the funnel and campaign events are read from `growth_events`, which Phase 3 Release B fills.
 
 ## Open questions
 1. **Answered 2026-10-17:** the owner chose WhatsApp from the bridge, extended to customers (Decision 50, SECURITY §8.1); admin alerts keep their opt-in rule. **WhatsApp alerts to admins (owner decision).** The Phase 1 bridge is receive-only to avoid bans, because an unofficial client can lose the number (which would also break phone verification). The plan keeps it off by default and, if enabled, sends only to admins who opted in by messaging the bridge first, at most 20 messages/day. The safer official route is the WhatsApp Cloud API with a template message. Which do you want: (a) email + Telegram only, (b) the opt-in bridge, (c) the official API later?
