@@ -9,6 +9,7 @@ import {
   Post,
   Query,
   Res,
+  UseInterceptors,
 } from "@nestjs/common";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import {
@@ -21,6 +22,7 @@ import {
 } from "@wasfa/shared/schemas/billing";
 
 import { AuditCtx, Audited, type AuditScope } from "../../audit/audited.decorator.js";
+import { CatalogInvalidationInterceptor } from "../../catalog/catalog-invalidation.interceptor.js";
 import { CurrentUser, type AuthenticatedUser } from "../../common/current-user.js";
 import { RequireFreshAuth } from "../../common/fresh-auth.js";
 import { RequirePermission } from "../../common/permissions.guard.js";
@@ -30,6 +32,7 @@ import { CouponsService } from "../../coupons/coupons.service.js";
 
 import type { UpdateCouponInput } from "@wasfa/shared/schemas/billing";
 import type { FastifyReply } from "fastify";
+
 class CreateDto extends createZodDto(createCouponSchema) {}
 class BulkDto extends createZodDto(bulkCouponSchema) {}
 class IdDto extends createZodDto(discountIdParamSchema) {}
@@ -47,6 +50,8 @@ function couponPatch(value: unknown): UpdateCouponInput {
   return parseWithSchema(updateCouponSchema, value);
 }
 
+@UseInterceptors(CatalogInvalidationInterceptor)
+@UseInterceptors(CatalogInvalidationInterceptor)
 @Controller("admin/billing/coupons")
 export class AdminBillingCouponsController {
   constructor(private readonly coupons: CouponsService) {}

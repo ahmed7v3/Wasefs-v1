@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseInterceptors,
+} from "@nestjs/common";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import {
   createPromotionSchema,
@@ -8,6 +19,7 @@ import {
 } from "@wasfa/shared/schemas/billing";
 
 import { AuditCtx, Audited, type AuditScope } from "../../audit/audited.decorator.js";
+import { CatalogInvalidationInterceptor } from "../../catalog/catalog-invalidation.interceptor.js";
 import { CurrentUser, type AuthenticatedUser } from "../../common/current-user.js";
 import { RequireFreshAuth } from "../../common/fresh-auth.js";
 import { RequirePermission } from "../../common/permissions.guard.js";
@@ -16,6 +28,7 @@ import { createZodDto, parseWithSchema } from "../../common/validation.js";
 import { PromotionsService } from "../../promotions/promotions.service.js";
 
 import type { UpdatePromotionInput } from "@wasfa/shared/schemas/billing";
+
 
 class CreateDto extends createZodDto(createPromotionSchema) {}
 class IdDto extends createZodDto(discountIdParamSchema) {}
@@ -32,6 +45,8 @@ function promotionPatch(value: unknown): UpdatePromotionInput {
   return parseWithSchema(updatePromotionSchema, value);
 }
 
+@UseInterceptors(CatalogInvalidationInterceptor)
+@UseInterceptors(CatalogInvalidationInterceptor)
 @Controller("admin/billing/promotions")
 export class AdminBillingPromotionsController {
   constructor(private readonly promotions: PromotionsService) {}

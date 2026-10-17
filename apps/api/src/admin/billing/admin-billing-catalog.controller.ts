@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Put } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Put, UseInterceptors } from "@nestjs/common";
 import {
   adminConsoleIdSchema,
   adminConsoleKeySchema,
@@ -13,12 +13,14 @@ import {
 } from "@wasfa/shared/schemas/admin-billing-console";
 
 import { AuditCtx, Audited, type AuditScope } from "../../audit/audited.decorator.js";
+import { CatalogInvalidationInterceptor } from "../../catalog/catalog-invalidation.interceptor.js";
 import { RequireFreshAuth } from "../../common/fresh-auth.js";
 import { RequirePermission } from "../../common/permissions.guard.js";
 import { RateLimit } from "../../common/rate-limit.js";
 import { createZodDto } from "../../common/validation.js";
 
 import { AdminBillingCatalogService } from "./admin-billing-catalog.service.js";
+
 
 class IdDto extends createZodDto(adminConsoleIdSchema) {}
 class KeyDto extends createZodDto(adminConsoleKeySchema) {}
@@ -35,6 +37,8 @@ class TaxRulePatchDto extends createZodDto(adminTaxRulePatchSchema) {}
  * The commercial catalog: plan prices, credit packs, payment methods and tax rules. Plan metadata
  * (names, copy, features, trial) stays on `PATCH /admin/plans/:id`.
  */
+@UseInterceptors(CatalogInvalidationInterceptor)
+@UseInterceptors(CatalogInvalidationInterceptor)
 @Controller("admin/billing")
 export class AdminBillingCatalogController {
   constructor(private readonly catalog: AdminBillingCatalogService) {}

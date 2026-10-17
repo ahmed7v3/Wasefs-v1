@@ -9,6 +9,7 @@ import {
   Post,
   Put,
   Query,
+  UseInterceptors,
 } from "@nestjs/common";
 import {
   assignPlanSchema,
@@ -20,6 +21,7 @@ import {
 } from "@wasfa/shared/schemas/plans";
 
 import { Audited, AuditCtx, type AuditScope } from "../../audit/audited.decorator.js";
+import { CatalogInvalidationInterceptor } from "../../catalog/catalog-invalidation.interceptor.js";
 import { CurrentUser, type AuthenticatedUser } from "../../common/current-user.js";
 import { RequireFreshAuth } from "../../common/fresh-auth.js";
 import { RequirePermission } from "../../common/permissions.guard.js";
@@ -33,6 +35,7 @@ import {
   PLAN_AUDIT_FIELDS,
 } from "./admin-plans.service.js";
 
+
 class CreatePlanDto extends createZodDto(createPlanSchema) {}
 class UpdatePlanDto extends createZodDto(updatePlanSchema) {}
 class PlanParamDto extends createZodDto(planParamSchema) {}
@@ -41,6 +44,8 @@ class AssignPlanDto extends createZodDto(assignPlanSchema) {}
 class AssignmentsQueryDto extends createZodDto(planAssignmentsQuerySchema) {}
 
 // The static `assignments` routes are declared before the `:id` ones so they are never read as an id.
+@UseInterceptors(CatalogInvalidationInterceptor)
+@UseInterceptors(CatalogInvalidationInterceptor)
 @Controller("admin/plans")
 export class AdminPlansController {
   constructor(private readonly plans: AdminPlansService) {}
