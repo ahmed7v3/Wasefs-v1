@@ -340,6 +340,7 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
   "admin.settings.socials.title": "Social accounts",
   "admin.settings.socials.description": "https links to the platform's accounts.",
   "admin.settings.locale.title": "Language and numbers",
+  "admin.settings.alerts.title": "Admin alerts",
   "admin.settings.locale.description": "Default language and how numbers and dates are shown.",
   "admin.settings.currency.title": "Currencies",
   "admin.settings.currency.description":

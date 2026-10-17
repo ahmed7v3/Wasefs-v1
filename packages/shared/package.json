@@ -110,6 +110,11 @@
       "import": "./dist/billing.js",
       "default": "./dist/billing.js"
     },
+    "./alert-safety": {
+      "types": "./dist/alert-safety.d.ts",
+      "import": "./dist/alert-safety.js",
+      "default": "./dist/alert-safety.js"
+    },
     "./rewards": {
       "types": "./dist/rewards.d.ts",
       "import": "./dist/rewards.js",
@@ -209,6 +214,31 @@
       "types": "./dist/schemas/files.d.ts",
       "import": "./dist/schemas/files.js",
       "default": "./dist/schemas/files.js"
+    },
+    "./schemas/manual-payment": {
+      "types": "./dist/schemas/manual-payment.d.ts",
+      "import": "./dist/schemas/manual-payment.js",
+      "default": "./dist/schemas/manual-payment.js"
+    },
+    "./schemas/admin-alerts": {
+      "types": "./dist/schemas/admin-alerts.d.ts",
+      "import": "./dist/schemas/admin-alerts.js",
+      "default": "./dist/schemas/admin-alerts.js"
+    },
+    "./schemas/admin-manual-payments": {
+      "types": "./dist/schemas/admin-manual-payments.d.ts",
+      "import": "./dist/schemas/admin-manual-payments.js",
+      "default": "./dist/schemas/admin-manual-payments.js"
+    },
+    "./schemas/wa-alert": {
+      "types": "./dist/schemas/wa-alert.d.ts",
+      "import": "./dist/schemas/wa-alert.js",
+      "default": "./dist/schemas/wa-alert.js"
+    },
+    "./schemas/admin-payment-methods": {
+      "types": "./dist/schemas/admin-payment-methods.d.ts",
+      "import": "./dist/schemas/admin-payment-methods.js",
+      "default": "./dist/schemas/admin-payment-methods.js"
     },
     "./schemas/handoff": {
       "types": "./dist/schemas/handoff.d.ts",

@@ -9,9 +9,13 @@ import {
 } from "@wasfa/shared/queues";
 import { DelayedError, Queue, UnrecoverableError, Worker, type Job } from "bullmq";
 
+import { alertDeliveryJob } from "./alerts/alert-delivery.job.js";
+import { alertDigestJob } from "./alerts/alert-digest.job.js";
+import { pendingDeliverySweepJob } from "./alerts/pending-delivery-sweep.job.js";
 import { DeferJob } from "./defer.js";
 import { anonymizeDueJob, purgeExpiredJob } from "./jobs/accounts.job.js";
 import { spendRollupJob } from "./jobs/ai.spend-rollup.job.js";
+import { alertsRetentionJob } from "./jobs/alerts-retention.job.js";
 import { grantMonthlyJob } from "./jobs/credits.grant.job.js";
 import { reconcileCreditsJob } from "./jobs/credits.reconcile.job.js";
 import { sweepReservationsJob } from "./jobs/credits.sweep.job.js";
@@ -21,6 +25,8 @@ import { filesRetentionJob } from "./jobs/files.retention.job.js";
 import { heartbeatJob } from "./jobs/health.job.js";
 import { imageProcessJob } from "./jobs/image.job.js";
 import { drainOutboxJob } from "./jobs/outbox.job.js";
+import { applyDuePaymentMethodChangesJob } from "./jobs/payment-method-account-changes.job.js";
+import { paymentsReviewSlaJob } from "./jobs/payments-review-sla.job.js";
 import {
   expireOrdersJob,
   paymentsConsistencyJob,
@@ -47,6 +53,7 @@ export interface JobContext {
   ai?: AiRuntime | undefined;
   /** Provider adapters, hooks and mail for the `payments` queue. */
   payments?: PaymentsRuntime | undefined;
+  env?: import("./config/env.js").WorkerEnv | undefined;
 }
 
 type JobHandler<Q extends QueueName, J extends JobName<Q>> = (
@@ -65,6 +72,9 @@ export const HANDLERS: Handlers = {
   },
   notifications: {
     "email.send": emailSendJob,
+    "alerts.deliver": alertDeliveryJob,
+    "alerts.digest": alertDigestJob,
+    "alerts.sweep_pending": pendingDeliverySweepJob,
   },
   credits: {
     "credits.sweep_reservations": sweepReservationsJob,
@@ -91,6 +101,9 @@ export const HANDLERS: Handlers = {
     "payments.expire_orders": expireOrdersJob,
     "payments.consistency": paymentsConsistencyJob,
     "outbox.drain": drainOutboxJob,
+    "alerts.retention": alertsRetentionJob,
+    "payment-methods.apply-due": applyDuePaymentMethodChangesJob,
+    "payments.review-sla": paymentsReviewSlaJob,
   },
 };
 
@@ -186,6 +199,9 @@ const PAYMENTS_EXPIRE_INTERVAL_MS = 5 * 60 * 1000;
 export const PAYMENTS_CONSISTENCY_PATTERN = "20 2 * * *";
 /** Receipts and notifications should follow a payment within seconds. */
 const OUTBOX_DRAIN_INTERVAL_MS = 30 * 1000;
+const ALERT_RETENTION_PATTERN = "15 2 * * *";
+const PAYMENT_METHOD_APPLY_INTERVAL_MS = 60_000;
+const PAYMENT_REVIEW_SLA_INTERVAL_MS = 30 * 60_000;
 
 /** Registers repeatable jobs. Upserting by id is idempotent, so restarts never duplicate them. */
 export async function registerSchedules(queues: readonly Queue[]): Promise<void> {
@@ -212,6 +228,13 @@ export async function registerSchedules(queues: readonly Queue[]): Promise<void>
     "credits.sweep_reservations",
     { every: SWEEP_RESERVATIONS_INTERVAL_MS },
     { name: "credits.sweep_reservations", data: {} },
+  );
+  const notifications = queues.find((queue) => queue.name === "notifications");
+  if (notifications === undefined) throw new Error("notifications queue is not registered");
+  await notifications.upsertJobScheduler(
+    "alerts.sweep_pending",
+    { every: 60_000 },
+    { name: "alerts.sweep_pending", data: {} },
   );
   await credits.upsertJobScheduler(
     "credits.grant_monthly",
@@ -243,6 +266,21 @@ export async function registerSchedules(queues: readonly Queue[]): Promise<void>
     "payments.reconcile",
     { every: PAYMENTS_RECONCILE_INTERVAL_MS },
     { name: "payments.reconcile", data: {} },
+  );
+  await payments.upsertJobScheduler(
+    "payment-methods.apply-due",
+    { every: PAYMENT_METHOD_APPLY_INTERVAL_MS },
+    { name: "payment-methods.apply-due", data: {} },
+  );
+  await payments.upsertJobScheduler(
+    "payments.review-sla",
+    { every: PAYMENT_REVIEW_SLA_INTERVAL_MS },
+    { name: "payments.review-sla", data: {} },
+  );
+  await payments.upsertJobScheduler(
+    "alerts.retention",
+    { pattern: ALERT_RETENTION_PATTERN, tz: "UTC" },
+    { name: "alerts.retention", data: {} },
   );
   await payments.upsertJobScheduler(
     "payments.expire_orders",

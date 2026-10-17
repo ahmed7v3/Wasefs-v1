@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { utcDay } from "../notifications/cap-guard.js";
 
 import { isDirectJid } from "./inbound.js";
+import { reserveOutboundDelay } from "./outbound-spacing.js";
 
 import type { Redis } from "ioredis";
 
@@ -90,9 +91,8 @@ export class ReplyGuard {
     if (first !== "OK") return { ok: false, reason: "already_replied" };
 
     const jitter = MIN_DELAY_MS + Math.floor(this.random() * (MAX_DELAY_MS - MIN_DELAY_MS + 1));
-    const lastSent = Number((await this.redis.get("wa:last-sent")) ?? 0);
-    const untilSpaced = lastSent + MIN_SPACING_MS - this.now();
-    return { ok: true, delayMs: Math.max(jitter, untilSpaced) };
+    const delayMs = await reserveOutboundDelay(this.redis, jitter, this.now());
+    return { ok: true, delayMs };
   }
 
   /** Counts a reply that was really sent: feeds the spacing rule and the daily cap. */

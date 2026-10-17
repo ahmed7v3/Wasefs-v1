@@ -67,6 +67,13 @@ export const QUEUE_REGISTRY = {
   },
   notifications: {
     "email.send": emailSendPayloadSchema,
+    "alerts.deliver": z.object({ deliveryId: z.uuid() }),
+    "alerts.digest": z.object({
+      adminUserId: z.uuid(),
+      channel: z.enum(["email", "telegram", "whatsapp"]),
+      windowStart: z.iso.datetime(),
+    }),
+    "alerts.sweep_pending": z.object({}),
   },
   credits: {
     "credits.sweep_reservations": creditsMaintenancePayloadSchema,
@@ -90,6 +97,9 @@ export const QUEUE_REGISTRY = {
     "payments.expire_orders": paymentsMaintenancePayloadSchema,
     "payments.consistency": paymentsMaintenancePayloadSchema,
     "outbox.drain": paymentsMaintenancePayloadSchema,
+    "alerts.retention": paymentsMaintenancePayloadSchema,
+    "payment-methods.apply-due": paymentsMaintenancePayloadSchema,
+    "payments.review-sla": paymentsMaintenancePayloadSchema,
   },
   /** Accuracy evaluation (Phase 2, Task 2.10): label-set imports and eval runs; no credits, no users. */
   evals: {

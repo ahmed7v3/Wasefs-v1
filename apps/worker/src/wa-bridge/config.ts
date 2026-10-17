@@ -13,6 +13,9 @@ export const bridgeEnvSchema = z.object({
       "must be 32 bytes, base64-encoded",
     ),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
+  WA_ALERTS_ENABLED: z
+    .preprocess((value) => value === "true" || value === true, z.boolean())
+    .default(false),
   /** One linked number per session name. */
   WA_SESSION: z
     .string()

@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
-  adminAlerts,
+  raiseAdminAlert,
   isUniqueViolation,
   paymentGatewayTests,
   paymentGateways,
@@ -11,10 +11,14 @@ import {
 import { and, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
 
 import { DB, type DbHandle } from "../../common/database.js";
+import { OutboxQueue } from "../../common/outbox-queue.js";
 
 @Injectable()
 export class AdminBillingGatewaysRepo {
-  constructor(@Inject(DB) private readonly handle: DbHandle) {}
+  constructor(
+    @Inject(DB) private readonly handle: DbHandle,
+    private readonly outbox: OutboxQueue,
+  ) {}
 
   async list(): Promise<
     Array<{ gateway: PaymentGateway; methods: (typeof paymentMethods.$inferSelect)[] }>
@@ -64,10 +68,10 @@ export class AdminBillingGatewaysRepo {
     summary: string,
   ): Promise<PaymentGateway | undefined> {
     try {
-      return await this.handle.db.transaction(async (tx) => {
+      const result = await this.handle.db.transaction(async (tx) => {
         const [row] = await tx.insert(paymentGateways).values(input).returning();
         if (!row) return undefined;
-        await tx.insert(adminAlerts).values({
+        const alertId = await raiseAdminAlert(tx, {
           kind: "payment.review_needed",
           severity: "critical",
           refType: "payment_gateway",
@@ -75,8 +79,10 @@ export class AdminBillingGatewaysRepo {
           summary,
           link: "/admin/billing/gateways",
         });
-        return row;
+        return { row, alertId };
       });
+      if (result) await this.outbox.kick(`alert:${result.alertId}`);
+      return result?.row;
     } catch (error) {
       if (isUniqueViolation(error, "payment_gateways_key_key")) return undefined;
       throw error;
@@ -88,7 +94,7 @@ export class AdminBillingGatewaysRepo {
     patch: Partial<typeof paymentGateways.$inferInsert>,
     summary: string,
   ): Promise<PaymentGateway | undefined> {
-    return this.handle.db.transaction(async (tx) => {
+    const result = await this.handle.db.transaction(async (tx) => {
       const [row] = await tx
         .update(paymentGateways)
         .set({
@@ -106,7 +112,7 @@ export class AdminBillingGatewaysRepo {
         .update(paymentMethods)
         .set({ enabled: false, updatedAt: new Date() })
         .where(and(eq(paymentMethods.kind, "gateway"), eq(paymentMethods.provider, key)));
-      await tx.insert(adminAlerts).values({
+      const alertId = await raiseAdminAlert(tx, {
         kind: "payment.review_needed",
         severity: "critical",
         refType: "payment_gateway",
@@ -114,8 +120,10 @@ export class AdminBillingGatewaysRepo {
         summary,
         link: "/admin/billing/gateways",
       });
-      return row;
+      return { row, alertId };
     });
+    if (result) await this.outbox.kick(`alert:${result.alertId}`);
+    return result?.row;
   }
 
   async update(

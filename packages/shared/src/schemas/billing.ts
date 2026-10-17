@@ -430,6 +430,8 @@ export const orderStatusResponseSchema = z.object({
       methodKey: z.string(),
       status: z.enum(PAYMENT_STATUSES),
       failureCode: z.string().nullable(),
+      rejectReason: z.string().nullable().optional(),
+      submissionsLeft: z.number().int().min(0).optional(),
       createdAt: z.string(),
     }),
   ),

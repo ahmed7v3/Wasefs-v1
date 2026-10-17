@@ -118,9 +118,6 @@ export class OrdersService {
         method.gateway,
         input.locale,
       ));
-    } else if (payment) {
-      // Manual methods: the customer now transfers and returns with the proof (Task 3.4).
-      payment = await this.repo.attachCheckout(payment.id, null);
     }
     return {
       orderId: order.id,
@@ -151,6 +148,8 @@ export class OrdersService {
         methodKey: payment.methodKey,
         status: payment.status,
         failureCode: payment.failureCode,
+        rejectReason: payment.rejectReason,
+        submissionsLeft: Math.max(0, 3 - payment.proofSubmissions),
         createdAt: payment.createdAt.toISOString(),
       })),
     };

@@ -56,6 +56,46 @@ function templateInput(payload: EmailSendPayload, key: Buffer): TemplateInput {
       taxAndFeesMinor: payload.taxAndFeesMinor,
     };
   }
+  if (payload.template === "billing_payment_rejected") {
+    return {
+      template: payload.template,
+      locale: payload.locale,
+      name: payload.name,
+      orderNumber: payload.orderNumber,
+      reason: payload.reason,
+      ...(payload.note !== undefined ? { note: payload.note } : {}),
+      link: payload.link,
+    };
+  }
+  if (payload.template === "billing_payment_resubmit") {
+    return {
+      template: payload.template,
+      locale: payload.locale,
+      name: payload.name,
+      orderNumber: payload.orderNumber,
+      ...(payload.note !== undefined ? { note: payload.note } : {}),
+      link: payload.link,
+    };
+  }
+  if (payload.template === "admin_alert") {
+    return {
+      template: payload.template,
+      locale: payload.locale,
+      name: payload.name,
+      summary: payload.summary,
+      link: payload.link,
+    };
+  }
+  if (payload.template === "alert_digest") {
+    return {
+      template: payload.template,
+      locale: payload.locale,
+      name: payload.name,
+      count: payload.count,
+      summaries: payload.summaries,
+      link: payload.link,
+    };
+  }
   let link: string;
   try {
     link = decryptSecret(payload.encryptedLink, key, emailSecretContext(payload.template));

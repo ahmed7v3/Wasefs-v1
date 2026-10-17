@@ -2,6 +2,7 @@ import { Module, type DynamicModule, type ModuleMetadata } from "@nestjs/common"
 import { APP_FILTER, APP_PIPE } from "@nestjs/core";
 
 import { AdminModule } from "./admin/admin.module.js";
+import { AlertsModule } from "./alerts/alerts.module.js";
 import { AuditModule } from "./audit/audit.module.js";
 import { AuthModule } from "./auth/auth.module.js";
 import { BillingModule } from "./billing/billing.module.js";
@@ -13,6 +14,7 @@ import { DatabaseModule } from "./common/database.js";
 import { AllExceptionsFilter, ErrorReporter } from "./common/errors.js";
 import { InvalidationModule } from "./common/invalidation-bus.js";
 import { AppLoggerModule } from "./common/logger.js";
+import { OutboxQueueModule } from "./common/outbox-queue.js";
 import { RedisModule } from "./common/redis.js";
 import { ZodValidationPipe } from "./common/validation.js";
 import { ConfigModule } from "./config/config.module.js";
@@ -50,6 +52,7 @@ export class AppModule {
         ConfigModule.forRoot(env),
         AppLoggerModule,
         DatabaseModule,
+        OutboxQueueModule,
         RedisModule,
         InvalidationModule,
         NotificationsModule.register({ authMailer: options.authMailer ?? true }),
@@ -72,6 +75,7 @@ export class AppModule {
         ChatModule,
         RxModule,
         AdminModule,
+        AlertsModule,
         OrgsModule,
         HealthModule,
         ...extraImports,

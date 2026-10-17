@@ -262,6 +262,23 @@ export const PERMISSIONS = {
 
 export type Permission = keyof typeof PERMISSIONS;
 
+/** Additional permission required to receive each alert kind, beyond alerts.receive. */
+export const ALERT_KIND_PERMISSION = {
+  "payment.review_needed": "payments.review",
+  "payment.review_overdue": "payments.review",
+  "payment.amount_mismatch": "payments.review",
+  "payment.failure_spike": "payments.review",
+  "refund.requested": "payments.review",
+  "payment_method.account_change_requested": "billing.write",
+  "payment_method.account_change_canceled": "billing.write",
+  "payment_method.account_change_applied": "billing.write",
+  "withdrawal.requested": "withdrawals.review",
+  "withdrawal.overdue": "withdrawals.review",
+  "credits.reconcile_drift": "billing.read",
+  "points.reconcile_drift": "billing.read",
+  "reward.fraud_flag": "alerts.receive",
+} as const satisfies Record<import("./billing.js").AlertKind, Permission>;
+
 export const PERMISSION_KEYS = Object.keys(PERMISSIONS) as Permission[];
 
 /** Shape every permission string must have; the DB enforces the same rule with a CHECK. */

@@ -14,7 +14,17 @@ import type { Transaction } from "./credits-ledger.js";
  * commit runs the handler again.
  */
 
-export type OutboxHandler = (tx: Transaction, entry: OutboxEntry) => Promise<void>;
+export type OutboxPostCommitAction =
+  | { kind: "alert_delivery"; deliveryId: string; jobId: string }
+  | {
+      kind: "alert_digest";
+      adminUserId: string;
+      channel: "email" | "telegram" | "whatsapp";
+      windowStart: string;
+      delayMs: number;
+    };
+
+export type OutboxHandler = (tx: Transaction, entry: OutboxEntry) => Promise<unknown>;
 
 export interface DrainResult {
   processed: number;
@@ -40,10 +50,11 @@ export async function drainOutbox(
   handlers: Readonly<Record<string, OutboxHandler>>,
   now = new Date(),
   limit = 50,
+  afterCommit?: (action: OutboxPostCommitAction) => Promise<void>,
 ): Promise<DrainResult> {
   const result: DrainResult = { processed: 0, failed: 0, parked: 0 };
   for (let i = 0; i < limit; i++) {
-    const outcome = await db.transaction(async (tx) => {
+    const transactionResult = await db.transaction(async (tx) => {
       const [entry] = await tx
         .select()
         .from(outbox)
@@ -51,17 +62,21 @@ export async function drainOutbox(
         .orderBy(asc(outbox.availableAt))
         .limit(1)
         .for("update", { skipLocked: true });
-      if (!entry) return "empty" as const;
+      if (!entry) return { outcome: "empty" as const, actions: [] as OutboxPostCommitAction[] };
       const handler = handlers[entry.topic];
       if (!handler) {
         await tx
           .update(outbox)
           .set({ availableAt: new Date(now.getTime() + DAY_MS), lastError: "no_handler" })
           .where(eq(outbox.id, entry.id));
-        return "parked" as const;
+        return { outcome: "parked" as const, actions: [] as OutboxPostCommitAction[] };
       }
+      let actions: OutboxPostCommitAction[] | undefined;
       try {
-        await tx.transaction((savepoint) => handler(savepoint, entry));
+        const handlerResult = await tx.transaction((savepoint) => handler(savepoint, entry));
+        if (Array.isArray(handlerResult)) {
+          actions = handlerResult as OutboxPostCommitAction[];
+        }
       } catch (error) {
         const attempts = entry.attempts + 1;
         await tx
@@ -73,16 +88,26 @@ export async function drainOutbox(
             lastError: error instanceof Error ? error.name.slice(0, 100) : "error",
           })
           .where(eq(outbox.id, entry.id));
-        return "failed" as const;
+        return { outcome: "failed" as const, actions: [] as OutboxPostCommitAction[] };
       }
       await tx
         .update(outbox)
         .set({ processedAt: now, attempts: sql`${outbox.attempts} + 1`, lastError: null })
         .where(eq(outbox.id, entry.id));
-      return "processed" as const;
+      return { outcome: "processed" as const, actions: actions ?? [] };
     });
+    const { outcome, actions } = transactionResult;
     if (outcome === "empty") break;
     result[outcome]++;
+    if (outcome === "processed" && afterCommit) {
+      for (const action of actions) {
+        try {
+          await afterCommit(action);
+        } catch {
+          // The pending-delivery sweeper retries a queue add that failed after this commit.
+        }
+      }
+    }
   }
   return result;
 }

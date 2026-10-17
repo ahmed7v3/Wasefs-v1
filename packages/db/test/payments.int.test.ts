@@ -8,6 +8,7 @@ import {
   NO_SUBSCRIPTION_HOOKS,
   PaymentsError,
   activatePayment,
+  approveManualPayment,
   applyProviderEvent,
   attachCheckout,
   canTransition,
@@ -17,15 +18,26 @@ import {
   createOrder,
   expireOrders,
   openRefund,
+  rejectManualPayment,
+  requestManualProof,
   paymentsToReconcile,
   transitionPayment,
+  submitManualProof,
   type NewOrderInput,
   type PaymentHooks,
   type ProviderEvent,
 } from "../src/payments.js";
 import { adminAlerts } from "../src/schema/alerts.js";
-import { creditPacks, orders, outbox, paymentEvents, payments } from "../src/schema/billing.js";
+import {
+  creditPacks,
+  orders,
+  outbox,
+  paymentEvents,
+  paymentMethods,
+  payments,
+} from "../src/schema/billing.js";
 import { creditLedger, creditWallets } from "../src/schema/credits.js";
+import { files } from "../src/schema/files.js";
 import { plans } from "../src/schema/plans.js";
 import { couponRedemptions, coupons } from "../src/schema/promotions.js";
 import { userNotifications } from "../src/schema/subscriptions.js";
@@ -33,7 +45,7 @@ import { users } from "../src/schema/users.js";
 import { seedDefaults } from "../src/seed-data.js";
 
 import { startTestDb, type TestDb } from "./db-fixture.js";
-import { unique } from "./schema-kit.js";
+import { unique, uniqueKey } from "./schema-kit.js";
 
 /*
  * The payment state machine and activation (BILLING §5) against a real PostgreSQL 18:
@@ -68,6 +80,68 @@ async function newUser(): Promise<string> {
     .returning({ id: users.id });
   if (!row) throw new Error("user insert failed");
   return row.id;
+}
+
+async function manualMethod(key = uniqueKey("instapay")) {
+  const [row] = await db()
+    .insert(paymentMethods)
+    .values({
+      key,
+      kind: "manual",
+      provider: "instapay",
+      nameAr: "انستا باي",
+      nameEn: "InstaPay",
+      instructionsAr: "Pay {amount} to {account}",
+      instructionsEn: "Pay {amount} to {account}",
+      accountDisplay: "merchant@example",
+      currencies: ["EGP"],
+      requiresProof: true,
+      enabled: true,
+    })
+    .returning();
+  if (!row) throw new Error("manual method insert failed");
+  return row;
+}
+
+async function openManualOrder(userId: string, methodKey: string) {
+  const created = await createOrder(
+    db(),
+    packOrder(userId, { method: { key: methodKey, gateway: null } }),
+    NO_SUBSCRIPTION_HOOKS,
+  );
+  if (!created.payment) throw new Error("expected a manual payment");
+  return { order: created.order, payment: created.payment };
+}
+
+async function createProofFile(userId: string, sha256?: string, dhash = "0123456789abcdef") {
+  const [file] = await db()
+    .insert(files)
+    .values({
+      ownerUserId: userId,
+      createdBy: userId,
+      purpose: "payment_proof",
+      r2Key: `u/${userId}/${unique("proof")}/processed`,
+      mime: "image/jpeg",
+      bytes: 1_024,
+      sha256: sha256 ?? randomUUID().replaceAll("-", "").padEnd(64, "a"),
+      dhash,
+      status: "processed",
+    })
+    .returning();
+  if (!file) throw new Error("proof insert failed");
+  return file;
+}
+
+async function attachProof(userId: string, paymentId: string, txnId = unique("txn")) {
+  const file = await createProofFile(userId);
+  return submitManualProof(db(), {
+    userId,
+    paymentId,
+    txnId,
+    senderPhoneMasked: "010*****678",
+    senderPhoneEnc: "sealed",
+    fileId: file.id,
+  });
 }
 
 function packOrder(userId: string, extra: Partial<NewOrderInput> = {}): NewOrderInput {
@@ -212,6 +286,23 @@ describe("activation", () => {
         and(eq(adminAlerts.refId, payment.id), eq(adminAlerts.kind, "payment.amount_mismatch")),
       );
     expect(alerts).toHaveLength(1);
+  });
+
+  it("records an amount-mismatch alert for a large minor-unit amount without aborting the webhook", async () => {
+    const { payment } = await openGatewayOrder(await newUser(), {
+      subtotalMinor: 10_000_000,
+      totalMinor: 10_000_000,
+    });
+    await expect(
+      applyProviderEvent(db(), success(payment.id, 100), NO_SUBSCRIPTION_HOOKS),
+    ).resolves.toBe("amount_mismatch");
+    const [alert] = await db()
+      .select()
+      .from(adminAlerts)
+      .where(
+        and(eq(adminAlerts.refId, payment.id), eq(adminAlerts.kind, "payment.amount_mismatch")),
+      );
+    expect(alert?.summary).toContain("10000000");
   });
 
   it("a currency mismatch or a missing amount is a mismatch too", async () => {
@@ -457,6 +548,161 @@ describe("reconciliation candidates", () => {
   });
 });
 
+describe("manual payment review", () => {
+  it("rejects duplicate transaction ids per method and flags exact or near duplicate proof images", async () => {
+    const method = await manualMethod();
+    const firstBuyer = await newUser();
+    const first = await openManualOrder(firstBuyer, method.key);
+    const txnId = "TXN-DUPLICATE-123";
+    const firstFile = await createProofFile(firstBuyer, "b".repeat(64));
+    await submitManualProof(db(), {
+      userId: firstBuyer,
+      paymentId: first.payment.id,
+      txnId,
+      senderPhoneMasked: "010*****678",
+      senderPhoneEnc: "sealed",
+      fileId: firstFile.id,
+    });
+
+    const secondBuyer = await newUser();
+    const second = await openManualOrder(secondBuyer, method.key);
+    const sameImage = await createProofFile(secondBuyer, "b".repeat(64));
+    const duplicate = await submitManualProof(db(), {
+      userId: secondBuyer,
+      paymentId: second.payment.id,
+      txnId: "TXN-DUPLICATE-456",
+      senderPhoneMasked: "010*****678",
+      senderPhoneEnc: "sealed",
+      fileId: sameImage.id,
+    });
+    expect(duplicate.flags).toContain(`duplicate_image_sha256:${first.order.number}`);
+    const [alert] = await db()
+      .select()
+      .from(adminAlerts)
+      .where(
+        and(
+          eq(adminAlerts.refId, second.payment.id),
+          eq(adminAlerts.kind, "payment.review_needed"),
+        ),
+      );
+    expect(alert?.severity).toBe("critical");
+    const [thirdBuyer, fourthBuyer] = await Promise.all([newUser(), newUser()]);
+    const third = await openManualOrder(thirdBuyer, method.key);
+    const uniqueTxnProof = await createProofFile(thirdBuyer);
+    await submitManualProof(db(), {
+      userId: thirdBuyer,
+      paymentId: third.payment.id,
+      txnId,
+      senderPhoneMasked: "010*****678",
+      senderPhoneEnc: "sealed",
+      fileId: uniqueTxnProof.id,
+    }).then(
+      () => {
+        throw new Error("expected duplicate transaction id");
+      },
+      (error: unknown) => expect(error).toMatchObject({ reason: "duplicate_txn" }),
+    );
+    const otherMethod = await manualMethod();
+    const fourth = await openManualOrder(fourthBuyer, otherMethod.key);
+    const nearDuplicate = await attachProof(fourthBuyer, fourth.payment.id, txnId);
+    expect(nearDuplicate.status).toBe("awaiting_review");
+    expect(nearDuplicate.flags).toContain(`duplicate_image_dhash:${first.order.number}`);
+  });
+
+  it("hides another owner's payment and refuses another user's proof file", async () => {
+    const ownerId = await newUser();
+    const otherId = await newUser();
+    const method = await manualMethod();
+    const { payment } = await openManualOrder(ownerId, method.key);
+    const foreignFile = await createProofFile(otherId);
+    await expect(
+      submitManualProof(db(), {
+        userId: otherId,
+        paymentId: payment.id,
+        txnId: "TXN-WRONG-OWNER",
+        senderPhoneMasked: "010*****678",
+        senderPhoneEnc: "sealed",
+        fileId: foreignFile.id,
+      }),
+    ).rejects.toMatchObject({ reason: "not_found" });
+  });
+
+  it("allows one resubmission after rejection and refuses a second rejection or a fourth submission", async () => {
+    const buyer = await newUser();
+    const method = await manualMethod();
+    const { payment } = await openManualOrder(buyer, method.key);
+    await attachProof(buyer, payment.id);
+    await rejectManualPayment(db(), payment.id, await newUser(), "unreadable_proof");
+    await expect(attachProof(buyer, payment.id)).resolves.toMatchObject({
+      status: "awaiting_review",
+    });
+    await rejectManualPayment(db(), payment.id, await newUser(), "not_received");
+    await expect(attachProof(buyer, payment.id)).rejects.toMatchObject({
+      reason: "proof_not_allowed",
+    });
+
+    const secondBuyer = await newUser();
+    const second = await openManualOrder(secondBuyer, method.key);
+    await attachProof(secondBuyer, second.payment.id);
+    await requestManualProof(db(), second.payment.id);
+    await attachProof(secondBuyer, second.payment.id);
+    await requestManualProof(db(), second.payment.id);
+    await attachProof(secondBuyer, second.payment.id);
+    await rejectManualPayment(db(), second.payment.id, await newUser(), "wrong_reference");
+    await expect(attachProof(secondBuyer, second.payment.id)).rejects.toMatchObject({
+      reason: "proof_limit",
+    });
+  });
+
+  it("allows resubmission after request-proof even when the payment has two prior submissions", async () => {
+    const buyer = await newUser();
+    const method = await manualMethod();
+    const { payment } = await openManualOrder(buyer, method.key);
+    await attachProof(buyer, payment.id);
+    await requestManualProof(db(), payment.id);
+    await attachProof(buyer, payment.id);
+    await rejectManualPayment(db(), payment.id, await newUser(), "unreadable_proof");
+    await expect(attachProof(buyer, payment.id)).resolves.toMatchObject({
+      status: "awaiting_review",
+    });
+  });
+
+  it("requires a different second reviewer above threshold and activates once", async () => {
+    const buyer = await newUser();
+    const firstAdmin = await newUser();
+    const secondAdmin = await newUser();
+    const method = await manualMethod();
+    const { order, payment } = await openManualOrder(buyer, method.key);
+    expect(payment.status).toBe("awaiting_customer");
+    await attachProof(buyer, payment.id);
+    expect(
+      await approveManualPayment(db(), payment.id, firstAdmin, 7_900, NO_SUBSCRIPTION_HOOKS),
+    ).toEqual({ status: "awaiting_second_approval", activated: false, activation: null });
+    await expect(
+      approveManualPayment(db(), payment.id, firstAdmin, 7_900, NO_SUBSCRIPTION_HOOKS),
+    ).rejects.toMatchObject({ reason: "same_reviewer" });
+    expect(
+      await approveManualPayment(db(), payment.id, secondAdmin, 7_900, NO_SUBSCRIPTION_HOOKS),
+    ).toEqual({ status: "succeeded", activated: true, activation: "activated" });
+    expect(await orderStatus(order.id)).toBe("paid");
+    expect(await purchaseRows(order.id)).toBe(1);
+  });
+
+  it("serializes concurrent approvals below threshold to one activation", async () => {
+    const buyer = await newUser();
+    const method = await manualMethod();
+    const { order, payment } = await openManualOrder(buyer, method.key);
+    await attachProof(buyer, payment.id);
+    const outcomes = await Promise.allSettled([
+      approveManualPayment(db(), payment.id, await newUser(), 50_000, NO_SUBSCRIPTION_HOOKS),
+      approveManualPayment(db(), payment.id, await newUser(), 50_000, NO_SUBSCRIPTION_HOOKS),
+    ]);
+    expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+    expect(await orderStatus(order.id)).toBe("paid");
+    expect(await purchaseRows(order.id)).toBe(1);
+  });
+});
+
 describe("refunds", () => {
   it("a full refund refunds payment and order and claws credits back once", async () => {
     const userId = await newUser();
@@ -539,6 +785,9 @@ describe("outbox", () => {
   const quiet: Record<string, OutboxHandler> = {
     "billing.order_paid": () => Promise.resolve(),
     "billing.order_refunded": () => Promise.resolve(),
+    "alerts.fan_out": () => Promise.resolve(),
+    "billing.payment_rejected": () => Promise.resolve(),
+    "billing.payment_resubmit": () => Promise.resolve(),
   };
 
   it("runs each entry once, retries failures with backoff and parks unknown topics", async () => {
@@ -602,6 +851,47 @@ describe("outbox", () => {
       .from(userNotifications)
       .where(eq(userNotifications.userId, userId));
     expect(notes).toHaveLength(0);
+  });
+
+  it("runs alert delivery enqueue actions only after the outbox transaction commits", async () => {
+    const userId = await newUser();
+    const idempotencyKey = `post-commit-${userId}`;
+    await db().insert(outbox).values({
+      topic: "test.alert",
+      payload: {},
+      idempotencyKey,
+    });
+    let committedBeforeEnqueue = false;
+    const result = await drainOutbox(
+      db(),
+      {
+        ...quiet,
+        "test.alert": async () => {
+          await new Promise((resolve) => setTimeout(resolve, 1_100));
+          return [
+            {
+              kind: "alert_delivery" as const,
+              deliveryId: userId,
+              jobId: `alert-delivery:${userId}`,
+            },
+          ];
+        },
+      },
+      drainAt(),
+      50,
+      async (action) => {
+        const [entry] = await db()
+          .select()
+          .from(outbox)
+          .where(eq(outbox.idempotencyKey, idempotencyKey));
+        committedBeforeEnqueue =
+          action.kind === "alert_delivery" &&
+          action.deliveryId === userId &&
+          entry?.processedAt != null;
+      },
+    );
+    expect(result.processed).toBe(1);
+    expect(committedBeforeEnqueue).toBe(true);
   });
 });
 

@@ -27,6 +27,15 @@ export interface PaymentsRuntime {
   webOrigin: string;
   /** Queues a mail; `jobId` makes a repeated call (outbox retry) a no-op while the job exists. */
   enqueueEmail(payload: EmailSendInput, jobId: string): Promise<void>;
+  enqueueAlertDelivery(deliveryId: string, jobId: string): Promise<void>;
+  enqueueAlertDigest(
+    input: {
+      adminUserId: string;
+      channel: "email" | "telegram" | "whatsapp";
+      windowStart: string;
+    },
+    delayMs: number,
+  ): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -60,6 +69,13 @@ export function createPaymentsRuntime(
     webOrigin: env.WEB_ORIGIN,
     async enqueueEmail(payload, jobId) {
       await notifications.add("email.send", emailSendPayloadSchema.parse(payload), { jobId });
+    },
+    async enqueueAlertDelivery(deliveryId, jobId) {
+      await notifications.add("alerts.deliver", { deliveryId }, { jobId });
+    },
+    async enqueueAlertDigest(input, delayMs) {
+      const jobId = `alert-digest-${input.adminUserId}-${input.channel}-${Date.parse(input.windowStart)}`;
+      await notifications.add("alerts.digest", input, { jobId, delay: Math.max(1, delayMs) });
     },
     async close() {
       await notifications.close();

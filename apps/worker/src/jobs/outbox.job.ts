@@ -1,12 +1,19 @@
 import {
   OUTBOX_MAX_FAST_ATTEMPTS,
   drainOutbox,
+  adminRecipients,
   orders,
   userNotifications,
   users,
+  adminAlerts,
+  adminAlertPrefs,
+  alertDeliveries,
+  payments,
   type OutboxHandler,
 } from "@wasfa/db";
-import { eq } from "drizzle-orm";
+import { ALERT_CHANNELS } from "@wasfa/shared/billing";
+import { ALERT_KIND_PERMISSION } from "@wasfa/shared/permissions";
+import { and, desc, eq, gte, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 
 import type { PaymentsRuntime } from "../payments/runtime.js";
@@ -15,12 +22,163 @@ import type { JobPayload } from "@wasfa/shared/queues";
 
 const orderPayload = z.object({ orderId: z.uuid() });
 const refundPayload = z.object({ orderId: z.uuid(), refundId: z.uuid() });
+const paymentPayload = z.object({ paymentId: z.uuid() });
 
 /** The outbox topics this worker knows. A topic without a handler is parked, never dropped. */
 export function outboxHandlers(
-  runtime: Pick<PaymentsRuntime, "enqueueEmail" | "webOrigin">,
+  runtime: Pick<
+    PaymentsRuntime,
+    "enqueueEmail" | "webOrigin" | "enqueueAlertDelivery" | "enqueueAlertDigest"
+  >,
 ): Record<string, OutboxHandler> {
   return {
+    "alerts.fan_out": async (tx, entry) => {
+      const { alertId } = z.object({ alertId: z.uuid() }).parse(entry.payload);
+      const [alert] = await tx.select().from(adminAlerts).where(eq(adminAlerts.id, alertId));
+      if (!alert) return;
+      const needed = ALERT_KIND_PERMISSION[alert.kind];
+      const recipients = await adminRecipients(tx, needed);
+      const postCommit = [];
+      for (const user of recipients) {
+        const [prefs] = await tx
+          .select()
+          .from(adminAlertPrefs)
+          .where(eq(adminAlertPrefs.userId, user.id));
+        if (alert.severity !== "critical" && prefs?.mutedKinds.includes(alert.kind)) continue;
+        const channels = {
+          in_app: prefs?.inAppEnabled ?? true,
+          email: prefs?.emailEnabled ?? true,
+          telegram: prefs?.telegramEnabled ?? true,
+          whatsapp: prefs?.whatsappEnabled ?? false,
+        };
+        for (const channel of ALERT_CHANNELS) {
+          if (!channels[channel]) continue;
+          const [delivery] = await tx
+            .insert(alertDeliveries)
+            .values({
+              alertId,
+              adminUserId: user.id,
+              channel,
+              status: channel === "in_app" ? "sent" : "pending",
+              sentAt: channel === "in_app" ? new Date() : null,
+            })
+            .onConflictDoNothing()
+            .returning({ id: alertDeliveries.id });
+          if (delivery && channel !== "in_app") {
+            const now = new Date();
+            const activeWindow =
+              alert.severity === "critical"
+                ? undefined
+                : (
+                    await tx
+                      .select({
+                        createdAt: alertDeliveries.createdAt,
+                        sentAt: alertDeliveries.sentAt,
+                      })
+                      .from(alertDeliveries)
+                      .where(
+                        and(
+                          eq(alertDeliveries.adminUserId, user.id),
+                          eq(alertDeliveries.channel, channel),
+                          ne(alertDeliveries.id, delivery.id),
+                          inArray(alertDeliveries.status, ["sent", "pending"]),
+                          isNull(alertDeliveries.error),
+                          gte(alertDeliveries.createdAt, new Date(now.getTime() - 10 * 60_000)),
+                        ),
+                      )
+                      .orderBy(desc(alertDeliveries.createdAt))
+                      .limit(1)
+                  )[0];
+            const windowStart = activeWindow?.sentAt ?? activeWindow?.createdAt;
+            if (windowStart) {
+              await tx
+                .update(alertDeliveries)
+                .set({ error: "digest_pending" })
+                .where(eq(alertDeliveries.id, delivery.id));
+              postCommit.push({
+                kind: "alert_digest" as const,
+                adminUserId: user.id,
+                channel,
+                windowStart: windowStart.toISOString(),
+                delayMs: windowStart.getTime() + 10 * 60_000 - now.getTime(),
+              });
+            } else {
+              postCommit.push({
+                kind: "alert_delivery" as const,
+                deliveryId: delivery.id,
+                jobId: `alert-delivery:${delivery.id}`,
+              });
+            }
+          }
+        }
+      }
+      return postCommit;
+    },
+    "billing.payment_rejected": async (tx, entry) => {
+      const { paymentId } = paymentPayload.parse(entry.payload);
+      const [row] = await tx
+        .select({ payment: payments, order: orders, owner: users })
+        .from(payments)
+        .innerJoin(orders, eq(orders.id, payments.orderId))
+        .innerJoin(users, eq(users.id, orders.ownerUserId))
+        .where(eq(payments.id, paymentId));
+      if (!row?.order.ownerUserId) return;
+      await tx.insert(userNotifications).values({
+        userId: row.order.ownerUserId,
+        kind: "billing.payment_rejected",
+        params: {
+          orderNumber: row.order.number,
+          reason: row.payment.rejectReason ?? "other",
+          note: row.payment.reviewNote,
+        },
+        link: `/billing/orders/${row.order.id}`,
+      });
+      if (row.owner.status === "active") {
+        await runtime.enqueueEmail(
+          {
+            template: "billing_payment_rejected",
+            to: row.owner.email,
+            name: row.owner.name,
+            locale: row.owner.locale,
+            orderNumber: row.order.number,
+            reason: row.payment.rejectReason ?? "other",
+            note: row.payment.reviewNote,
+            link: `${runtime.webOrigin}/billing/orders/${row.order.id}`,
+          },
+          `outbox-${entry.id}`,
+        );
+      }
+    },
+    "billing.payment_resubmit": async (tx, entry) => {
+      const { paymentId } = paymentPayload.parse(entry.payload);
+      const [row] = await tx
+        .select({ payment: payments, order: orders, owner: users })
+        .from(payments)
+        .innerJoin(orders, eq(orders.id, payments.orderId))
+        .innerJoin(users, eq(users.id, orders.ownerUserId))
+        .where(eq(payments.id, paymentId));
+      if (!row?.order.ownerUserId) return;
+      await tx.insert(userNotifications).values({
+        userId: row.order.ownerUserId,
+        kind: "billing.payment_resubmit",
+        params: { orderNumber: row.order.number, note: row.payment.reviewNote },
+        link: `/billing/orders/${row.order.id}`,
+      });
+      if (row.owner.status === "active") {
+        await runtime.enqueueEmail(
+          {
+            template: "billing_payment_resubmit",
+            to: row.owner.email,
+            name: row.owner.name,
+            locale: row.owner.locale,
+            orderNumber: row.order.number,
+            note: row.payment.reviewNote,
+            link: `${runtime.webOrigin}/billing/orders/${row.order.id}`,
+          },
+          `outbox-${entry.id}`,
+        );
+      }
+    },
     /** BILLING §5.3 step 6: in-app notification and the receipt mail. */
     "billing.order_paid": async (tx, entry) => {
       const { orderId } = orderPayload.parse(entry.payload);
@@ -87,7 +245,20 @@ export async function drainOutboxJob(
     logger.warn({ event: "payments.runtime_missing" }, "Outbox drain skipped");
     return;
   }
-  const result = await drainOutbox(db, outboxHandlers(payments));
+  const result = await drainOutbox(db, outboxHandlers(payments), new Date(), 50, async (action) => {
+    if (action.kind === "alert_delivery") {
+      await payments.enqueueAlertDelivery(action.deliveryId, action.jobId);
+    } else {
+      await payments.enqueueAlertDigest(
+        {
+          adminUserId: action.adminUserId,
+          channel: action.channel,
+          windowStart: action.windowStart,
+        },
+        action.delayMs,
+      );
+    }
+  });
   if (result.failed > 0 || result.parked > 0) {
     logger.warn(
       { event: "outbox.retry", ...result, maxFastAttempts: OUTBOX_MAX_FAST_ATTEMPTS },

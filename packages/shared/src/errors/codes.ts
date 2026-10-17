@@ -17,6 +17,10 @@ export const ErrorCode = {
   // Checkout (BILLING §5): the quote must be re-requested, or a limited coupon ran out meanwhile.
   QUOTE_EXPIRED: "QUOTE_EXPIRED",
   COUPON_UNAVAILABLE: "COUPON_UNAVAILABLE",
+  DUPLICATE_TXN: "DUPLICATE_TXN",
+  PROOF_LIMIT: "PROOF_LIMIT",
+  PROOF_PROCESSING: "PROOF_PROCESSING",
+  PROOF_NOT_ALLOWED: "PROOF_NOT_ALLOWED",
   // A webhook whose signature does not verify (recorded, never processed).
   INVALID_SIGNATURE: "INVALID_SIGNATURE",
 } as const;
@@ -138,6 +142,34 @@ export const ERROR_INFO: Record<ErrorCode, ErrorCodeInfo> = {
     message: {
       ar: "لم يعد هذا الكود متاحاً. راجع الملخص من جديد.",
       en: "This code is no longer available. Review the summary again.",
+    },
+  },
+  DUPLICATE_TXN: {
+    httpStatus: 409,
+    message: {
+      ar: "رقم المعاملة مستخدم بالفعل.",
+      en: "This transaction ID has already been submitted.",
+    },
+  },
+  PROOF_LIMIT: {
+    httpStatus: 409,
+    message: {
+      ar: "وصلت إلى الحد الأقصى لإرسال الإثباتات.",
+      en: "The proof submission limit has been reached.",
+    },
+  },
+  PROOF_PROCESSING: {
+    httpStatus: 409,
+    message: {
+      ar: "ما زالت الصورة قيد المعالجة. حاول بعد قليل.",
+      en: "The proof image is still processing. Try again shortly.",
+    },
+  },
+  PROOF_NOT_ALLOWED: {
+    httpStatus: 409,
+    message: {
+      ar: "لا يمكن إرسال إثبات لهذا الدفع في حالته الحالية.",
+      en: "A proof cannot be submitted for this payment in its current state.",
     },
   },
   INVALID_SIGNATURE: {

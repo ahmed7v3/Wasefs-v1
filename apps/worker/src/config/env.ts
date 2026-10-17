@@ -62,6 +62,7 @@ export const workerEnvSchema = z
     MAIL_FROM: z.string().min(3).max(300).default('"وصفة AI" <no-reply@wasfa.online>'),
     /** Brevo's free plan allows 300 a day; the margin absorbs retries and manual sends. */
     MAIL_DAILY_CAP: z.coerce.number().int().min(1).max(1_000_000).default(280),
+    ALERT_TELEGRAM_BOT_TOKEN: optional(z.string().min(1).max(512)),
 
     // Uploaded images (Task 2.5): the same bucket and keys as the api. All four keys or none.
     ...uploadsEnvShape,

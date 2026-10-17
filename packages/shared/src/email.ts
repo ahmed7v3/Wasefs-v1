@@ -13,6 +13,10 @@ export const EMAIL_TEMPLATES = [
   "org_invite",
   "account_suspended",
   "payment_receipt",
+  "billing_payment_rejected",
+  "billing_payment_resubmit",
+  "admin_alert",
+  "alert_digest",
 ] as const;
 export type EmailTemplate = (typeof EMAIL_TEMPLATES)[number];
 
@@ -65,6 +69,34 @@ export const emailSendPayloadSchema = z.discriminatedUnion("template", [
     totalMinor: z.number().int().min(0),
     currency: z.string().regex(/^[A-Z]{3}$/),
     taxAndFeesMinor: z.number().int().min(0).default(0),
+    link: z.url().max(2_048),
+  }),
+  z.object({
+    template: z.literal("billing_payment_rejected"),
+    ...recipient,
+    orderNumber: z.string().min(1).max(40),
+    reason: z.string().min(1).max(64),
+    note: z.string().max(500).nullable().optional(),
+    link: z.url().max(2_048),
+  }),
+  z.object({
+    template: z.literal("billing_payment_resubmit"),
+    ...recipient,
+    orderNumber: z.string().min(1).max(40),
+    note: z.string().max(500).nullable().optional(),
+    link: z.url().max(2_048),
+  }),
+  z.object({
+    template: z.literal("admin_alert"),
+    ...recipient,
+    summary: z.string().trim().min(1).max(500),
+    link: z.url().max(2_048),
+  }),
+  z.object({
+    template: z.literal("alert_digest"),
+    ...recipient,
+    count: z.number().int().min(1),
+    summaries: z.array(z.string().trim().min(1).max(500)).max(5),
     link: z.url().max(2_048),
   }),
 ]);

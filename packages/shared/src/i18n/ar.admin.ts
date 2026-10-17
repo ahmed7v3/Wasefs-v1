@@ -336,6 +336,7 @@ export const arAdmin = {
   "admin.settings.socials.title": "حسابات التواصل الاجتماعي",
   "admin.settings.socials.description": "روابط https لحسابات المنصة.",
   "admin.settings.locale.title": "اللغة والأرقام",
+  "admin.settings.alerts.title": "تنبيهات الإدارة",
   "admin.settings.locale.description": "اللغة الافتراضية وطريقة عرض الأرقام والتواريخ.",
   "admin.settings.currency.title": "العملات",
   "admin.settings.currency.description":

@@ -11,6 +11,7 @@ import {
   ORDER_STATUSES,
   PAYMENT_MAX_PROOF_SUBMISSIONS,
   PAYMENT_METHOD_KINDS,
+  PAYMENT_METHOD_ACCOUNT_CHANGE_STATUSES,
   PAYMENT_STATUSES,
   REFUND_STATUSES,
   TAX_APPLIES_TO,
@@ -205,6 +206,45 @@ export const paymentMethods = pgTable(
   ],
 );
 
+export const paymentMethodAccountChanges = pgTable(
+  "payment_method_account_changes",
+  {
+    id: idColumn(),
+    methodId: uuid()
+      .notNull()
+      .references(() => paymentMethods.id, { onDelete: "restrict" }),
+    oldAccountDisplay: text().notNull(),
+    newAccountDisplay: text().notNull(),
+    oldAccountHolder: text(),
+    newAccountHolder: text(),
+    requestedBy: uuid()
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    reason: text().notNull(),
+    effectiveAt: timestamp({ withTimezone: true }).notNull(),
+    status: text({ enum: PAYMENT_METHOD_ACCOUNT_CHANGE_STATUSES }).notNull().default("pending"),
+    canceledBy: uuid().references(() => users.id, { onDelete: "set null" }),
+    appliedAt: timestamp({ withTimezone: true }),
+    ...timestamps(),
+  },
+  (table) => [
+    check(
+      "payment_method_account_changes_status_check",
+      inList(table.status, PAYMENT_METHOD_ACCOUNT_CHANGE_STATUSES),
+    ),
+    check(
+      "payment_method_account_changes_reason_check",
+      sql`char_length(btrim(${table.reason})) between 1 and 500`,
+    ),
+    index("payment_method_account_changes_due_idx")
+      .on(table.effectiveAt)
+      .where(sql`${table.status} = 'pending'`),
+    uniqueIndex("payment_method_account_changes_one_pending_key")
+      .on(table.methodId)
+      .where(sql`${table.status} = 'pending'`),
+  ],
+);
+
 /** Provider credentials. `credentials_enc` is a sealed string (AES-256-GCM, key id prefix): never plaintext. */
 export const paymentGateways = pgTable(
   "payment_gateways",
@@ -368,6 +408,7 @@ export const payments = pgTable(
     providerRef: text(),
     // Manual payments.
     senderPhoneMasked: text(),
+    senderPhoneEnc: text(),
     txnId: text(),
     proofFileId: uuid().references(() => files.id, { onDelete: "set null" }),
     proofSubmissions: integer().notNull().default(0),

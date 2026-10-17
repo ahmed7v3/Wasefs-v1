@@ -66,7 +66,7 @@ export type CreditLedgerKind = (typeof CREDIT_LEDGER_KINDS)[number];
 export const CREDIT_RESERVATION_STATUSES = ["open", "settled", "released", "expired"] as const;
 export type CreditReservationStatus = (typeof CREDIT_RESERVATION_STATUSES)[number];
 
-export const FILE_PURPOSES = ["rx_page", "chat_image"] as const;
+export const FILE_PURPOSES = ["rx_page", "chat_image", "payment_proof"] as const;
 export type FilePurpose = (typeof FILE_PURPOSES)[number];
 
 export const FILE_STATUSES = ["pending", "uploaded", "processed", "rejected", "deleted"] as const;

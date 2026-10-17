@@ -39,6 +39,11 @@ export class FilesRepo {
     return null;
   }
 
+  async findById(fileId: string): Promise<FileRecord | undefined> {
+    const [row] = await this.handle.db.select().from(files).where(eq(files.id, fileId));
+    return row;
+  }
+
   /** `pending` to `uploaded`. False when another request got there first (or the state moved on). */
   async markUploaded(file: FileRecord): Promise<boolean> {
     const rows = await this.handle.db

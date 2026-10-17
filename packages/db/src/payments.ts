@@ -1,5 +1,8 @@
 import { randomInt, randomUUID } from "node:crypto";
 
+import { assertSafeAlertSummary } from "@wasfa/shared/alert-safety";
+import { PAYMENT_MAX_PROOF_SUBMISSIONS } from "@wasfa/shared/billing";
+import { formatMoney } from "@wasfa/shared/money";
 import { and, asc, eq, gt, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 
 import { moveCreditsInTransaction, type Transaction, type WalletOwner } from "./credits-ledger.js";
@@ -11,6 +14,7 @@ import {
   outbox,
   paymentEvents,
   paymentGateways,
+  paymentMethods,
   payments,
   refunds,
   type Order,
@@ -18,6 +22,7 @@ import {
   type PaymentGateway,
   type Refund,
 } from "./schema/billing.js";
+import { files } from "./schema/files.js";
 import { couponRedemptions, coupons, promotions } from "./schema/promotions.js";
 import { personalOffers } from "./schema/subscriptions.js";
 
@@ -45,7 +50,13 @@ export type PaymentsErrorReason =
   | "illegal_transition"
   | "coupon_unavailable"
   | "not_refundable"
-  | "refund_exceeds_paid";
+  | "refund_exceeds_paid"
+  | "proof_limit"
+  | "proof_processing"
+  | "proof_invalid"
+  | "duplicate_txn"
+  | "proof_not_allowed"
+  | "same_reviewer";
 
 export class PaymentsError extends Error {
   constructor(readonly reason: PaymentsErrorReason) {
@@ -162,13 +173,21 @@ export async function raiseAdminAlert(
     refId: string;
     summary: string;
     link: string;
+    /** For jobs that run on a supplied clock; defaults to the database's `now()`. */
+    createdAt?: Date;
   },
-): Promise<void> {
-  await tx.insert(adminAlerts).values(alert);
+): Promise<string> {
+  const [created] = await tx
+    .insert(adminAlerts)
+    .values({ ...alert, summary: assertSafeAlertSummary(alert.summary) })
+    .returning({ id: adminAlerts.id });
+  if (!created) throw new Error("Admin alert was not stored");
+  await enqueue(tx, "alerts.fan_out", { alertId: created.id }, `alert:${created.id}`);
+  return created.id;
 }
 
 async function enqueue(
-  tx: Transaction,
+  tx: Transaction | Database,
   topic: string,
   payload: Record<string, unknown>,
   idempotencyKey: string,
@@ -222,6 +241,121 @@ export async function transitionPayment(
     const { payment } = await lockOrderAndPayment(tx, paymentId);
     return transitionLocked(tx, payment, to, patch);
   });
+}
+
+function hammingDistance(left: string, right: string): number {
+  let bits = BigInt(`0x${left}`) ^ BigInt(`0x${right}`);
+  let count = 0;
+  while (bits !== 0n) {
+    count++;
+    bits &= bits - 1n;
+  }
+  return count;
+}
+
+/** Validates and attaches one proof while holding the order then payment locks. */
+export async function submitManualProof(
+  db: Database,
+  input: {
+    userId: string;
+    paymentId: string;
+    txnId: string;
+    senderPhoneMasked: string;
+    senderPhoneEnc: string;
+    fileId: string;
+  },
+): Promise<{ status: PaymentStatus; flags: string[]; alertId: string | null }> {
+  try {
+    return await db.transaction(async (tx) => {
+      const { order, payment } = await lockOrderAndPayment(tx, input.paymentId);
+      if (order.ownerUserId !== input.userId) throw new PaymentsError("not_found");
+      const [method] = await tx
+        .select()
+        .from(paymentMethods)
+        .where(eq(paymentMethods.key, payment.methodKey));
+      if (
+        !method ||
+        method.kind !== "manual" ||
+        !method.requiresProof ||
+        payment.gateway !== null
+      ) {
+        throw new PaymentsError("proof_not_allowed");
+      }
+      if (order.status !== "pending_payment" || order.expiresAt <= new Date())
+        throw new PaymentsError("proof_not_allowed");
+      if (payment.status !== "awaiting_customer" && payment.status !== "rejected")
+        throw new PaymentsError("proof_not_allowed");
+      if (payment.status === "rejected") {
+        const rejections = await tx
+          .select({ id: paymentEvents.id })
+          .from(paymentEvents)
+          .where(
+            and(
+              eq(paymentEvents.paymentId, payment.id),
+              eq(paymentEvents.type, "transition"),
+              sql`${paymentEvents.payload}->>'to' = 'rejected'`,
+            ),
+          );
+        if (rejections.length !== 1) throw new PaymentsError("proof_not_allowed");
+      }
+      if (payment.proofSubmissions >= PAYMENT_MAX_PROOF_SUBMISSIONS)
+        throw new PaymentsError("proof_limit");
+      const [file] = await tx
+        .select()
+        .from(files)
+        .where(and(eq(files.id, input.fileId), eq(files.ownerUserId, input.userId)));
+      if (!file || file.purpose !== "payment_proof") throw new PaymentsError("proof_not_allowed");
+      if (file.status !== "processed") throw new PaymentsError("proof_processing");
+      const [attached] = await tx
+        .select({ id: payments.id })
+        .from(payments)
+        .where(eq(payments.proofFileId, file.id));
+      if (attached) throw new PaymentsError("proof_not_allowed");
+      const earlier = await tx
+        .select({ sha256: files.sha256, dhash: files.dhash, orderNumber: orders.number })
+        .from(files)
+        .innerJoin(payments, eq(payments.proofFileId, files.id))
+        .innerJoin(orders, eq(payments.orderId, orders.id))
+        .where(and(eq(files.purpose, "payment_proof"), ne(payments.id, payment.id)));
+      const flags: string[] = [];
+      for (const prior of earlier) {
+        if (file.sha256 && prior.sha256 === file.sha256)
+          flags.push(`duplicate_image_sha256:${prior.orderNumber}`);
+        else if (file.dhash && prior.dhash && hammingDistance(file.dhash, prior.dhash) <= 6)
+          flags.push(`duplicate_image_dhash:${prior.orderNumber}`);
+      }
+      await tx
+        .update(payments)
+        .set({
+          txnId: input.txnId,
+          senderPhoneMasked: input.senderPhoneMasked,
+          senderPhoneEnc: input.senderPhoneEnc,
+          proofFileId: input.fileId,
+          proofSubmissions: payment.proofSubmissions + 1,
+          flags: [...new Set([...(payment.flags ?? []), ...flags])],
+        })
+        .where(eq(payments.id, payment.id));
+      const moved = await transitionLocked(
+        tx,
+        { ...payment, txnId: input.txnId, proofSubmissions: payment.proofSubmissions + 1 },
+        "awaiting_review",
+      );
+      const duplicated = flags.length > 0;
+      const alertId = await raiseAdminAlert(tx, {
+        kind: "payment.review_needed",
+        severity: duplicated ? "critical" : "info",
+        refType: "payment",
+        refId: payment.id,
+        summary: `Order ${order.number}: manual payment ${formatMoney(payment.amountMinor, payment.currency, "en")} needs review. Sender ${input.senderPhoneMasked}.`,
+        link: `/admin/billing/payments/${payment.id}`,
+      });
+      return { status: moved.status, flags, alertId };
+    });
+  } catch (error) {
+    if (isUniqueViolation(error, "payments_method_txn_id_key"))
+      throw new PaymentsError("duplicate_txn");
+    throw error;
+  }
 }
 
 // --- Coupons ------------------------------------------------------------------------------------
@@ -405,6 +539,7 @@ export async function createOrder(
             reference: paymentReference(),
             methodKey: input.method.key,
             gateway: input.method.gateway,
+            status: input.method.gateway === null ? "awaiting_customer" : "created",
             amountMinor: input.totalMinor,
             currency: input.currency,
           })
@@ -582,6 +717,147 @@ export async function activatePayment(
   now = new Date(),
 ): Promise<ActivationOutcome> {
   return db.transaction((tx) => activateInTransaction(tx, paymentId, reported, hooks, now));
+}
+
+export async function approveManualPayment(
+  db: Database,
+  paymentId: string,
+  adminId: string,
+  fourEyesThresholdMinor: number,
+  hooks: PaymentHooks,
+  note?: string,
+  now = new Date(),
+): Promise<{ status: PaymentStatus; activated: boolean; activation: ActivationOutcome | null }> {
+  return db.transaction(async (tx) => {
+    const { order, payment } = await lockOrderAndPayment(tx, paymentId);
+    if (payment.gateway !== null || !payment.proofFileId)
+      throw new PaymentsError("proof_not_allowed");
+    if (payment.status === "awaiting_review") {
+      if (payment.amountMinor >= fourEyesThresholdMinor) {
+        await tx
+          .update(payments)
+          .set({ reviewedBy: adminId, reviewedAt: now, reviewNote: note ?? null })
+          .where(eq(payments.id, payment.id));
+        await transitionLocked(tx, payment, "awaiting_second_approval", {
+          reason: "second_approval_required",
+        });
+        await raiseAdminAlert(tx, {
+          kind: "payment.review_needed",
+          severity: "warning",
+          refType: "payment",
+          refId: payment.id,
+          summary: `Order ${order.number}: a second approval is required for this manual payment.`,
+          link: `/admin/billing/payments/${payment.id}`,
+        });
+        return { status: "awaiting_second_approval", activated: false, activation: null };
+      }
+      await tx
+        .update(payments)
+        .set({ reviewedBy: adminId, reviewedAt: now, reviewNote: note ?? null })
+        .where(eq(payments.id, payment.id));
+      const activation = await activateInTransaction(
+        tx,
+        payment.id,
+        { amountMinor: order.totalMinor, currency: order.currency },
+        hooks,
+        now,
+      );
+      return {
+        status: activation === "activated" ? "succeeded" : "failed",
+        activated: activation === "activated",
+        activation,
+      };
+    }
+    if (payment.status !== "awaiting_second_approval")
+      throw new PaymentsError("illegal_transition");
+    if (payment.reviewedBy === adminId) throw new PaymentsError("same_reviewer");
+    await tx
+      .update(payments)
+      .set({
+        secondApprovedBy: adminId,
+        secondApprovedAt: now,
+        reviewNote: note ?? payment.reviewNote,
+      })
+      .where(eq(payments.id, payment.id));
+    const activation = await activateInTransaction(
+      tx,
+      payment.id,
+      { amountMinor: order.totalMinor, currency: order.currency },
+      hooks,
+      now,
+    );
+    return {
+      status: activation === "activated" ? "succeeded" : "failed",
+      activated: activation === "activated",
+      activation,
+    };
+  });
+}
+
+export async function rejectManualPayment(
+  db: Database,
+  paymentId: string,
+  adminId: string,
+  reason: string,
+  note?: string,
+): Promise<Payment> {
+  return db.transaction(async (tx) => {
+    const { payment } = await lockOrderAndPayment(tx, paymentId);
+    if (payment.gateway !== null || !payment.proofFileId)
+      throw new PaymentsError("proof_not_allowed");
+    const updated = await tx
+      .update(payments)
+      .set({
+        rejectReason: reason,
+        reviewNote: note ?? null,
+        reviewedBy: adminId,
+        reviewedAt: new Date(),
+      })
+      .where(eq(payments.id, payment.id))
+      .returning();
+    if (!updated[0]) throw new PaymentsError("not_found");
+    const rejected = await transitionLocked(tx, updated[0], "rejected", { reason });
+    await enqueue(
+      tx,
+      "billing.payment_rejected",
+      { paymentId },
+      `payment_rejected:${paymentId}:${payment.proofSubmissions}`,
+    );
+    return rejected;
+  });
+}
+
+export async function requestManualProof(
+  db: Database,
+  paymentId: string,
+  note?: string,
+): Promise<Payment> {
+  return db.transaction(async (tx) => {
+    const { payment } = await lockOrderAndPayment(tx, paymentId);
+    if (
+      payment.gateway !== null ||
+      !payment.proofFileId ||
+      payment.status !== "awaiting_review" ||
+      payment.proofSubmissions >= PAYMENT_MAX_PROOF_SUBMISSIONS
+    )
+      throw new PaymentsError("proof_not_allowed");
+    const updated = await tx
+      .update(payments)
+      .set({ reviewNote: note ?? null })
+      .where(eq(payments.id, payment.id))
+      .returning();
+    if (!updated[0]) throw new PaymentsError("not_found");
+    const moved = await transitionLocked(tx, updated[0], "awaiting_customer", {
+      reason: "proof_resubmission_requested",
+    });
+    await enqueue(
+      tx,
+      "billing.payment_resubmit",
+      { paymentId },
+      `payment_resubmit:${paymentId}:${payment.proofSubmissions}`,
+    );
+    return moved;
+  });
 }
 
 async function activateInTransaction(

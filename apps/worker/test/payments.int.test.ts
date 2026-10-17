@@ -240,6 +240,8 @@ describe("outbox: billing.order_paid", () => {
         mails.push({ payload, jobId });
         return Promise.resolve();
       },
+      enqueueAlertDelivery: () => Promise.resolve(),
+      enqueueAlertDigest: () => Promise.resolve(),
     });
     // Postgres stamps `available_at` in microseconds, `new Date()` in milliseconds: drain a second
     // ahead so an entry inserted in the same millisecond is already due.

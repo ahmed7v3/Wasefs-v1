@@ -101,6 +101,36 @@ export const whatsappSettingsSchema = z.object({
   number: phoneNumberSchema.nullable().default(null),
 });
 
+/** A zone `Intl` can format with; a bad value would make every business-hours check throw. */
+function isTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export const alertsSettingsSchema = z.object({
+  whatsapp: z
+    .object({
+      enabled: z.boolean().default(false),
+      dailyCap: z.number().int().min(1).max(20).default(20),
+    })
+    .default({ enabled: false, dailyCap: 20 }),
+  businessHours: z
+    .object({
+      timezone: z
+        .string()
+        .refine(isTimeZone, { message: "Unknown IANA time zone" })
+        .default("Africa/Cairo"),
+      startHour: z.number().int().min(0).max(23).default(9),
+      endHour: z.number().int().min(1).max(24).default(22),
+      days: z.array(z.number().int().min(0).max(6)).default([0, 1, 2, 3, 4, 5, 6]),
+    })
+    .default({ timezone: "Africa/Cairo", startHour: 9, endHour: 22, days: [0, 1, 2, 3, 4, 5, 6] }),
+});
+
 /**
  * AI spend control (Phase 2, Task 2.2). Admin only: it holds the daily spend cap and the kill
  * switches. Written through `/admin/ai/settings` (`ai.write` + `ai.killswitch`), never through the
@@ -316,6 +346,7 @@ export const SETTINGS_REGISTRY = {
   /** Blocked email domains and the phone-verification kill switch: admin only. */
   auth: { schema: authSettingsSchema, visibility: "admin" },
   whatsapp: { schema: whatsappSettingsSchema, visibility: "admin" },
+  alerts: { schema: alertsSettingsSchema, visibility: "admin" },
   ai: { schema: aiSettingsSchema, visibility: "admin" },
   /** Public: the price per page and the page limit are shown before a prescription is analysed. */
   rx: { schema: rxSettingsSchema, visibility: "public" },

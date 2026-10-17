@@ -2,6 +2,7 @@ import { createDb } from "@wasfa/db";
 import { Redis } from "ioredis";
 
 import { createAiRuntime } from "./ai/runtime.js";
+import { runAlertOptInLoop } from "./alerts/wa-optins.loop.js";
 import { loadEnv, queueConcurrency } from "./config/env.js";
 import { createLogger } from "./logger.js";
 import { createEmailRuntime } from "./notifications/email.js";
@@ -14,9 +15,13 @@ const logger = createLogger(env);
 
 // BullMQ's blocking commands must never be cut short, hence no per-request retry limit.
 const connection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
+const alertOptinRedis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 connection.on("error", (error: Error) => {
   logger.error({ reason: error.message }, "Redis connection error");
 });
+alertOptinRedis.on("error", (error: Error) =>
+  logger.error({ reason: error.message }, "Alert opt-in Redis connection error"),
+);
 
 const { db, close: closeDb } = createDb({ url: env.DATABASE_URL, max: 3 });
 
@@ -32,8 +37,18 @@ const { workers, queues } = startWorkers(connection, queueConcurrency(env), {
   storage,
   ai,
   payments,
+  env,
 });
 await registerSchedules(queues);
+const alertOptinAbort = new AbortController();
+void runAlertOptInLoop({
+  redis: alertOptinRedis,
+  db,
+  logger,
+  signal: alertOptinAbort.signal,
+}).catch((error: Error) => {
+  logger.error({ reason: error.message }, "Alert opt-in loop stopped");
+});
 logger.info(
   {
     queues: queues.map((queue) => queue.name),
@@ -49,6 +64,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   shuttingDown = true;
   logger.info({ signal }, "Shutting down: waiting for active jobs");
   const outcome = await closeWorkers(workers, env.WORKER_SHUTDOWN_TIMEOUT_MS);
+  alertOptinAbort.abort();
   if (outcome === "forced") {
     logger.warn(
       { timeoutMs: env.WORKER_SHUTDOWN_TIMEOUT_MS },
@@ -59,6 +75,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   await payments.close();
   // After the workers: a job that was still running needs the pool until it settles.
   await closeDb();
+  await alertOptinRedis.quit().catch(() => alertOptinRedis.disconnect());
   email.transport.close();
   storage?.close();
   await connection.quit().catch(() => {

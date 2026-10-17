@@ -99,6 +99,13 @@
       "when": 1792151285997,
       "tag": "0013_gateway_admin",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792161427828,
+      "tag": "0014_manual_payments_alerts",
+      "breakpoints": true
     }
   ]
 }

@@ -3,6 +3,8 @@ import { Module } from "@nestjs/common";
 import { AdminAiModule } from "./ai/admin-ai.module.js";
 import { AdminAuditModule } from "./audit/admin-audit.module.js";
 import { AdminBillingGatewaysModule } from "./billing/admin-billing-gateways.module.js";
+import { AdminBillingMethodsModule } from "./billing/admin-billing-methods.module.js";
+import { AdminBillingPaymentsModule } from "./billing/admin-billing-payments.module.js";
 import { AdminBrandingModule } from "./branding/admin-branding.module.js";
 import { AdminCreditsModule } from "./credits/admin-credits.module.js";
 import { AdminDrugsModule } from "./drugs/admin-drugs.module.js";
@@ -37,6 +39,8 @@ import { AdminWhatsappModule } from "./whatsapp/admin-whatsapp.module.js";
     AdminCreditsModule,
     AdminAiModule,
     AdminBillingGatewaysModule,
+    AdminBillingPaymentsModule,
+    AdminBillingMethodsModule,
     AdminDrugsModule,
     AdminEvalsModule,
   ],

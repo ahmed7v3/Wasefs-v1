@@ -81,11 +81,13 @@ export function verificationMessage(code: string, locale: "ar" | "en" = "ar"): s
   return t("phone.verify.waMessage", { code }, locale);
 }
 
-export const replyOutcomeSchema = z.enum(["verified", "invalid"]);
+export const replyOutcomeSchema = z.enum(["verified", "invalid", "alerts_on", "alerts_off"]);
 export type ReplyOutcome = z.output<typeof replyOutcomeSchema>;
 
 /** The only two sentences the bridge may ever send. The api picks one by name; it cannot supply text. */
 export function replyText(outcome: ReplyOutcome): string {
+  if (outcome === "alerts_on") return t("phone.reply.alertsOn");
+  if (outcome === "alerts_off") return t("phone.reply.alertsOff");
   return t(outcome === "verified" ? "phone.reply.verified" : "phone.reply.invalid");
 }
 
@@ -181,5 +183,5 @@ export function maskWaNumber(digits: string): string {
   return `••••${digits.slice(-4)}`;
 }
 
-export const PHONE_VERIFY_STATUSES =["none", "pending", "verified", "failed"] as const;
+export const PHONE_VERIFY_STATUSES = ["none", "pending", "verified", "failed"] as const;
 export type PhoneVerifyStatus = (typeof PHONE_VERIFY_STATUSES)[number];

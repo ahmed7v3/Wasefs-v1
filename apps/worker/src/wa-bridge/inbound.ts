@@ -30,6 +30,7 @@ export type IgnoreReason =
   "from_me" | "not_direct" | "not_text" | "no_code" | "unresolved_sender" | "stale" | "no_id";
 
 export type Extracted = { ok: true; message: InboundMessage } | { ok: false; reason: IgnoreReason };
+export type AlertOptInCommand = { action: "optin" | "optout"; jid: string; digits: string };
 
 const PN_SERVER = "s.whatsapp.net";
 const LID_SERVER = "lid";
@@ -70,6 +71,37 @@ function secondsOf(value: RawMessage["messageTimestamp"]): number | null {
   if (value === null || value === undefined) return null;
   const seconds = typeof value === "number" ? value : value.toNumber();
   return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
+}
+
+export async function extractAlertOptInCommand(
+  raw: RawMessage,
+  resolver: LidResolver,
+  now = Date.now(),
+): Promise<AlertOptInCommand | null> {
+  if (raw.key.fromMe || !isDirectJid(raw.key.remoteJid) || !raw.key.id) return null;
+  const original = textOf(raw.message);
+  if (original === null) return null;
+  const text = original.trim();
+  const action =
+    text.toLocaleUpperCase() === "ALERTS ON" || text === "تنبيهات"
+      ? "optin"
+      : text.toLocaleUpperCase() === "ALERTS OFF" || text === "إيقاف التنبيهات"
+        ? "optout"
+        : null;
+  if (!action) return null;
+  const seconds = secondsOf(raw.messageTimestamp);
+  if (seconds !== null && now - seconds * 1000 > MAX_INBOUND_AGE_MS) return null;
+  let phone = phoneFromPnJid(raw.key.remoteJid) ?? phoneFromPnJid(raw.key.remoteJidAlt);
+  if (phone === null && splitJid(raw.key.remoteJid)?.server === LID_SERVER) {
+    try {
+      phone = phoneFromPnJid(await resolver.getPNForLID(raw.key.remoteJid));
+    } catch {
+      phone = null;
+    }
+  }
+  if (!phone) return null;
+  const digits = phone.slice(1);
+  return { action, digits, jid: `${digits}@s.whatsapp.net` };
 }
 
 /**

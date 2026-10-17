@@ -59,6 +59,14 @@ export const PAYMENT_REVIEW_STATUSES = ["awaiting_review", "awaiting_second_appr
 
 /** At most this many proof submissions per payment (BILLING §5.7.3). */
 export const PAYMENT_MAX_PROOF_SUBMISSIONS = 3;
+export const PAYMENT_REJECT_REASONS = [
+  "amount_differs",
+  "not_received",
+  "unreadable_proof",
+  "duplicate_proof",
+  "wrong_reference",
+  "other",
+] as const;
 
 export const REFUND_STATUSES = [
   "requested",
@@ -71,6 +79,7 @@ export type RefundStatus = (typeof REFUND_STATUSES)[number];
 
 export const PAYMENT_METHOD_KINDS = ["gateway", "manual"] as const;
 export type PaymentMethodKind = (typeof PAYMENT_METHOD_KINDS)[number];
+export const PAYMENT_METHOD_ACCOUNT_CHANGE_STATUSES = ["pending", "applied", "canceled"] as const;
 
 export const GATEWAY_MODES = ["test", "live"] as const;
 export type GatewayMode = (typeof GATEWAY_MODES)[number];
@@ -162,6 +171,9 @@ export const ALERT_KINDS = [
   "credits.reconcile_drift",
   "points.reconcile_drift",
   "refund.requested",
+  "payment_method.account_change_requested",
+  "payment_method.account_change_canceled",
+  "payment_method.account_change_applied",
 ] as const;
 export type AlertKind = (typeof ALERT_KINDS)[number];
 
