@@ -7,6 +7,9 @@ packages:
 # once a Nest release depends on a patched Fastify.
 overrides:
   fastify: 5.12.5
+  # exceljs 4.4 depends on uuid 8, which lacks the buffer bounds check of GHSA-w5hq-g745-h8pq
+  # (fixed in 11.1.1). exceljs only calls v4() with no buffer; uuid 11 keeps the same CommonJS API.
+  "exceljs>uuid": ^11.1.1
 
 # Accepted advisories. Each entry needs a reason; review them whenever dependencies are updated.
 auditConfig:
