@@ -9,12 +9,12 @@ describe("coupon codes", () => {
   });
 
   it("generates valid codes with the requested length and prefix", () => {
-    for (let index = 0; index < 10_000; index++) {
-      const code = generateCouponCode(8, "WASFA");
-      expect(code).toMatch(COUPON_CODE_PATTERN);
-      expect(code).toHaveLength(14);
-      expect(code.startsWith("WASFA-")).toBe(true);
-    }
+    // One assertion over the whole sample: 30,000 separate expects took over 5 s on a CI runner.
+    const codes = Array.from({ length: 10_000 }, () => generateCouponCode(8, "WASFA"));
+    const invalid = codes.filter(
+      (code) => !COUPON_CODE_PATTERN.test(code) || code.length !== 14 || !code.startsWith("WASFA-"),
+    );
+    expect(invalid).toEqual([]);
   });
 
   it("supports deterministic randomness and normalization", () => {

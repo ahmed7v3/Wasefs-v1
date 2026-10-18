@@ -104,6 +104,7 @@ test("a partner code with a 30% deal: the partner's pending reward equals the wh
   urls,
   redis,
 }) => {
+  test.setTimeout(240_000);
   await mergeSetting(redis, "rewards", { enabled: true, requireFirstUsage: false });
 
   // The partner (a doctor) has an account; an admin gives them a partner code with a 30% deal.
@@ -193,7 +194,8 @@ test("a partner code with a 30% deal: the partner's pending reward equals the wh
         async () =>
           ((await (await page.request.get(`${urls.api}/me/rewards`)).json()) as { balances: { pending: number } })
             .balances.pending,
-        { timeout: 30_000 },
+        // Through the outbox, drained every 30 s by the worker.
+        { timeout: 90_000 },
       )
       .toBe(expected);
   } finally {

@@ -14,6 +14,10 @@ import { verifyPhoneViaApi } from "./support/phone";
 
 import type { APIRequestContext } from "@playwright/test";
 
+// Rewards arrive through the transactional outbox, which the worker drains every 30 s: allow
+// more than two drain intervals before calling a reward missing.
+const OUTBOX_WAIT = 90_000;
+
 // Task 3.11 acceptance: the inviter shares the link; the friend opens /r/<code>, registers with the
 // code prefilled, and the inviter /rewards counts the invite. Points need the friend verified phone
 // and first analysis (`rewards.requireFirstUsage`), which the reward specs of the API cover; the
@@ -87,7 +91,7 @@ test("invite → both rewarded on verification → the friend pays → pending �
   urls,
   redis,
 }) => {
-  test.setTimeout(240_000);
+  test.setTimeout(420_000);
   // No first analysis needed here (the API and db suites cover requireFirstUsage). Both browsers
   // share 127.0.0.1 and one user agent, which the same-device rule rightly holds: switched off for
   // this journey (the fraud rules have their own suites) and restored at the end.
@@ -146,8 +150,8 @@ test("invite → both rewarded on verification → the friend pays → pending �
       await finishOnboarding(friend.request, urls, account.name);
       const before = await balanceOf(friend.request);
       await verifyPhoneViaApi(friendContext, urls, redis);
-      await expect.poll(() => balanceOf(friend.request), { timeout: 30_000 }).toBe(before + 20);
-      await expect.poll(async () => (await rewardsOf()).pending, { timeout: 30_000 }).toBe(50);
+      await expect.poll(() => balanceOf(friend.request), { timeout: OUTBOX_WAIT }).toBe(before + 20);
+      await expect.poll(async () => (await rewardsOf()).pending, { timeout: OUTBOX_WAIT }).toBe(50);
 
       // --- The friend subscribes: 20% of the net joins the inviter's pending points (14-day hold).
       const order = await createOrderViaApi(friendContext, urls, {
@@ -160,7 +164,7 @@ test("invite → both rewarded on verification → the friend pays → pending �
       await friendContext.close();
     }
     await expect
-      .poll(async () => (await rewardsOf()).pending, { timeout: 30_000 })
+      .poll(async () => (await rewardsOf()).pending, { timeout: OUTBOX_WAIT })
       .toBeGreaterThan(50);
     const pending = (await rewardsOf()).pending;
 
