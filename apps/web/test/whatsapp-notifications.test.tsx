@@ -17,12 +17,12 @@ let current: NotificationPrefsResponse;
 
 beforeEach(() => {
   fetchMock.mockReset();
-  current = { whatsapp: { available: true, enabled: true, active: true } };
+  current = { whatsapp: { available: true, enabled: true, active: true }, marketing: { enabled: false } };
   fetchMock.mockImplementation((url, init) => {
     if (!String(url).endsWith("/me/notification-prefs")) return Promise.resolve(json({}, 404));
     if ((init?.method ?? "GET") === "PUT") {
       const { whatsapp } = JSON.parse(String(init?.body)) as { whatsapp: boolean };
-      current = { whatsapp: { ...current.whatsapp, enabled: whatsapp } };
+      current = { ...current, whatsapp: { ...current.whatsapp, enabled: whatsapp } };
     }
     return Promise.resolve(json(current));
   });
@@ -57,13 +57,13 @@ describe("WhatsApp notifications on the account page", () => {
   });
 
   it("says when the owner has not switched WhatsApp messages on", async () => {
-    current = { whatsapp: { available: true, enabled: true, active: false } };
+    current = { whatsapp: { available: true, enabled: true, active: false }, marketing: { enabled: false } };
     view();
     expect(await screen.findByText(t("account.notifications.whatsappInactive"))).toBeTruthy();
   });
 
   it("shows nothing without a verified phone", async () => {
-    current = { whatsapp: { available: false, enabled: false, active: true } };
+    current = { whatsapp: { available: false, enabled: false, active: true }, marketing: { enabled: false } };
     view();
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalled();

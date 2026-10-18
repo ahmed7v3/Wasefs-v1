@@ -1,5 +1,6 @@
 import { t } from "@wasfa/shared/i18n";
 
+import { MarketingEmails } from "../../../../components/account/marketing-emails";
 import { PhoneSection } from "../../../../components/account/phone-section";
 import { ProfileForm } from "../../../../components/account/profile-form";
 import { getNonce } from "../../../../lib/nonce";
@@ -28,6 +29,7 @@ export default async function AccountPage() {
         emailVerified={me.emailVerified}
       />
       <PhoneSection phone={me.phone} phoneVerified={me.phoneVerified} nonce={nonce} />
+      <MarketingEmails />
     </div>
   );
 }

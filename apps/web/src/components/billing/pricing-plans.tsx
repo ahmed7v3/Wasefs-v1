@@ -19,6 +19,9 @@ import { useEffect, useId, useState } from "react";
 
 import { fetchRecommendation } from "../../lib/billing-api";
 import { checkoutHref } from "../../lib/checkout-target";
+import { trackGrowth } from "../../lib/growth-events";
+import { OffersCard } from "../growth/offers-card";
+import { ValueLedger } from "../growth/value-ledger";
 
 import type { CatalogResponse, RecommendationResponse } from "@wasfa/shared/schemas/billing";
 
@@ -32,6 +35,8 @@ export interface PricingPlansProps {
   /** Monthly analyses of the free plan (`free_tier` setting). */
   freeMonthlyAnalyses: number;
   trialAvailable: boolean;
+  /** Buying for this organization (`/pricing?org=`): checkout links carry it. */
+  orgId?: string | undefined;
 }
 
 /** The free plan key the API uses for people without a paid plan. */
@@ -120,10 +125,15 @@ export function PricingPlans({
   promotions,
   freeMonthlyAnalyses,
   trialAvailable,
+  orgId,
 }: PricingPlansProps) {
   const [annual, setAnnual] = useState(false);
   const [recommendation, setRecommendation] = useState<RecommendationResponse | null>(null);
   const groupName = useId();
+
+  useEffect(() => {
+    trackGrowth("pricing_viewed", { currency, ...(orgId ? { org: true } : {}) });
+  }, [currency, orgId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -148,7 +158,12 @@ export function PricingPlans({
   return (
     <div className="flex flex-col gap-6">
       {recommendation ? (
-        <Recommendation recommendation={recommendation} plans={plans} currency={currency} />
+        <>
+          {/* Signed-in extras: the person's own value (GROWTH §7.4) and their personal offers. */}
+          <ValueLedger />
+          <OffersCard />
+          <Recommendation recommendation={recommendation} plans={plans} currency={currency} />
+        </>
       ) : null}
 
       {promotions.length > 0 ? (
@@ -286,11 +301,15 @@ export function PricingPlans({
                       href={checkoutHref(
                         { kind: "plan", planKey: plan.key, months: price.months },
                         currency,
+                        orgId,
                       )}
                       className={buttonStyles({
                         variant: highlightKey === plan.key ? "primary" : "secondary",
                         className: "w-full",
                       })}
+                      onClick={() => {
+                        trackGrowth("plan_selected", { plan: plan.key, months: price.months }, true);
+                      }}
                     >
                       {t("billing.plan.choose", { name: plan.names.ar })}
                     </Link>

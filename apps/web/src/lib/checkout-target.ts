@@ -1,6 +1,7 @@
 import { BILLING_KEY_PATTERN } from "@wasfa/shared/billing";
 import { PLAN_KEY_PATTERN } from "@wasfa/shared/plans";
 import { monthsSchema } from "@wasfa/shared/schemas/billing";
+import { orgContextIdSchema } from "@wasfa/shared/schemas/org";
 
 /*
  * What a checkout is for, read from the URL (`?plan=&months=`, `?pack=`, `?renew=1`) and turned into
@@ -37,6 +38,12 @@ export function targetFromParams(params: Params): CheckoutTarget | null {
   return { kind: "plan", planKey: plan, months: months.data };
 }
 
+/** `?org=<id>`: buy for an organization the person administers (the API checks the role). */
+export function orgFromParams(params: Params): string | undefined {
+  const parsed = orgContextIdSchema.safeParse(first(params["org"]));
+  return parsed.success ? parsed.data : undefined;
+}
+
 export interface QuoteCall {
   path: string;
   body: Record<string, unknown>;
@@ -49,9 +56,11 @@ export function quoteCall(
     methodKey?: string | undefined;
     couponCode?: string | undefined;
     currency?: string | undefined;
+    orgId?: string | undefined;
   },
 ): QuoteCall {
-  const { methodKey, couponCode, currency } = options;
+  const { methodKey, couponCode, currency, orgId } = options;
+  const org = orgId ? { orgId } : {};
   const query = currency ? `?currency=${encodeURIComponent(currency)}` : "";
   const method = methodKey ? { methodKey } : {};
   if (target.kind === "renew") {
@@ -61,7 +70,7 @@ export function quoteCall(
     };
   }
   if (target.kind === "pack") {
-    return { path: `/billing/quote${query}`, body: { packKey: target.packKey, ...method } };
+    return { path: `/billing/quote${query}`, body: { packKey: target.packKey, ...method, ...org } };
   }
   return {
     path: `/billing/quote${query}`,
@@ -69,13 +78,14 @@ export function quoteCall(
       planKey: target.planKey,
       months: target.months,
       ...method,
+      ...org,
       ...(couponCode ? { couponCode } : {}),
     },
   };
 }
 
 /** The same target as a checkout link, for the pricing page and the billing account. */
-export function checkoutHref(target: CheckoutTarget, currency?: string): string {
+export function checkoutHref(target: CheckoutTarget, currency?: string, orgId?: string): string {
   const params = new URLSearchParams();
   if (target.kind === "renew") {
     params.set("renew", "1");
@@ -87,5 +97,6 @@ export function checkoutHref(target: CheckoutTarget, currency?: string): string 
     params.set("months", String(target.months));
   }
   if (currency) params.set("currency", currency);
+  if (orgId && target.kind !== "renew") params.set("org", orgId);
   return `/checkout?${params.toString()}`;
 }

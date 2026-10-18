@@ -2,7 +2,16 @@
 
 import { t, type MessageKey } from "@wasfa/shared/i18n";
 import { ComingSoonBadge, cn } from "@wasfa/ui";
-import { CreditCard, FileScan, House, Pill, ShieldCheck, Sparkles, UserRound } from "lucide-react";
+import {
+  CreditCard,
+  FileScan,
+  Gift,
+  House,
+  Pill,
+  ShieldCheck,
+  Sparkles,
+  UserRound,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -59,6 +68,13 @@ const ITEMS: readonly NavItem[] = [
     label: "billing.nav.account",
     icon: CreditCard,
     match: (pathname) => pathname === "/billing" || pathname.startsWith("/billing/"),
+  },
+  {
+    kind: "link",
+    href: "/rewards",
+    label: "nav.rewards",
+    icon: Gift,
+    match: (pathname) => pathname === "/rewards" || pathname.startsWith("/rewards/"),
   },
   {
     kind: "link",

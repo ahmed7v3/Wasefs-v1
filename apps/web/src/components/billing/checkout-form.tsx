@@ -26,6 +26,7 @@ import { createOrder, requestQuote } from "../../lib/billing-api";
 import { previewForMethod, summaryFromQuote } from "../../lib/checkout-summary";
 import { type CheckoutTarget } from "../../lib/checkout-target";
 import { formatDate } from "../../lib/dates";
+import { trackGrowth } from "../../lib/growth-events";
 import { ErrorNotice } from "../error-notice";
 import { Notice } from "../notice";
 
@@ -42,6 +43,8 @@ export interface CheckoutFormProps {
   currency: string;
   refundWindowDays: number;
   reviewSlaMinutes: number;
+  /** Buying for this organization (`?org=`); absent = the personal account. */
+  orgId?: string | undefined;
 }
 
 type Pending = "method" | "coupon" | "pay" | null;
@@ -66,6 +69,7 @@ export function CheckoutForm({
   currency: initialCurrency,
   refundWindowDays,
   reviewSlaMinutes,
+  orgId,
 }: CheckoutFormProps) {
   const router = useRouter();
   const [quote, setQuote] = useState(initial);
@@ -113,12 +117,14 @@ export function CheckoutForm({
       methodKey: next.method ?? undefined,
       couponCode: next.code ?? undefined,
       currency,
+      orgId,
     });
   }
 
   async function chooseMethod(key: string) {
     if (pending === "pay" || pending === "coupon" || key === methodKey) return;
     const previewTotal = previewForMethod(quote.quote, subject, key)?.totalMinor;
+    trackGrowth("method_selected", { method: key });
     setMethodKey(key);
     setError(null);
     setNotice(null);
@@ -208,7 +214,7 @@ export function CheckoutForm({
         return;
       }
       setQuote(fresh);
-      const order = await createOrder(fresh.quoteId, methodKey ?? undefined);
+      const order = await createOrder(fresh.quoteId, methodKey ?? undefined, orgId);
       if (order.redirectUrl) {
         window.location.assign(order.redirectUrl);
       } else {

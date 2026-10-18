@@ -7,6 +7,7 @@ import { useCallback, useState } from "react";
 
 import { useSidebarCollapsed } from "../../lib/use-sidebar-collapsed";
 import { BrandMark, type Branding } from "../brand-mark";
+import { WorkspaceSync } from "../workspace/workspace-sync";
 
 import { AccountMenu, type AccountMenuProps } from "./account-menu";
 import { Drawer } from "./drawer";
@@ -37,6 +38,7 @@ export function AppShell({ user, showAdmin = false, branding, children }: AppShe
 
   return (
     <div className="page-backdrop flex min-h-dvh flex-col">
+      <WorkspaceSync orgIds={(user.organizations ?? []).map((org) => org.id)} />
       <header className="sticky top-0 z-10 flex h-16 print:hidden shrink-0 items-center justify-between gap-3 bg-bg/80 px-3 backdrop-blur sm:px-6">
         <div className="flex items-center gap-1 sm:gap-3">
           <button

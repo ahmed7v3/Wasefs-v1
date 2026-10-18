@@ -41,6 +41,7 @@ export function requestQuote(
     methodKey?: string | undefined;
     couponCode?: string | undefined;
     currency?: string | undefined;
+    orgId?: string | undefined;
     signal?: AbortSignal | undefined;
   },
 ): Promise<QuoteResponse> {
@@ -52,10 +53,16 @@ export function requestQuote(
 export function createOrder(
   quoteId: string,
   methodKey: string | undefined,
+  orgId?: string,
 ): Promise<CreateOrderResponse> {
   return api("/billing/orders", {
     method: "POST",
-    body: { quoteId, ...(methodKey ? { methodKey } : {}), locale: "ar" },
+    body: {
+      quoteId,
+      ...(methodKey ? { methodKey } : {}),
+      ...(orgId ? { orgId } : {}),
+      locale: "ar",
+    },
     schema: createOrderResponseSchema,
   });
 }

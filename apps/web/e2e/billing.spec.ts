@@ -125,7 +125,8 @@ test.describe("checkout", () => {
     redis,
   }) => {
     await customer(context, page, urls, redis);
-    insertCoupon("E2E10", 1_000);
+    // 25%: more than any promotion an earlier spec leaves running (the better discount wins).
+    insertCoupon("E2E25", 2_500);
     await page.goto("/checkout?plan=plus&months=1");
 
     const total = page.getByTestId("checkout-total");
@@ -138,9 +139,9 @@ test.describe("checkout", () => {
     await expect(page.getByText(t("billing.coupon.invalid"))).toBeVisible();
     expect(amountOf(await total.textContent())).toBe(before);
 
-    await coupon.fill("e2e10");
+    await coupon.fill("e2e25");
     await apply.click();
-    await expect(page.getByText(t("billing.coupon.applied", { code: "E2E10" }))).toBeVisible();
+    await expect(page.getByText(t("billing.coupon.applied", { code: "E2E25" }))).toBeVisible();
     await expect(page.getByText(t("billing.line.coupon"), { exact: true })).toBeVisible();
     expect(amountOf(await total.textContent())).toBeLessThan(before);
   });

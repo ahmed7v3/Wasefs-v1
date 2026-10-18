@@ -10,7 +10,12 @@ import { ErrorNotice } from "../../../../components/error-notice";
 import { Notice } from "../../../../components/notice";
 import { ApiRequestError } from "../../../../lib/api-error";
 import { getCatalog, requestedCurrency } from "../../../../lib/billing-server";
-import { quoteCall, targetFromParams, type CheckoutTarget } from "../../../../lib/checkout-target";
+import {
+  orgFromParams,
+  quoteCall,
+  targetFromParams,
+  type CheckoutTarget,
+} from "../../../../lib/checkout-target";
 import { requireOnboarded, serverApi } from "../../../../lib/session";
 
 import type { Metadata } from "next";
@@ -33,8 +38,9 @@ function quoteOnServer(
   target: CheckoutTarget,
   methodKey: string | undefined,
   currency: string | undefined,
+  orgId: string | undefined,
 ): Promise<QuoteResponse> {
-  const { path, body } = quoteCall(target, { methodKey, currency });
+  const { path, body } = quoteCall(target, { methodKey, currency, orgId });
   return serverApi(path, { method: "POST", body, schema: quoteResponseSchema });
 }
 
@@ -64,6 +70,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   const target = targetFromParams(params);
   if (!target) redirect("/pricing");
 
+  const orgId = orgFromParams(params);
   const currency = await requestedCurrency(params);
   const [catalog, subscription] = await Promise.all([
     getCatalog(currency),
@@ -82,10 +89,11 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
   let methodKey: string | null;
   try {
     const first = catalog.methods[0]?.key;
-    quote = await quoteOnServer(target, first, catalog.currency);
+    quote = await quoteOnServer(target, first, catalog.currency, orgId);
     // The first method may not fit this amount (its limits): start from the first one that does.
     const usable = quote.quote.methodOptions.find((option) => option.available)?.key;
-    if (usable && usable !== first) quote = await quoteOnServer(target, usable, catalog.currency);
+    if (usable && usable !== first)
+      quote = await quoteOnServer(target, usable, catalog.currency, orgId);
     methodKey = usable ?? null;
   } catch (error) {
     if (error instanceof ApiRequestError && error.code === "NOT_FOUND") {
@@ -131,6 +139,7 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
         currency={catalog.currency}
         refundWindowDays={catalog.billing.refundWindowDays}
         reviewSlaMinutes={catalog.billing.reviewSlaMinutes}
+        orgId={orgId}
       />
     </div>
   );

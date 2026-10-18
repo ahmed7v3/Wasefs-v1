@@ -10,6 +10,7 @@ import { useState } from "react";
 import { api } from "../../lib/api-client";
 import { displayName } from "../../lib/labels";
 import { PopoverMenu } from "../popover-menu";
+import { WorkspaceSwitcher, type WorkspaceOrg } from "../workspace/workspace-switcher";
 
 const itemStyles =
   "flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-start text-base font-semibold text-text transition-colors duration-150 hover:bg-primary-soft hover:text-primary focus-visible:outline-none focus-visible:shadow-focus";
@@ -17,9 +18,18 @@ const itemStyles =
 export interface AccountMenuProps {
   name: string;
   image: string | null;
+  /** Organizations the person is an active member of (the workspace choice). */
+  organizations?: readonly WorkspaceOrg[] | undefined;
+  /** The organization the shell acts for; `null`/absent = the personal account. */
+  activeOrgId?: string | null | undefined;
 }
 
-export function AccountMenu({ name, image }: AccountMenuProps) {
+export function AccountMenu({
+  name,
+  image,
+  organizations = [],
+  activeOrgId = null,
+}: AccountMenuProps) {
   const { toast } = useToast();
   const [signingOut, setSigningOut] = useState(false);
   const shownName = displayName(name, ANONYMIZED_USER_NAME);
@@ -57,20 +67,32 @@ export function AccountMenu({ name, image }: AccountMenuProps) {
       }
     >
       {(close) => (
-        <ul className="flex flex-col gap-1">
-          <li>
-            <Link href="/account" className={itemStyles} onClick={close}>
-              <UserRound aria-hidden className="size-5 text-neutral-600" />
-              {t("nav.account")}
-            </Link>
-          </li>
-          <li>
-            <button type="button" className={itemStyles} onClick={signOut} disabled={signingOut}>
-              <LogOut aria-hidden className="size-5 text-neutral-600 rtl:-scale-x-100" />
-              {t("shell.signOut")}
-            </button>
-          </li>
-        </ul>
+        <div className="flex flex-col gap-1">
+          {organizations.length > 0 ? (
+            <>
+              <WorkspaceSwitcher
+                organizations={organizations}
+                activeOrgId={activeOrgId}
+                onChosen={close}
+              />
+              <hr className="my-1 border-border/60" />
+            </>
+          ) : null}
+          <ul className="flex flex-col gap-1">
+            <li>
+              <Link href="/account" className={itemStyles} onClick={close}>
+                <UserRound aria-hidden className="size-5 text-neutral-600" />
+                {t("nav.account")}
+              </Link>
+            </li>
+            <li>
+              <button type="button" className={itemStyles} onClick={signOut} disabled={signingOut}>
+                <LogOut aria-hidden className="size-5 text-neutral-600 rtl:-scale-x-100" />
+                {t("shell.signOut")}
+              </button>
+            </li>
+          </ul>
+        </div>
       )}
     </PopoverMenu>
   );

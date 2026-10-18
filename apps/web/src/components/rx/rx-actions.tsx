@@ -15,6 +15,7 @@ import { useState } from "react";
 import { api } from "../../lib/api-client";
 import { extractErrorRef } from "../../lib/api-error";
 import { buildCopyText, buildShareText, whatsappShareUrl, type RxReport } from "../../lib/rx-text";
+import { withWorkspace } from "../../lib/workspace";
 import { errorMessage } from "../error-notice";
 
 export interface RxActionsProps {
@@ -104,7 +105,7 @@ export function RxActions({
     try {
       const created = await api("/rx", {
         method: "POST",
-        body: { fileIds: analysis.files.map((file) => file.fileId), mode: "deep" },
+        body: withWorkspace({ fileIds: analysis.files.map((file) => file.fileId), mode: "deep" }),
         schema: rxCreateResponseSchema,
       });
       router.push(`/analyze/${created.id}`);

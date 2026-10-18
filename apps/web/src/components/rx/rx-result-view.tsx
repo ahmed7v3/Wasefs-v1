@@ -28,6 +28,7 @@ import { optimisticDrugCorrection, type RxPick } from "../../lib/rx-optimistic";
 import { useRxAnalysis } from "../../lib/use-rx-analysis";
 import { useRxImages } from "../../lib/use-rx-images";
 import { ErrorNotice, errorMessage } from "../error-notice";
+import { PromptSlot } from "../growth/prompt-slot";
 
 import { RxActions } from "./rx-actions";
 import { RxDisclaimer, RxNotices } from "./rx-notices";
@@ -297,6 +298,8 @@ export function RxResultView({
                 )}
                 <RxOverview result={result} />
                 <RxNotices result={result} />
+                {/* Rendered only with a finished result: never during the analysis or on an error. */}
+                <PromptSlot context="result" rxId={view.id} />
                 <RxRating
                   key={view.id}
                   analysisId={view.id}

@@ -26,6 +26,12 @@ type Order = MyOrdersResponse["items"][number];
 export interface OrderHistoryProps {
   /** Display names of plans and packs by key, from the catalog. */
   names: Readonly<Record<string, string>>;
+  /** Loads one page; the person's own orders by default (an organization passes its own). */
+  fetchPage?: ((cursor?: string) => Promise<MyOrdersResponse>) | undefined;
+  /** Receipt page of an order; the personal one by default. */
+  receiptHref?: ((orderId: string) => string) | undefined;
+  /** Offer "complete payment" on unpaid orders (personal orders only). */
+  canComplete?: boolean | undefined;
 }
 
 const STATUS: Record<Order["status"], { label: MessageKey; tone: BadgeTone }> = {
@@ -46,22 +52,30 @@ function itemText(order: Order, names: Readonly<Record<string, string>>): string
 }
 
 /** The customer's orders, newest first, with the receipt of each paid one and "load more". */
-export function OrderHistory({ names }: OrderHistoryProps) {
+export function OrderHistory({
+  names,
+  fetchPage = fetchMyOrders,
+  receiptHref = (orderId) => `/billing/orders/${orderId}/receipt`,
+  canComplete = true,
+}: OrderHistoryProps) {
   const [items, setItems] = useState<Order[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const load = useCallback(async (after?: string) => {
-    try {
-      const page = await fetchMyOrders(after);
-      setItems((current) => (after && current ? [...current, ...page.items] : page.items));
-      setCursor(page.nextCursor);
-      setError(null);
-    } catch (failure) {
-      setError(failure);
-    }
-  }, []);
+  const load = useCallback(
+    async (after?: string) => {
+      try {
+        const page = await fetchPage(after);
+        setItems((current) => (after && current ? [...current, ...page.items] : page.items));
+        setCursor(page.nextCursor);
+        setError(null);
+      } catch (failure) {
+        setError(failure);
+      }
+    },
+    [fetchPage],
+  );
 
   useEffect(() => {
     void load();
@@ -115,15 +129,12 @@ export function OrderHistory({ names }: OrderHistoryProps) {
                 </span>
                 <Badge tone={status.tone}>{t(status.label)}</Badge>
                 {order.receiptAvailable ? (
-                  <Link
-                    href={`/billing/orders/${order.id}/receipt`}
-                    className={buttonStyles({ variant: "ghost" })}
-                  >
+                  <Link href={receiptHref(order.id)} className={buttonStyles({ variant: "ghost" })}>
                     {t("billing.orders.receipt")}
                     <span className="sr-only"> {order.number}</span>
                   </Link>
                 ) : null}
-                {order.status === "pending_payment" ? (
+                {canComplete && order.status === "pending_payment" ? (
                   <Link
                     href={`/checkout/${order.id}`}
                     className={buttonStyles({ variant: "secondary" })}

@@ -4,11 +4,12 @@ import { ChevronDown, MessageCircle } from "lucide-react";
 import Link from "next/link";
 
 import { CurrencySwitch } from "../../../components/billing/currency-switch";
+import { OrgLeadDialog } from "../../../components/billing/org-lead-dialog";
 import { PricingPlans } from "../../../components/billing/pricing-plans";
 import { JsonLd } from "../../../components/marketing/json-ld";
 import { Notice } from "../../../components/notice";
 import { getCatalog, requestedCurrency } from "../../../lib/billing-server";
-import { checkoutHref } from "../../../lib/checkout-target";
+import { checkoutHref, orgFromParams } from "../../../lib/checkout-target";
 import { contactLinks } from "../../../lib/contact-links";
 import { publicEnv } from "../../../lib/env";
 import { getNonce } from "../../../lib/nonce";
@@ -41,7 +42,9 @@ export default async function PricingPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const currencyParam = await requestedCurrency(await searchParams);
+  const params = await searchParams;
+  const orgId = orgFromParams(params);
+  const currencyParam = await requestedCurrency(params);
   const [catalog, settings, nonce] = await Promise.all([
     getCatalog(currencyParam),
     getPublicSettings(),
@@ -115,6 +118,7 @@ export default async function PricingPage({
             promotions={promotions}
             freeMonthlyAnalyses={settings.free_tier.monthlyAnalyses}
             trialAvailable={billing.trialAvailable}
+            orgId={orgId}
           />
           {tax.mode !== "none" ? (
             <p className="text-sm text-text-muted">
@@ -149,7 +153,7 @@ export default async function PricingPage({
                       {t("billing.packs.valid", { months: pack.validMonths })}
                     </p>
                     <Link
-                      href={checkoutHref({ kind: "pack", packKey: pack.key }, currency)}
+                      href={checkoutHref({ kind: "pack", packKey: pack.key }, currency, orgId)}
                       className={buttonStyles({
                         variant: "secondary",
                         className: "mt-auto w-full",
@@ -194,9 +198,7 @@ export default async function PricingPage({
               : t("billing.org.lead")}
           </p>
           <div>
-            <Link href="/contact" className={buttonStyles({ variant: "secondary" })}>
-              {t("billing.org.cta")}
-            </Link>
+            <OrgLeadDialog nonce={nonce} />
           </div>
         </section>
 

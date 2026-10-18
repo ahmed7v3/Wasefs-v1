@@ -11,7 +11,16 @@ import type { LucideIcon } from "lucide-react";
  * build does not know shows its raw code instead of a hole.
  */
 
-export type StatusKind = "payment" | "order" | "subscription" | "refund" | "discount";
+export type StatusKind =
+  | "payment"
+  | "order"
+  | "subscription"
+  | "refund"
+  | "discount"
+  | "withdrawal"
+  | "referral"
+  | "deal"
+  | "experiment";
 
 const TONES: Record<StatusKind, Record<string, BadgeTone>> = {
   payment: {
@@ -49,6 +58,33 @@ const TONES: Record<StatusKind, Record<string, BadgeTone>> = {
     succeeded: "success",
     failed: "danger",
     rejected: "danger",
+  },
+  withdrawal: {
+    requested: "warning",
+    approved: "info",
+    paid: "success",
+    rejected: "danger",
+    canceled: "neutral",
+  },
+  referral: {
+    pending: "neutral",
+    qualified: "info",
+    rewarded: "success",
+    held: "warning",
+    blocked: "danger",
+    void: "neutral",
+  },
+  deal: {
+    draft: "neutral",
+    active: "success",
+    paused: "warning",
+    ended: "neutral",
+  },
+  experiment: {
+    draft: "neutral",
+    running: "success",
+    stopped: "warning",
+    completed: "info",
   },
   discount: {
     active: "success",

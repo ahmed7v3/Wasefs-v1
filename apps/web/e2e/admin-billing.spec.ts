@@ -63,9 +63,13 @@ test.describe("admin billing console", () => {
     );
 
     // --- both are on the public pricing page
+    // The pricing page caches the catalog for about a minute (BILLING-RUNBOOK §4): reload until then.
     await page.goto("/pricing");
-    await expect(page.getByText(/123\.45/).first()).toBeVisible();
-    await expect(page.getByText("عرض الإطلاق التجريبي").first()).toBeVisible();
+    await expect(async () => {
+      await page.reload();
+      await expect(page.getByText(/123\.45/).first()).toBeVisible({ timeout: 2_000 });
+      await expect(page.getByText("عرض الإطلاق التجريبي").first()).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 90_000, intervals: [5_000] });
   });
 
   test("approves a manual payment from the queue with J, K and A", async ({

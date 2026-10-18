@@ -14,6 +14,9 @@ export const PROTECTED_PREFIXES = [
   "/ai",
   "/checkout",
   "/billing",
+  "/org",
+  "/rewards",
+  "/taste",
 ] as const;
 
 /**

@@ -8,6 +8,7 @@ import { errorMessage } from "../components/error-notice";
 import { ApiRequestError, extractErrorRef } from "./api-error";
 import { chatReducer, EMPTY_CHAT } from "./chat-state";
 import { streamChatMessage } from "./chat-stream";
+import { getWorkspaceOrgId } from "./workspace";
 
 import type { AiMode } from "@wasfa/shared/ai";
 import type { ChatEvent, SendMessageInput } from "@wasfa/shared/schemas/chat";
@@ -180,14 +181,21 @@ export function useChatTurn(options: UseChatTurnOptions = {}) {
         }
       };
 
+      const orgId = getWorkspaceOrgId();
       const body: Pick<SendMessageInput, "mode"> & Partial<Omit<SendMessageInput, "mode">> =
         input.regenerate !== undefined
-          ? { mode: input.mode, search: input.search, regenerate: input.regenerate }
+          ? {
+              mode: input.mode,
+              search: input.search,
+              regenerate: input.regenerate,
+              ...(orgId === null ? {} : { orgId }),
+            }
           : {
               mode: input.mode,
               search: input.search,
               fileIds: input.fileIds ?? [],
               ...(input.content === undefined ? {} : { content: input.content }),
+              ...(orgId === null ? {} : { orgId }),
             };
 
       try {

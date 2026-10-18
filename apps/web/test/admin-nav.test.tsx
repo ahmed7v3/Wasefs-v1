@@ -30,11 +30,15 @@ describe("visibleNavGroups", () => {
     ]);
   });
 
-  it("maps every page to its read permission, never to a write permission (evals.run is the one permission that guards a page and its runs)", () => {
+  it("maps every page to its read permission, never to a write permission (evals.run, withdrawals.review and alerts.receive guard pages with no separate read permission)", () => {
     const permissions = ADMIN_NAV.flatMap((group) => group.items.map((item) => item.permission));
     for (const permission of permissions) {
       expect(
-        permission === null || permission.endsWith(".read") || permission === "evals.run",
+        permission === null ||
+          permission.endsWith(".read") ||
+          permission === "evals.run" ||
+          permission === "withdrawals.review" ||
+          permission === "alerts.receive",
       ).toBe(true);
     }
   });
@@ -52,6 +56,13 @@ describe("visibleNavGroups", () => {
       "/admin/billing/coupons",
       "/admin/billing/credit-packs",
       "/admin/billing/methods",
+      "/admin/growth",
+      "/admin/growth/referrals",
+      "/admin/growth/fraud",
+      "/admin/growth/withdrawals",
+      "/admin/growth/deals",
+      "/admin/growth/experiments",
+      "/admin/alerts",
       "/admin/users",
       "/admin/orgs",
       "/admin/roles",

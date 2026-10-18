@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 
 import { AuthFooter, AuthHeading } from "../../../components/auth/auth-heading";
 import { LoginForm, type LoginBanner } from "../../../components/auth/login-form";
+import { JoinCookie } from "../../../components/join/join-cookie";
+import { normalizeJoinSlug } from "../../../lib/attribution-cookies";
 import { providersResponseSchema, type ProviderStates } from "../../../lib/auth-api";
 import { getNonce } from "../../../lib/nonce";
 import { safeNext } from "../../../lib/safe-next";
@@ -54,11 +56,16 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   if (await getMe().catch(() => null)) redirect(next);
 
   const [providers, nonce] = await Promise.all([loadProviders(), getNonce()]);
+  const joinSlug = normalizeJoinSlug(first(params["join"]));
+  const registerParams = new URLSearchParams();
+  if (next !== "/dashboard") registerParams.set("next", next);
+  if (joinSlug) registerParams.set("join", joinSlug);
   const registerHref =
-    next === "/dashboard" ? "/register" : `/register?next=${encodeURIComponent(next)}`;
+    registerParams.size > 0 ? `/register?${registerParams.toString()}` : "/register";
 
   return (
     <>
+      {joinSlug ? <JoinCookie slug={joinSlug} /> : null}
       <AuthHeading title={t("auth.login.title")} lead={t("auth.login.lead")} />
       <LoginForm nonce={nonce} next={next} providers={providers} banner={bannerFor(params)} />
       <AuthFooter>

@@ -273,7 +273,10 @@ export async function startStack(options: { withTurnstile: boolean }): Promise<R
     NEXT_PUBLIC_ENV: "development",
     NEXT_PUBLIC_SITE_URL: originOf(STACK_PORTS[name].web),
     NEXT_PUBLIC_API_URL: originOf(STACK_PORTS[name].api),
-    ...(name === "turnstile" ? { NEXT_PUBLIC_TURNSTILE_SITE_KEY: TURNSTILE_TEST_SITE_KEY } : {}),
+    // Always set: `next build`/`next start` also read `apps/web/.env.local` from disk, and a real
+    // key there would put a live widget on the default stack. Empty counts as unset (lib/env.ts),
+    // and a variable already in the environment wins over the env files.
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: name === "turnstile" ? TURNSTILE_TEST_SITE_KEY : "",
   });
 
   let infra: Infra | undefined;

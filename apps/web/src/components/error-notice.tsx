@@ -2,8 +2,9 @@ import { isErrorCode } from "@wasfa/shared/errors";
 import { t, type MessageKey } from "@wasfa/shared/i18n";
 import { Button, buttonStyles, cn } from "@wasfa/ui";
 import { RotateCcw, TriangleAlert } from "lucide-react";
+import Link from "next/link";
 
-import { errorReason, extractErrorRef } from "../lib/api-error";
+import { ApiRequestError, errorReason, extractErrorRef } from "../lib/api-error";
 
 /** Machine reasons from the API (`details.reason`) that deserve a sentence of their own. */
 const REASON_MESSAGES: Record<string, MessageKey> = {
@@ -94,7 +95,29 @@ const REASON_MESSAGES: Record<string, MessageKey> = {
   no_route: "ai.reason.no_route",
   file_not_ready: "ai.reason.file_not_ready",
   not_last_message: "ai.reason.not_last_message",
+  // Organizations, join links and rewards (Phase 3).
+  seat_limit: "org.reason.seat_limit",
+  slug_taken: "org.reason.slug_taken",
+  verification_required: "join.pending.both",
+  member_cap_reached: "org.reason.member_cap_reached",
+  org_credits_exhausted: "org.reason.org_credits_exhausted",
+  vanity_used: "rewardsPage.reason.vanity_used",
+  code_taken: "rewardsPage.reason.code_taken",
+  reserved_code: "rewardsPage.reason.reserved_code",
+  insufficient_points: "rewardsPage.reason.insufficient_points",
+  below_minimum: "rewardsPage.reason.below_minimum",
+  open_reward_debt: "rewardsPage.reason.open_reward_debt",
+  idempotency_key_reused: "rewardsPage.reason.idempotency_key_reused",
 };
+
+const PRICING_PATH = /^\/pricing(\?[A-Za-z0-9=&_-]*)?$/;
+
+/** An in-app path the API suggests for getting past a limit (`details.upgradePath`), if it is a pricing link. */
+export function upgradePath(error: unknown): string | undefined {
+  if (!(error instanceof ApiRequestError)) return undefined;
+  const path = error.details?.["upgradePath"];
+  return typeof path === "string" && PRICING_PATH.test(path) ? path : undefined;
+}
 
 /** The friendly sentence for an error: a specific reason first, else the message of its code. */
 export function errorMessage(error: unknown): string {
@@ -125,6 +148,7 @@ export function ErrorNotice({
   className,
 }: ErrorNoticeProps) {
   const ref = extractErrorRef(error);
+  const upgrade = upgradePath(error);
   return (
     <div
       role="alert"
@@ -141,6 +165,11 @@ export function ErrorNotice({
         <p className="w-fit rounded-md bg-surface px-3 py-1 text-sm font-semibold text-danger">
           {t("common.errorRef", { ref })}
         </p>
+      ) : null}
+      {upgrade ? (
+        <Link href={upgrade} className={buttonStyles({ className: "self-start" })}>
+          {t("org.reason.upgrade")}
+        </Link>
       ) : null}
       {onRetry || supportHref ? (
         <div className="flex flex-wrap items-center gap-3">

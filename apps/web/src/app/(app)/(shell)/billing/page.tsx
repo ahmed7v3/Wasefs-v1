@@ -7,12 +7,16 @@ import Link from "next/link";
 
 import { OrderHistory } from "../../../../components/billing/order-history";
 import { SubscriptionActions } from "../../../../components/billing/subscription-actions";
+import { PayerLine } from "../../../../components/workspace/payer-line";
 import { getCatalog, requestedCurrency } from "../../../../lib/billing-server";
 import { checkoutHref } from "../../../../lib/checkout-target";
 import { contactLinks } from "../../../../lib/contact-links";
 import { formatDate } from "../../../../lib/dates";
 import { getPublicSettings } from "../../../../lib/public-settings";
 import { requireOnboarded, serverApi } from "../../../../lib/session";
+import { payerView } from "../../../../lib/wallet-view";
+import { creditsPath } from "../../../../lib/workspace";
+import { requestedWorkspace } from "../../../../lib/workspace-server";
 
 import type { SubscriptionView } from "@wasfa/shared/schemas/subscriptions";
 import type { Metadata } from "next";
@@ -57,11 +61,12 @@ function StatusChips({ subscription }: { subscription: SubscriptionView }) {
 }
 
 export default async function BillingPage() {
-  await requireOnboarded("/billing");
+  const me = await requireOnboarded("/billing");
+  const orgId = await requestedWorkspace(me);
   const currency = await requestedCurrency({});
   const [mine, credits, catalog, settings] = await Promise.all([
     serverApi("/me/subscription", { schema: mySubscriptionResponseSchema }),
-    serverApi("/me/credits", { schema: meCreditsResponseSchema }),
+    serverApi(creditsPath(orgId), { schema: meCreditsResponseSchema }),
     getCatalog(currency),
     getPublicSettings(),
   ]);
@@ -92,6 +97,7 @@ export default async function BillingPage() {
   const nextGrant = subscription?.nextCreditGrantAt ?? credits.nextGrantAt;
   const whatsapp = contactLinks(settings.contact).find((link) => link.channel === "whatsapp");
   const pending = subscription?.pendingChange ?? null;
+  const payer = payerView(credits);
 
   return (
     <div className="flex flex-col gap-8">
@@ -155,9 +161,10 @@ export default async function BillingPage() {
           <p className="flex items-center gap-2 font-heading text-3xl font-bold tabular-nums text-text">
             <Coins aria-hidden className="size-6 text-primary" />
             <span data-testid="credit-balance">
-              {t("dashboard.credits.balance", { balance: credits.wallet.balance })}
+              {t("dashboard.credits.balance", { balance: payer.balance })}
             </span>
           </p>
+          <PayerLine payer={payer} />
           <p className="text-base text-text-muted">
             {t("billing.account.monthlyCredits", { count: credits.monthlyCredits })} ·{" "}
             {t("billing.account.nextGrant", { date: formatDate(nextGrant) })}

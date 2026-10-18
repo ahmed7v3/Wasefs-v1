@@ -21,7 +21,8 @@ export function newAccount(label = "Tester"): Account {
   const id = randomBytes(4).toString("hex");
   return {
     name: `${label} ${id}`,
-    email: `${label.toLowerCase()}-${id}@example.com`,
+    // The label may hold spaces ("Pharmacy Owner"); the address keeps a slug of it.
+    email: `${label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "user"}-${id}@example.com`,
     password: PASSWORD,
   };
 }
@@ -51,8 +52,10 @@ export async function registerVerified(
     throw new Error(`sign-up failed: ${String(signUp.status)} ${await signUp.text()}`);
   const link = await waitForMailLink(redis, account.email, "verify-email");
   const verified = await fetch(link, { redirect: "manual" });
-  if (verified.status >= 400)
-    throw new Error(`email verification failed: ${String(verified.status)}`);
+  const location = verified.headers.get("location") ?? "";
+  // Better Auth answers a bad or expired token with a redirect too, carrying `error=` in the URL.
+  if (verified.status >= 400 || /[?&]error=/.test(location))
+    throw new Error(`email verification failed: ${String(verified.status)} ${location}`);
 }
 
 /** Password sign-in with the browser context's own cookie jar, so its pages are signed in afterwards. */
@@ -85,7 +88,9 @@ async function put(request: APIRequestContext, urls: StackUrls, step: string, da
     data,
     headers: originHeader(urls),
   });
-  if (!response.ok()) throw new Error(`onboarding ${step} failed: ${String(response.status())}`);
+  if (!response.ok()) {
+    throw new Error(`onboarding ${step} failed: ${String(response.status())} ${await response.text()}`);
+  }
 }
 
 /** Answers the onboarding steps through the API (the UI path has its own specs). Phone must be skippable. */
