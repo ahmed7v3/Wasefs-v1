@@ -78,3 +78,10 @@ export function toPage<T>(
 export function escapeLike(text: string): string {
   return text.replace(/[\\%_]/g, (char) => `\\${char}`);
 }
+
+/** A page row without its `cursorAt` sort key (an internal value the response must not carry). */
+export function withoutCursor<T extends { cursorAt: unknown }>(row: T): Omit<T, "cursorAt"> {
+  const copy: Partial<T> = { ...row };
+  delete copy.cursorAt;
+  return copy as Omit<T, "cursorAt">;
+}

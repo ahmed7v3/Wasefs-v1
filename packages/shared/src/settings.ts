@@ -99,6 +99,68 @@ export const freeTierSettingsSchema = z.object({
  */
 export const whatsappSettingsSchema = z.object({
   number: phoneNumberSchema.nullable().default(null),
+  /**
+   * Customer notifications sent from that number (owner decision, 2026-10-17). Off until the owner
+   * switches it on in /admin/whatsapp. Only customers whose phone was verified through this
+   * WhatsApp number receive them, within the caps and the sending hours; the rest get email.
+   */
+  customerMessages: z
+    .object({
+      enabled: z.boolean().default(false),
+      /** Messages to customers per UTC day, all customers together. */
+      dailyCap: z.number().int().min(1).max(2_000).default(300),
+      /** Messages per customer per UTC day. */
+      perUserDailyCap: z.number().int().min(1).max(10).default(3),
+      timezone: z
+        .string()
+        .refine(isTimeZone, { message: "Unknown IANA time zone" })
+        .default("Africa/Cairo"),
+      /** Messages outside [startHour, endHour) wait for the next window. */
+      startHour: z.number().int().min(0).max(23).default(9),
+      endHour: z.number().int().min(1).max(24).default(21),
+    })
+    .refine((value) => value.endHour > value.startHour, {
+      message: "endHour must be after startHour",
+      path: ["endHour"],
+    })
+    .default({
+      enabled: false,
+      dailyCap: 300,
+      perUserDailyCap: 3,
+      timezone: "Africa/Cairo",
+      startHour: 9,
+      endHour: 21,
+    }),
+});
+
+/** A zone `Intl` can format with; a bad value would make every business-hours check throw. */
+function isTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export const alertsSettingsSchema = z.object({
+  whatsapp: z
+    .object({
+      enabled: z.boolean().default(false),
+      dailyCap: z.number().int().min(1).max(20).default(20),
+    })
+    .default({ enabled: false, dailyCap: 20 }),
+  businessHours: z
+    .object({
+      timezone: z
+        .string()
+        .refine(isTimeZone, { message: "Unknown IANA time zone" })
+        .default("Africa/Cairo"),
+      startHour: z.number().int().min(0).max(23).default(9),
+      endHour: z.number().int().min(1).max(24).default(22),
+      days: z.array(z.number().int().min(0).max(6)).default([0, 1, 2, 3, 4, 5, 6]),
+    })
+    .default({ timezone: "Africa/Cairo", startHour: 9, endHour: 22, days: [0, 1, 2, 3, 4, 5, 6] }),
 });
 
 /**
@@ -171,6 +233,177 @@ export function skillEnabledForPlan(
   return rule === undefined || rule === "all" || rule.includes(planKey);
 }
 
+const bps = z.number().int().min(0).max(10_000);
+const nonNegativeInt = z.number().int().min(0).max(1_000_000_000);
+
+/**
+ * Billing (Phase 3, BILLING §11). Admin only: the public catalog gets `billingPublicView()`. Money
+ * is integer minor units; currencies are NOT duplicated here (the public `currency` setting is the
+ * source for checkout currencies).
+ */
+export const billingSettingsSchema = z.object({
+  allowFreeOrders: z.boolean().default(true),
+  /** A positive total below this is raised to it or refused (`minChargeMode`), never silently dropped. */
+  minChargeMinor: nonNegativeInt.default(1_000),
+  minChargeMode: z.enum(["raise", "refuse"]).default("raise"),
+  quoteTtlMinutes: z.number().int().min(1).max(1_440).default(15),
+  orderTtlHours: z.number().int().min(1).max(720).default(24),
+  graceDays: z.number().int().min(0).max(60).default(2),
+  refundWindowDays: z.number().int().min(0).max(365).default(7),
+  maxTotalDiscountBps: bps.default(7_000),
+  /** Manual payments at or above this need a second admin. */
+  fourEyesThresholdMinor: nonNegativeInt.default(500_000),
+  /** An admin plan change whose list price reaches this (default currency) needs a fresh sign-in. */
+  adminPlanChangeFreshAuthMinor: nonNegativeInt.default(50_000),
+  reviewSlaMinutes: z.number().int().min(1).max(10_080).default(120),
+  failureSpike: z
+    .object({
+      enabled: z.boolean().default(true),
+      windowMinutes: z.number().int().min(5).max(120).default(15),
+      minFailures: z.number().int().min(1).max(1_000).default(5),
+      rateBps: z.number().int().min(1).max(10_000).default(5_000),
+      cooldownMinutes: z.number().int().min(5).max(1_440).default(60),
+    })
+    .default({
+      enabled: true,
+      windowMinutes: 15,
+      minFailures: 5,
+      rateBps: 5_000,
+      cooldownMinutes: 60,
+    }),
+  /** Retention of payment proof images, in days. */
+  proofRetentionDays: z.number().int().min(1).max(3_650).default(365),
+  fx: z
+    .object({ usdToEgp: z.number().positive().max(100_000).default(50) })
+    .default({ usdToEgp: 50 }),
+  /** Legal details printed on receipts (null until the owner enters them). */
+  company: z
+    .object({
+      legalName: z.string().trim().max(200).nullable().default(null),
+      address: z.string().trim().max(500).nullable().default(null),
+      taxId: z.string().trim().max(60).nullable().default(null),
+    })
+    .default({ legalName: null, address: null, taxId: null }),
+  creditPackValidMonths: z.number().int().min(1).max(120).default(12),
+  trial: z
+    .object({
+      /** Credits granted by a trial; 0 turns trials off. */
+      credits: z.number().int().min(0).max(100_000).default(20),
+      oncePerPhone: z.boolean().default(true),
+    })
+    .default({ credits: 20, oncePerPhone: true }),
+});
+
+/**
+ * Referrals, points and withdrawals (Phase 3, REFERRALS-REWARDS §9). Admin only. Off until the owner
+ * switches it on; `killSwitch` stops new rewards and withdrawals at once.
+ */
+export const rewardsSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  killSwitch: z.boolean().default(false),
+  /**
+   * Real cash payouts. Off until the owner has settled the legal treatment of paying individuals with
+   * an accountant (phase3.md, Open question 2); points can still be earned and converted to credits.
+   */
+  cashOutEnabled: z.boolean().default(false),
+  /** Piasters per point: 10 means 1,000 points = 100 EGP. */
+  pointValueMinor: z.number().int().min(1).max(1_000_000).default(10),
+  currency: currencyCode.default("EGP"),
+  minWithdrawalPoints: nonNegativeInt.default(1_000),
+  maxWithdrawalPointsPerMonth: nonNegativeInt.default(100_000),
+  minAccountAgeDays: z.number().int().min(0).max(365).default(7),
+  destinationCooldownHours: z.number().int().min(0).max(720).default(48),
+  holdDaysDefault: z.number().int().min(0).max(365).default(14),
+  fourEyesThresholdPoints: nonNegativeInt.default(50_000),
+  pointsPerCredit: z.number().int().min(1).max(100_000).default(5),
+  creditConversionBonusBps: bps.default(2_000),
+  requireFirstUsage: z.boolean().default(true),
+  weeklyBudgetPoints: nonNegativeInt.default(1_000_000),
+  /** Months after which unused points expire; null = never. */
+  expireAfterMonths: z.number().int().min(1).max(120).nullable().default(null),
+  fraud: z
+    .object({
+      holdSamePhone: z.boolean().default(true),
+      holdSamePayer: z.boolean().default(true),
+      holdSameDevice: z.boolean().default(true),
+      /** Sign-ups per hour of one referrer above which everything is held and an alert is raised. */
+      velocityPerHour: z.number().int().min(1).max(10_000).default(10),
+    })
+    .default({
+      holdSamePhone: true,
+      holdSamePayer: true,
+      holdSameDevice: true,
+      velocityPerHour: 10,
+    }),
+  payoutSlaHours: z.number().int().min(1).max(720).default(48),
+  tiersEnabled: z.boolean().default(false),
+  /** The referred person's private first-purchase coupon (REFERRALS §3.3); 0 turns the coupon off. */
+  refereeFirstPaymentDiscountBps: bps.default(1_000),
+  refereeCouponValidDays: z.number().int().min(1).max(365).default(30),
+});
+
+/** Conversion prompts, taste grants, lifecycle mail and experiments (Phase 3, GROWTH-STRATEGY §9). Admin only. */
+export const growthSettingsSchema = z.object({
+  /** Stops prompts, tastes, personal offers and lifecycle mail at once. */
+  killSwitch: z.boolean().default(false),
+  prompts: z
+    .object({
+      enabled: z.boolean().default(true),
+      cooldownDays: z.number().int().min(0).max(365).default(7),
+      /** The doubling cooldown after repeated dismissals never goes beyond this (GROWTH §2.6). */
+      maxCooldownDays: z.number().int().min(1).max(365).default(60),
+      maxPerSession: z.number().int().min(0).max(10).default(1),
+    })
+    .default({ enabled: true, cooldownDays: 7, maxCooldownDays: 60, maxPerSession: 1 }),
+  taste: z
+    .object({
+      enabled: z.boolean().default(true),
+      /** Global cap of free premium uses per week (cost control). */
+      weeklyCap: z.number().int().min(0).max(1_000_000).default(100),
+      perUserPerWeek: z.number().int().min(0).max(7).default(1),
+      /** Global cap of the credits the week's tastes may cost (the credits of the taste analyses). */
+      weeklyBudgetCredits: z.number().int().min(0).max(100_000_000).default(2_000),
+    })
+    .default({ enabled: true, weeklyCap: 100, perUserPerWeek: 1, weeklyBudgetCredits: 2_000 }),
+  proof: z
+    .object({ minCount: z.number().int().min(0).max(1_000_000).default(500) })
+    .default({ minCount: 500 }),
+  mostChosen: z
+    .object({ minSample: z.number().int().min(1).max(1_000_000).default(50) })
+    .default({ minSample: 50 }),
+  /** The value ledger's time estimate; always shown as an estimate. */
+  value: z
+    .object({ minutesSavedPerAnalysis: z.number().int().min(0).max(240).default(10) })
+    .default({ minutesSavedPerAnalysis: 10 }),
+  lifecycle: z.object({ enabled: z.boolean().default(true) }).default({ enabled: true }),
+  marketingMail: z
+    .object({
+      maxPerWeek: z.number().int().min(0).max(14).default(1),
+      /** No marketing mail this long after sign-up (GROWTH §6: never in the first 24 hours). */
+      quietHoursAfterSignup: z.number().int().min(0).max(720).default(24),
+    })
+    .default({ maxPerWeek: 1, quietHoursAfterSignup: 24 }),
+  experiments: z
+    .object({
+      /** A variant that worsens a guardrail metric by more than this is flagged red. */
+      guardrailBps: bps.default(500),
+      minSampleSize: z.number().int().min(1).max(10_000_000).default(200),
+    })
+    .default({ guardrailBps: 500, minSampleSize: 200 }),
+  welcomeOffer: z
+    .object({
+      enabled: z.boolean().default(true),
+      validityHours: z.number().int().min(1).max(720).default(48),
+    })
+    .default({ enabled: true, validityHours: 48 }),
+  winback: z
+    .object({
+      enabled: z.boolean().default(true),
+      validityDays: z.number().int().min(1).max(90).default(7),
+    })
+    .default({ enabled: true, validityDays: 7 }),
+});
+
 export const SETTING_VISIBILITIES = ["public", "admin"] as const;
 export type SettingVisibility = (typeof SETTING_VISIBILITIES)[number];
 
@@ -186,6 +419,7 @@ export const SETTINGS_REGISTRY = {
   /** Blocked email domains and the phone-verification kill switch: admin only. */
   auth: { schema: authSettingsSchema, visibility: "admin" },
   whatsapp: { schema: whatsappSettingsSchema, visibility: "admin" },
+  alerts: { schema: alertsSettingsSchema, visibility: "admin" },
   ai: { schema: aiSettingsSchema, visibility: "admin" },
   /** Public: the price per page and the page limit are shown before a prescription is analysed. */
   rx: { schema: rxSettingsSchema, visibility: "public" },
@@ -193,6 +427,10 @@ export const SETTINGS_REGISTRY = {
   uploads: { schema: uploadsSettingsSchema, visibility: "admin" },
   /** Admin only: per-plan enablement of assistant skills, edited on `/admin/ai/skills`. */
   skills: { schema: skillsSettingsSchema, visibility: "admin" },
+  /** Admin only: the public catalog shows a subset through `billingPublicView()`, not as a settings key. */
+  billing: { schema: billingSettingsSchema, visibility: "admin" },
+  rewards: { schema: rewardsSettingsSchema, visibility: "admin" },
+  growth: { schema: growthSettingsSchema, visibility: "admin" },
 } as const satisfies Record<string, { schema: z.ZodType; visibility: SettingVisibility }>;
 
 export type SettingsRegistry = typeof SETTINGS_REGISTRY;

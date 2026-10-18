@@ -9,6 +9,7 @@ import type { Permission } from "@wasfa/shared/permissions";
 import type { FastifyRequest } from "fastify";
 
 const PERMISSION_KEY = "wasfa:permissions";
+const ANY_PERMISSION_KEY = "wasfa:any-permissions";
 
 /**
  * The caller must hold every listed permission (`super_admin` holds all). Admin routes live under
@@ -17,6 +18,10 @@ const PERMISSION_KEY = "wasfa:permissions";
  */
 export const RequirePermission = (...permissions: Permission[]) =>
   SetMetadata(PERMISSION_KEY, permissions);
+
+/** The caller must hold at least one permission (`super_admin` holds all). */
+export const RequireAnyPermission = (...permissions: Permission[]) =>
+  SetMetadata(ANY_PERMISSION_KEY, permissions);
 
 /** True for `/admin` and everything below it, judged by the route pattern Fastify matched. */
 export function isAdminRoute(request: FastifyRequest): boolean {
@@ -39,12 +44,21 @@ export class PermissionsGuard implements CanActivate {
         context.getHandler(),
         context.getClass(),
       ]) ?? [];
+    const anyRequired =
+      this.reflector.getAllAndOverride<Permission[] | undefined>(ANY_PERMISSION_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]) ?? [];
     const admin = isAdminRoute(request);
 
-    if (admin && required.length === 0) {
+    if (admin && required.length === 0 && anyRequired.length === 0) {
       throw new AppError(ErrorCode.FORBIDDEN, { details: { reason: "admin_route_unprotected" } });
     }
-    if (!required.every((permission) => hasPermission(user, permission))) {
+    const hasAll = required.every((permission) => hasPermission(user, permission));
+    const hasAny =
+      anyRequired.length === 0 ||
+      anyRequired.some((permission) => hasPermission(user, permission));
+    if (!hasAll || !hasAny) {
       throw new AppError(ErrorCode.FORBIDDEN);
     }
 

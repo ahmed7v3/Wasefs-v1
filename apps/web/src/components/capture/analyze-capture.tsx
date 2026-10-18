@@ -11,6 +11,7 @@ import { extractErrorRef } from "../../lib/api-error";
 import { createHandoffClient } from "../../lib/capture/handoff-client";
 import { clearPendingCapture, peekPendingCapture } from "../../lib/capture/pending-capture";
 import { createCaptureUploader } from "../../lib/capture/uploader";
+import { withWorkspace } from "../../lib/workspace";
 import { errorMessage } from "../error-notice";
 
 export interface AnalyzeCaptureProps {
@@ -39,7 +40,7 @@ export function AnalyzeCapture({ maxPages, creditsPerPage, balance }: AnalyzeCap
     try {
       const created = await api("/rx", {
         method: "POST",
-        body: { fileIds, mode: "balanced" },
+        body: withWorkspace({ fileIds, mode: "balanced" }),
         schema: rxCreateResponseSchema,
       });
       router.push(`/analyze/${created.id}`);

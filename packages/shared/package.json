@@ -20,6 +20,11 @@
       "import": "./dist/auth-settings.js",
       "default": "./dist/auth-settings.js"
     },
+    "./gateways": {
+      "types": "./dist/gateways.d.ts",
+      "import": "./dist/gateways.js",
+      "default": "./dist/gateways.js"
+    },
     "./crypto": {
       "types": "./dist/crypto.d.ts",
       "import": "./dist/crypto.js",
@@ -85,6 +90,16 @@
       "import": "./dist/money.js",
       "default": "./dist/money.js"
     },
+    "./margin": {
+      "types": "./dist/margin.d.ts",
+      "import": "./dist/margin.js",
+      "default": "./dist/margin.js"
+    },
+    "./price-engine": {
+      "types": "./dist/price-engine.d.ts",
+      "import": "./dist/price-engine.js",
+      "default": "./dist/price-engine.js"
+    },
     "./permissions": {
       "types": "./dist/permissions.d.ts",
       "import": "./dist/permissions.js",
@@ -94,6 +109,81 @@
       "types": "./dist/plans.d.ts",
       "import": "./dist/plans.js",
       "default": "./dist/plans.js"
+    },
+    "./billing": {
+      "types": "./dist/billing.d.ts",
+      "import": "./dist/billing.js",
+      "default": "./dist/billing.js"
+    },
+    "./coupon-codes": {
+      "types": "./dist/coupon-codes.d.ts",
+      "import": "./dist/coupon-codes.js",
+      "default": "./dist/coupon-codes.js"
+    },
+    "./subscriptions": {
+      "types": "./dist/subscriptions.d.ts",
+      "import": "./dist/subscriptions.js",
+      "default": "./dist/subscriptions.js"
+    },
+    "./customer-messages": {
+      "types": "./dist/customer-messages.d.ts",
+      "import": "./dist/customer-messages.js",
+      "default": "./dist/customer-messages.js"
+    },
+    "./alert-safety": {
+      "types": "./dist/alert-safety.d.ts",
+      "import": "./dist/alert-safety.js",
+      "default": "./dist/alert-safety.js"
+    },
+    "./rewards": {
+      "types": "./dist/rewards.d.ts",
+      "import": "./dist/rewards.js",
+      "default": "./dist/rewards.js"
+    },
+    "./withdrawals": {
+      "types": "./dist/withdrawals.d.ts",
+      "import": "./dist/withdrawals.js",
+      "default": "./dist/withdrawals.js"
+    },
+    "./schemas/withdrawals": {
+      "types": "./dist/schemas/withdrawals.d.ts",
+      "import": "./dist/schemas/withdrawals.js",
+      "default": "./dist/schemas/withdrawals.js"
+    },
+    "./growth": {
+      "types": "./dist/growth.d.ts",
+      "import": "./dist/growth.js",
+      "default": "./dist/growth.js"
+    },
+    "./schemas/billing": {
+      "types": "./dist/schemas/billing.d.ts",
+      "import": "./dist/schemas/billing.js",
+      "default": "./dist/schemas/billing.js"
+    },
+    "./schemas/subscriptions": {
+      "types": "./dist/schemas/subscriptions.d.ts",
+      "import": "./dist/schemas/subscriptions.js",
+      "default": "./dist/schemas/subscriptions.js"
+    },
+    "./schemas/notification-prefs": {
+      "types": "./dist/schemas/notification-prefs.d.ts",
+      "import": "./dist/schemas/notification-prefs.js",
+      "default": "./dist/schemas/notification-prefs.js"
+    },
+    "./schemas/rewards": {
+      "types": "./dist/schemas/rewards.d.ts",
+      "import": "./dist/schemas/rewards.js",
+      "default": "./dist/schemas/rewards.js"
+    },
+    "./schemas/deals": {
+      "types": "./dist/schemas/deals.d.ts",
+      "import": "./dist/schemas/deals.js",
+      "default": "./dist/schemas/deals.js"
+    },
+    "./schemas/growth": {
+      "types": "./dist/schemas/growth.d.ts",
+      "import": "./dist/schemas/growth.js",
+      "default": "./dist/schemas/growth.js"
     },
     "./settings": {
       "types": "./dist/settings.d.ts",
@@ -119,6 +209,11 @@
       "types": "./dist/schemas/admin-ai.d.ts",
       "import": "./dist/schemas/admin-ai.js",
       "default": "./dist/schemas/admin-ai.js"
+    },
+    "./schemas/admin-billing-gateways": {
+      "types": "./dist/schemas/admin-billing-gateways.d.ts",
+      "import": "./dist/schemas/admin-billing-gateways.js",
+      "default": "./dist/schemas/admin-billing-gateways.js"
     },
     "./schemas/admin": {
       "types": "./dist/schemas/admin.d.ts",
@@ -159,6 +254,41 @@
       "types": "./dist/schemas/files.d.ts",
       "import": "./dist/schemas/files.js",
       "default": "./dist/schemas/files.js"
+    },
+    "./schemas/manual-payment": {
+      "types": "./dist/schemas/manual-payment.d.ts",
+      "import": "./dist/schemas/manual-payment.js",
+      "default": "./dist/schemas/manual-payment.js"
+    },
+    "./schemas/admin-alerts": {
+      "types": "./dist/schemas/admin-alerts.d.ts",
+      "import": "./dist/schemas/admin-alerts.js",
+      "default": "./dist/schemas/admin-alerts.js"
+    },
+    "./schemas/admin-manual-payments": {
+      "types": "./dist/schemas/admin-manual-payments.d.ts",
+      "import": "./dist/schemas/admin-manual-payments.js",
+      "default": "./dist/schemas/admin-manual-payments.js"
+    },
+    "./schemas/admin-billing-console": {
+      "types": "./dist/schemas/admin-billing-console.d.ts",
+      "import": "./dist/schemas/admin-billing-console.js",
+      "default": "./dist/schemas/admin-billing-console.js"
+    },
+    "./schemas/admin-user-360": {
+      "types": "./dist/schemas/admin-user-360.d.ts",
+      "import": "./dist/schemas/admin-user-360.js",
+      "default": "./dist/schemas/admin-user-360.js"
+    },
+    "./schemas/wa-alert": {
+      "types": "./dist/schemas/wa-alert.d.ts",
+      "import": "./dist/schemas/wa-alert.js",
+      "default": "./dist/schemas/wa-alert.js"
+    },
+    "./schemas/admin-payment-methods": {
+      "types": "./dist/schemas/admin-payment-methods.d.ts",
+      "import": "./dist/schemas/admin-payment-methods.js",
+      "default": "./dist/schemas/admin-payment-methods.js"
     },
     "./schemas/handoff": {
       "types": "./dist/schemas/handoff.d.ts",
@@ -209,6 +339,16 @@
       "types": "./dist/schemas/plans.d.ts",
       "import": "./dist/schemas/plans.js",
       "default": "./dist/schemas/plans.js"
+    },
+    "./schemas/admin-growth": {
+      "types": "./dist/schemas/admin-growth.d.ts",
+      "import": "./dist/schemas/admin-growth.js",
+      "default": "./dist/schemas/admin-growth.js"
+    },
+    "./reward-sentence": {
+      "types": "./dist/reward-sentence.d.ts",
+      "import": "./dist/reward-sentence.js",
+      "default": "./dist/reward-sentence.js"
     }
   },
   "files": [
@@ -227,6 +367,7 @@
     "@types/node": "^24.0.0",
     "@wasfa/config": "workspace:*",
     "eslint": "^10.12.0",
+    "fast-check": "^4.10.2",
     "typescript": "^5.9.3",
     "vitest": "^5.0.3"
   }

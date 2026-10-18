@@ -2,13 +2,25 @@ import { ERROR_CODES, ERROR_INFO, type ErrorCode } from "../errors/codes.js";
 
 import { arAdminAi } from "./ar.admin-ai.js";
 import { arAdminBilling } from "./ar.admin-billing.js";
+import { arAdminConsole } from "./ar.admin-console.js";
 import { arAdminDrugs } from "./ar.admin-drugs.js";
 import { arAdminEvals } from "./ar.admin-evals.js";
+import { arAdminGateways } from "./ar.admin-gateways.js";
+import { arAdminGrowth } from "./ar.admin-growth.js";
+import { arAdminRevenue } from "./ar.admin-revenue.js";
 import { arAdmin } from "./ar.admin.js";
+import { arBilling } from "./ar.billing.js";
 import { arCapture } from "./ar.capture.js";
 import { arChat } from "./ar.chat.js";
 import { arDashboard } from "./ar.dashboard.js";
+import { arGrowthConsole } from "./ar.growth-console.js";
+import { arGrowth } from "./ar.growth.js";
+import { arOrg } from "./ar.org.js";
+import { arReferralsWeb } from "./ar.referrals-web.js";
+import { arRewards } from "./ar.rewards.js";
 import { arRx } from "./ar.rx.js";
+import { arWithdrawWeb } from "./ar.withdraw-web.js";
+import { arWithdrawals } from "./ar.withdrawals.js";
 
 type ErrorMessageKey = `error.${ErrorCode}`;
 
@@ -36,6 +48,32 @@ export const ar = {
   "phone.verify.waMessage": "رمز التحقق في وصفة AI: {code}",
   "phone.reply.verified": "تم التحقق ✅",
   "phone.reply.invalid": "الرمز غير صحيح أو منتهي الصلاحية",
+  "phone.reply.alertsOn": "تم استلام طلب التنبيهات",
+  "phone.reply.alertsOff": "تم استلام طلب إيقاف التنبيهات",
+  "account.notifications.whatsappLabel": "استلام إشعاراتي على واتساب",
+  "account.notifications.whatsappHint":
+    "تفاصيل الاشتراك والدفع والتذكيرات على رقمك المؤكد. عند الإيقاف تصلك بالبريد الإلكتروني.",
+  "account.notifications.whatsappInactive":
+    "رسائل واتساب غير مفعّلة حالياً؛ تصلك الإشعارات بالبريد الإلكتروني.",
+  "account.notifications.saved": "تم حفظ تفضيلات الإشعارات",
+  "phone.reply.messagesOff": "تم إيقاف رسائل واتساب",
+  "phone.reply.messagesOn": "تم تشغيل رسائل واتساب",
+  "whatsapp.customer.subscriptionActivated":
+    "تم تفعيل باقة {plan} حتى {date}. رصيدك الشهري: {credits} رصيد. رقم الطلب: {number}.",
+  "whatsapp.customer.paymentReceived": "استلمنا دفعتك للطلب {number} بقيمة {total}. شكراً لك.",
+  "whatsapp.customer.reminder.ending":
+    "تذكير: ينتهي اشتراكك في باقة {plan} يوم {date}. جدّده بضغطة واحدة:",
+  "whatsapp.customer.reminder.grace":
+    "انتهت مدة باقة {plan} يوم {date}، وما زالت مزاياها متاحة لك لأيام قليلة. جدّد الآن:",
+  "whatsapp.customer.reminder.expired":
+    "انتهى اشتراكك في باقة {plan} وعاد حسابك إلى الباقة المجانية. يمكنك التجديد في أي وقت:",
+  "whatsapp.customer.paymentRejected":
+    "لم نتمكن من تأكيد دفع الطلب {number}: {reason}. يمكنك إرسال إثبات جديد:",
+  "whatsapp.customer.paymentResubmit": "نحتاج إلى إثبات دفع أوضح للطلب {number}. أرسله من هنا:",
+  "whatsapp.customer.orderRefunded": "تم رد مبلغ {amount} للطلب {number}.",
+  "whatsapp.customer.offer": "عرض خاص لك: {title}. ينتهي يوم {date}.",
+  "whatsapp.customer.note": "ملاحظة: {note}",
+  "whatsapp.customer.footer": "وصفة AI · لإيقاف رسائل واتساب أرسل كلمة: إيقاف",
   "email.greeting": "مرحبًا {name}،",
   "email.greetingAnonymous": "مرحبًا،",
   "email.linkFallback": "إن لم يعمل الزر، انسخ الرابط التالي والصقه في المتصفح:",
@@ -61,6 +99,40 @@ export const ar = {
   "email.suspended.intro":
     "تم إيقاف حسابك في وصفة AI مؤقتًا، ولن تتمكن من تسجيل الدخول حتى تتم مراجعته.",
   "email.suspended.contact": "إن كنت ترى أن هذا حدث بالخطأ فتواصل مع فريق الدعم وسنراجع حسابك.",
+  "email.receipt.subject": "إيصال الدفع للطلب {number}",
+  "email.receipt.intro": "استلمنا دفعتك بنجاح، وتم تفعيل طلبك {number}.",
+  "email.receipt.total": "الإجمالي المدفوع: {total}",
+  "email.receipt.taxAndFees": "منها الضريبة والرسوم: {amount}",
+  "email.receipt.button": "عرض الطلب والإيصال",
+  "email.adminAlert.subject": "تنبيه إداري",
+  "email.adminAlert.body": "{summary}",
+  "email.adminAlert.button": "فتح لوحة الإدارة",
+  "email.alertDigest.subject": "ملخص التنبيهات الإدارية ({count})",
+  "email.alertDigest.body": "لديك {count} تنبيهات إدارية:",
+  "email.paymentRejected.subject": "تحديث الدفع للطلب {number}",
+  "email.paymentRejected.body": "تعذر اعتماد إثبات الدفع للطلب {number}. سبب الرفض: {reason}.",
+  "email.paymentRejected.note": "ملاحظة من المراجع: {note}",
+  "email.paymentRejected.button": "عرض الطلب وإعادة الإرسال",
+  "email.paymentRejected.reason.amount_differs": "المبلغ مختلف",
+  "email.paymentRejected.reason.not_received": "لم يصل التحويل",
+  "email.paymentRejected.reason.unreadable_proof": "تعذر قراءة الإثبات",
+  "email.paymentRejected.reason.duplicate_proof": "تم استخدام الإثبات من قبل",
+  "email.paymentRejected.reason.wrong_reference": "مرجع الدفع غير صحيح",
+  "email.paymentRejected.reason.other": "سبب آخر",
+  "email.paymentResubmit.subject": "المطلوب تحديث إثبات دفع الطلب {number}",
+  "email.paymentResubmit.body": "يرجى إرسال إثبات دفع جديد للطلب {number}.",
+  "email.paymentResubmit.note": "ملاحظة من المراجع: {note}",
+  "email.paymentResubmit.button": "إرسال إثبات جديد",
+  "email.subscriptionReminder.ending.subject": "ينتهي اشتراكك في {plan} يوم {date}",
+  "email.subscriptionReminder.ending.body":
+    "ينتهي اشتراكك في باقة {plan} يوم {date}. جدّده بضغطة واحدة لتستمر دون انقطاع.",
+  "email.subscriptionReminder.grace.subject": "انتهت مدة اشتراكك في {plan}",
+  "email.subscriptionReminder.grace.body":
+    "انتهت مدة باقة {plan} يوم {date}، وما زالت مزاياها متاحة لك لأيام قليلة. جدّد الآن لتحتفظ بها.",
+  "email.subscriptionReminder.expired.subject": "انتهى اشتراكك في {plan}",
+  "email.subscriptionReminder.expired.body":
+    "انتهى اشتراكك في باقة {plan} وعاد حسابك إلى الباقة المجانية. يمكنك التجديد في أي وقت.",
+  "email.subscriptionReminder.button": "تجديد الاشتراك",
   "ui.required": "(مطلوب)",
   "ui.close": "إغلاق",
   "ui.showPassword": "إظهار كلمة المرور",
@@ -509,12 +581,24 @@ export const ar = {
   ...arAdmin,
   ...arAdminAi,
   ...arAdminBilling,
+  ...arAdminGateways,
+  ...arAdminGrowth,
+  ...arAdminConsole,
+  ...arAdminRevenue,
   ...arAdminDrugs,
   ...arAdminEvals,
   ...arRx,
+  ...arRewards,
+  ...arReferralsWeb,
+  ...arOrg,
+  ...arWithdrawals,
+  ...arWithdrawWeb,
+  ...arGrowth,
+  ...arGrowthConsole,
   ...arCapture,
   ...arChat,
   ...arDashboard,
+  ...arBilling,
   ...errorMessages,
 } as const;
 

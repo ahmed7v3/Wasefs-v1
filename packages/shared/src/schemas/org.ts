@@ -1,8 +1,11 @@
 import { z } from "zod";
 
+import { ORDER_KINDS, ORDER_STATUSES } from "../billing.js";
 import { COUNTRY_CODE_PATTERN, ORG_MEMBER_ROLES, ORG_TYPES } from "../identity.js";
+import { JOIN_LINK_APPROVALS } from "../rewards.js";
 
 import { emailSchema, phoneNumberSchema } from "./auth.js";
+import { subscriptionViewSchema } from "./subscriptions.js";
 
 /*
  * Organizations, members and invitations (Task 1.7). Requests are parsed by the api, responses by
@@ -124,3 +127,116 @@ export function maskInviteTarget(target: string): string {
   }
   return `${target.slice(0, 5)}${"•".repeat(Math.max(target.length - 7, 0))}${target.slice(-2)}`;
 }
+
+// --- Organization billing (Phase 3, Task 3.9) -----------------------------------------------------
+
+/** The organization a request acts for (rx, chat, billing). Absent = the caller's personal account. */
+export const orgContextIdSchema = z.uuid();
+
+export const orgLinkParamsSchema = z.object({ id: z.uuid(), linkId: z.uuid() });
+export const orgOrderParamsSchema = z.object({ id: z.uuid(), orderId: z.uuid() });
+
+/** `PUT /orgs/:id/members/:userId/limit`: `null` removes the cap. */
+export const memberLimitSchema = z.object({
+  monthlyCreditCap: z.number().int().min(0).max(1_000_000_000).nullable(),
+});
+
+/** `GET /join/:slug`: any string; one that matches no link answers the same "not valid" shape. */
+export const joinSlugParamSchema = z.object({
+  slug: z.string().trim().toLowerCase().max(64),
+});
+
+export const joinLinkItemSchema = z.object({
+  id: z.uuid(),
+  slug: z.string(),
+  role: z.enum(ORG_MEMBER_ROLES),
+  approval: z.enum(JOIN_LINK_APPROVALS),
+  dealId: z.uuid().nullable(),
+  maxUses: z.number().int().nullable(),
+  usedCount: z.number().int().min(0),
+  expiresAt: isoDate.nullable(),
+  active: z.boolean(),
+  createdAt: isoDate,
+});
+export type JoinLinkItem = z.output<typeof joinLinkItemSchema>;
+export const joinLinkListResponseSchema = z.object({ items: z.array(joinLinkItemSchema) });
+
+/** What a visitor sees at `/join/<slug>`; an unknown, disabled, expired or used-up link is `{ valid: false }` only. */
+export const joinLandingSchema = z.discriminatedUnion("valid", [
+  z.object({
+    valid: z.literal(true),
+    org: z.object({ name: z.string(), logoUrl: z.string().optional() }),
+    benefit: z
+      .object({ dealName: z.string().optional(), memberPriceText: z.string().optional() })
+      .nullable(),
+    approval: z.enum(JOIN_LINK_APPROVALS),
+  }),
+  z.object({ valid: z.literal(false) }),
+]);
+export type JoinLanding = z.output<typeof joinLandingSchema>;
+
+export const joinAcceptResponseSchema = z.object({
+  outcome: z.enum(["joined", "pending", "already_member"]),
+  orgId: z.uuid(),
+});
+export type JoinAcceptResponse = z.output<typeof joinAcceptResponseSchema>;
+
+const usageMonth = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
+/** `GET /orgs/:id/usage.csv?month=YYYY-MM`; the current UTC month when absent. */
+export const orgUsageQuerySchema = z.object({ month: usageMonth.optional() });
+
+export const orgDashboardSchema = z.object({
+  org: z.object({ id: z.uuid(), name: z.string() }),
+  month: usageMonth,
+  wallet: z.object({ balance: z.number().int(), allowPersonalFallback: z.boolean() }),
+  plan: z.object({ key: z.string(), nameAr: z.string(), nameEn: z.string() }),
+  subscription: subscriptionViewSchema.nullable(),
+  seats: z.object({
+    used: z.number().int().min(0),
+    pendingInvites: z.number().int().min(0),
+    /** Null = unlimited. */
+    limit: z.number().int().min(1).nullable(),
+  }),
+  members: z.array(
+    z.object({
+      userId: z.uuid(),
+      name: z.string(),
+      role: z.enum(ORG_MEMBER_ROLES),
+      /** Credits this member's settled calls took from the organization wallet this month. */
+      creditsUsed: z.number().int().min(0),
+      monthlyCap: z.number().int().min(0).nullable(),
+    }),
+  ),
+  pendingMembers: z.array(z.object({ userId: z.uuid(), name: z.string(), requestedAt: isoDate })),
+  joinLinks: z.object({
+    total: z.number().int().min(0),
+    active: z.number().int().min(0),
+    uses: z.number().int().min(0),
+  }),
+  recentOrders: z.array(
+    z.object({
+      id: z.uuid(),
+      number: z.string(),
+      kind: z.enum(ORDER_KINDS),
+      totalMinor: z.number().int(),
+      currency: z.string(),
+      status: z.enum(ORDER_STATUSES),
+      createdAt: isoDate,
+      paidAt: isoDate.nullable(),
+      receiptAvailable: z.boolean(),
+    }),
+  ),
+});
+export type OrgDashboard = z.output<typeof orgDashboardSchema>;
+
+/** `POST /institutions/leads`: «اطلب عرضًا خاصًا». */
+export const institutionLeadSchema = z.object({
+  orgName: orgNameSchema,
+  contactName: z.string().trim().min(2).max(100),
+  phone: phoneNumberSchema,
+  email: emailSchema,
+  seats: z.number().int().min(1).max(100_000),
+  message: z.string().trim().max(2_000).default(""),
+});
+export type InstitutionLeadInput = z.output<typeof institutionLeadSchema>;
+export const institutionLeadResponseSchema = z.object({ received: z.literal(true) });

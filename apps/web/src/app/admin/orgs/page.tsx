@@ -15,7 +15,7 @@ export default async function AdminOrgsPage() {
   if (!canAccess(me.permissions, "orgs.read")) return <ForbiddenState />;
   return (
     <Suspense>
-      <OrgsView />
+      <OrgsView permissions={me.permissions} />
     </Suspense>
   );
 }

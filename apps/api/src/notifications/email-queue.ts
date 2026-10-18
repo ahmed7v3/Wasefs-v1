@@ -75,6 +75,23 @@ export class EmailQueue implements OnApplicationShutdown {
     await this.enqueue({ template: "account_suspended", ...recipient });
   }
 
+  async sendPaymentReceipt(
+    input: {
+      to: string;
+      name: string;
+      locale: Locale;
+      orderNumber: string;
+      totalMinor: number;
+      currency: string;
+      taxAndFeesMinor: number;
+      link: string;
+    },
+    jobId: string,
+  ): Promise<void> {
+    const payload = emailSendPayloadSchema.parse({ template: "payment_receipt", ...input });
+    await this.queue.add("email.send", payload, { ...EMAIL_JOB_OPTIONS, jobId });
+  }
+
   private async enqueue(input: EmailSendInput): Promise<void> {
     // Throws a ZodError naming the bad field if a caller built a wrong payload.
     const payload = emailSendPayloadSchema.parse(input);

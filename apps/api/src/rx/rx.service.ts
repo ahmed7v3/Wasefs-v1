@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import { Inject, Injectable } from "@nestjs/common";
 import { skillVersion } from "@wasfa/ai";
-import { type FileRecord, type RxAnalysis, type WalletOwner } from "@wasfa/db";
+import { type FileRecord, type RxAnalysis } from "@wasfa/db";
 import { classifyMatch } from "@wasfa/shared/drugs";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import { newErrorRef, newId } from "@wasfa/shared/ids";
@@ -40,6 +40,7 @@ import { REDIS } from "../common/redis.js";
 import { CreditsService } from "../credits/credits.service.js";
 import { DrugMatcher } from "../drugs/matcher.js";
 import { FilesRepo } from "../files/files.repo.js";
+import { PayerService, type PayerContext } from "../orgs/wallet/payer.service.js";
 import { PlansService } from "../plans/plans.service.js";
 import { QuotaService } from "../quota/quota.service.js";
 import { SettingsService } from "../settings/settings.service.js";
@@ -66,9 +67,16 @@ interface Page {
   dhash: string | null;
 }
 
+/** A taste of Deep mode (Task 3.14): the paid plan whose Deep reading the free user tries once. */
+export interface RxTasteOptions {
+  routePlanId: string;
+}
+
 interface Started {
   user: AuthenticatedUser;
-  owner: WalletOwner;
+  payer: PayerContext;
+  /** Set for a taste: the job is routed by this plan. */
+  routePlanId?: string | undefined;
   input: RxCreateRequest;
   pages: Page[];
   routeVersion: number;
@@ -85,8 +93,8 @@ const isInFlight = (status: RxAnalysis["status"]): boolean =>
  * credits and queues the worker job. The worker reads, matches, verifies and settles; this service
  * serves the result, its live progress, the history and the user's corrections.
  *
- * Analyses belong to the user who made them (organization-owned analyses arrive with organization
- * wallets); every read goes through the owner-scoped repository.
+ * Analyses belong to the user who made them. With `orgId` the organization's plan and quota apply and
+ * its wallet pays first (`PayerService`); every read goes through the owner-scoped repository.
  */
 @Injectable()
 export class RxService {
@@ -98,6 +106,7 @@ export class RxService {
     private readonly plans: PlansService,
     private readonly quota: QuotaService,
     private readonly credits: CreditsService,
+    private readonly payer: PayerService,
     private readonly settings: SettingsService,
     private readonly matcher: DrugMatcher,
     private readonly hub: RxEventHub,
@@ -107,12 +116,18 @@ export class RxService {
     this.logger.setContext("Rx");
   }
 
-  async create(user: AuthenticatedUser, input: RxCreateRequest): Promise<RxCreateResponse> {
+  async create(
+    user: AuthenticatedUser,
+    input: RxCreateRequest,
+    taste?: RxTasteOptions,
+  ): Promise<RxCreateResponse> {
     // The kill switch (and the daily spend cap) come before anything else is looked at.
     await this.ai.assertAvailable("rx_extract", { search: false });
 
+    // An organization context needs an active membership; its plan and quota then apply.
+    const payer = await this.payer.resolve(user.id, input.orgId);
+    const owner = payer.planOwner;
     const pages = await this.loadPages(user, input.fileIds);
-    const owner: WalletOwner = { type: "user", id: user.id };
     const [rx, plan, entitlement] = await Promise.all([
       this.settings.get("rx"),
       this.plans.effectivePlan(owner),
@@ -125,20 +140,23 @@ export class RxService {
     );
     if (pages.length > maxPages) throw invalid({ reason: "too_many_pages", maxPages });
 
-    const route = await this.ai.route("rx_extract", plan.id, input.mode);
+    // A taste reads with the Deep route of the plan that sells it; everything else with the owner's.
+    const route = await this.ai.route("rx_extract", taste?.routePlanId ?? plan.id, input.mode);
     if (route === null) {
       throw new AppError(ErrorCode.UPSTREAM_UNAVAILABLE, { details: { reason: "no_route" } });
     }
     const ticket = await this.quota.check({
-      ownerUserId: user.id,
+      ...this.payer.quotaOwner(payer),
       userId: user.id,
       task: "rx_extract",
       mode: input.mode,
+      ...(taste ? { modeGranted: true } : {}),
     });
     try {
       return await this.start({
         user,
-        owner,
+        payer,
+        routePlanId: taste?.routePlanId,
         input,
         pages,
         routeVersion: route.version,
@@ -152,8 +170,15 @@ export class RxService {
   }
 
   async get(user: AuthenticatedUser, id: string): Promise<RxView> {
-    const row = await this.repo.require(user.id, id);
-    const pages = await this.repo.pages(id);
+    return this.view(await this.repo.require(user.id, id));
+  }
+
+  /**
+   * The customer view of an analysis the caller already proved they may read. The admin viewer
+   * (Task 3.15, after a PHI access session) uses this very mapper, so staff see what the customer sees.
+   */
+  async view(row: RxAnalysis): Promise<RxView> {
+    const pages = await this.repo.pages(row.id);
     return {
       id: row.id,
       status: row.status,
@@ -384,7 +409,7 @@ export class RxService {
       RX_NEAR_DUPLICATE_MAX_DISTANCE,
     );
 
-    const reservationId = await this.reserve(args.owner, id, pages.length * args.creditsPerPage);
+    const reservationId = await this.reserve(args.payer, id, pages.length * args.creditsPerPage);
     try {
       await this.repo.insert(
         {
@@ -404,7 +429,10 @@ export class RxService {
       throw error;
     }
     try {
-      await this.queue.analyze(id);
+      await this.queue.analyze(id, {
+        planOrgId: args.payer.orgId ?? undefined,
+        routePlanId: args.routePlanId,
+      });
     } catch (error) {
       // Nothing will ever pick it up: end it here, give the credits back, free the user.
       const errorRef = newErrorRef();
@@ -435,7 +463,7 @@ export class RxService {
       result: RxResult;
     },
   ): Promise<void> {
-    const { user, owner, input, pages, id, cached } = args;
+    const { user, payer, input, pages, id, cached } = args;
     const now = new Date();
     const free =
       cached.ownerUserId === user.id &&
@@ -443,7 +471,7 @@ export class RxService {
       now.getTime() - cached.finishedAt.getTime() < RX_FREE_CACHE_HOURS * HOUR_MS;
     const amount = free ? 0 : pages.length * args.creditsPerPage;
 
-    const reservationId = await this.reserve(owner, id, amount);
+    const reservationId = await this.reserve(payer, id, amount);
     try {
       const usageId = await this.repo.recordUsage({
         task: "rx_extract",
@@ -502,12 +530,12 @@ export class RxService {
 
   /** Holds the price of the analysis; `QUOTA_EXCEEDED` (`insufficient_credits`) when the wallet is short. */
   private async reserve(
-    owner: WalletOwner,
+    payer: PayerContext,
     analysisId: string,
     amount: number,
   ): Promise<string | null> {
     if (amount <= 0) return null;
-    const { reservation } = await this.credits.reserve(owner, amount, {
+    const { reservation } = await this.payer.reserve(payer, amount, {
       idempotencyKey: `rx:${analysisId}:reserve`,
       purpose: "rx",
     });

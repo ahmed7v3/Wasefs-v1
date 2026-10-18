@@ -246,6 +246,10 @@ export const enAdminBilling: Partial<Record<keyof typeof arAdminBilling, string>
   "admin.credits.kind.release": "Hold released",
   "admin.credits.kind.refund": "Refund",
   "admin.credits.kind.expiry": "Expiry",
+  "admin.credits.kind.purchase": "Pack purchase",
+  "admin.credits.kind.points_conversion": "Points conversion",
+  "admin.credits.kind.trial_grant": "Trial credits",
+  "admin.credits.kind.reward_bonus": "Reward bonus",
   "admin.credits.adjust.open": "Adjust balance",
   "admin.credits.adjust.title": "Adjust balance",
   "admin.credits.adjust.lead":

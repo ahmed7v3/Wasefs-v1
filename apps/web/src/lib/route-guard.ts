@@ -12,6 +12,11 @@ export const PROTECTED_PREFIXES = [
   "/admin",
   "/analyze",
   "/ai",
+  "/checkout",
+  "/billing",
+  "/org",
+  "/rewards",
+  "/taste",
 ] as const;
 
 /**

@@ -71,6 +71,69 @@
       "when": 1792060019832,
       "tag": "0009_rx_rating",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792133448695,
+      "tag": "0010_billing_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792133643596,
+      "tag": "0011_rewards_deals",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792133705993,
+      "tag": "0012_growth_alerts",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792151285997,
+      "tag": "0013_gateway_admin",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792161427828,
+      "tag": "0014_manual_payments_alerts",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1792175822626,
+      "tag": "0015_subscriptions",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792213889050,
+      "tag": "0016_notification_prefs",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792260772192,
+      "tag": "0017_org_wallets",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792286257420,
+      "tag": "0018_marketing_consent",
+      "breakpoints": true
     }
   ]
 }

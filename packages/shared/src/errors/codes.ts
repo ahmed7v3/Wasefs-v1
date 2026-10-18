@@ -9,6 +9,24 @@ export const ErrorCode = {
   PAYMENT_REQUIRED: "PAYMENT_REQUIRED",
   UPSTREAM_UNAVAILABLE: "UPSTREAM_UNAVAILABLE",
   INTERNAL: "INTERNAL",
+  // Price engine refusals (BILLING §4): the request was understood but cannot be priced.
+  PRICE_NOT_AVAILABLE: "PRICE_NOT_AVAILABLE",
+  BELOW_MINIMUM: "BELOW_MINIMUM",
+  FREE_ORDER_NOT_ALLOWED: "FREE_ORDER_NOT_ALLOWED",
+  METHOD_NOT_AVAILABLE: "METHOD_NOT_AVAILABLE",
+  // Checkout (BILLING §5): the quote must be re-requested, or a limited coupon ran out meanwhile.
+  QUOTE_EXPIRED: "QUOTE_EXPIRED",
+  COUPON_UNAVAILABLE: "COUPON_UNAVAILABLE",
+  DUPLICATE_TXN: "DUPLICATE_TXN",
+  PROOF_LIMIT: "PROOF_LIMIT",
+  PROOF_PROCESSING: "PROOF_PROCESSING",
+  PROOF_NOT_ALLOWED: "PROOF_NOT_ALLOWED",
+  // Trials (BILLING §7.2): once per owner and per verified phone.
+  TRIAL_UNAVAILABLE: "TRIAL_UNAVAILABLE",
+  TRIAL_USED: "TRIAL_USED",
+  PHONE_VERIFICATION_REQUIRED: "PHONE_VERIFICATION_REQUIRED",
+  // A webhook whose signature does not verify (recorded, never processed).
+  INVALID_SIGNATURE: "INVALID_SIGNATURE",
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
@@ -87,6 +105,101 @@ export const ERROR_INFO: Record<ErrorCode, ErrorCodeInfo> = {
       ar: "حدث خطأ غير متوقع. تواصل مع الدعم وزوّدهم برمز الخطأ.",
       en: "An unexpected error occurred. Contact support and share the error reference.",
     },
+  },
+  PRICE_NOT_AVAILABLE: {
+    httpStatus: 422,
+    message: {
+      ar: "هذه الباقة غير متاحة بالعملة أو المدة المختارة.",
+      en: "This plan is not available for the selected currency or period.",
+    },
+  },
+  BELOW_MINIMUM: {
+    httpStatus: 422,
+    message: {
+      ar: "المبلغ أقل من الحد الأدنى للدفع.",
+      en: "The amount is below the minimum charge.",
+    },
+  },
+  FREE_ORDER_NOT_ALLOWED: {
+    httpStatus: 422,
+    message: {
+      ar: "الطلبات المجانية غير متاحة حالياً.",
+      en: "Free orders are not available right now.",
+    },
+  },
+  METHOD_NOT_AVAILABLE: {
+    httpStatus: 422,
+    message: {
+      ar: "طريقة الدفع هذه غير متاحة لهذا الطلب.",
+      en: "This payment method is not available for this order.",
+    },
+  },
+  QUOTE_EXPIRED: {
+    httpStatus: 409,
+    message: {
+      ar: "انتهت صلاحية ملخص السعر أو تغيّر. راجع الملخص من جديد ثم ادفع.",
+      en: "The price summary expired or changed. Review it again, then pay.",
+    },
+  },
+  COUPON_UNAVAILABLE: {
+    httpStatus: 409,
+    message: {
+      ar: "لم يعد هذا الكود متاحاً. راجع الملخص من جديد.",
+      en: "This code is no longer available. Review the summary again.",
+    },
+  },
+  DUPLICATE_TXN: {
+    httpStatus: 409,
+    message: {
+      ar: "رقم المعاملة مستخدم بالفعل.",
+      en: "This transaction ID has already been submitted.",
+    },
+  },
+  PROOF_LIMIT: {
+    httpStatus: 409,
+    message: {
+      ar: "وصلت إلى الحد الأقصى لإرسال الإثباتات.",
+      en: "The proof submission limit has been reached.",
+    },
+  },
+  PROOF_PROCESSING: {
+    httpStatus: 409,
+    message: {
+      ar: "ما زالت الصورة قيد المعالجة. حاول بعد قليل.",
+      en: "The proof image is still processing. Try again shortly.",
+    },
+  },
+  PROOF_NOT_ALLOWED: {
+    httpStatus: 409,
+    message: {
+      ar: "لا يمكن إرسال إثبات لهذا الدفع في حالته الحالية.",
+      en: "A proof cannot be submitted for this payment in its current state.",
+    },
+  },
+  TRIAL_UNAVAILABLE: {
+    httpStatus: 409,
+    message: {
+      ar: "التجربة المجانية غير متاحة لهذه الباقة الآن.",
+      en: "A free trial is not available for this plan right now.",
+    },
+  },
+  TRIAL_USED: {
+    httpStatus: 409,
+    message: {
+      ar: "استُخدمت التجربة المجانية من قبل على هذا الحساب أو رقم الهاتف.",
+      en: "The free trial was already used on this account or phone number.",
+    },
+  },
+  PHONE_VERIFICATION_REQUIRED: {
+    httpStatus: 403,
+    message: {
+      ar: "أكّد رقم هاتفك أولاً لتبدأ التجربة المجانية.",
+      en: "Verify your phone number first to start the free trial.",
+    },
+  },
+  INVALID_SIGNATURE: {
+    httpStatus: 401,
+    message: { ar: "توقيع غير صالح.", en: "Invalid signature." },
   },
 };
 

@@ -2,13 +2,25 @@ import { ERROR_CODES, ERROR_INFO } from "../errors/codes.js";
 
 import { enAdminAi } from "./en.admin-ai.js";
 import { enAdminBilling } from "./en.admin-billing.js";
+import { enAdminConsole } from "./en.admin-console.js";
 import { enAdminDrugs } from "./en.admin-drugs.js";
 import { enAdminEvals } from "./en.admin-evals.js";
+import { enAdminGateways } from "./en.admin-gateways.js";
+import { enAdminGrowth } from "./en.admin-growth.js";
+import { enAdminRevenue } from "./en.admin-revenue.js";
 import { enAdmin } from "./en.admin.js";
+import { enBilling } from "./en.billing.js";
 import { enCapture } from "./en.capture.js";
 import { enChat } from "./en.chat.js";
 import { enDashboard } from "./en.dashboard.js";
+import { enGrowthConsole } from "./en.growth-console.js";
+import { enGrowth } from "./en.growth.js";
+import { enOrg } from "./en.org.js";
+import { enReferralsWeb } from "./en.referrals-web.js";
+import { enRewards } from "./en.rewards.js";
 import { enRx } from "./en.rx.js";
+import { enWithdrawWeb } from "./en.withdraw-web.js";
+import { enWithdrawals } from "./en.withdrawals.js";
 
 import type { MessageKey } from "./ar.js";
 
@@ -27,6 +39,34 @@ export const en: Partial<Record<MessageKey, string>> = {
   "phone.verify.waMessage": "Wasfa AI verification code: {code}",
   "phone.reply.verified": "Verified ✅",
   "phone.reply.invalid": "The code is incorrect or has expired",
+  "phone.reply.alertsOn": "Alert preference request received",
+  "phone.reply.alertsOff": "Alert preference request received",
+  "account.notifications.whatsappLabel": "Get my notifications on WhatsApp",
+  "account.notifications.whatsappHint":
+    "Subscription, payment and reminder messages on your verified number. When off, they come by email.",
+  "account.notifications.whatsappInactive":
+    "WhatsApp messages are not active right now; notifications come by email.",
+  "account.notifications.saved": "Notification preferences saved",
+  "phone.reply.messagesOff": "WhatsApp messages turned off",
+  "phone.reply.messagesOn": "WhatsApp messages turned on",
+  "whatsapp.customer.subscriptionActivated":
+    "Your {plan} plan is active until {date}. Monthly credits: {credits}. Order: {number}.",
+  "whatsapp.customer.paymentReceived":
+    "We received your payment for order {number}: {total}. Thank you.",
+  "whatsapp.customer.reminder.ending":
+    "Reminder: your {plan} subscription ends on {date}. Renew in one tap:",
+  "whatsapp.customer.reminder.grace":
+    "Your {plan} plan ended on {date}; its features stay on for a few more days. Renew now:",
+  "whatsapp.customer.reminder.expired":
+    "Your {plan} subscription ended and your account is back on the free plan. You can renew any time:",
+  "whatsapp.customer.paymentRejected":
+    "We could not confirm the payment for order {number}: {reason}. You can send a new proof:",
+  "whatsapp.customer.paymentResubmit":
+    "We need a clearer payment proof for order {number}. Send it here:",
+  "whatsapp.customer.orderRefunded": "A refund of {amount} was issued for order {number}.",
+  "whatsapp.customer.offer": "A special offer for you: {title}. Ends on {date}.",
+  "whatsapp.customer.note": "Note: {note}",
+  "whatsapp.customer.footer": "Wasfa AI · To stop WhatsApp messages, send: STOP",
   "email.greeting": "Hello {name},",
   "email.greetingAnonymous": "Hello,",
   "email.linkFallback": "If the button does not work, copy this link into your browser:",
@@ -54,6 +94,41 @@ export const en: Partial<Record<MessageKey, string>> = {
     "Your Wasfa AI account has been suspended and you cannot sign in until it is reviewed.",
   "email.suspended.contact":
     "If you think this is a mistake, contact support and we will review your account.",
+  "email.receipt.subject": "Payment receipt for order {number}",
+  "email.receipt.intro": "We received your payment and order {number} is now active.",
+  "email.receipt.total": "Total paid: {total}",
+  "email.receipt.taxAndFees": "Including tax and fees: {amount}",
+  "email.receipt.button": "View order and receipt",
+  "email.adminAlert.subject": "Admin alert",
+  "email.adminAlert.body": "{summary}",
+  "email.adminAlert.button": "Open admin console",
+  "email.alertDigest.subject": "Admin alert digest ({count})",
+  "email.alertDigest.body": "You have {count} admin alerts:",
+  "email.paymentRejected.subject": "Payment update for order {number}",
+  "email.paymentRejected.body":
+    "We could not approve the payment proof for order {number}. Rejection reason: {reason}.",
+  "email.paymentRejected.note": "Reviewer note: {note}",
+  "email.paymentRejected.button": "View order and resubmit",
+  "email.paymentRejected.reason.amount_differs": "the amount differs",
+  "email.paymentRejected.reason.not_received": "the transfer was not received",
+  "email.paymentRejected.reason.unreadable_proof": "the proof could not be read",
+  "email.paymentRejected.reason.duplicate_proof": "the proof was already used",
+  "email.paymentRejected.reason.wrong_reference": "the payment reference is incorrect",
+  "email.paymentRejected.reason.other": "other",
+  "email.paymentResubmit.subject": "New payment proof requested for order {number}",
+  "email.paymentResubmit.body": "Please submit new payment proof for order {number}.",
+  "email.paymentResubmit.note": "Reviewer note: {note}",
+  "email.paymentResubmit.button": "Submit new proof",
+  "email.subscriptionReminder.ending.subject": "Your {plan} subscription ends on {date}",
+  "email.subscriptionReminder.ending.body":
+    "Your {plan} plan ends on {date}. Renew in one tap to keep it without a break.",
+  "email.subscriptionReminder.grace.subject": "Your {plan} period has ended",
+  "email.subscriptionReminder.grace.body":
+    "Your {plan} plan ended on {date}; its features stay on for a few more days. Renew now to keep them.",
+  "email.subscriptionReminder.expired.subject": "Your {plan} subscription has ended",
+  "email.subscriptionReminder.expired.body":
+    "Your {plan} subscription ended and your account is back on the free plan. You can renew any time.",
+  "email.subscriptionReminder.button": "Renew subscription",
   "ui.required": "(required)",
   "ui.close": "Close",
   "ui.showPassword": "Show password",
@@ -149,7 +224,8 @@ export const en: Partial<Record<MessageKey, string>> = {
     "You have reached today's limit for this feature. Try tomorrow or upgrade your plan.",
   "ai.reason.busy": "You already have a task running. Wait for it to finish, then try again.",
   "ai.reason.insufficient_credits": "You do not have enough credits for this.",
-  "ai.reason.storage_not_configured": "Image upload is not enabled yet. We will let you know when it is.",
+  "ai.reason.storage_not_configured":
+    "Image upload is not enabled yet. We will let you know when it is.",
   "form.required": "This field is required.",
   "form.tooShort": "Must be at least {min} characters.",
   "form.tooLong": "Must be at most {max} characters.",
@@ -344,7 +420,8 @@ export const en: Partial<Record<MessageKey, string>> = {
     "Your setup state changed. Refresh and continue where you left off.",
   "dashboard.title": "Home",
   "dashboard.greeting": "Hello {name}, ready when you are",
-  "dashboard.lead": "Start here: capture a prescription, ask the assistant, or pick up where you left off.",
+  "dashboard.lead":
+    "Start here: capture a prescription, ask the assistant, or pick up where you left off.",
   "dashboard.verify.title": "Finish verifying your account",
   "dashboard.verify.body": "You cannot use the tools until your email or phone number is verified.",
   "dashboard.verify.email":
@@ -497,11 +574,23 @@ export const en: Partial<Record<MessageKey, string>> = {
   ...enAdmin,
   ...enAdminAi,
   ...enAdminBilling,
+  ...enAdminGateways,
+  ...enAdminGrowth,
+  ...enAdminConsole,
+  ...enAdminRevenue,
   ...enAdminDrugs,
   ...enAdminEvals,
   ...enRx,
+  ...enRewards,
+  ...enReferralsWeb,
+  ...enOrg,
+  ...enWithdrawals,
+  ...enWithdrawWeb,
+  ...enGrowth,
+  ...enGrowthConsole,
   ...enCapture,
   ...enChat,
   ...enDashboard,
+  ...enBilling,
   ...errorMessages,
 };

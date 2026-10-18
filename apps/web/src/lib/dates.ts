@@ -15,6 +15,20 @@ export function formatDate(value: string | Date): string {
   return dateFormat.format(typeof value === "string" ? new Date(value) : value);
 }
 
+const dateTimeFormat = new Intl.DateTimeFormat("ar-EG", {
+  numberingSystem: "latn",
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+/** Date and time in the visitor's own time zone: render it after mount only (client components). */
+export function formatDateTime(value: string | Date): string {
+  return dateTimeFormat.format(typeof value === "string" ? new Date(value) : value);
+}
+
 const relativeFormat = new Intl.RelativeTimeFormat("ar-EG-u-nu-latn", { numeric: "auto" });
 
 const STEPS: ReadonlyArray<readonly [Intl.RelativeTimeFormatUnit, number]> = [

@@ -36,6 +36,14 @@ export const PLAN_AUDIT_FIELDS = [
   "sort",
   "badgeAr",
   "badgeEn",
+  "taglineAr",
+  "taglineEn",
+  "features",
+  "trialDays",
+  "pinRecommended",
+  "maxMembers",
+  "fairUseNoteAr",
+  "fairUseNoteEn",
 ] as const;
 export const ENTITLEMENT_AUDIT_FIELDS = ["entitlements"] as const;
 // No ids or dates in `before`/`after`: the audit redactor scrubs digit runs (phone numbers) and
@@ -55,6 +63,14 @@ const planFields = (plan: Plan) => ({
   sort: plan.sort,
   badgeAr: plan.badgeAr,
   badgeEn: plan.badgeEn,
+  taglineAr: plan.taglineAr,
+  taglineEn: plan.taglineEn,
+  features: plan.features,
+  trialDays: plan.trialDays,
+  pinRecommended: plan.pinRecommended,
+  maxMembers: plan.maxMembers,
+  fairUseNoteAr: plan.fairUseNoteAr,
+  fairUseNoteEn: plan.fairUseNoteEn,
 });
 
 const entitlementView = (row: PlanEntitlement) => ({

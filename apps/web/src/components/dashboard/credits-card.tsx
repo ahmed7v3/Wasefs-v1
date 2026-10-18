@@ -3,11 +3,17 @@
 import { t, type MessageKey } from "@wasfa/shared/i18n";
 import { meCreditsResponseSchema, type MeCreditsResponse } from "@wasfa/shared/schemas/credits";
 import { Skeleton } from "@wasfa/ui";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 import { formatNumber } from "../../lib/admin-format";
+import { ApiRequestError } from "../../lib/api-error";
 import { formatDate } from "../../lib/dates";
 import { useResource } from "../../lib/use-admin-data";
+import { payerView } from "../../lib/wallet-view";
+import { creditsPath, setWorkspaceOrgId } from "../../lib/workspace";
 import { ErrorNotice } from "../error-notice";
+import { PayerLine } from "../workspace/payer-line";
 
 import { DashboardPanel } from "./dashboard-panel";
 
@@ -74,8 +80,22 @@ function Usage({ data }: { data: MeCreditsResponse }) {
 }
 
 /** Balance, plan, who owns the wallet, the next monthly grant and today's usage against the caps (`GET /me/credits`). */
-export function CreditsCard() {
-  const credits = useResource("/me/credits", meCreditsResponseSchema);
+export function CreditsCard({ orgId = null }: { orgId?: string | null }) {
+  const router = useRouter();
+  const credits = useResource(creditsPath(orgId), meCreditsResponseSchema);
+  const stale =
+    credits.status === "error" &&
+    orgId !== null &&
+    credits.error instanceof ApiRequestError &&
+    credits.error.code === "NOT_FOUND";
+  // An organization the person no longer belongs to: forget it and show the personal account.
+  useEffect(() => {
+    if (stale) {
+      setWorkspaceOrgId(null);
+      router.refresh();
+    }
+  }, [stale, router]);
+  const payer = credits.status === "ready" ? payerView(credits.data) : null;
 
   return (
     <DashboardPanel id="credits-title" title={t("dashboard.credits.title")} className={MIN_HEIGHT}>
@@ -94,9 +114,10 @@ export function CreditsCard() {
             <p className="text-sm text-text-muted">{t("dashboard.credits.balanceLabel")}</p>
             <p className="font-heading text-4xl font-bold text-primary tabular-nums">
               {t("dashboard.credits.balance", {
-                balance: formatNumber(credits.data.wallet.balance),
+                balance: formatNumber(payer?.balance ?? credits.data.wallet.balance),
               })}
             </p>
+            {payer ? <PayerLine payer={payer} /> : null}
           </div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-base">
             <div>
@@ -111,7 +132,9 @@ export function CreditsCard() {
             <div>
               <dt className="text-sm text-text-muted">{t("dashboard.credits.wallet")}</dt>
               <dd className="font-semibold text-text">
-                {walletOwnerLabel(credits.data.wallet.ownerType)}
+                {payer?.kind === "org"
+                  ? walletOwnerLabel("org")
+                  : walletOwnerLabel(credits.data.wallet.ownerType)}
               </dd>
             </div>
             <div className="col-span-2">

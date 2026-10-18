@@ -1,8 +1,10 @@
 import { ContactHub } from "../../../components/contact-hub";
+import { JoinAcceptor } from "../../../components/join/join-acceptor";
 import { AppShell } from "../../../components/shell/app-shell";
 import { getPublicSettings } from "../../../lib/public-settings";
 import { getRequestPath } from "../../../lib/request-path";
 import { requireOnboarded } from "../../../lib/session";
+import { requestedWorkspace } from "../../../lib/workspace-server";
 
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
@@ -21,15 +23,24 @@ export default async function ShellLayout({ children }: { children: ReactNode })
     getRequestPath().then((path) => requireOnboarded(path)),
     getPublicSettings(),
   ]);
+  const activeOrgId = await requestedWorkspace(me);
   return (
     <>
       <AppShell
-        user={{ name: me.name, image: me.image }}
+        user={{
+          name: me.name,
+          image: me.image,
+          organizations: me.organizations,
+          activeOrgId,
+        }}
         showAdmin={me.permissions.length > 0}
         branding={settings.branding}
       >
         {children}
       </AppShell>
+      <JoinAcceptor
+        verified={{ email: me.emailVerified && me.email !== null, phone: me.phoneVerified }}
+      />
       <ContactHub contact={settings.contact} />
     </>
   );

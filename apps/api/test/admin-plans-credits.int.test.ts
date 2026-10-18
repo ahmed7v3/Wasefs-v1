@@ -272,6 +272,27 @@ describe("every plan and credits admin route", () => {
 });
 
 describe("plans", () => {
+  it("accepts the Phase 3 plan card metadata through PATCH", async () => {
+    const created = await createPlan();
+    const result = await call("PATCH", `/admin/plans/${created.id}`, boss, {
+      taglineEn: "For growing teams",
+      taglineAr: "للفرق النامية",
+      features: [{ textAr: "ميزة", textEn: "Feature", included: true, highlight: false }],
+      trialDays: 14,
+      pinRecommended: true,
+      maxMembers: 12,
+      fairUseNoteEn: "Fair use applies",
+      fairUseNoteAr: "تطبق سياسة الاستخدام العادل",
+    });
+    expect(result.statusCode, result.body).toBe(200);
+    expect(result.json()).toMatchObject({
+      taglineEn: "For growing teams",
+      trialDays: 14,
+      pinRecommended: true,
+      maxMembers: 12,
+    });
+  });
+
   it("lists the seeded plans with their entitlements", async () => {
     const items = await listPlans();
     const free = items.find((plan) => plan.key === "free");

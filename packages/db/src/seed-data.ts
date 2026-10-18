@@ -8,6 +8,7 @@ import { SETTING_KEYS, settingDefault } from "@wasfa/shared/settings";
 
 import { rolePermissions, roles, siteSettings, type NewSiteSetting } from "./schema/index.js";
 import { seedAiProduct, type AiSeedResult } from "./seed-ai.js";
+import { seedBilling, type BillingSeedResult } from "./seed-billing.js";
 
 import type { Database } from "./client.js";
 
@@ -39,17 +40,36 @@ export const SYSTEM_ROLE_SEEDS: readonly SystemRoleSeed[] = [
   {
     key: "support",
     name: { ar: "الدعم", en: "Support" },
-    permissions: ["users.read", "orgs.read", "issues.read"],
+    permissions: ["users.read", "orgs.read", "issues.read", "billing.read", "users.upgrade"],
   },
   {
     key: "marketing",
     name: { ar: "التسويق", en: "Marketing" },
-    permissions: ["settings.read", "flags.read"],
+    permissions: [
+      "settings.read",
+      "flags.read",
+      "promotions.write",
+      "coupons.write",
+      "referrals.read",
+      "referrals.write",
+      "deals.write",
+    ],
   },
   {
     key: "finance",
     name: { ar: "المالية", en: "Finance" },
-    permissions: ["users.read", "orgs.read"],
+    permissions: [
+      "users.read",
+      "orgs.read",
+      "billing.read",
+      "billing.write",
+      "payments.review",
+      "payments.refund",
+      "withdrawals.review",
+      "withdrawals.pay",
+      "finance.export",
+      "alerts.receive",
+    ],
   },
   {
     key: "admin",
@@ -68,12 +88,28 @@ export const SYSTEM_ROLE_SEEDS: readonly SystemRoleSeed[] = [
       "audit.read",
       "issues.read",
       "issues.write",
+      // Phase 3: everything new except health data (users.read_health, users.read_chats) and the
+      // payout step (withdrawals.pay), which are granted deliberately.
+      "billing.read",
+      "billing.write",
+      "payments.review",
+      "payments.refund",
+      "promotions.write",
+      "coupons.write",
+      "referrals.read",
+      "referrals.write",
+      "rewards.adjust",
+      "withdrawals.review",
+      "deals.write",
+      "users.upgrade",
+      "finance.export",
+      "alerts.receive",
     ],
   },
   { key: "super_admin", name: { ar: "مدير عام", en: "Super admin" }, permissions: PERMISSION_KEYS },
 ];
 
-export interface SeedResult extends AiSeedResult {
+export interface SeedResult extends AiSeedResult, BillingSeedResult {
   /** Site settings inserted by this run. */
   settings: number;
   /** System roles created by this run. */
@@ -119,11 +155,13 @@ export async function seedDefaults(db: Database): Promise<SeedResult> {
   });
 
   const aiProduct = await seedAiProduct(db);
+  const billing = await seedBilling(db);
 
   return {
     settings: insertedSettings.length,
     roles: insertedRoles,
     rolePermissions: insertedPermissions,
     ...aiProduct,
+    ...billing,
   };
 }

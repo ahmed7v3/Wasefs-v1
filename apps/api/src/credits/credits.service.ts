@@ -12,6 +12,7 @@ import {
 } from "@wasfa/db";
 import { AI_MODES, type AiMode } from "@wasfa/shared/ai";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
+import { anniversaries } from "@wasfa/shared/subscriptions";
 import { PinoLogger } from "nestjs-pino";
 
 import { decodeCursor, toPage } from "../admin/common/keyset.js";
@@ -38,6 +39,8 @@ function toAppError(error: LedgerError): AppError {
       return new AppError(ErrorCode.NOT_FOUND);
     case "invalid_amount":
       return new AppError(ErrorCode.VALIDATION_FAILED, { details: { fields: ["amount"] } });
+    case "member_cap_reached":
+      return new AppError(ErrorCode.QUOTA_EXCEEDED, { details: { reason: "member_cap_reached" } });
   }
 }
 
@@ -92,6 +95,19 @@ export function nextGrantAt(now: Date): Date {
 }
 
 /**
+ * A subscriber is paid on the period's anniversaries; past the last one, the calendar grant takes
+ * over again when the period ends, so that is the next date shown.
+ */
+export function nextGrantFor(
+  now: Date,
+  period: { start: Date; end: Date; source: string } | undefined,
+): Date {
+  if (!period || period.source === "trial") return nextGrantAt(now);
+  const next = anniversaries(period.start, period.end).find((at) => at.getTime() > now.getTime());
+  return next ?? (period.end > now ? period.end : nextGrantAt(now));
+}
+
+/**
  * Credits for the AI features: reserve the worst case, settle the actual cost, release the rest
  * (phase2.md, Decision 4). The state machine and its locking live in `@wasfa/db` (`credits-ledger`),
  * which the worker shares; this service turns its refusals into API errors and adds the read models.
@@ -111,11 +127,20 @@ export class CreditsService {
     return this.repo.ensureWallet(owner);
   }
 
-  /** `QUOTA_EXCEEDED` (`insufficient_credits`) when the balance is lower than `amount`. Idempotent by key. */
+  /**
+   * `QUOTA_EXCEEDED` (`insufficient_credits`) when the balance is lower than `amount`. Idempotent by key.
+   * `member` (org wallets): the organization member this hold is for; their monthly cap applies
+   * (`QUOTA_EXCEEDED` `member_cap_reached`) and settling attributes the charge to them.
+   */
   reserve(
     owner: WalletOwner,
     amount: number,
-    options: { idempotencyKey: string; purpose: string; ttlSeconds?: number },
+    options: {
+      idempotencyKey: string;
+      purpose: string;
+      ttlSeconds?: number;
+      member?: { userId: string };
+    },
   ): Promise<ReservationResult> {
     return refusals(this.repo.reserve(owner, amount, options));
   }
@@ -174,30 +199,43 @@ export class CreditsService {
     return refusals(this.repo.refund(owner, amount, options));
   }
 
-  /** `GET /me/credits`: the caller's personal wallet and plan. No wallet yet reads as a zero balance. */
+  /**
+   * `GET /me/credits`: the caller's personal wallet and plan. No wallet yet reads as a zero balance.
+   * Always the personal context (`wallets` lists only the personal wallet); `WalletViewService`
+   * adds the organization wallets and the payer of an organization context on top of this.
+   */
   async forUser(userId: string, now = new Date()): Promise<MeCreditsResponse> {
     const owner = { type: "user", id: userId } as const;
-    const [wallet, plan] = await Promise.all([
+    const [wallet, plan, period] = await Promise.all([
       this.repo.personalWallet(userId),
       this.plans.effectivePlan(owner, now),
+      this.repo.activeSubscriptionPeriod(userId),
     ]);
     const allowed = (await this.plans.entitlementsOf(plan)).filter((item) => item.allowed);
-    const used = await this.quota.usedToday(
-      owner,
-      allowed.map((item) => item.task),
-      now,
-    );
+    const tasks = allowed.map((item) => item.task);
+    const [used, usedMonth] = await Promise.all([
+      this.quota.usedToday(owner, tasks, now),
+      this.quota.usedThisMonth(owner, tasks, now),
+    ]);
+    const balance = wallet?.balance ?? 0;
     return {
-      wallet: { ownerType: "user", balance: wallet?.balance ?? 0 },
+      wallet: { ownerType: "user", balance },
       plan: { key: plan.key, nameAr: plan.nameAr, nameEn: plan.nameEn },
       monthlyCredits: plan.monthlyCredits,
-      nextGrantAt: nextGrantAt(now).toISOString(),
+      nextGrantAt: nextGrantFor(now, period).toISOString(),
       today: allowed.map((item) => ({
         task: item.task,
         used: used.get(item.task) ?? 0,
         dailyCap: item.dailyCap,
       })),
+      thisMonth: allowed.map((item) => ({
+        task: item.task,
+        used: usedMonth.get(item.task) ?? 0,
+        monthlyCap: item.monthlyCap,
+      })),
       chat: chatFeatures(allowed),
+      wallets: [{ kind: "personal", balance }],
+      payer: { kind: "personal", fallback: false },
     };
   }
 

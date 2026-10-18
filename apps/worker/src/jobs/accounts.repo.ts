@@ -178,7 +178,12 @@ export async function anonymizeUser(
             tx
               .select({ one: sql`1` })
               .from(organizationMembers)
-              .where(eq(organizationMembers.orgId, organizations.id)),
+              .where(
+                and(
+                  eq(organizationMembers.orgId, organizations.id),
+                  eq(organizationMembers.status, "active"),
+                ),
+              ),
           ),
         ),
       );

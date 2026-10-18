@@ -29,7 +29,7 @@ export interface OrgMemberRow {
   joinedAt: Date;
 }
 
-const memberCount = sql<number>`(select count(*)::int from organization_members where organization_members.org_id = organizations.id)`;
+const memberCount = sql<number>`(select count(*)::int from organization_members where organization_members.org_id = organizations.id and organization_members.status = 'active')`;
 
 const orgColumns = {
   id: organizations.id,
@@ -80,7 +80,7 @@ export class AdminOrgsRepo {
       })
       .from(organizationMembers)
       .innerJoin(users, eq(users.id, organizationMembers.userId))
-      .where(eq(organizationMembers.orgId, orgId))
+      .where(and(eq(organizationMembers.orgId, orgId), eq(organizationMembers.status, "active")))
       .orderBy(asc(organizationMembers.joinedAt), asc(organizationMembers.userId));
   }
 

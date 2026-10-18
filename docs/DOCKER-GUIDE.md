@@ -252,6 +252,18 @@ first two; see `.env.example` for what each one does):
 | `ARGON2_MEMORY_KIB` | Optional, default 19456. |
 | `SMTP_USER`, `SMTP_PASS` | Brevo dashboard → **SMTP & API** → SMTP: the **login** shown there and an **SMTP key** you generate (not the API key). Both required: the worker will not start in production without them, and mail is never "captured" there. |
 | `SMTP_HOST`, `SMTP_PORT`, `MAIL_FROM`, `MAIL_DAILY_CAP` | Optional. Defaults: `smtp-relay.brevo.com`, `587`, `"وصفة AI" <no-reply@wasfa.online>`, `280` (a margin under Brevo's 300 a day). Changing provider is these variables only. |
+| `ALERT_TELEGRAM_BOT_TOKEN` | **Phase 3.** The bot that sends admin alerts (payments to review, withdrawals, reconcile drift). Compose defaults it to the backup bot's token; each admin sets their own Telegram chat id in their alert preferences. |
+| `API_DOMAIN` | **Phase 3.** Optional, default `api.wasfa.online`. Compose turns it into `API_PUBLIC_URL` for the api and the worker: the Kashier webhook URL (`https://<API_DOMAIN>/webhooks/kashier`) and the one-click unsubscribe target of lifecycle mail (`https://<API_DOMAIN>/unsubscribe`). Nothing secret. |
+
+**Payment gateway keys are not environment variables.** Kashier's merchant id and keys are entered
+in the admin (`/admin/billing/gateways`), stored encrypted with `ENCRYPTION_KEY`, and verified with
+a real test payment before the card method can be switched on.
+
+**Cloudflare and gateway webhooks (Phase 3).** Kashier calls `POST https://api.wasfa.online/webhooks/kashier`
+from its own servers. After the first deploy, open Cloudflare → Security → Events and check that a
+test webhook was not blocked or challenged; if it was, add a WAF **skip** rule for the path
+`/webhooks/*` (skip managed rules and bot fight mode only; the API still verifies every signature).
+Caddy needs no change: the API's 1 MB body limit already covers webhook bodies.
 
 **Brevo state (2026-10-10, set up through the Brevo MCP):** free plan, 299 sends/day; SMTP login
 `bd8752001@smtp-brevo.com` on `smtp-relay.brevo.com:587` (the SMTP **key** can only be created in the

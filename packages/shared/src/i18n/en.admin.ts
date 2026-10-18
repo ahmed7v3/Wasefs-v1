@@ -113,6 +113,27 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
   "admin.whatsapp.verification.offBody":
     "Users cannot verify their phones through WhatsApp until you turn it back on.",
   "admin.whatsapp.verification.offConfirm": "Turn off",
+  "admin.whatsapp.customer.title": "Customer messages on WhatsApp",
+  "admin.whatsapp.customer.lead":
+    "Subscription, payment and reminder messages go on WhatsApp to customers who verified their phone through this number, and by email to everyone else. A customer stops them by sending: STOP.",
+  "admin.whatsapp.customer.label": "Send customer messages on WhatsApp",
+  "admin.whatsapp.customer.risk":
+    "Messages the customer did not start can get the number banned by WhatsApp, which also stops phone verification. Start with a small daily cap and watch the account.",
+  "admin.whatsapp.customer.sentToday": "Today: {sent} of {cap}",
+  "admin.whatsapp.customer.dailyCap": "Daily cap, all customers",
+  "admin.whatsapp.customer.perUserDailyCap": "Daily cap per customer",
+  "admin.whatsapp.customer.startHour": "Sending starts (hour)",
+  "admin.whatsapp.customer.endHour": "Sending ends (hour)",
+  "admin.whatsapp.customer.hoursHint":
+    "In {timezone}. Messages outside these hours wait for the next window.",
+  "admin.whatsapp.customer.range": "A whole number from {min} to {max}",
+  "admin.whatsapp.customer.hoursOrder": "The end must be after the start",
+  "admin.whatsapp.customer.save": "Save settings",
+  "admin.whatsapp.customer.saved": "Customer message settings saved",
+  "admin.whatsapp.customer.onTitle": "Turn on customer messages on WhatsApp?",
+  "admin.whatsapp.customer.onBody":
+    "The linked number will start sending messages customers did not start, which can get it banned. They go only to customers who verified their phone on WhatsApp, within the caps and hours set here.",
+  "admin.whatsapp.customer.onConfirm": "Turn on messages",
   "admin.whatsapp.verification.onDone": "Phone verification is on.",
   "admin.whatsapp.verification.offDone": "Phone verification is off.",
   "admin.nav.audit": "Audit log",
@@ -340,6 +361,7 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
   "admin.settings.socials.title": "Social accounts",
   "admin.settings.socials.description": "https links to the platform's accounts.",
   "admin.settings.locale.title": "Language and numbers",
+  "admin.settings.alerts.title": "Admin alerts",
   "admin.settings.locale.description": "Default language and how numbers and dates are shown.",
   "admin.settings.currency.title": "Currencies",
   "admin.settings.currency.description":
@@ -356,6 +378,15 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
   "admin.settings.uploads.description":
     "How long prescription images are kept before they are deleted. Analysis results stay.",
   "admin.settings.field.uploads.retentionDays": "Days to keep images",
+  "admin.settings.billing.title": "Billing",
+  "admin.settings.billing.description":
+    "Minimum charge, quote and order lifetimes, grace days, refund window, four-eyes threshold, trial and receipt details. Amounts are in minor units.",
+  "admin.settings.rewards.title": "Referrals and rewards",
+  "admin.settings.rewards.description":
+    "Switch referral rewards on, point value, withdrawal rules and fraud limits. Off until the owner enables it.",
+  "admin.settings.growth.title": "Growth",
+  "admin.settings.growth.description":
+    "Conversion prompts, free trials of premium modes, lifecycle offers and experiment guardrails.",
   "admin.settings.rx.description":
     "Price per page in credits and analysis limits. Shown to users before they analyse.",
   "admin.settings.auth.title": "Authentication",
@@ -524,6 +555,34 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
     "An external service (mail, WhatsApp, AI, database) did not answer. Check the provider's status, then fix the fault.",
   "admin.issue.explain.INTERNAL":
     "An unexpected server error. Open the events, read the context and stack trace, and search the logs for the support reference.",
+  "admin.issue.explain.PRICE_NOT_AVAILABLE":
+    "A price was asked for a plan in a currency or period with no active price. Check the plan's prices in the catalog if it repeats.",
+  "admin.issue.explain.BELOW_MINIMUM":
+    "The order total after discounts is below the minimum charge. Check the minimum in the billing settings or the stacked discounts.",
+  "admin.issue.explain.FREE_ORDER_NOT_ALLOWED":
+    "A discount made the order free while free orders are switched off. Expected, unless a discount was set to 100% by mistake.",
+  "admin.issue.explain.METHOD_NOT_AVAILABLE":
+    "The customer chose a payment method that is disabled, does not fit the currency or amount, or whose gateway is off. Check the payment methods and gateways.",
+  "admin.issue.explain.QUOTE_EXPIRED":
+    "The price summary expired (15 minutes) or changed before the order was created. Expected; many of them mean customers linger on checkout.",
+  "admin.issue.explain.COUPON_UNAVAILABLE":
+    "The coupon ran out, expired or was used between the quote and the order. Expected with limited coupons.",
+  "admin.issue.explain.DUPLICATE_TXN":
+    "The customer sent a transaction id already used on the same payment method. A typo or an attempt to reuse an old proof; compare the two orders.",
+  "admin.issue.explain.PROOF_LIMIT":
+    "The customer reached the proof limit (3 submissions) or was rejected twice. They need a new order or support.",
+  "admin.issue.explain.PROOF_PROCESSING":
+    "The proof was submitted before its image finished processing. Expected and temporary; the customer retries in seconds.",
+  "admin.issue.explain.PROOF_NOT_ALLOWED":
+    "The payment does not accept a proof in its current state (order expired, already under review, or an unusable file). Expected when the order timed out.",
+  "admin.issue.explain.TRIAL_UNAVAILABLE":
+    "A trial was asked for a plan without one, trial credits are 0 in the settings, or the customer already has a subscription. Expected.",
+  "admin.issue.explain.TRIAL_USED":
+    "The trial was already used on this account or on the same phone number. Expected; many of them may mean trial farming.",
+  "admin.issue.explain.PHONE_VERIFICATION_REQUIRED":
+    "Trials need a verified phone number and the customer has not verified one yet. Expected.",
+  "admin.issue.explain.INVALID_SIGNATURE":
+    "A payment webhook arrived with a wrong signature and was refused. If it repeats, check the gateway keys; otherwise it may be forged.",
   "admin.issue.explain.unknown":
     "An error code this panel does not know. Read the context and events.",
 };

@@ -4,9 +4,9 @@ import sitemap from "../src/app/sitemap";
 import { PUBLIC_PAGES, pageMetadata, sitemapEntries } from "../src/lib/seo";
 
 describe("sitemap", () => {
-  it("lists the landing, privacy, terms, disclaimer and contact pages with absolute URLs", () => {
+  it("lists the landing, pricing, privacy, terms, disclaimer and contact pages with absolute URLs", () => {
     const urls = sitemap().map((entry) => new URL(entry.url).pathname);
-    expect(urls).toEqual(["/", "/contact", "/privacy", "/terms", "/disclaimer"]);
+    expect(urls).toEqual(["/", "/pricing", "/contact", "/privacy", "/terms", "/disclaimer"]);
     for (const entry of sitemap()) expect(entry.url).toMatch(/^https?:\/\//);
   });
 

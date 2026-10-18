@@ -119,6 +119,15 @@ const ROUTES: Route[] = [
     fresh: true,
     body: { enabled: true },
   },
+  {
+    name: "customer-messages",
+    method: "PUT",
+    url: "/admin/whatsapp/customer-messages",
+    needs: "settings.write",
+    max: 10,
+    fresh: true,
+    body: { enabled: false, dailyCap: 100, perUserDailyCap: 2, startHour: 9, endHour: 21 },
+  },
 ];
 
 const send = (route: Route, who?: { jar: Person["jar"] }) =>
@@ -160,23 +169,20 @@ describe("every /admin/whatsapp route", () => {
         expectError(await send(route, noSecondFactor), 403, "FORBIDDEN", "two_factor_required");
       });
 
-      it(
-        route.fresh ? "asks for a fresh login" : "does not ask for a fresh login",
-        async () => {
-          const admin = await ctx.admin("super_admin");
-          await ctx.makeSessionStale(admin.userId);
-          const res = await send(route, admin);
-          if (route.fresh) {
-            expect(res.statusCode).toBe(401);
-            expect(res.json()).toMatchObject({
-              code: "AUTH_REQUIRED",
-              details: { reason: "reauth", maxAgeMinutes: 10 },
-            });
-          } else {
-            expect(res.body).not.toContain("reauth");
-          }
-        },
-      );
+      it(route.fresh ? "asks for a fresh login" : "does not ask for a fresh login", async () => {
+        const admin = await ctx.admin("super_admin");
+        await ctx.makeSessionStale(admin.userId);
+        const res = await send(route, admin);
+        if (route.fresh) {
+          expect(res.statusCode).toBe(401);
+          expect(res.json()).toMatchObject({
+            code: "AUTH_REQUIRED",
+            details: { reason: "reauth", maxAgeMinutes: 10 },
+          });
+        } else {
+          expect(res.body).not.toContain("reauth");
+        }
+      });
 
       it(`limits it to ${route.max} per minute`, async () => {
         await expectRateLimited(ctx.harness, {
@@ -208,6 +214,16 @@ describe("GET /admin/whatsapp", () => {
       phoneVerification: "whatsapp_inbound",
       available: false,
       unavailableReason: "not_configured",
+      // Customer messages ship off.
+      customerMessages: {
+        enabled: false,
+        dailyCap: 300,
+        perUserDailyCap: 3,
+        timezone: "Africa/Cairo",
+        startHour: 9,
+        endHour: 21,
+        sentToday: 0,
+      },
     });
   });
 
@@ -256,7 +272,12 @@ describe("GET /admin/whatsapp", () => {
 
     await ctx.redis.set(WA_PAIRING_KEY, "not json", "EX", 180);
     expect(statusOf(await get(admin)).pairing).toBeNull();
-    await ctx.redis.set(WA_PAIRING_KEY, JSON.stringify({ state: "code", code: "<script>" }), "EX", 180);
+    await ctx.redis.set(
+      WA_PAIRING_KEY,
+      JSON.stringify({ state: "code", code: "<script>" }),
+      "EX",
+      180,
+    );
     expect(statusOf(await get(admin)).pairing).toBeNull();
   });
 });
@@ -297,7 +318,15 @@ describe("POST /admin/whatsapp/link", () => {
   it("rejects a number that is not E.164 with 400 and queues nothing", async () => {
     const admin = await ctx.admin("super_admin");
     await bridgeIs("logged_out");
-    for (const bad of ["", "201555000111", "+0123456789", "+20 155 500", "+2015550001112345", 5, null]) {
+    for (const bad of [
+      "",
+      "201555000111",
+      "+0123456789",
+      "+20 155 500",
+      "+2015550001112345",
+      5,
+      null,
+    ]) {
       expectError(await link(admin, bad), 400, "VALIDATION_FAILED");
     }
     expectError(
@@ -368,7 +397,11 @@ describe("PUT /admin/whatsapp/verification", () => {
   it("keeps the other auth settings untouched", async () => {
     const admin = await ctx.admin("super_admin");
     const before = await settings.get("auth");
-    await settings.set("auth", { ...before, blockedEmailDomains: ["spam.test"] }, { actorId: null });
+    await settings.set(
+      "auth",
+      { ...before, blockedEmailDomains: ["spam.test"] },
+      { actorId: null },
+    );
     await verification(admin, { enabled: false });
     expect(await settings.get("auth")).toMatchObject({
       blockedEmailDomains: ["spam.test"],
@@ -381,5 +414,48 @@ describe("PUT /admin/whatsapp/verification", () => {
     for (const body of [{}, { enabled: "yes" }, { enabled: 1 }]) {
       expectError(await verification(admin, body), 400, "VALIDATION_FAILED");
     }
+  });
+});
+
+describe("PUT /admin/whatsapp/customer-messages", () => {
+  const body = { enabled: true, dailyCap: 50, perUserDailyCap: 2, startHour: 10, endHour: 20 };
+  const put = (who: { jar: Person["jar"] }, value: Record<string, unknown>) =>
+    ctx.harness.call("PUT", "/admin/whatsapp/customer-messages", { jar: who.jar, body: value });
+
+  it("saves the switch, caps and hours, shows them with today's count, and audits the change", async () => {
+    const admin = await ctx.admin("super_admin");
+    await ctx.redis.set(`wa:cust:sent:${new Date().toISOString().slice(0, 10)}`, "7");
+    const saved = statusOf(await put(admin, body));
+    expect(saved.customerMessages).toEqual({
+      ...body,
+      timezone: "Africa/Cairo",
+      sentToday: 7,
+    });
+    expect((await settings.get("whatsapp")).customerMessages).toMatchObject(body);
+    const rows = await auditRows(ctx.owner.db, "setting.update", admin.userId);
+    expect(rows.length).toBeGreaterThan(0);
+  });
+
+  it("refuses caps out of range and hours that end before they start", async () => {
+    const admin = await ctx.admin("super_admin");
+    for (const bad of [
+      { ...body, dailyCap: 0 },
+      { ...body, perUserDailyCap: 11 },
+      { ...body, startHour: 20, endHour: 10 },
+      { ...body, enabled: "yes" },
+    ]) {
+      expectError(await put(admin, bad), 400, "VALIDATION_FAILED");
+    }
+  });
+
+  it("linking a number keeps the customer-message settings", async () => {
+    const admin = await ctx.admin("super_admin");
+    statusOf(await put(admin, body));
+    await bridgeIs("logged_out");
+    const res = await link(admin);
+    expect(res.statusCode, res.body).toBe(202);
+    const after = await settings.get("whatsapp");
+    expect(after.number).toBe(NUMBER);
+    expect(after.customerMessages).toMatchObject(body);
   });
 });

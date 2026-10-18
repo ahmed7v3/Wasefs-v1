@@ -1,0 +1,166 @@
+{
+  "currency": "EGP",
+  "settings": {
+    "maxTotalDiscountBps": 7000,
+    "minChargeMinor": 1000,
+    "minChargeMode": "raise",
+    "allowFreeOrders": true,
+    "quoteTtlMinutes": 15
+  },
+  "prices": {
+    "plus:1": 9900,
+    "plus:12": 99000,
+    "pro:1": 29900,
+    "pro:12": 299000,
+    "clinic:1": 99900,
+    "clinic:12": 999000
+  },
+  "promotion": {
+    "id": "promo20",
+    "source": "promotion",
+    "kind": "percent",
+    "valueBps": 2000,
+    "scope": {},
+    "stacking": "exclusive",
+    "priority": 0
+  },
+  "coupon": {
+    "id": "coupon10",
+    "source": "coupon",
+    "kind": "percent",
+    "valueBps": 1000,
+    "scope": {},
+    "stacking": "exclusive",
+    "priority": 0
+  },
+  "taxes": {
+    "inclusive": { "id": "vat14i", "rateBps": 1400, "mode": "inclusive" },
+    "added": { "id": "vat14a", "rateBps": 1400, "mode": "added" }
+  },
+  "methods": [
+    { "key": "kashier", "feeBps": 275, "feeFixedMinor": 300 },
+    { "key": "manual", "feeBps": 0, "feeFixedMinor": 0 }
+  ],
+  "cases": [
+    {
+      "name": "plus 1m list",
+      "plan": "plus",
+      "months": 1,
+      "promo": false,
+      "coupon": false,
+      "tax": "none",
+      "method": null,
+      "expected": { "subtotal": 9900, "taxAdded": 0, "taxIncluded": 0, "fee": 0, "total": 9900 }
+    },
+    {
+      "name": "plus 1m promo 20% (9900-1980)",
+      "plan": "plus",
+      "months": 1,
+      "promo": true,
+      "coupon": false,
+      "tax": "none",
+      "method": "manual",
+      "expected": { "subtotal": 7920, "taxAdded": 0, "taxIncluded": 0, "fee": 0, "total": 7920 }
+    },
+    {
+      "name": "plus 1m coupon 10% (9900-990)",
+      "plan": "plus",
+      "months": 1,
+      "promo": false,
+      "coupon": true,
+      "tax": "none",
+      "method": "manual",
+      "expected": { "subtotal": 8910, "taxAdded": 0, "taxIncluded": 0, "fee": 0, "total": 8910 }
+    },
+    {
+      "name": "plus 1m both: best-of takes the 20%",
+      "plan": "plus",
+      "months": 1,
+      "promo": true,
+      "coupon": true,
+      "tax": "none",
+      "method": "manual",
+      "expected": { "subtotal": 7920, "taxAdded": 0, "taxIncluded": 0, "fee": 0, "total": 7920 }
+    },
+    {
+      "name": "pro 1m promo, inclusive 14%: 23920*14/114 = 2937.54",
+      "plan": "pro",
+      "months": 1,
+      "promo": true,
+      "coupon": false,
+      "tax": "inclusive",
+      "method": "manual",
+      "expected": {
+        "subtotal": 23920,
+        "taxAdded": 0,
+        "taxIncluded": 2938,
+        "fee": 0,
+        "total": 23920
+      }
+    },
+    {
+      "name": "pro 1m promo, added 14%: 23920*0.14 = 3348.8",
+      "plan": "pro",
+      "months": 1,
+      "promo": true,
+      "coupon": false,
+      "tax": "added",
+      "method": "manual",
+      "expected": {
+        "subtotal": 23920,
+        "taxAdded": 3349,
+        "taxIncluded": 0,
+        "fee": 0,
+        "total": 27269
+      }
+    },
+    {
+      "name": "plus 12m added + kashier: ceil(113160/0.9725)=116360",
+      "plan": "plus",
+      "months": 12,
+      "promo": false,
+      "coupon": false,
+      "tax": "added",
+      "method": "kashier",
+      "expected": {
+        "subtotal": 99000,
+        "taxAdded": 13860,
+        "taxIncluded": 0,
+        "fee": 3500,
+        "total": 116360
+      }
+    },
+    {
+      "name": "clinic 12m coupon, inclusive + kashier: ceil(899400/0.9725)=924833",
+      "plan": "clinic",
+      "months": 12,
+      "promo": false,
+      "coupon": true,
+      "tax": "inclusive",
+      "method": "kashier",
+      "expected": {
+        "subtotal": 899100,
+        "taxAdded": 0,
+        "taxIncluded": 110416,
+        "fee": 25733,
+        "total": 924833
+      }
+    },
+    {
+      "name": "pro 12m promo + kashier: ceil(239500/0.9725)=246273",
+      "plan": "pro",
+      "months": 12,
+      "promo": true,
+      "coupon": false,
+      "tax": "none",
+      "method": "kashier",
+      "expected": {
+        "subtotal": 239200,
+        "taxAdded": 0,
+        "taxIncluded": 0,
+        "fee": 7073,
+        "total": 246273
+      }
+    }
+  ]
+}

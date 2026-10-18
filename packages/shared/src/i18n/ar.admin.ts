@@ -107,6 +107,27 @@ export const arAdmin = {
   "admin.whatsapp.verification.offBody":
     "لن يستطيع المستخدمون التحقق من هواتفهم عبر واتساب حتى تعيد تفعيله.",
   "admin.whatsapp.verification.offConfirm": "إيقاف التحقق",
+  "admin.whatsapp.customer.title": "رسائل العملاء على واتساب",
+  "admin.whatsapp.customer.lead":
+    "تفاصيل الاشتراك والدفع والتذكيرات تصل على واتساب للعملاء الذين أكدوا رقمهم عبر هذا الرقم، وبالبريد لغيرهم. يستطيع العميل إيقافها بإرسال: إيقاف.",
+  "admin.whatsapp.customer.label": "إرسال رسائل العملاء على واتساب",
+  "admin.whatsapp.customer.risk":
+    "إرسال رسائل لم يبدأها العميل قد يعرّض الرقم للحظر من واتساب، وعندها يتوقف تأكيد أرقام الهواتف أيضاً. ابدأ بحد يومي صغير وراقب الحساب.",
+  "admin.whatsapp.customer.sentToday": "اليوم: {sent} من {cap}",
+  "admin.whatsapp.customer.dailyCap": "الحد اليومي لكل العملاء",
+  "admin.whatsapp.customer.perUserDailyCap": "الحد اليومي لكل عميل",
+  "admin.whatsapp.customer.startHour": "بداية الإرسال (ساعة)",
+  "admin.whatsapp.customer.endHour": "نهاية الإرسال (ساعة)",
+  "admin.whatsapp.customer.hoursHint":
+    "بتوقيت {timezone}. الرسائل خارج هذه الساعات تنتظر بداية الفترة التالية.",
+  "admin.whatsapp.customer.range": "رقم صحيح من {min} إلى {max}",
+  "admin.whatsapp.customer.hoursOrder": "يجب أن تكون النهاية بعد البداية",
+  "admin.whatsapp.customer.save": "حفظ الإعدادات",
+  "admin.whatsapp.customer.saved": "تم حفظ إعدادات رسائل العملاء",
+  "admin.whatsapp.customer.onTitle": "تشغيل رسائل العملاء على واتساب؟",
+  "admin.whatsapp.customer.onBody":
+    "سيبدأ الرقم المربوط بإرسال رسائل لم يبدأها العملاء، وهذا قد يؤدي إلى حظره. تُرسل فقط لمن أكد رقمه عبر واتساب، ضمن الحدود والساعات المحددة.",
+  "admin.whatsapp.customer.onConfirm": "تشغيل الرسائل",
   "admin.whatsapp.verification.onDone": "تم تفعيل التحقق من الهاتف.",
   "admin.whatsapp.verification.offDone": "تم إيقاف التحقق من الهاتف.",
   "admin.nav.audit": "سجل التدقيق",
@@ -336,6 +357,7 @@ export const arAdmin = {
   "admin.settings.socials.title": "حسابات التواصل الاجتماعي",
   "admin.settings.socials.description": "روابط https لحسابات المنصة.",
   "admin.settings.locale.title": "اللغة والأرقام",
+  "admin.settings.alerts.title": "تنبيهات الإدارة",
   "admin.settings.locale.description": "اللغة الافتراضية وطريقة عرض الأرقام والتواريخ.",
   "admin.settings.currency.title": "العملات",
   "admin.settings.currency.description":
@@ -352,6 +374,15 @@ export const arAdmin = {
   "admin.settings.uploads.description":
     "المدة التي تُحفظ فيها صور الروشتات قبل حذفها. نتائج التحليل تبقى.",
   "admin.settings.field.uploads.retentionDays": "أيام الاحتفاظ بالصور",
+  "admin.settings.billing.title": "الفوترة",
+  "admin.settings.billing.description":
+    "الحد الأدنى للدفع ومدة صلاحية العرض والطلب وأيام السماح ومهلة الاسترداد وحد الموافقة المزدوجة والتجربة وبيانات الإيصال. المبالغ بوحدات العملة الصغرى.",
+  "admin.settings.rewards.title": "الإحالات والمكافآت",
+  "admin.settings.rewards.description":
+    "تشغيل مكافآت الإحالة وقيمة النقطة وقواعد السحب وحدود مكافحة الاحتيال. متوقفة إلى أن يفعّلها المالك.",
+  "admin.settings.growth.title": "النمو",
+  "admin.settings.growth.description":
+    "رسائل التحويل وتجارب الأوضاع المميزة وعروض دورة حياة العميل وضوابط التجارب.",
   "admin.settings.rx.description": "سعر الصفحة بالنقاط وحدود التحليل. ظاهر للمستخدمين قبل التحليل.",
   "admin.settings.auth.title": "المصادقة",
   "admin.settings.auth.description":
@@ -518,5 +549,33 @@ export const arAdmin = {
     "خدمة خارجية (بريد أو واتساب أو ذكاء اصطناعي أو قاعدة بيانات) لم تستجب. افحص حالة المزوّد ثم عالج الخلل.",
   "admin.issue.explain.INTERNAL":
     "خطأ غير متوقع في الخادم. افتح الأحداث وراجع السياق وتتبّع المكدّس، وابحث برمز الدعم في السجلات.",
+  "admin.issue.explain.PRICE_NOT_AVAILABLE":
+    "طُلب سعر لباقة بعملة أو مدة ليس لها سعر مفعّل. راجع أسعار الباقة في الكتالوج إذا تكرر.",
+  "admin.issue.explain.BELOW_MINIMUM":
+    "إجمالي الطلب بعد الخصومات أقل من الحد الأدنى للدفع. راجع الحد الأدنى في إعدادات الفوترة أو الخصومات المتراكمة.",
+  "admin.issue.explain.FREE_ORDER_NOT_ALLOWED":
+    "خصم جعل الطلب مجانيًا والطلبات المجانية معطّلة في الإعدادات. متوقع، إلا إذا كان الخصم بالخطأ 100%.",
+  "admin.issue.explain.METHOD_NOT_AVAILABLE":
+    "اختار العميل طريقة دفع معطّلة أو لا تناسب العملة أو المبلغ، أو بوابتها غير مفعّلة. راجع طرق الدفع والبوابات.",
+  "admin.issue.explain.QUOTE_EXPIRED":
+    "انتهت صلاحية ملخص السعر (15 دقيقة) أو تغيّر قبل إنشاء الطلب. متوقع؛ كثرته تعني أن العملاء يتأخرون في صفحة الدفع.",
+  "admin.issue.explain.COUPON_UNAVAILABLE":
+    "نفد الكوبون أو انتهى أو استُخدم بين عرض السعر وإنشاء الطلب. متوقع مع الكوبونات محدودة العدد.",
+  "admin.issue.explain.DUPLICATE_TXN":
+    "أرسل العميل رقم معاملة سبق استخدامه على نفس طريقة الدفع. قد يكون خطأً في الكتابة أو محاولة لإعادة استخدام إثبات قديم؛ راجع الطلبين.",
+  "admin.issue.explain.PROOF_LIMIT":
+    "وصل العميل إلى الحد الأقصى لإرسال الإثبات (3 مرات) أو رُفض دفعه مرتين. يحتاج إلى طلب جديد أو تواصل الدعم.",
+  "admin.issue.explain.PROOF_PROCESSING":
+    "أُرسل الإثبات قبل انتهاء معالجة الصورة. متوقع ومؤقت؛ يعيد العميل المحاولة بعد ثوانٍ.",
+  "admin.issue.explain.PROOF_NOT_ALLOWED":
+    "لا يقبل الدفع إثباتًا في حالته الحالية (انتهى الطلب، أو قيد المراجعة، أو الملف غير صالح). متوقع إذا انتهت مهلة الطلب.",
+  "admin.issue.explain.TRIAL_UNAVAILABLE":
+    "طُلبت تجربة لباقة بلا تجربة، أو رصيد التجربة صفر في الإعدادات، أو لدى العميل اشتراك قائم. متوقع.",
+  "admin.issue.explain.TRIAL_USED":
+    "استُخدمت التجربة من قبل على هذا الحساب أو على رقم الهاتف نفسه. متوقع؛ كثرته قد تعني محاولات لتكرار التجربة.",
+  "admin.issue.explain.PHONE_VERIFICATION_REQUIRED":
+    "التجربة تتطلب رقم هاتف مؤكدًا ولم يؤكده العميل بعد. متوقع.",
+  "admin.issue.explain.INVALID_SIGNATURE":
+    "وصل إشعار دفع (webhook) بتوقيع غير صحيح فرُفض. إذا تكرر فراجع مفاتيح البوابة؛ وإلا فقد يكون طلبًا مزوّرًا.",
   "admin.issue.explain.unknown": "رمز خطأ غير معروف لهذه اللوحة. راجع السياق والأحداث.",
 } as const;

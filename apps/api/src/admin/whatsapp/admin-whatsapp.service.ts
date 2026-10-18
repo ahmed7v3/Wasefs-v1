@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { Inject, Injectable } from "@nestjs/common";
+import { waCustomerDay, waCustomerSentKey } from "@wasfa/shared/customer-messages";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import {
   WA_COMMANDS_KEY,
@@ -20,7 +21,11 @@ import { REDIS } from "../../common/redis.js";
 import { PhoneService } from "../../phone/phone.service.js";
 import { SettingsService } from "../../settings/settings.service.js";
 
-import type { AdminWhatsappPairing, AdminWhatsappStatus } from "@wasfa/shared/schemas/admin";
+import type {
+  AdminWhatsappPairing,
+  AdminWhatsappStatus,
+  CustomerMessagesSettingsInput,
+} from "@wasfa/shared/schemas/admin";
 import type { FastifyRequest } from "fastify";
 
 /**
@@ -37,13 +42,16 @@ export class AdminWhatsappService {
   ) {}
 
   async status(): Promise<AdminWhatsappStatus> {
-    const [availability, number, auth, lastBeatAt, pairing] = await Promise.all([
-      this.phone.availability(),
-      this.phone.whatsappNumber(),
-      this.settings.get("auth"),
-      this.lastBeatAt(),
-      this.pairing(),
-    ]);
+    const [availability, number, auth, lastBeatAt, pairing, whatsapp, sentToday] =
+      await Promise.all([
+        this.phone.availability(),
+        this.phone.whatsappNumber(),
+        this.settings.get("auth"),
+        this.lastBeatAt(),
+        this.pairing(),
+        this.settings.get("whatsapp"),
+        this.customerSentToday(),
+      ]);
     return {
       number: number ? `+${number.digits}` : null,
       numberSource: number?.source ?? null,
@@ -51,8 +59,29 @@ export class AdminWhatsappService {
       pairing,
       phoneVerification: auth.phoneVerification,
       available: availability.available,
-      ...(availability.unavailableReason ? { unavailableReason: availability.unavailableReason } : {}),
+      ...(availability.unavailableReason
+        ? { unavailableReason: availability.unavailableReason }
+        : {}),
+      customerMessages: { ...whatsapp.customerMessages, sentToday },
     };
+  }
+
+  /**
+   * Customer notifications from the linked number (owner decision, 2026-10-17). Written as part of
+   * the `whatsapp` setting, so `SettingsService.set` audits it; the bridge rereads it within 30 s.
+   */
+  async setCustomerMessages(
+    actorId: string,
+    request: FastifyRequest,
+    input: CustomerMessagesSettingsInput,
+  ): Promise<AdminWhatsappStatus> {
+    const current = await this.settings.get("whatsapp");
+    await this.settings.set(
+      "whatsapp",
+      { ...current, customerMessages: { ...current.customerMessages, ...input } },
+      { actorId, request },
+    );
+    return this.status();
   }
 
   /**
@@ -68,7 +97,8 @@ export class AdminWhatsappService {
     if (bridge !== "logged_out") {
       throw new AppError(ErrorCode.CONFLICT, { details: { reason: "whatsapp_already_linked" } });
     }
-    await this.settings.set("whatsapp", { number }, { actorId, request });
+    const current = await this.settings.get("whatsapp");
+    await this.settings.set("whatsapp", { ...current, number }, { actorId, request });
     return this.push({ id: randomUUID(), cmd: "link", number: number.replace(/^\+/, "") });
   }
 
@@ -107,9 +137,19 @@ export class AdminWhatsappService {
         .expire(WA_COMMANDS_KEY, WA_COMMANDS_TTL_SECONDS)
         .exec();
     } catch {
-      throw new AppError(ErrorCode.UPSTREAM_UNAVAILABLE, { details: { reason: "queue_unavailable" } });
+      throw new AppError(ErrorCode.UPSTREAM_UNAVAILABLE, {
+        details: { reason: "queue_unavailable" },
+      });
     }
     return { id: command.id };
+  }
+
+  private async customerSentToday(): Promise<number> {
+    try {
+      return Number((await this.redis.get(waCustomerSentKey(waCustomerDay(Date.now())))) ?? 0);
+    } catch {
+      return 0;
+    }
   }
 
   private async lastBeatAt(): Promise<string | null> {

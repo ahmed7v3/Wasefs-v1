@@ -8,10 +8,14 @@ import { RecentAnalyses } from "../../../../components/dashboard/recent-analyses
 import { RecentChats } from "../../../../components/dashboard/recent-chats";
 import { ToolCards } from "../../../../components/dashboard/tool-cards";
 import { VerificationBanner } from "../../../../components/dashboard/verification-banner";
+import { OffersCard } from "../../../../components/growth/offers-card";
+import { PromptSlot } from "../../../../components/growth/prompt-slot";
+import { ValueLedger } from "../../../../components/growth/value-ledger";
 import { displayName } from "../../../../lib/labels";
 import { getNonce } from "../../../../lib/nonce";
 import { getPublicSettings } from "../../../../lib/public-settings";
 import { requireOnboarded } from "../../../../lib/session";
+import { requestedWorkspace } from "../../../../lib/workspace-server";
 
 import type { Metadata } from "next";
 
@@ -21,6 +25,7 @@ export default async function DashboardPage() {
   const me = await requireOnboarded("/dashboard");
   const firstName = displayName(me.name, ANONYMIZED_USER_NAME).trim().split(/\s+/)[0] ?? "";
   const nonce = me.canUseTools ? undefined : await getNonce();
+  const orgId = await requestedWorkspace(me);
   const settings = me.canUseTools ? await getPublicSettings() : null;
 
   return (
@@ -40,7 +45,7 @@ export default async function DashboardPage() {
             <div className="lg:col-span-2">
               <QuickCapture maxPages={settings.rx.maxPages} />
             </div>
-            <CreditsCard />
+            <CreditsCard orgId={orgId} />
           </div>
           <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
             <RecentAnalyses />
@@ -49,6 +54,14 @@ export default async function DashboardPage() {
         </>
       ) : null}
       <ToolCards />
+      {/* Loaded in the browser and often empty: below the work, so their arrival moves nothing above. */}
+      {settings ? (
+        <>
+          <ValueLedger />
+          <OffersCard />
+          <PromptSlot context="dashboard" orgId={orgId ?? undefined} />
+        </>
+      ) : null}
       <p className="text-sm text-text-muted">{t("home.disclaimer")}</p>
     </div>
   );

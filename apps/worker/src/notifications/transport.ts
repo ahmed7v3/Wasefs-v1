@@ -10,6 +10,8 @@ export interface OutgoingMail {
   subject: string;
   html: string;
   text: string;
+  /** Extra headers (only `List-Unsubscribe` / `List-Unsubscribe-Post` for marketing mail). */
+  headers?: Record<string, string>;
 }
 
 export interface SentMail {
@@ -70,6 +72,7 @@ export class SmtpTransport implements EmailTransport {
         subject: mail.subject,
         html: mail.html,
         text: mail.text,
+        ...(mail.headers ? { headers: mail.headers } : {}),
       });
       return { messageId: typeof info.messageId === "string" ? info.messageId : null };
     } catch (error) {

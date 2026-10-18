@@ -97,7 +97,7 @@ export class UsersRepo {
       })
       .from(organizationMembers)
       .innerJoin(organizations, eq(organizations.id, organizationMembers.orgId))
-      .where(eq(organizationMembers.userId, userId))
+      .where(and(eq(organizationMembers.userId, userId), eq(organizationMembers.status, "active")))
       .orderBy(asc(organizationMembers.joinedAt));
   }
 
@@ -141,13 +141,21 @@ export class UsersRepo {
         .select({ orgId: organizationMembers.orgId })
         .from(organizationMembers)
         .where(
-          and(eq(organizationMembers.userId, userId), eq(organizationMembers.role, "org_admin")),
+          and(
+            eq(organizationMembers.userId, userId),
+            eq(organizationMembers.role, "org_admin"),
+            eq(organizationMembers.status, "active"),
+          ),
         );
       const stranded = await tx
         .select({ orgId: organizationMembers.orgId })
         .from(organizationMembers)
         .where(
-          and(inArray(organizationMembers.orgId, mine), ne(organizationMembers.userId, userId)),
+          and(
+            inArray(organizationMembers.orgId, mine),
+            ne(organizationMembers.userId, userId),
+            eq(organizationMembers.status, "active"),
+          ),
         )
         .groupBy(organizationMembers.orgId)
         .having(sql`count(*) filter (where ${organizationMembers.role} = 'org_admin') = 0`);

@@ -103,6 +103,7 @@ export class OnboardingTx {
           eq(organizations.id, orgId),
           eq(organizationMembers.userId, this.userId),
           eq(organizationMembers.role, "org_admin"),
+          eq(organizationMembers.status, "active"),
         ),
       );
     return row ?? null;
@@ -125,6 +126,7 @@ export class OnboardingTx {
                   eq(organizationMembers.orgId, orgId),
                   eq(organizationMembers.userId, this.userId),
                   eq(organizationMembers.role, "org_admin"),
+                  eq(organizationMembers.status, "active"),
                 ),
               ),
           ),

@@ -160,6 +160,25 @@ function prepareDatabase(infra: Infra): void {
   }
 }
 
+/**
+ * What the pricing and checkout specs need on top of the seed: the paid plans public (the seed
+ * hides them until the owner publishes prices) and a card method served by the scripted fake
+ * gateway, which exists outside production only. Done before the API starts, so no cache is stale.
+ */
+function seedBillingFixtures(infra: Infra): void {
+  const script = `import postgres from "postgres";
+const db = postgres(process.env.DATABASE_URL);
+await db\`update plans set visibility = 'public' where key in ('plus', 'pro')\`;
+await db\`insert into payment_methods (key, kind, provider, name_ar, name_en, currencies, fee_bps, fee_fixed_minor, enabled, sort)
+  values ('fake_card', 'gateway', 'fake', 'بطاقة تجريبية', 'Test card', array['EGP'], 275, 300, true, 5)
+  on conflict (key) do nothing\`;
+await db.end();`;
+  runToCompletion("db-billing-fixtures", process.execPath, ["--input-type=module", "-e", script], {
+    cwd: DB_DIR,
+    env: cleanEnv({ DATABASE_URL: infra.ownerDatabaseUrl }),
+  });
+}
+
 function distDirOf(name: StackName): string {
   return `.next-e2e-${name}`;
 }
@@ -254,7 +273,10 @@ export async function startStack(options: { withTurnstile: boolean }): Promise<R
     NEXT_PUBLIC_ENV: "development",
     NEXT_PUBLIC_SITE_URL: originOf(STACK_PORTS[name].web),
     NEXT_PUBLIC_API_URL: originOf(STACK_PORTS[name].api),
-    ...(name === "turnstile" ? { NEXT_PUBLIC_TURNSTILE_SITE_KEY: TURNSTILE_TEST_SITE_KEY } : {}),
+    // Always set: `next build`/`next start` also read `apps/web/.env.local` from disk, and a real
+    // key there would put a live widget on the default stack. Empty counts as unset (lib/env.ts),
+    // and a variable already in the environment wins over the env files.
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: name === "turnstile" ? TURNSTILE_TEST_SITE_KEY : "",
   });
 
   let infra: Infra | undefined;
@@ -263,6 +285,7 @@ export async function startStack(options: { withTurnstile: boolean }): Promise<R
     infra = await infraPromise;
     const running = infra;
     prepareDatabase(running);
+    seedBillingFixtures(running);
 
     for (const name of names) buildWeb(name, webBuildEnv(name));
 

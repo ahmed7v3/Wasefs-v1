@@ -14,6 +14,11 @@ import { ToolCards } from "../src/components/dashboard/tool-cards";
  * error state, and the loading state takes the room of the loaded one (fixed heights).
  */
 
+const refresh = vi.fn();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh, replace: vi.fn(), push: vi.fn() }),
+}));
+
 const fetchMock = vi.fn<typeof fetch>();
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -30,6 +35,24 @@ const CREDITS = {
     { task: "title_gen", used: 4, dailyCap: null },
   ],
   chat: { modes: ["fast", "balanced"], webSearch: false },
+  wallets: [{ kind: "personal", balance: 1250 }],
+  payer: { kind: "personal", fallback: false },
+};
+
+const ORG_ID = "00000000-0000-4000-8000-0000000000aa";
+const ORG_CREDITS = {
+  ...CREDITS,
+  wallets: [
+    { kind: "personal", balance: 1250 },
+    {
+      kind: "org",
+      orgId: ORG_ID,
+      orgName: "صيدلية النور",
+      balance: 300,
+      memberCap: { cap: 100, used: 40 },
+    },
+  ],
+  payer: { kind: "org", orgId: ORG_ID, fallback: true },
 };
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -96,6 +119,37 @@ describe("CreditsCard", () => {
     fetchMock.mockResolvedValue(json({ ...CREDITS, today: [] }));
     render(<CreditsCard />);
     await screen.findByText(t("dashboard.credits.todayEmpty"));
+  });
+
+  it("asks for the selected organization and says who pays, the fallback and the cap", async () => {
+    fetchMock.mockResolvedValue(json(ORG_CREDITS));
+    render(<CreditsCard orgId={ORG_ID} />);
+    const card = await screen.findByRole("region", { name: t("dashboard.credits.title") });
+    await within(card).findByText(t("dashboard.credits.balance", { balance: "300" }));
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(`/me/credits?orgId=${ORG_ID}`);
+    const payer = within(card).getByTestId("payer");
+    expect(payer.textContent).toContain(t("workspace.payer.org", { name: "صيدلية النور" }));
+    expect(payer.textContent).toContain(t("workspace.payer.thenPersonal"));
+    expect(payer.textContent).toContain(t("workspace.cap", { used: "40", cap: "100" }));
+  });
+
+  it("says the personal credits pay when no organization is selected", async () => {
+    fetchMock.mockResolvedValue(json(CREDITS));
+    render(<CreditsCard />);
+    const card = await screen.findByRole("region", { name: t("dashboard.credits.title") });
+    expect((await within(card).findByTestId("payer")).textContent).toContain(
+      t("workspace.payer.personal"),
+    );
+  });
+
+  it("forgets an organization that answers not found and refreshes", async () => {
+    document.cookie = `wasfa_ctx=${ORG_ID}; path=/`;
+    fetchMock.mockResolvedValue(json({ code: "NOT_FOUND", message: "x" }, 404));
+    render(<CreditsCard orgId={ORG_ID} />);
+    await waitFor(() => {
+      expect(refresh).toHaveBeenCalled();
+    });
+    expect(document.cookie).not.toContain(ORG_ID);
   });
 
   it("names the owner of an organization wallet", () => {

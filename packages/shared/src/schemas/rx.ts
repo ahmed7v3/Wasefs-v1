@@ -176,6 +176,8 @@ export type RxResult = z.infer<typeof rxResultSchema>;
 export const rxCreateRequestSchema = z.object({
   fileIds: z.array(z.string().uuid()).min(1).max(RX_MAX_PAGES),
   mode: z.enum(AI_MODES).default("balanced"),
+  /** Act for this organization (its plan, quota and wallet); the caller must be an active member. */
+  orgId: z.uuid().optional(),
 });
 export type RxCreateRequest = z.infer<typeof rxCreateRequestSchema>;
 
@@ -316,7 +318,13 @@ export const rxVerifyJsonSchema = {
 } as const;
 
 /** `rx.analyze`: the only job of the `rx` queue; everything else is read from the row. */
-export const rxAnalyzePayloadSchema = z.object({ analysisId: z.uuid() });
+/** `planOrgId`: the analysis was made in an organization context, so that organization's plan routes it. */
+export const rxAnalyzePayloadSchema = z.object({
+  analysisId: z.uuid(),
+  planOrgId: z.uuid().optional(),
+  /** A taste of Deep mode (Task 3.14): route by this (paid) plan, whose model the taste lets the user try. */
+  routePlanId: z.uuid().optional(),
+});
 
 /** Redis names shared by the worker (publisher) and the API (SSE relay). */
 export const rxChannel = (analysisId: string): string => `rx:${analysisId}`;

@@ -30,6 +30,10 @@ export type OrgType = (typeof ORG_TYPES)[number];
 export const ORG_MEMBER_ROLES = ["org_admin", "org_member"] as const;
 export type OrgMemberRole = (typeof ORG_MEMBER_ROLES)[number];
 
+/** A membership awaiting an org admin's approval (join link `requires_approval`) is `pending` and grants nothing. */
+export const ORG_MEMBER_STATUSES = ["active", "pending"] as const;
+export type OrgMemberStatus = (typeof ORG_MEMBER_STATUSES)[number];
+
 /** Onboarding wizard steps in order (ARCHITECTURE §3). `done` is the terminal state. */
 export const ONBOARDING_STEPS = [
   "account_type",

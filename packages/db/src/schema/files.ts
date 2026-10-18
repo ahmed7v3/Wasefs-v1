@@ -60,6 +60,9 @@ export const files = pgTable(
       sql`${table.dhash} is null or ${matches(table.dhash, FILE_DHASH_PATTERN.source)}`,
     ),
     index("files_sha256_idx").on(table.sha256),
+    index("files_purpose_sha256_idx")
+      .on(table.sha256)
+      .where(sql`${table.purpose} = 'payment_proof' and ${table.sha256} is not null`),
     index("files_owner_user_dhash_idx").on(table.ownerUserId, table.dhash),
     index("files_owner_org_dhash_idx").on(table.ownerOrgId, table.dhash),
     // The retention job looks only at objects that still exist.

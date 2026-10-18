@@ -49,7 +49,15 @@ type PatchableField =
   | "visibility"
   | "sort"
   | "badgeAr"
-  | "badgeEn";
+  | "badgeEn"
+  | "taglineAr"
+  | "taglineEn"
+  | "features"
+  | "trialDays"
+  | "pinRecommended"
+  | "maxMembers"
+  | "fairUseNoteAr"
+  | "fairUseNoteEn";
 
 /** The fields of a plan an admin may change; `undefined` = leave as is. */
 export type PlanPatch = { [K in PatchableField]?: NewPlan[K] | undefined };

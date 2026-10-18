@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 
 import { PhoneVerification } from "../phone-verification";
 
+import { WhatsappNotifications } from "./whatsapp-notifications";
+
 export interface PhoneSectionProps {
   phone: string | null;
   phoneVerified: boolean;
@@ -27,10 +29,13 @@ export function PhoneSection({ phone, phoneVerified, nonce }: PhoneSectionProps)
         {t("account.phone.title")}
       </h2>
       {phoneVerified && phone ? (
-        <p className="flex flex-wrap items-center gap-2 text-base text-text">
-          <bdi dir="ltr">{phone}</bdi>
-          <Badge tone="success">{t("common.verified")}</Badge>
-        </p>
+        <>
+          <p className="flex flex-wrap items-center gap-2 text-base text-text">
+            <bdi dir="ltr">{phone}</bdi>
+            <Badge tone="success">{t("common.verified")}</Badge>
+          </p>
+          <WhatsappNotifications />
+        </>
       ) : (
         <>
           <p className="text-base text-text-muted">{t("account.phone.verifyLead")}</p>

@@ -1,0 +1,3 @@
+ALTER TABLE "subscription_events" DROP CONSTRAINT "subscription_events_type_check";--> statement-breakpoint
+CREATE INDEX "subscription_events_order_idx" ON "subscription_events" USING btree (("data"->>'orderId')) WHERE ("subscription_events"."data"->>'orderId') is not null;--> statement-breakpoint
+ALTER TABLE "subscription_events" ADD CONSTRAINT "subscription_events_type_check" CHECK ("subscription_events"."type" in ('created', 'renewed', 'upgraded', 'downgraded_scheduled', 'grace_started', 'expired', 'canceled', 'admin_changed', 'refund_applied', 'resumed'));

@@ -11,6 +11,7 @@ import {
   signedInAccount,
 } from "./support/accounts";
 import { expectAccessible } from "./support/axe";
+import { createOrderViaApi } from "./support/billing";
 import { expect, test } from "./support/fixtures";
 import {
   answerAccountType,
@@ -28,7 +29,7 @@ import { bridgeConnected, bridgeGone } from "./support/whatsapp";
 
 const PUBLIC_PAGES = ["/login", "/register", "/forgot-password", "/verify-email"];
 /** Pages another part of the product adds; they are checked as soon as they exist. */
-const MARKETING_PAGES = ["/", "/contact", "/privacy"];
+const MARKETING_PAGES = ["/", "/pricing", "/contact", "/privacy"];
 
 for (const path of PUBLIC_PAGES) {
   test(`public page ${path}`, async ({ page }) => {
@@ -132,4 +133,89 @@ test("admin pages", async ({ context, page, urls, redis }) => {
     await page.goto(path);
     await expectAccessible(page, path);
   }
+});
+
+test("billing pages: checkout, both order states and the billing account", async ({
+  context,
+  page,
+  urls,
+  redis,
+}) => {
+  const account = await signedInAccount(context, urls, redis, newAccount("A11yBill"));
+  await finishOnboarding(page.request, urls, account.name);
+
+  await page.goto("/checkout?plan=plus&months=1");
+  await expectAccessible(page, "/checkout");
+
+  // A card order waiting for the provider, and a transfer order showing its instructions.
+  const card = await createOrderViaApi(context, urls, {
+    planKey: "plus",
+    months: 1,
+    methodKey: "fake_card",
+  });
+  await page.goto(`/checkout/${card.orderId}`);
+  await expect(page.getByTestId("order-state-title")).toBeVisible();
+  await expectAccessible(page, "/checkout/<order> (card, waiting)");
+
+  const transfer = await createOrderViaApi(context, urls, {
+    planKey: "pro",
+    months: 1,
+    methodKey: "instapay",
+  });
+  await page.goto(`/checkout/${transfer.orderId}`);
+  await expect(page.getByTestId("manual-amount")).toBeVisible();
+  await expectAccessible(page, "/checkout/<order> (transfer instructions)");
+
+  await page.goto("/billing");
+  await expect(page.getByTestId("current-plan")).toBeVisible();
+  await expect(page.getByText(t("billing.orders.complete")).first()).toBeVisible();
+  await expectAccessible(page, "/billing");
+});
+
+test("rewards page, organization console (every tab), the dialogs and the join page", async ({
+  context,
+  page,
+  urls,
+  redis,
+}) => {
+  const account = await signedInAccount(context, urls, redis, newAccount("A11yOrg"));
+  await finishOnboarding(page.request, urls, account.name, "organization");
+  const orgs = (await (await page.request.get(`${urls.api}/orgs`)).json()) as {
+    items: Array<{ id: string }>;
+  };
+  const orgId = orgs.items[0]?.id;
+  if (!orgId) throw new Error("the organization was not created");
+  const slug = `a11y-${Math.random().toString(16).slice(2, 10)}`;
+  const created = await page.request.post(`${urls.api}/orgs/${orgId}/join-links`, {
+    data: { slug },
+    headers: { Origin: urls.web },
+  });
+  expect(created.ok()).toBe(true);
+
+  await page.goto("/rewards");
+  await expect(page.getByTestId("count-invited")).toBeVisible();
+  await expectAccessible(page, "/rewards");
+
+  await page.goto(`/org/${orgId}`);
+  for (const tab of ["overview", "members", "links", "orders"] as const) {
+    await page.getByRole("tab", { name: t(`org.tabs.${tab}`) }).click();
+    await expectAccessible(page, `/org/<id> (${tab})`);
+  }
+  await page.getByRole("tab", { name: t("org.tabs.links") }).click();
+  await page.locator("button[name=new-link]").click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expectAccessible(page, "/org/<id> (new link dialog)");
+  await page.keyboard.press("Escape");
+
+  await page.goto("/pricing");
+  await page.locator("button[name=open-lead]").click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expectAccessible(page, "/pricing (lead dialog)");
+
+  // The join page is public: a signed-out visitor sees it.
+  await context.clearCookies();
+  await page.goto(`/join/${slug}`);
+  await expectAccessible(page, "/join/<slug>");
+  await page.goto("/join/no-such-link-here");
+  await expectAccessible(page, "/join/<invalid>");
 });

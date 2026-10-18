@@ -16,6 +16,14 @@ export const PUBLIC_PAGES = {
     priority: 1,
     ogImage: "/og/home.png",
   },
+  pricing: {
+    path: "/pricing",
+    lastModified: "2026-10-17",
+    changeFrequency: "weekly",
+    priority: 0.9,
+    // A copy of the home card until `pnpm og:images` renders the pricing one (it is in the script).
+    ogImage: "/og/pricing.png",
+  },
   contact: {
     path: "/contact",
     lastModified: "2026-10-11",

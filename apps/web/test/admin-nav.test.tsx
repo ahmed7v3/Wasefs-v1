@@ -30,11 +30,15 @@ describe("visibleNavGroups", () => {
     ]);
   });
 
-  it("maps every page to its read permission, never to a write permission (evals.run is the one permission that guards a page and its runs)", () => {
+  it("maps every page to its read permission, never to a write permission (evals.run, withdrawals.review and alerts.receive guard pages with no separate read permission)", () => {
     const permissions = ADMIN_NAV.flatMap((group) => group.items.map((item) => item.permission));
     for (const permission of permissions) {
       expect(
-        permission === null || permission.endsWith(".read") || permission === "evals.run",
+        permission === null ||
+          permission.endsWith(".read") ||
+          permission === "evals.run" ||
+          permission === "withdrawals.review" ||
+          permission === "alerts.receive",
       ).toBe(true);
     }
   });
@@ -42,6 +46,23 @@ describe("visibleNavGroups", () => {
   it("shows everything to a holder of the whole catalog (super_admin)", () => {
     expect(hrefs(PERMISSION_KEYS)).toEqual([
       "/admin",
+      "/admin/billing",
+      "/admin/billing/payments",
+      "/admin/billing/subscriptions",
+      "/admin/billing/orders",
+      "/admin/billing/refunds",
+      "/admin/billing/plans",
+      "/admin/billing/promotions",
+      "/admin/billing/coupons",
+      "/admin/billing/credit-packs",
+      "/admin/billing/methods",
+      "/admin/growth",
+      "/admin/growth/referrals",
+      "/admin/growth/fraud",
+      "/admin/growth/withdrawals",
+      "/admin/growth/deals",
+      "/admin/growth/experiments",
+      "/admin/alerts",
       "/admin/users",
       "/admin/orgs",
       "/admin/roles",
@@ -49,6 +70,7 @@ describe("visibleNavGroups", () => {
       "/admin/branding",
       "/admin/flags",
       "/admin/whatsapp",
+      "/admin/billing/gateways",
       "/admin/ai",
       "/admin/ai/providers",
       "/admin/ai/models",

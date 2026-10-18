@@ -4,7 +4,7 @@
       "startServerCommand": "pnpm exec next start --port 3300",
       "startServerReadyPattern": "Ready in",
       "startServerReadyTimeout": 60000,
-      "url": ["http://localhost:3300/"],
+      "url": ["http://localhost:3300/", "http://localhost:3300/pricing"],
       "numberOfRuns": 3,
       "settings": {
         "formFactor": "mobile",

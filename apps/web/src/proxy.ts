@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { REFERRAL_COOKIE, normalizeReferralCode, referralCookie } from "./lib/attribution-cookies";
 import { SECURITY_HEADERS, buildCsp, generateNonce, parseSources } from "./lib/csp";
 import { isProduction, publicEnv } from "./lib/env";
 import { hasSessionCookie, isProtectedPath, loginPath } from "./lib/route-guard";
@@ -53,7 +54,16 @@ export function proxy(request: NextRequest): NextResponse {
   requestHeaders.set("x-pathname", `${pathname}${search}`);
   requestHeaders.set("Content-Security-Policy", csp);
 
-  return withSecurityHeaders(NextResponse.next({ request: { headers: requestHeaders } }), csp);
+  const response = withSecurityHeaders(
+    NextResponse.next({ request: { headers: requestHeaders } }),
+    csp,
+  );
+  // `?ref=<code>` on any public page: first touch wins, so an existing cookie is never replaced.
+  const ref = normalizeReferralCode(request.nextUrl.searchParams.get("ref"));
+  if (ref !== null && !request.cookies.has(REFERRAL_COOKIE)) {
+    response.cookies.set(referralCookie(ref, isProduction));
+  }
+  return response;
 }
 
 export const config = {

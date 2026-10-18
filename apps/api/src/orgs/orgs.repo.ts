@@ -64,6 +64,9 @@ export interface OrgChanges {
   city?: string | null | undefined;
 }
 
+/** A pending join request is not a member: every membership read goes through this filter. */
+const active = () => eq(organizationMembers.status, "active");
+
 /** Unaccepted and unexpired. */
 const pending = () =>
   and(isNull(organizationInvites.acceptedAt), gt(organizationInvites.expiresAt, sql`now()`));
@@ -89,7 +92,11 @@ export class LockedOrg {
       .select({ role: organizationMembers.role })
       .from(organizationMembers)
       .where(
-        and(eq(organizationMembers.orgId, this.orgId), eq(organizationMembers.userId, userId)),
+        and(
+          eq(organizationMembers.orgId, this.orgId),
+          eq(organizationMembers.userId, userId),
+          active(),
+        ),
       );
     return row?.role ?? null;
   }
@@ -98,7 +105,7 @@ export class LockedOrg {
     const [row] = await this.tx
       .select({ total: count() })
       .from(organizationMembers)
-      .where(eq(organizationMembers.orgId, this.orgId));
+      .where(and(eq(organizationMembers.orgId, this.orgId), active()));
     return row?.total ?? 0;
   }
 
@@ -107,7 +114,11 @@ export class LockedOrg {
       .select({ total: count() })
       .from(organizationMembers)
       .where(
-        and(eq(organizationMembers.orgId, this.orgId), eq(organizationMembers.role, "org_admin")),
+        and(
+          eq(organizationMembers.orgId, this.orgId),
+          eq(organizationMembers.role, "org_admin"),
+          active(),
+        ),
       );
     return row?.total ?? 0;
   }
@@ -152,7 +163,7 @@ export class LockedOrg {
       .select({ userId: organizationMembers.userId })
       .from(organizationMembers)
       .innerJoin(users, eq(users.id, organizationMembers.userId))
-      .where(and(eq(organizationMembers.orgId, this.orgId), contact))
+      .where(and(eq(organizationMembers.orgId, this.orgId), active(), contact))
       .limit(1);
     return row !== undefined;
   }
@@ -164,6 +175,14 @@ export class LockedOrg {
       .where(and(eq(organizationInvites.orgId, this.orgId), pending(), matchesTarget(target)))
       .limit(1);
     return row !== undefined;
+  }
+
+  /**
+   * Seats taken: active members plus invitations that can still be accepted. A pending join request
+   * holds no seat until an org admin approves it.
+   */
+  async seatsTaken(): Promise<number> {
+    return (await this.memberCount()) + (await this.pendingInviteCount());
   }
 
   async insertInvite(values: Omit<NewOrganizationInvite, "orgId">): Promise<OrganizationInvite> {
@@ -194,7 +213,9 @@ export class OrgsRepo {
     const [row] = await this.handle.db
       .select({ role: organizationMembers.role })
       .from(organizationMembers)
-      .where(and(eq(organizationMembers.orgId, orgId), eq(organizationMembers.userId, userId)));
+      .where(
+        and(eq(organizationMembers.orgId, orgId), eq(organizationMembers.userId, userId), active()),
+      );
     return row ?? null;
   }
 
@@ -211,7 +232,7 @@ export class OrgsRepo {
       .select({ org: organizations, role: organizationMembers.role })
       .from(organizationMembers)
       .innerJoin(organizations, eq(organizations.id, organizationMembers.orgId))
-      .where(eq(organizationMembers.userId, userId))
+      .where(and(eq(organizationMembers.userId, userId), active()))
       .orderBy(asc(organizations.createdAt), asc(organizations.id));
   }
 
@@ -220,7 +241,7 @@ export class OrgsRepo {
     const rows = await this.handle.db
       .select({ orgId: organizationMembers.orgId, total: count() })
       .from(organizationMembers)
-      .where(inArray(organizationMembers.orgId, orgIds))
+      .where(and(inArray(organizationMembers.orgId, orgIds), active()))
       .groupBy(organizationMembers.orgId);
     return new Map(rows.map((row) => [row.orgId, row.total]));
   }
@@ -244,7 +265,7 @@ export class OrgsRepo {
       })
       .from(organizationMembers)
       .innerJoin(users, eq(users.id, organizationMembers.userId))
-      .where(eq(organizationMembers.orgId, orgId))
+      .where(and(eq(organizationMembers.orgId, orgId), active()))
       .orderBy(asc(organizationMembers.joinedAt), asc(organizationMembers.userId));
   }
 
@@ -258,8 +279,26 @@ export class OrgsRepo {
       })
       .from(organizationMembers)
       .innerJoin(users, eq(users.id, organizationMembers.userId))
-      .where(and(eq(organizationMembers.orgId, orgId), eq(organizationMembers.userId, userId)));
+      .where(
+        and(eq(organizationMembers.orgId, orgId), eq(organizationMembers.userId, userId), active()),
+      );
     return row ?? null;
+  }
+
+  /** Join requests waiting for an org admin. */
+  async pendingRequests(
+    orgId: string,
+  ): Promise<{ userId: string; name: string; requestedAt: Date }[]> {
+    return this.handle.db
+      .select({
+        userId: organizationMembers.userId,
+        name: users.name,
+        requestedAt: organizationMembers.joinedAt,
+      })
+      .from(organizationMembers)
+      .innerJoin(users, eq(users.id, organizationMembers.userId))
+      .where(and(eq(organizationMembers.orgId, orgId), eq(organizationMembers.status, "pending")))
+      .orderBy(asc(organizationMembers.joinedAt), asc(organizationMembers.userId));
   }
 
   /** Runs `work` in a transaction holding the organization's row lock. */
@@ -362,7 +401,12 @@ export class OrgsRepo {
           role: invite.role,
           invitedBy: invite.invitedBy,
         })
-        .onConflictDoNothing()
+        // An invitation outranks an unapproved join request; an active member is left alone.
+        .onConflictDoUpdate({
+          target: [organizationMembers.orgId, organizationMembers.userId],
+          set: { status: "active", role: invite.role, invitedBy: invite.invitedBy },
+          setWhere: eq(organizationMembers.status, "pending"),
+        })
         .returning({ userId: organizationMembers.userId });
       if (inserted.length === 0) return { outcome: "already_member" };
 

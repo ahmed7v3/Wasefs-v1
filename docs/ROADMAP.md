@@ -9,7 +9,7 @@
 | 0 | Foundation & security baseline | open the placeholder site; the platform runs, deploys, and backs up | ✅ done (environment-bound carry-overs listed in Phase 1) |
 | 1 | Identity, admin core & public front door | sign up (email / Google / phone), finish onboarding, see the dashboard shell; admins manage users, roles, settings, and errors; visitors see the real landing page | ✅ closed — open items carried over in `phase1.md` Notes |
 | 2 | The AI product | analyze a prescription, chat with the AI assistant and its skills, all metered by credits under plan limits; admins control providers, models, routing, skills, plans, and the drug database | ⏳ next — `phase2.md` (Task 2.0 close-out done) |
-| 3 | Payments & growth | pay (Kashier / manual transfer), subscribe and renew, use coupons, earn referral and partner rewards; marketing sees attribution and pixel conversions | planned |
+| 3 | Payments, plans, referrals & growth | pay (Kashier card, or InstaPay / Vodafone Cash approved by an admin), subscribe to flexible plans with promotions and coupons, invite friends and earn points to withdraw or convert into credits; institutions get special deals; admins see everything about a user and upgrade anyone; the product encourages subscription by showing real value | planned — `phase3.md` plus `BILLING.md`, `REFERRALS-REWARDS.md`, `GROWTH-STRATEGY.md`, `ADMIN-CONSOLE-SPEC.md` written |
 | 4 | Content, SEO/GEO & support | read the blog and drug pages, find the site on Google and AI answers, open support tickets and get push and email replies; the launch checklist passes | planned |
 
 ---
@@ -46,15 +46,11 @@
 - `/ai` assistant: chats, SSE streaming (thinking / search / text), skills, history; prescription result UI (RTL table, confidence badges, disclaimers).
 - Docs: `DATABASE.md` updated; AI cost runbook.
 
-### Phase 3 — Payments & growth
-- Plan prices per country/currency (geo + switcher), pricing page with psychological pricing components.
-- Gateway layer: Kashier + manual (proof upload, admin approval); signed, idempotent webhooks; payment intents; success polling.
-- Subscriptions (user/org), lifecycle jobs (expiry → free, reminders 7/3/1 days, win-back), credit expiry, org custom terms.
-- Coupons, campaigns, discounts.
-- Referrals + doctor/partner program (commission, payouts tracking, invite tree).
-- Campaign links `/c/<slug>` with first/last-touch attribution and funnel stats.
-- Tracking manager (consent-aware pixel loader) + server-side events (Meta CAPI, GA4 MP, TikTok) deduplicated by `event_id`.
-- Admin finance: payments, refunds (re-auth), subscriptions, revenue overview.
+### Phase 3 — Payments, plans, referrals & growth
+Three releases, each deployable on its own (details in `docs/phases/phase3.md`):
+- **A — Monetize:** flexible plans with prices per duration and currency; a pure price engine (promotions, coupons, deals, proration, tax, processing fees shown quietly and honestly); payment gateway layer with Kashier; manual InstaPay / Vodafone Cash payments with proof, an admin review queue and instant admin alerts; prepaid subscriptions (renew, upgrade, downgrade, grace, trial), credit packs, receipts, refunds; pricing page, checkout and billing account; admin billing console.
+- **B — Grow:** organisation wallets, seats, member caps and join links; deals for any user, organisation, referral code or email domain; referral codes, points (pending / cash / credit-only buckets, 1,000 points = 100 EGP by default), rewards for sign-ups and paid subscriptions, tiers, anti-fraud; convert points to credits or request a cash withdrawal (alerts to all admins); admin growth console.
+- **C — Convert & know:** value moments, a free taste of Deep mode, personalised plan advice, real-deadline offers, lifecycle emails with frequency caps, experiments with guardrail metrics; admin user 360 (subscription, payments, credits, prescription history, chats, referrals, notes) with an Upgrade dialog; campaign links, consent-aware tracking and server-side conversion events (optional, may slide to the start of Phase 4).
 
 ### Phase 4 — Content, SEO/GEO & support
 - Blog: categories, tags, authors (E-E-A-T), medical reviewer, scheduling; HMAC-signed publishing API with image upload.

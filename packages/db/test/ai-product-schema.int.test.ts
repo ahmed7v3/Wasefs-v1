@@ -1156,7 +1156,8 @@ describe("seed", () => {
       aiModels: 6,
       aiTaskRoutes: 24,
     });
-    expect(first.plans).toBe(2);
+    // `free` only: the paid plans (plus, pro, clinic) are seeded with their prices by seedBilling (Phase 3).
+    expect(first.plans).toBe(1);
     expect(first.planEntitlements).toBeGreaterThan(0);
 
     const snapshot = async () => ({

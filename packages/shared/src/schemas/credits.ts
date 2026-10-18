@@ -97,12 +97,35 @@ export const adminAdjustResponseSchema = z.object({
   entry: creditLedgerEntrySchema,
 });
 
-/** `GET /me/credits`: the signed-in user's own wallet (organization wallets come later). */
+/** `GET /me/credits?orgId=`: the organization context to show the payer for (absent = personal). */
+export const meCreditsQuerySchema = z.object({ orgId: z.uuid().optional() });
+
+/** One wallet the caller can spend from: their own, and each organization wallet they belong to. */
+export const meWalletSchema = z.object({
+  kind: z.enum(["personal", "org"]),
+  orgId: z.uuid().optional(),
+  orgName: z.string().optional(),
+  balance: z.number().int(),
+  /** Org wallets only, when an admin set a monthly cap for the caller: credits used this UTC month. */
+  memberCap: z.object({ cap: z.number().int().min(0), used: z.number().int().min(0) }).optional(),
+});
+
+/** Which wallet pays in the requested context; `fallback` = personal credits are used if the org wallet runs out. */
+export const mePayerSchema = z.object({
+  kind: z.enum(["personal", "org"]),
+  orgId: z.uuid().optional(),
+  fallback: z.boolean(),
+});
+
+/**
+ * `GET /me/credits`: the signed-in user's personal wallet and plan (the original fields), plus every
+ * wallet they can spend from and the payer for the requested context.
+ */
 export const meCreditsResponseSchema = z.object({
   wallet: z.object({ ownerType: z.literal("user"), balance: z.number().int() }),
   plan: planSummarySchema.omit({ id: true }),
   monthlyCredits: z.number().int(),
-  /** First day of the next UTC month, when the monthly grant arrives. */
+  /** When the next monthly grant arrives: the first of next UTC month, or a subscriber's next anniversary. */
   nextGrantAt: isoDate,
   /** Today (UTC) against the plan's daily caps, for every task the plan allows. */
   today: z.array(
@@ -113,11 +136,24 @@ export const meCreditsResponseSchema = z.object({
       dailyCap: z.number().int().min(0).nullable(),
     }),
   ),
+  /** This UTC month against the plan's monthly caps, for every task the plan allows. */
+  thisMonth: z
+    .array(
+      z.object({
+        task: z.enum(AI_TASKS),
+        used: z.number().int().min(0),
+        /** Null = no monthly cap. */
+        monthlyCap: z.number().int().min(0).nullable(),
+      }),
+    )
+    .optional(),
   /** What the assistant composer may offer: the modes the plan allows and whether web search is on. */
   chat: z.object({
     modes: z.array(z.enum(AI_MODES)),
     webSearch: z.boolean(),
   }),
+  wallets: z.array(meWalletSchema),
+  payer: mePayerSchema,
 });
 export type MeCreditsResponse = z.output<typeof meCreditsResponseSchema>;
 

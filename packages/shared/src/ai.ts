@@ -55,13 +55,18 @@ export const CREDIT_LEDGER_KINDS = [
   "release",
   "refund",
   "expiry",
+  // Phase 3: a paid credit pack, points converted to credits, a trial and a reward bonus.
+  "purchase",
+  "points_conversion",
+  "trial_grant",
+  "reward_bonus",
 ] as const;
 export type CreditLedgerKind = (typeof CREDIT_LEDGER_KINDS)[number];
 
 export const CREDIT_RESERVATION_STATUSES = ["open", "settled", "released", "expired"] as const;
 export type CreditReservationStatus = (typeof CREDIT_RESERVATION_STATUSES)[number];
 
-export const FILE_PURPOSES = ["rx_page", "chat_image"] as const;
+export const FILE_PURPOSES = ["rx_page", "chat_image", "payment_proof"] as const;
 export type FilePurpose = (typeof FILE_PURPOSES)[number];
 
 export const FILE_STATUSES = ["pending", "uploaded", "processed", "rejected", "deleted"] as const;

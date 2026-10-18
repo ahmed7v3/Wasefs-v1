@@ -62,6 +62,47 @@ describe("the API database role", () => {
     expect(rows.every((row) => row.action !== "tampered")).toBe(true);
   });
 
+  it("is append-only on every ledger and event table: SELECT and INSERT, never UPDATE, DELETE or TRUNCATE", async () => {
+    const appendOnly = [
+      "audit_logs",
+      "credit_ledger",
+      "points_ledger",
+      "payment_events",
+      "subscription_events",
+    ];
+    for (const table of appendOnly) {
+      expect(await sqlState(api.db.execute(sql.raw(`update ${table} set id = id`)))).toBe("42501");
+      expect(await sqlState(api.db.execute(sql.raw(`delete from ${table}`)))).toBe("42501");
+      expect(await sqlState(api.db.execute(sql.raw(`truncate ${table}`)))).toBe("42501");
+      expect(
+        await sqlState(api.db.execute(sql.raw(`select count(*) from ${table}`))),
+      ).toBeUndefined();
+      const [privileges] = await api.db.execute<{ allowed: boolean }>(
+        sql`select has_table_privilege(current_user, ${table}, 'INSERT') as allowed`,
+      );
+      expect(privileges?.allowed).toBe(true);
+    }
+  });
+
+  it("can use the order number sequence and still update the money tables that are not append-only", async () => {
+    const [sequence] = await api.db.execute<{ allowed: boolean }>(
+      sql`select has_sequence_privilege(current_user, 'order_number_seq', 'USAGE') as allowed`,
+    );
+    expect(sequence?.allowed).toBe(true);
+    for (const table of [
+      "orders",
+      "payments",
+      "refunds",
+      "points_wallets",
+      "withdrawal_requests",
+    ]) {
+      const [privileges] = await api.db.execute<{ allowed: boolean }>(
+        sql`select has_table_privilege(current_user, ${table}, 'UPDATE') as allowed`,
+      );
+      expect(privileges?.allowed).toBe(true);
+    }
+  });
+
   it("can read and write the other tables", async () => {
     const [user] = await api.db
       .insert(users)

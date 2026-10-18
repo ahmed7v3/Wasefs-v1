@@ -20,8 +20,9 @@ import {
   type SettleResult,
   type SweepResult,
   type WalletOwner,
+  subscriptions,
 } from "@wasfa/db";
-import { and, desc, eq, ilike, isNull, ne, or, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, isNull, ne, or, sql, type SQL } from "drizzle-orm";
 
 import { afterCursor, escapeLike, stamp, type Cursor } from "../admin/common/keyset.js";
 import { DB, type DbHandle } from "../common/database.js";
@@ -81,7 +82,12 @@ export class CreditsRepo {
   reserve(
     owner: WalletOwner,
     amount: number,
-    options: { idempotencyKey: string; purpose: string; ttlSeconds?: number },
+    options: {
+      idempotencyKey: string;
+      purpose: string;
+      ttlSeconds?: number;
+      member?: { userId: string };
+    },
   ): Promise<ReservationResult> {
     return reserveLedger(this.handle.db, owner, amount, options);
   }
@@ -122,10 +128,43 @@ export class CreditsRepo {
     return refundLedger(this.handle.db, owner, amount, options);
   }
 
+  /** The user's active subscription period, if any (its anniversaries replace the calendar grant). */
+  async activeSubscriptionPeriod(
+    userId: string,
+  ): Promise<{ start: Date; end: Date; source: string } | undefined> {
+    const [row] = await this.handle.db
+      .select({
+        start: subscriptions.currentPeriodStart,
+        end: subscriptions.currentPeriodEnd,
+        source: subscriptions.source,
+      })
+      .from(subscriptions)
+      .where(and(eq(subscriptions.ownerUserId, userId), eq(subscriptions.status, "active")))
+      .limit(1);
+    return row;
+  }
+
   /** The signed-in user's own wallet; `undefined` until it is first used. */
   async personalWallet(userId: string): Promise<CreditWallet | undefined> {
     const [wallet] = await this.userWallets.list(userId);
     return wallet;
+  }
+
+  /** Credits the personal wallet of the user spent (settled usage) since `since`; no wallet means 0. */
+  async usedSince(userId: string, since: Date): Promise<number> {
+    const wallet = await this.personalWallet(userId);
+    if (!wallet) return 0;
+    const [row] = await this.handle.db
+      .select({ total: sql<number>`coalesce(sum(-${creditLedger.amount}), 0)::int` })
+      .from(creditLedger)
+      .where(
+        and(
+          eq(creditLedger.walletId, wallet.id),
+          eq(creditLedger.kind, "usage_settle"),
+          gte(creditLedger.createdAt, since),
+        ),
+      );
+    return row?.total ?? 0;
   }
 
   async findWallet(walletId: string): Promise<CreditWallet | undefined> {

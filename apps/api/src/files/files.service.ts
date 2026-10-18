@@ -55,10 +55,11 @@ export class FilesService {
 
   async createUpload(user: FileViewer, input: CreateUploadInput): Promise<CreateUploadResponse> {
     // Counted before anything else, so refused attempts cost the caller too.
+    const proofUpload = input.purpose === "payment_proof";
     await this.limiter.hit(
-      `uploads:user:${user.id}`,
-      UPLOAD_RATE_LIMIT.max,
-      UPLOAD_RATE_LIMIT.windowSeconds,
+      proofUpload ? `payment-proof-presign:user:${user.id}` : `uploads:user:${user.id}`,
+      proofUpload ? 10 : UPLOAD_RATE_LIMIT.max,
+      proofUpload ? 3_600 : UPLOAD_RATE_LIMIT.windowSeconds,
     );
     if (isHeicMime(input.mime)) throw refusal("heic_unsupported");
     if (!this.storage.configured) {
@@ -68,6 +69,9 @@ export class FilesService {
     }
 
     const { retentionDays } = await this.settings.get("uploads");
+    const proofRetentionDays = proofUpload
+      ? (await this.settings.get("billing")).proofRetentionDays
+      : retentionDays;
     const fileId = newId();
     const isPdf = input.mime === "application/pdf";
     const key = originalObjectKey(user.id, fileId, isPdf);
@@ -90,7 +94,7 @@ export class FilesService {
       bytes: input.bytes,
       width: input.width ?? null,
       height: input.height ?? null,
-      expiresAt: new Date(Date.now() + retentionDays * DAY_MS),
+      expiresAt: new Date(Date.now() + proofRetentionDays * DAY_MS),
     });
     return {
       fileId,
@@ -151,6 +155,31 @@ export class FilesService {
     if (file.status !== "processed") {
       throw new AppError(ErrorCode.CONFLICT, { details: { reason: file.status } });
     }
+    return {
+      url: await this.storage.presignGet(file.r2Key, FILE_URL_TTL_SECONDS),
+      expiresInSeconds: FILE_URL_TTL_SECONDS,
+    };
+  }
+
+  async adminViewUrl(fileId: string): Promise<FileUrlResponse> {
+    const file = await this.repo.findById(fileId);
+    if (!file || file.purpose !== "payment_proof") throw new AppError(ErrorCode.NOT_FOUND);
+    if (file.status !== "processed")
+      throw new AppError(ErrorCode.CONFLICT, { details: { reason: file.status } });
+    return {
+      url: await this.storage.presignGet(file.r2Key, FILE_URL_TTL_SECONDS),
+      expiresInSeconds: FILE_URL_TTL_SECONDS,
+    };
+  }
+
+  /**
+   * A short link to a prescription or chat picture for the admin viewer (after a PHI access
+   * session). `null` once the retention job deleted the picture: the row stays, the file is gone.
+   */
+  async adminPictureUrl(fileId: string): Promise<FileUrlResponse | null> {
+    const file = await this.repo.findById(fileId);
+    if (!file || file.purpose === "payment_proof") throw new AppError(ErrorCode.NOT_FOUND);
+    if (file.status !== "processed") return null;
     return {
       url: await this.storage.presignGet(file.r2Key, FILE_URL_TTL_SECONDS),
       expiresInSeconds: FILE_URL_TTL_SECONDS,

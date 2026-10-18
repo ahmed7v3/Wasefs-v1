@@ -5,6 +5,7 @@ import { AiRuntimeModule } from "../ai-runtime/ai-runtime.module.js";
 import { ErrorReporter } from "../common/errors.js";
 import { CreditsModule } from "../credits/credits.module.js";
 import { FilesModule } from "../files/files.module.js";
+import { OrgWalletModule } from "../orgs/wallet/wallet.module.js";
 import { PlansModule } from "../plans/plans.module.js";
 import { QuotaModule } from "../quota/quota.module.js";
 import { SettingsModule } from "../settings/settings.module.js";
@@ -19,7 +20,15 @@ import { ChatService } from "./chat.service.js";
 
 /** The `/ai` assistant: chats, history and the streamed answer (Task 2.11). */
 @Module({
-  imports: [AiRuntimeModule, CreditsModule, FilesModule, PlansModule, QuotaModule, SettingsModule],
+  imports: [
+    AiRuntimeModule,
+    CreditsModule,
+    FilesModule,
+    OrgWalletModule,
+    PlansModule,
+    QuotaModule,
+    SettingsModule,
+  ],
   controllers: [ChatController],
   providers: [
     ErrorReporter,

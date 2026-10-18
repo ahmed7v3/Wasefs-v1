@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 
 import { AuthFooter, AuthHeading } from "../../../components/auth/auth-heading";
 import { RegisterForm } from "../../../components/auth/register-form";
+import { JoinCookie } from "../../../components/join/join-cookie";
+import { normalizeJoinSlug, normalizeReferralCode } from "../../../lib/attribution-cookies";
 import { getNonce } from "../../../lib/nonce";
 import { safeNext } from "../../../lib/safe-next";
 import { getMe } from "../../../lib/session";
@@ -20,19 +22,24 @@ export default async function RegisterPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { next } = await searchParams;
+  const { next, ref, join } = await searchParams;
   const target = safeNext(next);
+  const joinSlug = normalizeJoinSlug(Array.isArray(join) ? join[0] : join);
+  const referralCode = normalizeReferralCode(Array.isArray(ref) ? ref[0] : ref);
 
   if (await getMe().catch(() => null)) redirect(target);
 
   const nonce = await getNonce();
-  const loginHref =
-    target === "/dashboard" ? "/login" : `/login?next=${encodeURIComponent(target)}`;
+  const loginParams = new URLSearchParams();
+  if (target !== "/dashboard") loginParams.set("next", target);
+  if (joinSlug) loginParams.set("join", joinSlug);
+  const loginHref = loginParams.size > 0 ? `/login?${loginParams.toString()}` : "/login";
 
   return (
     <>
       <AuthHeading title={t("auth.register.title")} lead={t("auth.register.lead")} />
-      <RegisterForm nonce={nonce} />
+      {joinSlug ? <JoinCookie slug={joinSlug} /> : null}
+      <RegisterForm nonce={nonce} initialReferralCode={referralCode ?? ""} />
       <AuthFooter>
         {t("auth.register.haveAccount")}{" "}
         <Link

@@ -34,6 +34,7 @@ import { PhoneInput } from "../forms/phone-input";
 import { Notice } from "../notice";
 
 import { ConfirmDialog } from "./confirm-dialog";
+import { CustomerMessagesCard } from "./customer-messages-card";
 
 /** While a pairing is in progress the page asks the API this often; otherwise it only keeps the status fresh. */
 export const PAIRING_POLL_MS = 2_000;
@@ -67,10 +68,7 @@ const UNAVAILABLE_MESSAGES = {
   disabled: "admin.whatsapp.status.unavailable.disabled",
   not_configured: "admin.whatsapp.status.unavailable.not_configured",
   bridge_down: "admin.whatsapp.status.unavailable.bridge_down",
-} as const satisfies Record<
-  NonNullable<AdminWhatsappStatus["unavailableReason"]>,
-  MessageKey
->;
+} as const satisfies Record<NonNullable<AdminWhatsappStatus["unavailableReason"]>, MessageKey>;
 
 const PAIRING_ERRORS = {
   pairing_request_failed: "admin.whatsapp.pairing.error.pairing_request_failed",
@@ -185,6 +183,11 @@ export function WhatsappView({ canWrite }: { canWrite: boolean }) {
       ) : null}
       <VerificationCard
         enabled={data.phoneVerification === "whatsapp_inbound"}
+        canWrite={canWrite}
+        onChanged={resource.reload}
+      />
+      <CustomerMessagesCard
+        value={data.customerMessages}
         canWrite={canWrite}
         onChanged={resource.reload}
       />

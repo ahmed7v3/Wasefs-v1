@@ -12,6 +12,10 @@ export const CONTACT_TOPICS = [
 ] as const;
 export type ContactTopic = (typeof CONTACT_TOPICS)[number];
 
+/** What the table accepts: the public form's topics plus those created by other forms (institution leads). */
+export const CONTACT_STORED_TOPICS = [...CONTACT_TOPICS, "institution_lead"] as const;
+export type ContactStoredTopic = (typeof CONTACT_STORED_TOPICS)[number];
+
 /** Triage state of a stored message; the admin ticket UI of Phase 4 moves it along. */
 export const CONTACT_STATUSES = ["new", "read", "archived"] as const;
 export type ContactStatus = (typeof CONTACT_STATUSES)[number];

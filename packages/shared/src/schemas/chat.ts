@@ -78,6 +78,8 @@ export const sendMessageSchema = z
     search: z.boolean().default(false),
     /** The assistant message to answer again; it must be the last message of the chat. */
     regenerate: z.uuid().optional(),
+    /** Act for this organization (its plan, quota and wallet); the caller must be an active member. */
+    orgId: z.uuid().optional(),
   })
   .refine((value) => value.regenerate !== undefined || value.content !== undefined, {
     message: "content is required",

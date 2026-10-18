@@ -12,6 +12,7 @@ import type { PublicSettings } from "@wasfa/shared/settings";
 const PRODUCT = [
   { href: "/#how-it-works", label: "marketing.nav.how" },
   { href: "/#features", label: "marketing.nav.features" },
+  { href: "/pricing", label: "billing.nav.pricing" },
   { href: "/#faq", label: "marketing.nav.faq" },
   { href: "/login", label: "marketing.nav.signIn" },
   { href: "/register", label: "marketing.nav.register" },

@@ -22,7 +22,8 @@ import type { Database } from "./client.js";
 import type { PlanAudience, PlanVisibility } from "@wasfa/shared/plans";
 
 /*
- * Seed data of the AI product (Phase 2, Task 2.1). Same policy as the rest of the seed: insert-only
+ * Seed data of the AI product (Phase 2, Task 2.1). The paid plans (plus, pro, clinic) are seeded with
+ * their prices in seed-billing.ts (Phase 3). Same policy as the rest of the seed: insert-only
  * and idempotent. Existing plans, providers, models and routes are never touched; a plan's
  * entitlements are seeded only in the same transaction that creates the plan, so an admin who
  * edits or removes one never sees it come back. Providers are seeded DISABLED with no key: nothing
@@ -62,31 +63,15 @@ export const PLAN_SEEDS: readonly PlanSeed[] = [
       },
       { task: "chat", allowed: true, modes: ["fast", "balanced"], webSearch: false },
       // Internal steps of the two features above; their cost is covered by the feature's price.
-      ...(["rx_verify", "title_gen", "classify", "summarize"] as const).map((task): Omit<NewPlanEntitlement, "planId"> => ({
-        task,
-        allowed: true,
-        modes: ["fast", "balanced"],
-        webSearch: false,
-      })),
+      ...(["rx_verify", "title_gen", "classify", "summarize"] as const).map(
+        (task): Omit<NewPlanEntitlement, "planId"> => ({
+          task,
+          allowed: true,
+          modes: ["fast", "balanced"],
+          webSearch: false,
+        }),
+      ),
     ],
-  },
-  {
-    // Hidden: assigned by hand to pilots. Everything allowed, no caps, web search on.
-    key: "pro",
-    nameAr: "الاحترافية",
-    nameEn: "Pro",
-    audience: "any",
-    isDefault: false,
-    monthlyCredits: 300,
-    visibility: "hidden",
-    sort: 20,
-    entitlements: AI_TASKS.map((task): Omit<NewPlanEntitlement, "planId"> => ({
-      task,
-      allowed: true,
-      modes: [...AI_MODES],
-      maxPagesPerRx: 4,
-      webSearch: true,
-    })),
   },
 ];
 

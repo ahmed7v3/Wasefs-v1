@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { users } from "@wasfa/db";
+import { requestSignupCheck, users } from "@wasfa/db";
 import { eq } from "drizzle-orm";
 
 import { DB, type DbHandle } from "../common/database.js";
@@ -39,12 +39,17 @@ export class PhoneRepo {
    */
   async markVerified(userId: string, phone: string): Promise<"verified" | "taken"> {
     try {
-      const updated = await this.handle.db
-        .update(users)
-        .set({ phone, phoneVerified: true, phoneVerifiedAt: new Date() })
-        .where(eq(users.id, userId))
-        .returning({ id: users.id });
-      return updated.length > 0 ? "verified" : "taken";
+      // The referral check is queued in the same transaction: a verified phone is never missed.
+      return await this.handle.db.transaction(async (tx) => {
+        const updated = await tx
+          .update(users)
+          .set({ phone, phoneVerified: true, phoneVerifiedAt: new Date() })
+          .where(eq(users.id, userId))
+          .returning({ id: users.id });
+        if (updated.length === 0) return "taken";
+        await requestSignupCheck(tx, userId, "phone");
+        return "verified";
+      });
     } catch (error) {
       if (violatedConstraint(error) === UNIQUE_VERIFIED_PHONE) return "taken";
       throw error;

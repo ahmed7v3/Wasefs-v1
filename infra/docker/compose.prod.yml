@@ -158,6 +158,10 @@ services:
       WORKER_CONCURRENCY_NOTIFICATIONS: ${WORKER_CONCURRENCY_NOTIFICATIONS:-1}
       WORKER_CONCURRENCY_CREDITS: ${WORKER_CONCURRENCY_CREDITS:-1}
       WORKER_CONCURRENCY_IMAGES: ${WORKER_CONCURRENCY_IMAGES:-1}
+      WORKER_CONCURRENCY_PAYMENTS: ${WORKER_CONCURRENCY_PAYMENTS:-1}
+      # Receipt links point at the web app; reconciliation calls the payment provider (egress).
+      WEB_ORIGIN: ${WEB_ORIGIN:-https://wasfa.online}
+      API_PUBLIC_URL: https://${API_DOMAIN:-api.wasfa.online}
       # Same bucket and keys as the api: the worker re-encodes uploads and deletes expired ones.
       R2_UPLOADS_ENDPOINT: ${R2_UPLOADS_ENDPOINT:-}
       R2_UPLOADS_BUCKET: ${R2_UPLOADS_BUCKET:-}
@@ -171,6 +175,8 @@ services:
       SMTP_PASS: ${SMTP_PASS:?}
       MAIL_FROM: ${MAIL_FROM:-"وصفة AI" <no-reply@wasfa.online>}
       MAIL_DAILY_CAP: ${MAIL_DAILY_CAP:-280}
+      # Its own bot when set, else the backup-alert bot (BILLING §10).
+      ALERT_TELEGRAM_BOT_TOKEN: ${ALERT_TELEGRAM_BOT_TOKEN:-${BACKUP_ALERT_TELEGRAM_BOT_TOKEN:-}}
     # `internal` for Postgres and Redis; `egress` (outbound only, nothing published) so mail can reach the SMTP relay.
     networks: [internal, egress]
     depends_on:
@@ -200,6 +206,9 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD:?}@redis:6379
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      WA_ALERTS_ENABLED: ${WA_ALERTS_ENABLED:-false}
+      # Customer messages may link to this site only (first entry of the web origins).
+      WEB_ORIGIN: ${WEB_ORIGIN:-https://wasfa.online}
     networks: [internal, egress]
     depends_on:
       postgres:
@@ -275,7 +284,12 @@ services:
     profiles: [tools]
     restart: "no"
     # Migrations, then the insert-only seed (roles, default settings): safe on every deploy.
-    command: ["sh", "-c", "node node_modules/@wasfa/db/dist/migrate.js && node node_modules/@wasfa/db/dist/seed.js"]
+    command:
+      [
+        "sh",
+        "-c",
+        "node node_modules/@wasfa/db/dist/migrate.js && node node_modules/@wasfa/db/dist/seed.js",
+      ]
     environment:
       NODE_ENV: production
       # The owner role: it alone may change the schema.

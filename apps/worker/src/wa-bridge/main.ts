@@ -5,11 +5,14 @@ import { Redis } from "ioredis";
 
 import { createLogger } from "../logger.js";
 
+import { AlertGuard } from "./alert-guard.js";
+import { runAlertLoop } from "./alerts.js";
 import { clearSession } from "./auth-state.js";
 import { createBaileysSessionOpener } from "./baileys-socket.js";
 import { WaBridge } from "./bridge.js";
 import { runCommandLoop } from "./commands.js";
 import { loadBridgeEnv } from "./config.js";
+import { CustomerGuard, runCustomerLoop } from "./customer-messages.js";
 import { ReplyGuard } from "./guard.js";
 import { runReplyLoop } from "./replies.js";
 
@@ -53,12 +56,16 @@ const redis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: 3 });
 const blocking = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 // The command list is popped on a connection of its own, apart from the reply stream's.
 const commandRedis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
-for (const connection of [redis, blocking, commandRedis]) {
+const alertRedis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
+const customerRedis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
+for (const connection of [redis, blocking, commandRedis, alertRedis, customerRedis]) {
   connection.on("error", (error: Error) => {
     logger.error({ reason: error.message }, "Redis connection error");
   });
 }
 const guard = new ReplyGuard(redis);
+const alertGuard = new AlertGuard(alertRedis, env.WA_ALERTS_ENABLED);
+const customerGuard = new CustomerGuard(customerRedis, db, env.WEB_ORIGIN ?? null);
 
 const bridge = new WaBridge({
   redis,
@@ -99,6 +106,24 @@ if (command === "run") {
   }).catch((error: Error) => {
     logger.error({ reason: error.message }, "Reply loop stopped");
   });
+  void runAlertLoop({
+    redis: alertRedis,
+    guard: alertGuard,
+    socket: bridge.replySocket,
+    logger,
+    signal: loopAbort.signal,
+  }).catch((error: Error) => {
+    logger.error({ reason: error.message }, "WhatsApp alert loop stopped");
+  });
+  void runCustomerLoop({
+    redis: customerRedis,
+    guard: customerGuard,
+    socket: bridge.replySocket,
+    logger,
+    signal: loopAbort.signal,
+  }).catch((error: Error) => {
+    logger.error({ reason: error.message }, "WhatsApp customer loop stopped");
+  });
   void runCommandLoop({
     redis: commandRedis,
     target: bridge,
@@ -119,6 +144,8 @@ async function shutdown(reason: string, code: number): Promise<void> {
   await bridge.stop(command === "run");
   blocking.disconnect();
   commandRedis.disconnect();
+  alertRedis.disconnect();
+  customerRedis.disconnect();
   await redis.quit().catch(() => {
     redis.disconnect();
   });

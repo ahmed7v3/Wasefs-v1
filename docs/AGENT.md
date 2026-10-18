@@ -32,6 +32,10 @@ Around it: an AI medical assistant (`/ai`) with skills (lab tests, drug info, X-
 | `docs/DESIGN-SYSTEM.md` | Tokens, typography, RTL rules, forms, states, component specs, visual targets. |
 | `docs/SEO-GEO.md` | Keyword strategy, structured data, blog API, GEO *(to be written)*. |
 | `docs/DOCKER-GUIDE.md` | Beginner-friendly Docker + deployment guide. |
+| `docs/BILLING.md` | Plans, price engine, orders, payments (gateway + manual), subscriptions, organisations, admin alerts. |
+| `docs/REFERRALS-REWARDS.md` | Referrals, points, conversion, withdrawals, deals, anti-fraud. |
+| `docs/GROWTH-STRATEGY.md` | Conversion mechanisms, guardrails (no dark patterns), lifecycle, experiments. |
+| `docs/ADMIN-CONSOLE-SPEC.md` | Billing/growth admin screens and the user 360 view. |
 | `docs/REUSE-INDEX.md` | Registry of every shared function/component with its path. **Update it whenever you add one.** |
 | `docs/ROADMAP.md` | The five phases (0–4) with scope and order. Read before starting a phase. |
 | `docs/phases/phaseN.md` | Executable phase plans with acceptance criteria. |

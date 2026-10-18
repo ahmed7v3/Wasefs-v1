@@ -2,6 +2,7 @@ import {
   activeIngredients,
   aiUsage,
   creditReservations,
+  creditWallets,
   drugIngredients,
   files,
   planAssignments,
@@ -10,6 +11,7 @@ import {
   rxPages,
   type Database,
   type RxAnalysis,
+  type WalletOwner,
 } from "@wasfa/db";
 import { and, asc, desc, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
 
@@ -125,6 +127,21 @@ export async function reservedAmount(db: Database, reservationId: string): Promi
     .from(creditReservations)
     .where(eq(creditReservations.id, reservationId));
   return row?.amount ?? null;
+}
+
+/** The wallet that holds the reservation: where a refund must go (an organization wallet or the personal one). */
+export async function reservationWallet(
+  db: Database,
+  reservationId: string,
+): Promise<WalletOwner | null> {
+  const [row] = await db
+    .select({ userId: creditWallets.ownerUserId, orgId: creditWallets.ownerOrgId })
+    .from(creditReservations)
+    .innerJoin(creditWallets, eq(creditWallets.id, creditReservations.walletId))
+    .where(eq(creditReservations.id, reservationId));
+  if (!row) return null;
+  if (row.orgId !== null) return { type: "org", id: row.orgId };
+  return row.userId !== null ? { type: "user", id: row.userId } : null;
 }
 
 export interface Finish {

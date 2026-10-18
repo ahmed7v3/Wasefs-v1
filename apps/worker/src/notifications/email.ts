@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 
 import { SecretDecryptionError, decodeEncryptionKey, decryptSecret } from "@wasfa/shared/crypto";
-import { emailSecretContext, isCriticalEmail } from "@wasfa/shared/email";
+import { emailSecretContext, isCriticalEmail, isMarketingEmail } from "@wasfa/shared/email";
 import { UnrecoverableError } from "bullmq";
 
 import { DeferJob } from "../defer.js";
@@ -44,6 +44,96 @@ function templateInput(payload: EmailSendPayload, key: Buffer): TemplateInput {
   if (payload.template === "account_suspended") {
     return { template: payload.template, locale: payload.locale, name: payload.name };
   }
+  if (payload.template === "payment_receipt") {
+    return {
+      template: payload.template,
+      locale: payload.locale,
+      name: payload.name,
+      link: payload.link,
+      orderNumber: payload.orderNumber,
+      totalMinor: payload.totalMinor,
+      currency: payload.currency,
+      taxAndFeesMinor: payload.taxAndFeesMinor,
+    };
+  }
+  if (payload.template === "billing_payment_rejected") {
+    return {
+      template: payload.template,
+      locale: payload.locale,
+      name: payload.name,
+      orderNumber: payload.orderNumber,
+      reason: payload.reason,
+      ...(payload.note !== undefined ? { note: payload.note } : {}),
+      link: payload.link,
+    };
+  }
+  if (payload.template === "billing_payment_resubmit") {
+    return {
+      template: payload.template,
+      locale: payload.locale,
+      name: payload.name,
+      orderNumber: payload.orderNumber,
+      ...(payload.note !== undefined ? { note: payload.note } : {}),
+      link: payload.link,
+    };
+  }
+  if (payload.template === "withdrawal_update") {
+    return {
+      template: payload.template,
+      locale: payload.locale,
+      name: payload.name,
+      event: payload.event,
+      points: payload.points,
+      amountMinor: payload.amountMinor,
+      currency: payload.currency,
+      ...(payload.reference !== undefined ? { reference: payload.reference } : {}),
+      ...(payload.reason !== undefined ? { reason: payload.reason } : {}),
+      ...(payload.note !== undefined ? { note: payload.note } : {}),
+      link: payload.link,
+    };
+  }
+  if (payload.template === "lifecycle_mail") {
+    return {
+      template: payload.template,
+      locale: payload.locale,
+      name: payload.name,
+      kind: payload.kind,
+      params: payload.params,
+      link: payload.link,
+      unsubscribeUrl: payload.unsubscribeUrl,
+      oneClickUrl: payload.oneClickUrl,
+    };
+  }
+  if (payload.template === "admin_alert") {
+    return {
+      template: payload.template,
+      locale: payload.locale,
+      name: payload.name,
+      summary: payload.summary,
+      link: payload.link,
+    };
+  }
+  if (payload.template === "subscription_reminder") {
+    return {
+      template: payload.template,
+      locale: payload.locale,
+      name: payload.name,
+      slot: payload.slot,
+      planName: payload.planName,
+      endsAt: payload.endsAt,
+      link: payload.link,
+    };
+  }
+  if (payload.template === "alert_digest") {
+    return {
+      template: payload.template,
+      locale: payload.locale,
+      name: payload.name,
+      count: payload.count,
+      summaries: payload.summaries,
+      link: payload.link,
+    };
+  }
   let link: string;
   try {
     link = decryptSecret(payload.encryptedLink, key, emailSecretContext(payload.template));
@@ -80,7 +170,7 @@ export async function emailSendJob(
   const critical = isCriticalEmail(payload.template);
   const recipient = recipientHash(email.key, payload.to);
 
-  const decision = await email.cap.reserve(critical);
+  const decision = await email.cap.reserve(critical, isMarketingEmail(payload.template));
   if (!decision.allowed) {
     logger.info(
       { template: payload.template, recipient, retryAt: new Date(decision.retryAt).toISOString() },
@@ -96,6 +186,7 @@ export async function emailSendJob(
       subject: rendered.subject,
       html: rendered.html,
       text: rendered.text,
+      ...(rendered.headers ? { headers: rendered.headers } : {}),
     });
     logger.info(
       {

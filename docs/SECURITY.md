@@ -41,7 +41,19 @@ Phase 0 rows come from ARCHITECTURE.md §8. Rows marked **P1** are the identity 
 | WhatsApp number ban **P1** | The anti-ban rules in §8; kill switch `auth.phoneVerification = disabled`; verification degrades to email, so a ban is an inconvenience, not an outage | Task 1.5 |
 | Email abuse and cost **P1** | Turnstile and rate limits on every endpoint that triggers mail (register, reset, invites, phone start); daily cap guard under Brevo's 300/day with an alert at 80 %; per-organization pending-invite cap; no mail to unverified third parties beyond the verification mail itself | Task 1.3 / 1.4 / 1.7 |
 | Denial-of-wallet (AI cost) **P2** | Credits are reserved before every provider call and settled after (append-only ledger, wallet row lock, idempotency keys); per-plan daily caps and one running analysis and one chat stream per user (Redis); a global daily USD cap with an alert at `ai.alertPercent` and `ai_paused` refusal at 100 %; kill switch per task or global (`ai.killswitch`, fresh auth); a fixed price per page and `maxOutputTokens` on every route; the browser quality gate and the exact-hash cache (a re-upload costs no provider call); route changes need fresh auth; every provider call writes an `ai_usage` row. If Redis is down the spend guard and breaker fail open (AI keeps working, the cap is not enforced): the ledger and plan checks still bound each user | **Done** (Tasks 2.2-2.4, 2.8, 2.11) |
-| Payment fraud | Server-side pricing, signed idempotent webhooks (Phase 3) | Phase 3 |
+| Price tampering **P3** | The client sends only ids and intent; one pure price engine prices on the server; a quote is stored in Redis for 15 min with an HMAC over user, organisation, target and quote, claimed atomically once, and re-verified when the order is created; a payment must equal the order total | **Done** (Tasks 3.2, 3.3) |
+| Webhook forgery / replay **P3** | Signature verified before parsing; unique provider event id; a bad signature answers 401 and is recorded; a webhook never activates without the provider's status call agreeing on amount and currency; the return page only reads | **Done** (Task 3.3); Kashier webhook body still to verify against a live test payment |
+| Double activation **P3** | Order → payment → subscription → wallet row locks; activation idempotent per order (event carrying `orderId`); 10 duplicate webhooks ⇒ 1 activation (tested); a second success on a paid order is alerted for a manual refund | **Done** |
+| Coupon brute force and races **P3** | `POST /billing/coupons/check` 10/min per user and 30/min per IP, one generic answer for every refusal; redemptions reserved under lock with a unique `(coupon, order)`; 100 parallel redemptions of a 10-use coupon ⇒ exactly 10 (tested) | **Done** (Task 3.6) |
+| Manual-payment fraud (reused or forged proofs) **P3** | Transaction id unique per method; SHA-256 and dHash comparison against every earlier proof (flags, critical alert); at most 3 submissions; always human-approved; four-eyes above the threshold; nobody reviews their own payment | **Done** (Task 3.4) |
+| Payout fraud **P3** | Withdrawals only from the `cash` bucket, under the wallet lock (20 parallel requests never exceed it); destinations sealed, hashed and unique across accounts (a second account is refused and alerted); 48 h cooldown and a notice for a new destination; first withdrawal flagged; four-eyes above `rewards.fourEyesThresholdPoints`; reveal audited; transfer reference unique; cash-out off until the accountant answers | **Done** (Task 3.12) |
+| Referral farming **P3** | Rewards only after email and phone verification and a first analysis; sign-up rewards are credit-only; same phone, payer number or device ⇒ held; velocity rule holds and alerts; weekly budget; hold before release; reversal on refund with a debt; kill switch | **Done** (Task 3.11) |
+| Account takeover then withdrawal **P3** | Fresh sign-in (and 2FA where enabled) to request; new-destination cooldown and notice; reward and withdrawal notices by mail and in-app; manual review | **Done** |
+| Admin collusion **P3** | Four-eyes on large manual payments and withdrawals with two different admins; no one acts on their own payment, request or account; every money action needs a reason and fresh auth and is audited; account-number changes need TOTP, wait 10 min and can be cancelled by another admin | **Done** |
+| PHI access by staff **P3** | `users.read_health` / `users.read_chats` (not granted to support by default); a reasoned 30-minute access session of the same admin for the same user; a `phi.view` audit row per open; metadata-only lists (no drug names, no chat titles); `no-store`; no export route | **Done** (Task 3.15) |
+| Alert-channel leakage **P3** | Alert text redacted on write (phones masked, private file links removed); no proof image or full phone in any alert; WhatsApp alerts off by default, opt-in from a verified phone, capped, no links | **Done** (Task 3.4) |
+| Gateway key theft **P3** | Keys entered in the admin, sealed with AES-256-GCM, write-only and masked; a credential or mode change disables the gateway, alerts and needs a new verification payment | **Done** (Task 3.3) |
+| Marketing without consent **P3** | Stored explicit opt-in (never pre-checked); signed one-click unsubscribe; weekly cap; silences after a refund and the last call; email only | **Done** (Task 3.14) |
 | IDOR / data mixing | `scopedRepo` for every query on user-owned data; ownership checks in services; a wrong-owner integration test for every endpoint | Task 1.6 / 1.7 |
 | Injection (SQL / XSS / SSRF) | Drizzle parameterized queries only (a CHECK may inline **constants** from our own code, never input); strict nonce CSP; Markdown through a sanitizer; no user-controlled outbound URLs; `next` redirect targets are same-origin relative paths only | Done / Task 1.9 |
 | Open redirect **P1** | `?next=` accepts only a relative path starting with a single `/`; anything else falls back to `/dashboard` | **Done** in the api (Task 1.3, tested); web side Task 1.9 |
@@ -181,6 +193,13 @@ Same columns as 3.1 minus the repeated ones: every route validates input with a 
 | `POST /admin/ai/evals/shared/:id/approve, /dismiss` | cookie + 2FA session | evals.run | copies the picture and the reading into an evaluation set / withdraws the consent | 60/min | `eval.shared.approve`, `eval.shared.dismiss` | Done |
 | `POST /ai/chats/:id/messages (SSE)` | cookie, verified account | — | chat owner, else 404; plan mode and tool entitlement; one stream per user | 20/min + plan daily cap | — | Done |
 | `GET /me/credits, GET /me/usage` | cookie | — | caller's wallet; ledger reasons hide admin notes | 60/min | — | Done |
+| `GET /catalog` | public (the pricing page is seen before sign-in) | — | — | `marketQuerySchema` (`?currency`, `?country` outside production) | 120/min | — | — | — | Done |
+| `POST /billing/quote` | cookie | — | quote is stored for the caller only (`billing:quote:<id>`, HMAC over user, target and quote); the body carries no price; plan `{planKey, months, couponCode?, methodKey?}` or pack `{packKey, methodKey?}`; a bad coupon is a generic `invalid`, never a 4xx | `quoteRequestSchema` | 30/min + coupon checks 10/min per user and 30/min per IP | 1 MB | — | — | Done |
+| `GET /me/recommendation` | cookie | — | caller's own credit usage; numbers only | `marketQuerySchema` | 30/min | — | — | — | Done |
+| `POST /billing/orders` | cookie | — | order made only from the caller's own stored quote (HMAC over `{userId, target, quote}` re-verified, quote used once, expiry checked); the method must be the one the quote was priced with; coupon reserved under a row lock | `createOrderSchema` | 10/min | 1 MB | — | — | Done |
+| `GET /billing/orders/:id` | cookie | — | `scopedRepo` by `owner_user_id`: another owner's order is `NOT_FOUND`; read only, never activates | `orderIdParamSchema` | 120/min | — | — | — | Done |
+| `POST /billing/orders/:id/cancel` | cookie | — | owner only (`NOT_FOUND` otherwise); only `pending_payment` without a payment under review; releases the coupon | `orderIdParamSchema` | 10/min | — | — | — | Done |
+| `POST /webhooks/:gateway` | public, `SkipOriginCheck` (no cookie; provider signature only) | — | signature verified in constant time by the adapter; bad signature = 401 + `payment_events` row with `signature_ok=false`; `(provider, event_id)` unique = replay shield; event row and its effects in one transaction; amount and currency re-checked against the order; verified deliveries always 200 | gateway param `BILLING_KEY_PATTERN`; body read only by the adapter | 600/min per IP | 256 KB (checked on `content-length`) | — | — | Done |
 | `GET /admin/ai/providers, /models, /routes, /settings` | cookie + 2FA session | ai.read | platform data | 120/min | — | Done |
 | `POST/PATCH/DELETE /admin/ai/providers` | cookie + 2FA session + fresh auth 10 min | ai.write | platform data; key encrypted, never returned | 30/min | `ai.provider.*` (no key material) | Done |
 | `POST /admin/ai/providers/:id/test, GET .../discover` | cookie + 2FA session | ai.write / ai.read | platform data | 10 / 20 per min | `ai.provider.test` | Done |
@@ -250,9 +269,11 @@ Same columns as 3.1 minus the repeated ones: every route validates input with a 
 - Secrets live only in environment variables or Docker secrets, validated at boot by a zod schema; the process refuses to start if anything is missing or malformed (error output lists key names, never values).
 - Keys the admin edits (AI providers, gateways) are encrypted at rest with AES-256-GCM (`encryptSecret`, key from `ENCRYPTION_KEY`) with a context string that binds each ciphertext to its use, and are shown masked.
 - New in Phase 1 (added to `.env.example`, compose and the deploy-secrets doc by their tasks): `BETTER_AUTH_SECRET` (≥ 32 bytes), `AUTH_COOKIE_DOMAIN`, `GOOGLE_CLIENT_ID/SECRET`, `FACEBOOK_CLIENT_ID/SECRET` (optional, unused while Facebook is `coming_soon`), `TURNSTILE_SECRET_KEY`, `ARGON2_MEMORY_KIB`, `SMTP_HOST/PORT/USER/PASS`, `MAIL_FROM`, `MAIL_DAILY_CAP`.
+- Payment gateway credentials are write-only: admin responses, audit snapshots and logs expose only `merchant_ref`, `key_hint` and whether credentials exist. Creating or changing them, switching mode and enabling need `billing.write`, fresh authentication and a reason. A credential or mode change disables the gateway and its payment methods, clears the connection test and the verification, raises a critical admin alert and starts a 10-minute cooldown. Enabling needs a fresh connection test and an end-to-end test payment confirmed by both the signed webhook and the status API for the current credentials and mode. Verified deliveries and reconciliation for payments that already started are applied even while the gateway is disabled; `enabled` only gates new checkouts.
+- Our code never calls a payment provider's refund API. The owner refunds in the provider's dashboard or by bank/wallet transfer, then records it with the external reference; a signed provider report of a refund only raises a review alert and never changes our payment state.
 - The WhatsApp auth state is stored encrypted in Postgres (`wa_sessions`), never on disk.
 - `API_DB_PASSWORD` (Task 1.6): password of the restricted database role the API and the bridge use; hex only because it sits in a URL. Rotating it = change the variable and re-run the `migrate` step, then restart the api and the bridge.
-- Rotation: `BETTER_AUTH_SECRET` (replace and redeploy; signs everyone out). `ENCRYPTION_KEY` (Task 2.13): every new ciphertext is `v2.<keyId>.<iv>.<tag>.<data>` where `keyId` is the first 4 bytes of the key's SHA-256; older `v1` values still open. Rotate with `ENCRYPTION_KEY_OLD=<old> ENCRYPTION_KEY=<new> pnpm --filter @wasfa/api key:rotate [--dry-run]` (owner `DATABASE_URL`, run from the `migrate` container): it re-seals every provider key and the WhatsApp session in one transaction and aborts, changing nothing, if any value opens with neither key. Then update `.env.prod` and redeploy. In-flight email links sealed with the old key fail once and are re-issued by the user (they live 15 min to 7 days).
+- Rotation: `BETTER_AUTH_SECRET` (replace and redeploy; signs everyone out). `ENCRYPTION_KEY` (Task 2.13): every new ciphertext is `v2.<keyId>.<iv>.<tag>.<data>` where `keyId` is the first 4 bytes of the key's SHA-256; older `v1` values still open. Rotate with `ENCRYPTION_KEY_OLD=<old> ENCRYPTION_KEY=<new> pnpm --filter @wasfa/api key:rotate [--dry-run]` (owner `DATABASE_URL`, run from the `migrate` container): it re-seals every AI provider key, every payment gateway credential and the WhatsApp session in one transaction and aborts, changing nothing, if any value opens with neither key. Then update `.env.prod` and redeploy. In-flight email links sealed with the old key fail once and are re-issued by the user (they live 15 min to 7 days).
 - gitleaks runs in CI over full history; `docs/vps/` is git-ignored because it holds server credentials.
 
 ---
@@ -276,7 +297,7 @@ Design in phase1.md Task 1.5. The security properties that must hold:
 
 **Rules enforced in code (`guard.ts`) and documented here:**
 
-1. Our number **never starts a conversation**, never sends to a number that did not message it first within the last 24 h, never joins groups, never posts statuses, never sends media or links.
+1. Our number **never starts a conversation**, never sends to a number that did not message it first within the last 24 h, never joins groups, never posts statuses, never sends media or links. **Exception (Decision 50):** customer notifications to verified numbers, under the rules of §8.1.
 2. At most **one short reply** per verification ("verified" or "wrong or expired code"), sent only in the user's own conversation after a random 2-6 s delay with a typing indicator. Global cap: 1 reply per 3 s and 300 per day; above the cap it stays silent (the web UI shows the outcome anyway).
 3. Inbound messages are marked read. Only 1:1 text messages are processed; groups, statuses, broadcasts, media and calls are ignored.
 4. One linked session, one server IP, no frequent re-pairing; reconnect with exponential backoff; on `loggedOut` stop and alert the admin; **never auto-re-pair**.
@@ -294,6 +315,20 @@ Design in phase1.md Task 1.5. The security properties that must hold:
 - **Health**: the bridge writes `wa:heartbeat` every 30 s with its state (`connecting | connected | disconnected | logged_out`); `GET /phone/verify/status` reports `available` and why not. `/health/ready` does not depend on it. After `loggedOut` the bridge also sets `wa:alert` for the future admin dashboard.
 - **Control channel (admin to bridge)**: the api never talks to WhatsApp. `POST /admin/whatsapp/link|unlink` (`settings.write`, fresh auth, 10/min) pushes `{ id, cmd: "link", number } | { id, cmd: "unlink" }` on the Redis list `wa:commands` (`LPUSH` + `LTRIM` to 20 + a 5-minute expiry, so a command queued while the bridge is down cannot fire later); the bridge pops it (`BRPOP`, FIFO) on a connection of its own, validates it with the shared zod schema (anything else is dropped), and answers in `wa:pairing` (`requested | code | linked | already_linked | unlinked | error`, 180 s expiry, fixed machine reasons only, the number masked to its last four digits). The api refuses `link` unless the bridge is idle and logged out (409 while a number is linked or reconnecting, 502 while the bridge is down), so the saved number (`site_settings.whatsapp.number`; `WHATSAPP_NUMBER` is only the fallback) can never name a different number than the one linked. An admin-started pairing gives up after 180 s, on any connection failure other than WhatsApp's own post-pairing restart, and leaves no half-linked session. **Anti-ban rules are untouched**: linking is the only thing the commands can do; they cannot send a message.
 - **Unverified in this repository**: the Baileys socket glue (`wa-bridge/main.ts`) has not run against real WhatsApp. The spike (can the sender's number be resolved from a LID?) and the end-to-end checks of Task 1.5 need the dedicated number and are tracked in phase1.md.
+
+### 8.1 Customer notifications from the bridge (Decision 50, 2026-10-17)
+
+The one place our number writes first. The worker decides (`apps/worker/src/notifications/customer-channel.ts`), the bridge enforces (`wa-bridge/customer-messages.ts`), and every rule below is tested:
+
+1. **Who:** only an active account whose phone is **verified** (it sent our number the code, so the chat exists and they started it), that has not sent **STOP** (`إيقاف` / `STOP`; `تشغيل` / `START` undoes it) or switched WhatsApp off on the account page. Everyone else gets email.
+2. **Switch:** `whatsapp.customerMessages.enabled` (off by default), set in `/admin/whatsapp` with fresh auth and audited. The bridge rereads it every 30 s, so turning it off also stops messages already queued.
+3. **Volume:** an owner-set daily total (default 300) and per-customer daily cap (default 3), reserved atomically by the worker; the bridge counts real sends against the same total as a backstop. Over a cap means email.
+4. **Hours:** only inside the sending window (default 09:00-21:00 Africa/Cairo); a message outside it waits for the next window.
+5. **Content:** keyed templates only (the producer passes a kind and parameters, never text), at most 1,000 characters, links only to `WEB_ORIGIN`'s host (anything else is refused), and every message ends with the STOP instruction. No media.
+6. **Pace:** 2-6 s randomised delay and at least 3 s between any two outgoing messages (replies, admin alerts and customer messages share one slot).
+7. **Exactly once, or email:** each message has an id derived from its notification key; the bridge claims it once (`SET NX`) and records `sent`, `failed` or why it refused; a message older than 3 minutes is dropped. Four minutes after queueing the worker claims it too and, unless it was `sent`, mails the customer instead. Receipts are always mailed (documents) and also sent on WhatsApp when possible.
+8. **Logs** carry the message kind and the outcome, never the phone number, the chat id or the text.
+
 
 ---
 
@@ -378,3 +413,213 @@ Open security items from Phase 0 and design decisions. Each has an owner task; n
 | Constraint tests for identity data (phone uniqueness, status sync, one invite target, RESTRICT rules) | `packages/db/test/identity-schema.int.test.ts` | Done |
 | Playwright + axe on auth, onboarding, dashboard, account | Task 1.9 | No serious/critical violations |
 | Penetration checklist before launch (Phase 4): session fixation, CSRF, IDOR sweep, rate-limit bypass, enumeration, open redirect, header review | Phase 4 | All pass |
+
+### Task 3.4 endpoint register
+
+| Route                                                                         | Authentication / permission                                       | Boundary and protections                                                                                                                               | Audit / status                                                     |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `GET /billing/orders/:id/instructions`                                        | Cookie + verified account                                         | Shared UUID params; owner scoped; 404 for absent/nonmanual payment; 60/min IP                                                                          | Read only                                                          |
+| `POST /billing/payments/:id/proof`                                            | Cookie + verified account                                         | Shared zod body; 10/hour per user and 30/min IP; owner/file checks, processed-file requirement, order→payment lock, duplicate transaction/image checks | Alert in same transaction; kick after commit                       |
+| `POST /uploads` (payment_proof purpose)                                       | Cookie + verified account                                         | Shared file schema; 10/hour per user for proof files and 60/min IP; existing magic-byte and image pipeline                                             | No audit                                                           |
+| `GET /admin/billing/payments/review`, `GET /admin/billing/payments/:id`       | Cookie + MFA session, `payments.review`                           | Shared query/UUID schemas; overdue-first, then oldest-first keyset queue; detail returns an explicit shape (never the sealed phone or the stored quote), a short-lived proof link and the unsealed sender phone                                  | Detail logs `payment.review_opened`                                |
+| `POST /admin/billing/payments/:id/claim`                                      | Cookie + MFA session, `payments.review`                           | Redis advisory lock, 5 minute TTL; 30/min IP                                                                                                           | `payment.review_claimed`                                           |
+| `POST /admin/billing/payments/:id/approve`, `/reject`                         | Cookie + MFA session, `payments.review`, fresh auth ≤10 min       | Shared zod schemas; 10/min IP; own-payment check; approval lock override explicit; reason/note limits                                                  | `payment.approved` / `payment.rejected`; phone and txn id excluded |
+| `POST /admin/billing/payments/:id/request-proof`                              | Cookie + MFA session, `payments.review`                           | Shared zod note schema; 10/min IP; own-payment check; lock override explicit                                                                                                                      | `payment.proof_requested`                                          |
+| `GET /admin/alerts`, `/prefs`                                                 | Cookie + MFA session, `alerts.receive`                            | Shared cursor schema; deliveries always scoped to current admin; 120/min and 60/min IP                                                                 | Read only                                                          |
+| `POST /admin/alerts/:deliveryId/read`, `/read-all`, `PUT /admin/alerts/prefs` | Cookie + MFA session, `alerts.receive`                            | Shared UUID/preferences schemas; 60, 20 and 10/min IP                                                                                                  | No audit                                                           |
+| `POST /admin/alerts/:alertId/resolve`                                         | Cookie + MFA session, `alerts.receive` plus alert-kind permission and `payments.review` or `billing.write` | Shared UUID schema; dynamic permission check                                                                                                           | No audit                                                           |
+| `GET /admin/billing/methods/:key/account-change`                              | Cookie + MFA session, `billing.write`                             | Shared key schema; 60/min IP                                                                                                                           | Read only                                                          |
+| `POST /admin/billing/methods/:key/account-change`, `/cancel`                  | Cookie + MFA session, `billing.write`, fresh auth ≤10 min         | Shared account/TOTP schemas; 5/min IP; requested change applies after 10 minutes; request verifies a current Better Auth TOTP                          | Audited; only masked account values are kept in audit payloads     |
+
+### Task 3.5 endpoint register
+
+| Route | Authentication / permission | Boundary and protections | Audit / status |
+| --- | --- | --- | --- |
+| `GET /me/subscription` | Cookie session | Caller's own live subscription only; `trialAvailable` is a boolean (never says whose trial used a phone); 60/min | Read only |
+| `POST /me/subscription/cancel`, `/resume` | Cookie session | No body; owner-scoped row lock; idempotent; 10/min | `subscription_events` (`canceled`, `resumed`) |
+| `POST /me/subscription/renew-quote` | Cookie session | Shared zod body (`methodKey?`, `months?`); the plan always comes from the caller's subscription, never the client; same pricing path and limit as `POST /billing/quote` (30/min) | Signed quote in Redis |
+| `POST /me/trial` | Cookie session + verified account | Shared zod body (`planKey`); 5/min IP and 5/hour per account; once per account and per verified phone (stored as a hash in the event, never the number), a transaction lock per phone | `subscription_events` `created` |
+| `GET /me/orders` | Cookie session | Shared keyset query; `owner_user_id = caller` | Read only |
+| `GET /me/notification-prefs`, `PUT /me/notification-prefs` | Cookie session | Shared zod body (`{ whatsapp: boolean }`); own row only; 409 `phone_not_verified` without a verified phone; updates the bridge's opt-out set at once; 60 and 10/min | Row in `notification_prefs` |
+| `PUT /admin/whatsapp/customer-messages` | Cookie + MFA session, `settings.write`, fresh auth ≤10 min | Shared zod body (switch, caps 1-2000 and 1-10, hours with end after start); merged into the `whatsapp` setting; 10/min | `setting.update` audit row |
+| `GET /me/orders/:id/receipt` | Cookie session | UUID param; caller's own paid/refunded orders only, anything else `NOT_FOUND`; buyer email and phone masked | Read only |
+
+
+### Task 3.6 endpoint register
+
+| Route | Authentication / permission | Boundary and protections | Audit / status |
+| --- | --- | --- | --- |
+| `GET /admin/billing/promotions`, `/promotions/:id` | Cookie + MFA session, `billing.read` | Shared list/UUID schemas; keyset page, 1–100 rows; 120/min | Read only |
+| `POST /admin/billing/promotions`, `PATCH` and `DELETE /promotions/:id`, `POST /promotions/:id/{pause,end,duplicate}` | Cookie + MFA session, `promotions.write` | Shared billing schemas; 30/min; only drafts with no redemptions can be deleted | `promotion.created|updated|deleted|paused|ended|duplicated` |
+| `POST /admin/billing/promotions/:id/{publish,resume}` | Cookie + MFA session, `promotions.write`, fresh auth ≤10 min | Shared UUID schema; guarded lifecycle update; 30/min | `promotion.published|resumed` |
+| `GET /admin/billing/coupons`, `/coupons/:id` | Cookie + MFA session, `billing.read` | Shared list/UUID schemas; keyset page ≤100; detail returns the latest 50 redemption rows | Read only |
+| `POST /admin/billing/coupons`, `PATCH` and `DELETE /coupons/:id`, `POST /coupons/:id/{pause,end}` | Cookie + MFA session, `coupons.write` | Shared billing schemas; 30/min; normalized unique codes; only unused drafts can be deleted | `coupon.created|updated|deleted|paused|ended` |
+| `POST /admin/billing/coupons/:id/{publish,resume}` | Cookie + MFA session, `coupons.write`, fresh auth ≤10 min | Shared UUID schema; guarded lifecycle update; 30/min | `coupon.published|resumed` |
+| `POST /admin/billing/coupons/bulk` | Cookie + MFA session, `coupons.write`, fresh auth ≤10 min | Shared bulk schema; 1–5000 rows; collision retry limit 5; one transaction | `coupon.bulk_created` |
+| `POST /admin/billing/coupons/batches/:batch/{publish,pause,resume,end}` | Cookie + MFA session, `coupons.write`; publish/resume need fresh auth ≤10 min | Shared batch schema; set-based guarded transition; 30/min | `coupon.batch_<action>` |
+| `GET /admin/billing/coupons/batches/:batch/export` | Cookie + MFA session, `billing.read` | Batch schema; CSV cells escaped against formula injection; 30/min | `coupon.batch_exported` |
+| `POST /admin/billing/simulate` | Cookie + MFA session, `billing.read` | Shared simulator schema; 30/min; hidden plans allowed; no quote or Redis state stored | Read only |
+| `POST /billing/coupons/check` | Cookie session | Shared coupon-check schema; 10/min per user and 30/min per IP plus 30/min route limit; generic invalid response | Read only |
+
+### Task 3.8 endpoint register
+
+| Route | Authentication / permission | Boundary and protections | Audit / status |
+| --- | --- | --- | --- |
+| `GET /admin/search` | Cookie + MFA session, any of `users.read`, `billing.read`, `referrals.read` | Shared trimmed query schema (2–80 chars); permission-filtered groups; at most five results per group; contact details masked; 60/min | `admin.search` only when user matches are returned; query text excluded |
+| `GET /admin/billing/counts` | Cookie + MFA session, any of `payments.review`, `withdrawals.review`, `referrals.read` | Empty shared query schema; counts are `null` for groups the caller cannot read; 120/min | Read only |
+| `GET /admin/billing/overview` | Cookie + MFA session, `billing.read` | Shared range schema; custom range limited to 366 days; 60-second Redis cache; per-currency money aggregates; 30/min | Read only |
+| `GET /admin/billing/payments`, `/payments/:id/record`, `/orders`, `/orders/:id`, `/refunds` | Cookie + MFA session, `billing.read` | Shared filters and keyset cursors; explicit response shapes; contact and transaction identifiers masked; proof links and sealed values excluded; 60/min | Record drawer logs `payment.record_opened` |
+| `POST /admin/billing/orders/:id/resend-receipt` | Cookie + MFA session, `billing.write` | Paid orders only; receipt mail job deduplicated within one minute; 5/min | `order.receipt_resent`; does not replay the paid-order topic |
+| `POST /admin/billing/payments/:id/refund/preview`, `/refund` | Cookie + MFA session, `payments.refund`; refund also requires fresh auth ≤10 min | Shared amount/reason/reference/clawback schemas; preview is read-only; own payments refused; clawback capped; 20/min preview and 5/min refund | `payment.refunded` records amount, clawback and transfer reference, no PII |
+| `GET /admin/billing/subscriptions`, `/subscriptions/:id` | Cookie + MFA session, `billing.read` | Shared filters and keyset cursor; user labels masked; details include event timeline and latest 20 owner orders; 60/min | Read only |
+| `POST /admin/billing/subscriptions/:id/extend`, `/end`, `/cancel-at-period-end` | Cookie + MFA session, `users.upgrade`, fresh auth ≤10 min | Shared reason schema (3–500 chars); 10/min; extend by 1–24 months or to a future date; database subscription state machine and assignment sync; 409 `no_live_subscription` when nothing live is left | `subscription.admin_extend|admin_end|cancel_at_period_end` with the reason (dates are not written as text: the audit redactor scrubs digit runs); the state machine also writes `subscription.extended|ended` |
+| `GET /admin/billing/plans`, `POST /plans/:id/prices/preview`, `PUT /plans/:id/prices` | Cookie + MFA session; `billing.read` for reads/preview, `billing.write` for publish | Shared price matrix schema; integer minor units; margin check blocks negative prices unless explicitly overridden; a null amount switches a cell off (rows are never deleted), cells not sent are untouched; publish needs a reason and fresh auth; 10/min write | `plan.prices_published` includes price diff |
+| `GET /admin/billing/credit-packs`, `POST /credit-packs`, `PATCH /credit-packs/:id`, `PUT /credit-packs/:id/prices` | Cookie + MFA session; `billing.read` for reads, `billing.write` for writes | Shared key and integer price schemas; deactivation replaces deletion; price writes require fresh auth ≤10 min | Writes audited; no delete route |
+| `GET /admin/billing/methods`, `PATCH /methods/:key` | Cookie + MFA session; `billing.read` / `billing.write`; patch requires fresh auth ≤10 min | Account destination masked on reads and excluded from PATCH schema; gateway methods require enabled, verified gateway; 20/min write | Before/after only changed public fields; audited |
+| `GET /admin/billing/tax-rules`, `POST /tax-rules`, `PATCH /tax-rules/:id` | Cookie + MFA session; `billing.read` / `billing.write`; writes require fresh auth ≤10 min | Shared tax schema; one active rule per country/default; replacement deactivates the previous rule in the same transaction | Writes audited |
+
+### Task 3.9 endpoint register (organisations)
+
+| Route | Authentication / permission | Boundary and protections | Audit / status |
+| --- | --- | --- | --- |
+| `GET /me/credits` | Cookie session | Shared query (`meCreditsQuerySchema`); 60/min | Read only |
+| `GET /orgs/:id/join-links` | Cookie session | `idParamSchema` param; 60/min | Read only |
+| `POST /orgs/:id/join-links` | Cookie session | `idParamSchema` param; shared body (`createJoinLinkSchema`); 20/min | `org.join_link_create` audit row |
+| `POST /orgs/:id/join-links/:linkId/disable` | Cookie session | `orgLinkParamsSchema` param; 20/min | `org.join_link_disable` audit row |
+| `POST /orgs/:id/members/:userId/approve` | Cookie session | `orgMemberParamsSchema` param; 30/min | `org.member_approve` audit row |
+| `POST /orgs/:id/members/:userId/reject` | Cookie session | `orgMemberParamsSchema` param; 30/min; answers 204 | `org.member_reject` audit row |
+| `GET /join/:slug` | Public | `joinSlugParamSchema` param; 60/min | Read only |
+| `POST /join/:slug/accept` | Cookie session | `joinSlugParamSchema` param; 10/min | `org.join_accept` audit row |
+| `GET /admin/orgs/:id/join-links` | Cookie + MFA session, `orgs.read` | `idParamSchema` param; 120/min | Read only |
+| `POST /admin/orgs/:id/join-links` | Cookie + MFA session, `orgs.write` | `idParamSchema` param; shared body (`createJoinLinkSchema`); 60/min | `admin.org.join_link_create` audit row |
+| `POST /admin/orgs/:id/join-links/:linkId/disable` | Cookie + MFA session, `orgs.write` | `orgLinkParamsSchema` param; 60/min | `admin.org.join_link_disable` audit row |
+| `GET /orgs/:id/dashboard` | Cookie session | `idParamSchema` param; 60/min | Read only |
+| `GET /orgs/:id/usage.csv` | Cookie session | `idParamSchema` param; `orgUsageQuerySchema` query; 10/min; `no-store` (`@Header`); CSV attachment | Read only |
+| `PUT /orgs/:id/members/:userId/limit` | Cookie session | `orgMemberParamsSchema` param; `memberLimitSchema` body; 30/min | `org.member_limit_set` audit row |
+| `GET /orgs/:id/subscription` | Cookie session, `org_admin` role via `orgs.authorize` | `idParamSchema` param; 60/min | Read only |
+| `GET /orgs/:id/orders` | Cookie session, `org_admin` role via `orgs.authorize` | `idParamSchema` param; `myOrdersQuerySchema` query; 60/min | Read only |
+| `GET /orgs/:id/orders/:orderId/receipt` | Cookie session, `org_admin` role via `orgs.authorize` | `orgOrderParamsSchema` param; 60/min | Read only |
+| `POST /institutions/leads` | Public | `institutionLeadSchema` body; `x-turnstile-token` header; 10/min | See service |
+
+### Task 3.11 endpoint register (referrals and rewards)
+
+| Route | Authentication / permission | Boundary and protections | Audit / status |
+| --- | --- | --- | --- |
+| `GET /me/referral` | Cookie session | No input; 60/min | Read only |
+| `PATCH /me/referral` | Cookie session | `updateReferralCodeSchema` body; 10/hour | See service |
+| `GET /r/:code` | Public | Raw `code` path param; 60/min; `no-store` (reply header); sets first-party cookie and 302 redirect | Read only |
+| `GET /me/rewards` | Cookie session | No input; 60/min | Read only |
+| `GET /me/rewards/activity` | Cookie session | `meRewardsActivityQuerySchema` query; 60/min | Read only |
+| `GET /me/rewards/convert/preview` | Cookie session | `convertPreviewQuerySchema` query; 60/min | Read only |
+| `POST /me/rewards/convert` | Cookie session | `convertPointsSchema` body; 10/hour | See service |
+
+### Task 3.12 endpoint register (withdrawals)
+
+| Route | Authentication / permission | Boundary and protections | Audit / status |
+| --- | --- | --- | --- |
+| `GET /me/payout-destinations` | Cookie session | No input; 60/min; values sealed, masked text only | Read only |
+| `POST /me/payout-destinations` | Cookie session | `payoutDestinationInputSchema` body; 20/hour | See service |
+| `DELETE /me/payout-destinations/:id` | Cookie session | `adminWithdrawalIdSchema` param; 20/hour; answers 204 | See service |
+| `GET /me/withdrawals/eligibility` | Cookie session | No input; 60/min | Read only |
+| `GET /me/withdrawals` | Cookie session | No input; 60/min | Read only |
+| `POST /me/withdrawals` | Cookie session, fresh auth ≤10 min | `withdrawalRequestSchema` body; 20/hour | See service |
+| `POST /me/withdrawals/:id/cancel` | Cookie session | `adminWithdrawalIdSchema` param; 20/hour | See service |
+| `GET /admin/growth/withdrawals` | Cookie + MFA session, `withdrawals.review` | `adminWithdrawalListQuerySchema` query; 60/min | Read only |
+| `GET /admin/growth/withdrawals/export.csv` | Cookie + MFA session, `finance.export` | `withdrawalExportQuerySchema` query; 10/min; `no-store` (`@Header`); CSV attachment | `withdrawal.export` audit row |
+| `GET /admin/growth/withdrawals/:id` | Cookie + MFA session, `withdrawals.review` | `adminWithdrawalIdSchema` param; 60/min | `withdrawal.opened` audit row |
+| `POST /admin/growth/withdrawals/:id/claim` | Cookie + MFA session, `withdrawals.review` | `adminWithdrawalIdSchema` param; 30/min | `withdrawal.claimed` audit row |
+| `POST /admin/growth/withdrawals/:id/approve` | Cookie + MFA session, `withdrawals.review`, fresh auth ≤10 min | `adminWithdrawalIdSchema` param; `approveWithdrawalSchema` body; 10/min | `withdrawal.approved` audit row |
+| `POST /admin/growth/withdrawals/:id/reject` | Cookie + MFA session, `withdrawals.review`, fresh auth ≤10 min | `adminWithdrawalIdSchema` param; `rejectWithdrawalSchema` body; 10/min | `withdrawal.rejected` audit row |
+| `POST /admin/growth/withdrawals/:id/reveal` | Cookie + MFA session, `withdrawals.pay`, fresh auth ≤10 min | `adminWithdrawalIdSchema` param; `revealDestinationSchema` body; 10/min | `withdrawal.destination_revealed` audit row |
+| `POST /admin/growth/withdrawals/:id/mark-paid` | Cookie + MFA session, `withdrawals.pay`, fresh auth ≤10 min | `adminWithdrawalIdSchema` param; `markWithdrawalPaidSchema` body; 10/min | `withdrawal.paid` audit row |
+
+### Task 3.10 and 3.13 endpoint register (deals and growth console)
+
+| Route | Authentication / permission | Boundary and protections | Audit / status |
+| --- | --- | --- | --- |
+| `GET /admin/growth/deals` | Cookie + MFA session, `referrals.read` | `dealListQuerySchema` query; 120/min | Read only |
+| `POST /admin/growth/deals/simulate` | Cookie + MFA session, `referrals.read` | `simulateDealSchema` body; market resolved from request headers and currency setting; 30/min | See service |
+| `GET /admin/growth/deals/:id` | Cookie + MFA session, `referrals.read` | `dealIdParamSchema` param; 120/min | Read only |
+| `POST /admin/growth/deals` | Cookie + MFA session, `deals.write` | `createDealSchema` body; 30/min | `deal.created` audit row |
+| `PATCH /admin/growth/deals/:id` | Cookie + MFA session, `deals.write` | `dealIdParamSchema` param; `updateDealSchema` body; 30/min | `deal.updated` audit row |
+| `POST /admin/growth/deals/:id/activate` | Cookie + MFA session, `deals.write`, fresh auth ≤10 min | `dealIdParamSchema` param; 30/min | `deal.activated` audit row |
+| `POST /admin/growth/deals/:id/pause` | Cookie + MFA session, `deals.write` | `dealIdParamSchema` param; 30/min | `deal.paused` audit row |
+| `POST /admin/growth/deals/:id/end` | Cookie + MFA session, `deals.write` | `dealIdParamSchema` param; 30/min | `deal.ended` audit row |
+| `POST /admin/growth/deals/:id/targets` | Cookie + MFA session, `deals.write` | `dealIdParamSchema` param; body parsed with `dealTargetInputSchema`; 30/min | `deal.target_added` audit row |
+| `DELETE /admin/growth/deals/:id/targets/:targetId` | Cookie + MFA session, `deals.write` | `dealTargetParamSchema` param; 30/min; answers 204 | `deal.target_removed` audit row |
+| `GET /admin/growth/fraud` | Cookie + MFA session, `referrals.read` | `fraudListQuerySchema` query; 120/min | Read only |
+| `POST /admin/growth/fraud/bulk` | Cookie + MFA session, `referrals.write`, fresh auth ≤10 min | `bulkFraudSchema` body; 10/min | `referral.fraud_bulk` audit row |
+| `GET /admin/growth/codes` | Cookie + MFA session, `referrals.read` | `codeListQuerySchema` query; 120/min | Read only |
+| `POST /admin/growth/codes` | Cookie + MFA session, `referrals.write` | `createCodeSchema` body; 30/min | `referral_code.created` audit row |
+| `POST /admin/growth/codes/:id/pause` | Cookie + MFA session, `referrals.write` | `growthIdParamSchema` param; `reasonBodySchema` body; 30/min | `referral_code.paused` audit row |
+| `POST /admin/growth/codes/:id/resume` | Cookie + MFA session, `referrals.write` | `growthIdParamSchema` param; `reasonBodySchema` body; 30/min | `referral_code.resumed` audit row |
+| `GET /admin/growth/referrals/overview` | Cookie + MFA session, `referrals.read` | `referralOverviewQuerySchema` query; 30/min | Read only |
+| `GET /admin/growth/referrals/tree` | Cookie + MFA session, `referrals.read` | `referralTreeQuerySchema` query; 60/min | Read only |
+| `GET /admin/growth/referrals/tree.csv` | Cookie + MFA session, `finance.export` | `referralTreeQuerySchema` query; 10/min; `no-store` (`@Header`); CSV attachment | `referral.tree_export` audit row |
+| `GET /admin/growth/programs` | Cookie + MFA session, `referrals.read` | No input; 120/min | Read only |
+| `POST /admin/growth/programs` | Cookie + MFA session, `referrals.write` | `createProgramSchema` body; 30/min | `referral_program.created` audit row |
+| `PATCH /admin/growth/programs/:id` | Cookie + MFA session, `referrals.write`, fresh auth ≤10 min | `growthIdParamSchema` param; `updateProgramSchema` body; 30/min | `referral_program.updated` audit row |
+| `POST /admin/growth/programs/:id/members` | Cookie + MFA session, `referrals.write`, fresh auth ≤10 min | `growthIdParamSchema` param; `moveMemberSchema` body; 30/min | `referral_program.member_moved` audit row |
+| `GET /admin/growth/programs/:id/rules` | Cookie + MFA session, `referrals.read` | `growthIdParamSchema` param; 120/min | Read only |
+| `POST /admin/growth/programs/:id/rules` | Cookie + MFA session, `referrals.write`, fresh auth ≤10 min | `growthIdParamSchema` param; `createRuleSchema` body; 30/min | `reward_rule.created` audit row |
+| `POST /admin/growth/rules/what-if` | Cookie + MFA session, `referrals.read` | `whatIfSchema` body; 60/min | See service |
+| `PATCH /admin/growth/rules/:id` | Cookie + MFA session, `referrals.write`, fresh auth ≤10 min | `growthIdParamSchema` param; `updateRuleSchema` body; 30/min | `reward_rule.updated` audit row |
+| `POST /admin/growth/rules/:id/deactivate` | Cookie + MFA session, `referrals.write`, fresh auth ≤10 min | `growthIdParamSchema` param; `reasonBodySchema` body; 30/min | `reward_rule.deactivated` audit row |
+| `GET /admin/growth/programs/:id/tiers` | Cookie + MFA session, `referrals.read` | `growthIdParamSchema` param; 120/min | Read only |
+| `POST /admin/growth/programs/:id/tiers` | Cookie + MFA session, `referrals.write`, fresh auth ≤10 min | `growthIdParamSchema` param; `createTierSchema` body; 30/min | `referral_tier.created` audit row |
+| `PATCH /admin/growth/tiers/:id` | Cookie + MFA session, `referrals.write`, fresh auth ≤10 min | `growthIdParamSchema` param; `updateTierSchema` body; 30/min | `referral_tier.updated` audit row |
+| `DELETE /admin/growth/tiers/:id` | Cookie + MFA session, `referrals.write`, fresh auth ≤10 min | `growthIdParamSchema` param; `deleteTierQuerySchema` query; 30/min; answers 204 | `referral_tier.deleted` audit row |
+| `GET /admin/growth/settings/rewards/preview` | Cookie + MFA session, `referrals.read` | No input; 60/min | Read only |
+
+### Task 3.14 endpoint register (conversion engine)
+
+| Route | Authentication / permission | Boundary and protections | Audit / status |
+| --- | --- | --- | --- |
+| `GET /me/growth/prompt` | Cookie session | `growthPromptQuerySchema` query; 120/min | Read only |
+| `POST /me/taste` | Cookie session | `startTasteSchema` body; 10/hour; verified free accounts only, once a week, global weekly credit budget, kill switch | `taste_grants` row + `trial_grant` ledger row; unused credits taken back |
+| `GET /me/taste/:grantId/compare` | Cookie session | `tasteGrantParamSchema` param; 60/min | Read only |
+| `GET /me/offers` | Cookie session | No input; 60/min | Read only |
+| `GET /me/value` | Cookie session | No input; 60/min | Read only |
+| `GET /me/experiments` | Cookie session | No input; 60/min | Read only |
+| `GET /public/proof` | Public | No input; 60/min | Read only |
+| `POST /growth/events` | Public; session attached if present | `growthEventsRequestSchema` body; 16 KB cap (`GROWTH_EVENTS_MAX_BODY_BYTES`); ≤ 20 events; 60/min; client-reportable names only, prompt events need a session, props that look personal drop the event, variants recomputed server-side | `growth_events` rows, no PHI |
+| `POST /unsubscribe` | Public; origin check skipped | `unsubscribeQuerySchema` token from query (one-click) or body; 20/min; HMAC token (subkey of `ENCRYPTION_KEY`) naming one user, can only turn marketing off; bad token `NOT_FOUND` | `notification_prefs` opt-out with its route |
+| `GET /admin/growth/experiments` | Cookie + MFA session, `referrals.read` | No input; 120/min | Read only |
+| `POST /admin/growth/experiments` | Cookie + MFA session, `promotions.write` | `createExperimentSchema` body; 30/min | `experiment.created` audit row |
+| `PATCH /admin/growth/experiments/:id` | Cookie + MFA session, `promotions.write` | `experimentIdParamSchema` param; `updateExperimentSchema` body; 30/min | `experiment.updated` audit row |
+| `POST /admin/growth/experiments/:id/start` | Cookie + MFA session, `promotions.write` | `experimentIdParamSchema` param; 30/min | `experiment.started` audit row |
+| `POST /admin/growth/experiments/:id/stop` | Cookie + MFA session, `promotions.write` | `experimentIdParamSchema` param; 30/min | `experiment.stopped` audit row |
+| `POST /admin/growth/experiments/:id/complete` | Cookie + MFA session, `promotions.write` | `experimentIdParamSchema` param; 30/min | `experiment.completed` audit row |
+| `GET /admin/growth/experiments/:id/results` | Cookie + MFA session, `referrals.read` | `experimentIdParamSchema` param; 60/min | Read only |
+| `GET /admin/growth/funnel` | Cookie + MFA session, `billing.read` | `growthFunnelQuerySchema` query; 60/min | Read only |
+
+### Task 3.15 endpoint register (user 360)
+
+| Route | Authentication / permission | Boundary and protections | Audit / status |
+| --- | --- | --- | --- |
+| `GET /admin/users/:id/summary` | Cookie + MFA session, `users.read` | `adminUserParamsSchema` param; 120/min | Read only |
+| `POST /admin/users/:id/reveal-contact` | Cookie + MFA session, `users.read` | `adminUserParamsSchema` param; `adminRevealContactSchema` body; 20/min; `no-store` (`NoStoreInterceptor`) | `user.contact_revealed` audit row |
+| `GET /admin/users/:id/timeline` | Cookie + MFA session, `users.read` | `adminUserParamsSchema` param; `adminUserPageQuerySchema` query; 120/min | Read only |
+| `GET /admin/users/:id/billing` | Cookie + MFA session, `billing.read` | `adminUserParamsSchema` param; `adminUserPageQuerySchema` query; 120/min | Read only |
+| `GET /admin/users/:id/credits` | Cookie + MFA session, all of `users.read`, `usage.read` | `adminUserParamsSchema` param; `adminUserPageQuerySchema` query; 120/min | Read only |
+| `GET /admin/users/:id/referrals` | Cookie + MFA session, `referrals.read` | `adminUserParamsSchema` param; `adminUserPageQuerySchema` query; 120/min | Read only |
+| `POST /admin/users/:id/coupon-grant` | Cookie + MFA session, `coupons.write` | `adminUserParamsSchema` param; `adminCouponGrantSchema` body; 30/min | See service |
+| `POST /admin/users/:id/personal-offer` | Cookie + MFA session, `promotions.write` | `adminUserParamsSchema` param; `adminPersonalOfferSchema` body; 30/min | See service |
+| `POST /admin/users/:id/points-adjust` | Cookie + MFA session, `rewards.adjust`, fresh auth ≤10 min | `adminUserParamsSchema` param; `adminPointsAdjustSchema` body; 20/min | See service |
+| `POST /admin/referrals/:referralId/release` | Cookie + MFA session, `referrals.write` | `adminReferralParamsSchema` param; `adminReferralActionSchema` body; 30/min | See service |
+| `POST /admin/referrals/:referralId/void` | Cookie + MFA session, `referrals.write` | `adminReferralParamsSchema` param; `adminReferralActionSchema` body; 30/min | See service |
+| `POST /admin/referrals/:referralId/block-referrer` | Cookie + MFA session, `referrals.write` | `adminReferralParamsSchema` param; `adminReferralActionSchema` body; 30/min | See service |
+| `GET /admin/users/:id/notes` | Cookie + MFA session, `users.read` | `adminUserParamsSchema` param; `adminUserPageQuerySchema` query; 120/min | Read only |
+| `POST /admin/users/:id/notes` | Cookie + MFA session, `users.read` | `adminUserParamsSchema` param; `adminNoteCreateSchema` body; 30/min | See service |
+| `PATCH /admin/users/:id/notes/:noteId` | Cookie + MFA session, `users.read` | `adminUserNoteParamsSchema` param; `adminNotePatchSchema` body; 30/min | See service |
+| `DELETE /admin/users/:id/notes/:noteId` | Cookie + MFA session, `users.read` | `adminUserNoteParamsSchema` param; 30/min | See service |
+| `POST /admin/users/:id/phi-sessions` | Cookie + MFA session, any of `users.read_health`, `users.read_chats` | `adminUserParamsSchema` param; `adminPhiSessionSchema` body; 20/min; `no-store` (controller `NoStoreInterceptor`) | See service |
+| `GET /admin/users/:id/phi-sessions` | Cookie + MFA session, any of `users.read_health`, `users.read_chats` | `adminUserParamsSchema` param; 60/min; `no-store` (controller `NoStoreInterceptor`) | Read only |
+| `GET /admin/users/:id/prescriptions` | Cookie + MFA session, `users.read_health` | `adminUserParamsSchema` param; `adminUserPageQuerySchema` query; 120/min; `no-store` (controller `NoStoreInterceptor`) | Read only |
+| `GET /admin/users/:id/prescriptions/:rxId` | Cookie + MFA session, `users.read_health` | `adminUserRxParamsSchema` param; 60/min; `no-store` (controller `NoStoreInterceptor`); requires an unexpired access session of the same admin for the same user (`FORBIDDEN` `phi_session_required`) | `phi.view` audit row per open (service), before the data leaves |
+| `GET /admin/users/:id/chats` | Cookie + MFA session, `users.read_chats` | `adminUserParamsSchema` param; `adminUserPageQuerySchema` query; 120/min; `no-store` (controller `NoStoreInterceptor`) | Read only |
+| `GET /admin/users/:id/chats/:chatId` | Cookie + MFA session, `users.read_chats` | `adminUserChatParamsSchema` param; `adminUserPageQuerySchema` query; 60/min; `no-store` (controller `NoStoreInterceptor`); same access-session rule; chat scoped to the viewed user | `phi.view` audit row per open (service) |
+| `POST /admin/users/:id/plan-change/preview` | Cookie + MFA session, `users.upgrade` | `adminUserParamsSchema` param; `adminPlanChangePreviewSchema` body; 60/min | See service |
+| `POST /admin/users/:id/plan-change` | Cookie + MFA session, `users.upgrade` | `adminUserParamsSchema` param; `adminPlanChangeSchema` body; 20/min; fresh sign-in demanded by service | See service |
+| `POST /admin/orgs/:id/plan-change/preview` | Cookie + MFA session, `users.upgrade` | `adminUserParamsSchema` param; `adminPlanChangePreviewSchema` body; 60/min | See service |
+| `POST /admin/orgs/:id/plan-change` | Cookie + MFA session, `users.upgrade` | `adminUserParamsSchema` param; `adminPlanChangeSchema` body; 20/min; fresh sign-in demanded by service | See service |

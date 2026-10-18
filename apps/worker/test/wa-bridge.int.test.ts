@@ -8,6 +8,7 @@ import { Redis } from "ioredis";
 import { pino } from "pino";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { AlertGuard } from "../src/wa-bridge/alert-guard.js";
 import { clearSession, usePostgresAuthState } from "../src/wa-bridge/auth-state.js";
 import {
   DAILY_REPLY_CAP,
@@ -17,6 +18,7 @@ import {
   ReplyGuard,
   isAllowedReplyText,
 } from "../src/wa-bridge/guard.js";
+import { extractAlertOptInCommand } from "../src/wa-bridge/inbound.js";
 import { processReplyRequest, runReplyLoop, type ReplySocket } from "../src/wa-bridge/replies.js";
 
 import { startRedis, type TestRedis } from "./support/redis.js";
@@ -115,6 +117,7 @@ describe("ReplyGuard", () => {
     const delays: number[] = [];
     for (let i = 0; i < 20; i++) {
       await guard.noteInbound(JID, `m${i}`);
+      await redis.del("wa:outbound-next");
       const decision = await guard.authorize({ jid: JID, inboundId: `m${i}`, text });
       if (decision.ok) delays.push(decision.delayMs);
     }
@@ -124,6 +127,7 @@ describe("ReplyGuard", () => {
 
     // Just sent one: the next delay covers the rest of the 3 s spacing even with the smallest jitter.
     const now = Date.now();
+    await redis.del("wa:outbound-next");
     const spaced = new ReplyGuard(
       redis,
       () => now,
@@ -151,6 +155,71 @@ describe("ReplyGuard", () => {
     await guard.authorize({ jid: JID, inboundId: "A", text: "تم التحقق ✅" });
     const keys = (await redis.keys("wa:*")).join("\n");
     expect(keys).not.toContain("201012345678");
+  });
+});
+
+describe("AlertGuard", () => {
+  it("enforces the deployment kill switch, opt-in set, daily cap, and URL rule", async () => {
+    const disabled = new AlertGuard(redis, false);
+    expect(await disabled.authorize(JID, "safe alert", 20)).toEqual({
+      ok: false,
+      reason: "disabled",
+    });
+    const guard = new AlertGuard(redis, true);
+    expect(await guard.authorize(JID, "safe alert", 20)).toEqual({
+      ok: false,
+      reason: "not_opted_in",
+    });
+    await redis.sadd("wa:alert_optin_jids", JID);
+    expect(await guard.authorize(JID, "Read https://example.com", 20)).toEqual({
+      ok: false,
+      reason: "unsafe_text",
+    });
+    expect(await guard.authorize(JID, "safe alert", 1)).toMatchObject({ ok: true });
+    await guard.recordSent();
+    expect(await guard.authorize(JID, "another alert", 1)).toEqual({
+      ok: false,
+      reason: "cap_reached",
+    });
+  });
+
+  it("shares the outbound spacing timestamp with ReplyGuard", async () => {
+    const now = () => 100_000;
+    const replies = new ReplyGuard(redis, now, () => 0);
+    await replies.noteInbound(JID, "spacing");
+    await replies.recordSent();
+    await redis.sadd("wa:alert_optin_jids", JID);
+    const alerts = new AlertGuard(redis, true, now);
+    expect(await alerts.authorize(JID, "safe alert", 20)).toEqual({ ok: true, delayMs: 3_000 });
+  });
+});
+
+describe("WhatsApp alert opt-in command parsing", () => {
+  it.each([
+    [" ALERTS ON ", "optin"],
+    ["alerts off", "optout"],
+    ["تنبيهات", "optin"],
+    ["إيقاف التنبيهات", "optout"],
+  ] as const)("accepts exact direct command %s", async (text, action) => {
+    const result = await extractAlertOptInCommand(
+      {
+        key: { id: "msg", remoteJid: JID, fromMe: false },
+        message: { conversation: text },
+        messageTimestamp: Math.floor(Date.now() / 1000),
+      },
+      { getPNForLID: async () => null },
+    );
+    expect(result).toMatchObject({ action, digits: "201012345678", jid: JID });
+  });
+  it("ignores a command with extra text", async () => {
+    const result = await extractAlertOptInCommand(
+      {
+        key: { id: "msg", remoteJid: JID, fromMe: false },
+        message: { conversation: "ALERTS ON please" },
+      },
+      { getPNForLID: async () => null },
+    );
+    expect(result).toBeNull();
   });
 });
 
@@ -267,7 +336,12 @@ describe("runReplyLoop", () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
     expect(calls.filter((call) => call.startsWith("send:"))).toHaveLength(1);
-    const pending = await redis.xpending(WA_REPLY_STREAM, "bridge");
+    const ackDeadline = Date.now() + 10_000;
+    let pending = await redis.xpending(WA_REPLY_STREAM, "bridge");
+    while (pending[0] !== 0 && Date.now() < ackDeadline) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      pending = await redis.xpending(WA_REPLY_STREAM, "bridge");
+    }
     expect(pending[0]).toBe(0);
 
     controller.abort();

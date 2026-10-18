@@ -1,0 +1,5 @@
+{
+  "error": { "cause": "General Error" },
+  "messages": { "en": "Order is not exist", "ar": "الطلب غير موجود" },
+  "status": "FAILURE"
+}

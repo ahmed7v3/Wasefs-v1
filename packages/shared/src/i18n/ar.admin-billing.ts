@@ -242,6 +242,10 @@ export const arAdminBilling = {
   "admin.credits.kind.release": "إرجاع حجز",
   "admin.credits.kind.refund": "استرداد",
   "admin.credits.kind.expiry": "انتهاء صلاحية",
+  "admin.credits.kind.purchase": "شراء حزمة",
+  "admin.credits.kind.points_conversion": "تحويل نقاط",
+  "admin.credits.kind.trial_grant": "رصيد تجربة",
+  "admin.credits.kind.reward_bonus": "مكافأة",
   "admin.credits.adjust.open": "تعديل الرصيد",
   "admin.credits.adjust.title": "تعديل الرصيد",
   "admin.credits.adjust.lead":

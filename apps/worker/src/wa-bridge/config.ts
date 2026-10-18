@@ -13,6 +13,15 @@ export const bridgeEnvSchema = z.object({
       "must be 32 bytes, base64-encoded",
     ),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
+  WA_ALERTS_ENABLED: z
+    .preprocess((value) => value === "true" || value === true, z.boolean())
+    .default(false),
+  /** The web app origin: the only site customer messages may link to. Unset = no links allowed. */
+  WEB_ORIGIN: z
+    .string()
+    .transform((value) => value.split(",")[0]?.trim() ?? "")
+    .pipe(z.url({ protocol: /^https?$/ }))
+    .optional(),
   /** One linked number per session name. */
   WA_SESSION: z
     .string()

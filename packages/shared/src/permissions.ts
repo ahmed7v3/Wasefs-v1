@@ -24,7 +24,17 @@ export type PermissionGroup =
   | "credits"
   | "drugs"
   | "evals"
-  | "usage";
+  | "usage"
+  | "billing"
+  | "payments"
+  | "promotions"
+  | "coupons"
+  | "withdrawals"
+  | "finance"
+  | "alerts"
+  | "referrals"
+  | "rewards"
+  | "deals";
 
 export interface Label {
   ar: string;
@@ -50,6 +60,16 @@ export const PERMISSION_GROUPS: Record<PermissionGroup, Label> = {
   drugs: { ar: "قاعدة الأدوية", en: "Drug database" },
   evals: { ar: "تقييم الدقة", en: "Accuracy evaluation" },
   usage: { ar: "الاستهلاك والتكلفة", en: "Usage and cost" },
+  billing: { ar: "الفوترة والأسعار", en: "Billing and prices" },
+  payments: { ar: "المدفوعات", en: "Payments" },
+  promotions: { ar: "العروض الترويجية", en: "Promotions" },
+  coupons: { ar: "الكوبونات", en: "Coupons" },
+  withdrawals: { ar: "سحب النقاط", en: "Points withdrawals" },
+  finance: { ar: "البيانات المالية", en: "Financial data" },
+  alerts: { ar: "تنبيهات الإدارة", en: "Admin alerts" },
+  referrals: { ar: "الإحالات", en: "Referrals" },
+  rewards: { ar: "المكافآت والنقاط", en: "Rewards and points" },
+  deals: { ar: "الاتفاقات الخاصة", en: "Deals" },
 };
 
 export const PERMISSIONS = {
@@ -152,14 +172,117 @@ export const PERMISSIONS = {
     group: "usage",
     label: { ar: "عرض الاستهلاك والتكلفة", en: "View usage and cost" },
   },
+  "users.upgrade": {
+    group: "users",
+    label: {
+      ar: "ترقية باقة مستخدم أو تمديدها يدويًا",
+      en: "Upgrade or extend a user's plan manually",
+    },
+  },
+  "users.read_health": {
+    group: "users",
+    label: {
+      ar: "عرض روشتات المستخدمين (بيانات صحية، مع تسجيل السبب)",
+      en: "View users' prescriptions (health data, reason logged)",
+    },
+  },
+  "users.read_chats": {
+    group: "users",
+    label: {
+      ar: "عرض محادثات المستخدمين (بيانات صحية، مع تسجيل السبب)",
+      en: "View users' chats (health data, reason logged)",
+    },
+  },
+  "billing.read": {
+    group: "billing",
+    label: {
+      ar: "عرض الطلبات والاشتراكات والمدفوعات والأسعار",
+      en: "View orders, subscriptions, payments and prices",
+    },
+  },
+  "billing.write": {
+    group: "billing",
+    label: {
+      ar: "تعديل الأسعار وطرق الدفع والضرائب وبوابات الدفع",
+      en: "Edit prices, payment methods, tax and gateways",
+    },
+  },
+  "payments.review": {
+    group: "payments",
+    label: { ar: "مراجعة المدفوعات اليدوية واعتمادها", en: "Review and approve manual payments" },
+  },
+  "payments.refund": {
+    group: "payments",
+    label: { ar: "استرداد المدفوعات", en: "Refund payments" },
+  },
+  "promotions.write": {
+    group: "promotions",
+    label: { ar: "إنشاء العروض الترويجية وتعديلها", en: "Create and edit promotions" },
+  },
+  "coupons.write": {
+    group: "coupons",
+    label: { ar: "إنشاء كوبونات الخصم وتعديلها", en: "Create and edit coupons" },
+  },
+  "withdrawals.review": {
+    group: "withdrawals",
+    label: { ar: "مراجعة طلبات سحب النقاط", en: "Review points withdrawal requests" },
+  },
+  "withdrawals.pay": {
+    group: "withdrawals",
+    label: { ar: "تسجيل صرف طلبات السحب", en: "Mark withdrawal requests as paid" },
+  },
+  "finance.export": {
+    group: "finance",
+    label: { ar: "تصدير البيانات المالية", en: "Export financial data" },
+  },
+  "alerts.receive": {
+    group: "alerts",
+    label: { ar: "استلام تنبيهات الإدارة", en: "Receive admin alerts" },
+  },
+  "referrals.read": {
+    group: "referrals",
+    label: { ar: "عرض الإحالات والمكافآت والنقاط", en: "View referrals, rewards and points" },
+  },
+  "referrals.write": {
+    group: "referrals",
+    label: {
+      ar: "إدارة برامج الإحالة وقواعد المكافآت وأكواد الشركاء",
+      en: "Manage referral programs, reward rules and partner codes",
+    },
+  },
+  "rewards.adjust": {
+    group: "rewards",
+    label: { ar: "تعديل أرصدة النقاط يدويًا", en: "Adjust points balances manually" },
+  },
+  "deals.write": {
+    group: "deals",
+    label: { ar: "إنشاء الاتفاقات الخاصة وروابط الانضمام", en: "Create deals and join links" },
+  },
 } as const satisfies Record<string, PermissionInfo>;
 
 export type Permission = keyof typeof PERMISSIONS;
 
+/** Additional permission required to receive each alert kind, beyond alerts.receive. */
+export const ALERT_KIND_PERMISSION = {
+  "payment.review_needed": "payments.review",
+  "payment.review_overdue": "payments.review",
+  "payment.amount_mismatch": "payments.review",
+  "payment.failure_spike": "payments.review",
+  "refund.requested": "payments.review",
+  "payment_method.account_change_requested": "billing.write",
+  "payment_method.account_change_canceled": "billing.write",
+  "payment_method.account_change_applied": "billing.write",
+  "withdrawal.requested": "withdrawals.review",
+  "withdrawal.overdue": "withdrawals.review",
+  "credits.reconcile_drift": "billing.read",
+  "points.reconcile_drift": "billing.read",
+  "reward.fraud_flag": "alerts.receive",
+} as const satisfies Record<import("./billing.js").AlertKind, Permission>;
+
 export const PERMISSION_KEYS = Object.keys(PERMISSIONS) as Permission[];
 
 /** Shape every permission string must have; the DB enforces the same rule with a CHECK. */
-export const PERMISSION_PATTERN = /^[a-z][a-z0-9]*([.][a-z][a-z0-9]*)+$/;
+export const PERMISSION_PATTERN = /^[a-z][a-z0-9_]*([.][a-z][a-z0-9_]*)+$/;
 
 export function isPermission(value: unknown): value is Permission {
   return typeof value === "string" && Object.hasOwn(PERMISSIONS, value);

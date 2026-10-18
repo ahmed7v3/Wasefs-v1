@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { organizationMembers, rolePermissions, userRoles } from "@wasfa/db";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { DB, type DbHandle } from "../common/database.js";
 
@@ -30,7 +30,7 @@ export class RbacRepo {
     const rows = await this.handle.db
       .select({ orgId: organizationMembers.orgId })
       .from(organizationMembers)
-      .where(eq(organizationMembers.userId, userId));
+      .where(and(eq(organizationMembers.userId, userId), eq(organizationMembers.status, "active")));
     return rows.map((row) => row.orgId);
   }
 

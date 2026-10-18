@@ -30,6 +30,7 @@ export type IgnoreReason =
   "from_me" | "not_direct" | "not_text" | "no_code" | "unresolved_sender" | "stale" | "no_id";
 
 export type Extracted = { ok: true; message: InboundMessage } | { ok: false; reason: IgnoreReason };
+export type AlertOptInCommand = { action: "optin" | "optout"; jid: string; digits: string };
 
 const PN_SERVER = "s.whatsapp.net";
 const LID_SERVER = "lid";
@@ -70,6 +71,69 @@ function secondsOf(value: RawMessage["messageTimestamp"]): number | null {
   if (value === null || value === undefined) return null;
   const seconds = typeof value === "number" ? value : value.toNumber();
   return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
+}
+
+/** The text and the sender's phone of a fresh 1:1 message, for the bridge's keyword commands. */
+async function commandOf(
+  raw: RawMessage,
+  resolver: LidResolver,
+  now: number,
+): Promise<{ text: string; digits: string } | null> {
+  if (raw.key.fromMe || !isDirectJid(raw.key.remoteJid) || !raw.key.id) return null;
+  const original = textOf(raw.message);
+  if (original === null) return null;
+  const seconds = secondsOf(raw.messageTimestamp);
+  if (seconds !== null && now - seconds * 1000 > MAX_INBOUND_AGE_MS) return null;
+  let phone = phoneFromPnJid(raw.key.remoteJid) ?? phoneFromPnJid(raw.key.remoteJidAlt);
+  if (phone === null && splitJid(raw.key.remoteJid)?.server === LID_SERVER) {
+    try {
+      phone = phoneFromPnJid(await resolver.getPNForLID(raw.key.remoteJid));
+    } catch {
+      phone = null;
+    }
+  }
+  if (!phone) return null;
+  return { text: original.trim(), digits: phone.slice(1) };
+}
+
+export async function extractAlertOptInCommand(
+  raw: RawMessage,
+  resolver: LidResolver,
+  now = Date.now(),
+): Promise<AlertOptInCommand | null> {
+  const text = textOf(raw.message)?.trim() ?? "";
+  const action =
+    text.toLocaleUpperCase() === "ALERTS ON" || text === "تنبيهات"
+      ? "optin"
+      : text.toLocaleUpperCase() === "ALERTS OFF" || text === "إيقاف التنبيهات"
+        ? "optout"
+        : null;
+  if (!action) return null;
+  const command = await commandOf(raw, resolver, now);
+  if (!command) return null;
+  return { action, digits: command.digits, jid: `${command.digits}@s.whatsapp.net` };
+}
+
+export type CustomerPrefCommand = { action: "stop" | "start"; jid: string; digits: string };
+
+const STOP_WORDS = new Set(["STOP", "إيقاف", "ايقاف", "الغاء", "إلغاء"]);
+const START_WORDS = new Set(["START", "تشغيل"]);
+
+/**
+ * A customer's STOP / START for WhatsApp notifications: the whole message is the keyword (any
+ * case), so a sentence that merely contains it is not a command.
+ */
+export async function extractCustomerPrefCommand(
+  raw: RawMessage,
+  resolver: LidResolver,
+  now = Date.now(),
+): Promise<CustomerPrefCommand | null> {
+  const text = (textOf(raw.message)?.trim() ?? "").toLocaleUpperCase();
+  const action = STOP_WORDS.has(text) ? "stop" : START_WORDS.has(text) ? "start" : null;
+  if (!action) return null;
+  const command = await commandOf(raw, resolver, now);
+  if (!command) return null;
+  return { action, digits: command.digits, jid: `${command.digits}@s.whatsapp.net` };
 }
 
 /**
