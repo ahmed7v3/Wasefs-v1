@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { drainOutbox, outboxBackoffMs, type OutboxHandler } from "../src/outbox.js";
@@ -778,8 +778,8 @@ describe("refunds", () => {
 });
 
 describe("outbox", () => {
-  // `available_at` is set by Postgres in microseconds and `new Date()` has milliseconds: a drain in
-  // the same millisecond as the insert would find the entry not yet due. Drain a second ahead.
+  // A second ahead keeps these tests independent of the clock; the same-millisecond case itself is
+  // covered by "an entry written in the drain's millisecond is due" below.
   const drainAt = () => new Date(Date.now() + 1_000);
   // Entries left by the activation tests above are drained as no-ops here.
   const quiet: Record<string, OutboxHandler> = {
@@ -791,6 +791,30 @@ describe("outbox", () => {
     "billing.payment_rejected": () => Promise.resolve(),
     "billing.payment_resubmit": () => Promise.resolve(),
   };
+
+  it("an entry written in the drain's millisecond is due (microseconds against milliseconds)", async () => {
+    const userId = await newUser();
+    await db()
+      .insert(outbox)
+      .values({ topic: "test.same_ms", payload: {}, idempotencyKey: `ms-${userId}` });
+    // 500 microseconds into the millisecond that `now` names; long ago, so nothing else is due.
+    await db().execute(
+      sql`update outbox set available_at = '2020-01-01T00:00:00.000500Z' where idempotency_key = ${`ms-${userId}`}`,
+    );
+    let runs = 0;
+    await drainOutbox(
+      db(),
+      {
+        ...quiet,
+        "test.same_ms": () => {
+          runs++;
+          return Promise.resolve();
+        },
+      },
+      new Date("2020-01-01T00:00:00.000Z"),
+    );
+    expect(runs).toBe(1);
+  });
 
   it("runs each entry once, retries failures with backoff and parks unknown topics", async () => {
     const userId = await newUser();

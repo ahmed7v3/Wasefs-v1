@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, lt, sql } from "drizzle-orm";
 
 import { outbox, type OutboxEntry } from "./schema/billing.js";
 
@@ -79,7 +79,9 @@ export async function drainOutbox(
       const [entry] = await tx
         .select()
         .from(outbox)
-        .where(and(isNull(outbox.processedAt), lte(outbox.availableAt, now)))
+        // `available_at` comes from Postgres in microseconds, `now` has milliseconds: an entry
+        // written in the same millisecond as `now` is due, so the cutoff is the end of that ms.
+        .where(and(isNull(outbox.processedAt), lt(outbox.availableAt, new Date(now.getTime() + 1))))
         .orderBy(asc(outbox.availableAt))
         .limit(1)
         .for("update", { skipLocked: true });

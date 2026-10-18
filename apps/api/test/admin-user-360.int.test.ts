@@ -454,6 +454,14 @@ describe("search by phone and e-mail fragments", () => {
       expect(ids, q).toContain(customer.userId);
     }
   });
+
+  it("keeps the zeros of a typed tail: a phone ending in 0123 is found by 0123", async () => {
+    const other = await ctx.harness.signedInUser();
+    await ctx.owner.db.update(users).set({ phone: "+201055500123" }).where(eq(users.id, other.userId));
+    const response = await ctx.harness.call("GET", `/admin/search?q=0123`, { jar: support.jar });
+    expect(response.statusCode).toBe(200);
+    expect((response.json().items as Array<{ id: string }>).map((item) => item.id)).toContain(other.userId);
+  });
 });
 
 /*

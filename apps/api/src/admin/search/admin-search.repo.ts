@@ -31,10 +31,14 @@ export class AdminSearchRepo {
     if (text.length >= 3) matches.push(ilike(users.email, `%${escapeLike(text)}%`));
     if (phoneDigits.length >= 4) {
       // `phone` is E.164: the full number with its country code, or any tail of it, as callers read
-      // out the last digits (a leading trunk zero never appears in E.164).
+      // out the last digits. A tail is matched as typed (its zeros count: "0123" is a real ending);
+      // a national number typed with its trunk zero ("010...") also matches without it.
       const national = phoneDigits.replace(/^0+/, "");
       if (phoneDigits.length >= 6) matches.push(sql`${users.phone} = ${`+${phoneDigits}`}`);
-      if (national.length >= 4) matches.push(sql`${users.phone} like ${`%${national}`}`);
+      matches.push(sql`${users.phone} like ${`%${phoneDigits}`}`);
+      if (national !== phoneDigits && national.length >= 4) {
+        matches.push(sql`${users.phone} like ${`%${national}`}`);
+      }
     }
     if (idPrefix.length >= 4) matches.push(sql`${users.id}::text like ${`${idPrefix}%`}`);
     return this.handle.db
