@@ -23,6 +23,6 @@ export class MeNotificationPrefsController {
   @Put()
   @RateLimit(10)
   update(@CurrentUser() user: AuthenticatedUser, @Body() body: UpdatePrefsDto) {
-    return this.prefs.update(user.id, body.whatsapp);
+    return this.prefs.update(user.id, body);
   }
 }

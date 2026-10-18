@@ -15,5 +15,6 @@ import { SubscriptionsService } from "./subscriptions.service.js";
   imports: [AuthModule, BillingModule],
   controllers: [SubscriptionsController],
   providers: [SubscriptionsRepo, SubscriptionsService],
+  exports: [SubscriptionsRepo, SubscriptionsService],
 })
 export class SubscriptionsModule {}

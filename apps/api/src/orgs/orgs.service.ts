@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { isForeignKeyViolation } from "@wasfa/db";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
 
 import { AuditService } from "../audit/audit.service.js";
@@ -138,19 +139,27 @@ export class OrgsService {
     request: FastifyRequest,
   ): Promise<{ orgDeleted: boolean }> {
     await this.authorize(user.id, orgId);
-    const orgDeleted = await this.repo.withOrgLock(orgId, async (org) => {
-      const role = await org.roleOf(user.id);
-      if (!role) throw new AppError(ErrorCode.NOT_FOUND);
-      if ((await org.memberCount()) === 1) {
-        await org.deleteOrg();
-        return true;
-      }
-      if (role === "org_admin" && (await org.adminCount()) === 1) {
-        throw new AppError(ErrorCode.CONFLICT, { details: { reason: "last_org_admin" } });
-      }
-      await org.removeMember(user.id);
-      return false;
-    });
+    const orgDeleted = await this.repo
+      .withOrgLock(orgId, async (org) => {
+        const role = await org.roleOf(user.id);
+        if (!role) throw new AppError(ErrorCode.NOT_FOUND);
+        if ((await org.memberCount()) === 1) {
+          await org.deleteOrg();
+          return true;
+        }
+        if (role === "org_admin" && (await org.adminCount()) === 1) {
+          throw new AppError(ErrorCode.CONFLICT, { details: { reason: "last_org_admin" } });
+        }
+        await org.removeMember(user.id);
+        return false;
+      })
+      .catch((error: unknown) => {
+        // Orders and subscriptions are money history and stay: an organization that has billed cannot be deleted.
+        if (isForeignKeyViolation(error)) {
+          throw new AppError(ErrorCode.CONFLICT, { details: { reason: "org_has_billing" } });
+        }
+        throw error;
+      });
     await this.rbac.bustUser(user.id);
     audit.after = { orgDeleted };
     if (orgDeleted) {

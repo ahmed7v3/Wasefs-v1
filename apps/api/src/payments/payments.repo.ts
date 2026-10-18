@@ -41,11 +41,17 @@ import type { PaymentStatus } from "@wasfa/shared/billing";
 @Injectable()
 export class PaymentsRepo {
   private readonly userOrders: ScopedRepo<typeof orders>;
+  private readonly orgOrders: ScopedRepo<typeof orders>;
 
   constructor(@Inject(DB) private readonly handle: DbHandle) {
     this.userOrders = scopedRepo(handle.db, {
       table: orders,
       scope: orders.ownerUserId,
+      id: orders.id,
+    });
+    this.orgOrders = scopedRepo(handle.db, {
+      table: orders,
+      scope: orders.ownerOrgId,
       id: orders.id,
     });
   }
@@ -98,6 +104,20 @@ export class PaymentsRepo {
   /** The caller's own order, or null (another owner's order does not exist for them). */
   userOrder(userId: string, orderId: string): Promise<Order | null> {
     return this.userOrders.find(userId, orderId);
+  }
+
+  /** An order of the organization, or null; the caller has already been checked as its org_admin. */
+  orgOrder(orgId: string, orderId: string): Promise<Order | null> {
+    return this.orgOrders.find(orgId, orderId);
+  }
+
+  /** The organization that owns an order (null for a personal or unknown order): to authorize the caller against it. */
+  async orderOrgId(orderId: string): Promise<string | null> {
+    const [row] = await this.handle.db
+      .select({ orgId: orders.ownerOrgId })
+      .from(orders)
+      .where(eq(orders.id, orderId));
+    return row?.orgId ?? null;
   }
 
   orderPayments(orderId: string): Promise<Payment[]> {

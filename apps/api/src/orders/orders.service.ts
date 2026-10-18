@@ -3,13 +3,14 @@ import { AppError, ErrorCode } from "@wasfa/shared/errors";
 
 import { QuoteService } from "../billing/quote.service.js";
 import { API_ENV } from "../config/config.module.js";
+import { OrgsService } from "../orgs/orgs.service.js";
 import { GatewayRegistry } from "../payments/gateway-registry.js";
 import { PaymentsRepo } from "../payments/payments.repo.js";
 import { PaymentsService, toAppError } from "../payments/payments.service.js";
 import { SettingsService } from "../settings/settings.service.js";
 
 import type { ApiEnv } from "../config/env.js";
-import type { Order, Payment } from "@wasfa/db";
+import type { Order, Payment, WalletOwner } from "@wasfa/db";
 import type { PriceQuote } from "@wasfa/shared/price-engine";
 import type {
   CreateOrderInput,
@@ -51,6 +52,7 @@ export class OrdersService {
     private readonly payments: PaymentsService,
     private readonly gateways: GatewayRegistry,
     private readonly settings: SettingsService,
+    private readonly orgs: OrgsService,
     @Inject(API_ENV) private readonly env: ApiEnv,
   ) {}
 
@@ -64,6 +66,12 @@ export class OrdersService {
       throw new AppError(ErrorCode.QUOTE_EXPIRED);
     }
     const { quote, target, hash } = checkout;
+    // An organization's order is made by its org_admin, from a quote made for that organization.
+    if ((input.orgId ?? null) !== checkout.orgId) throw new AppError(ErrorCode.QUOTE_EXPIRED);
+    if (checkout.orgId !== null) await this.orgs.authorize(userId, checkout.orgId, "org_admin");
+    const owner: WalletOwner = checkout.orgId
+      ? { type: "org", id: checkout.orgId }
+      : { type: "user", id: userId };
 
     // The fee depends on the method: a quote priced for another method (or none) is re-quoted.
     let method: { key: string; gateway: string | null } | null = null;
@@ -86,7 +94,7 @@ export class OrdersService {
     const created = await this.repo
       .createOrder(
         {
-          owner: { type: "user", id: userId },
+          owner,
           kind: target.kind,
           planId: target.planId,
           packId: target.packId,
@@ -130,8 +138,7 @@ export class OrdersService {
 
   /** `GET /billing/orders/:id`: read only. The return page polls this; it never marks anything paid. */
   async status(userId: string, orderId: string): Promise<OrderStatusResponse> {
-    const order = await this.repo.userOrder(userId, orderId);
-    if (!order) throw new AppError(ErrorCode.NOT_FOUND);
+    const order = await this.findOrder(userId, orderId);
     const attempts = await this.repo.orderPayments(order.id);
     return {
       id: order.id,
@@ -156,10 +163,26 @@ export class OrdersService {
   }
 
   async cancel(userId: string, orderId: string): Promise<OrderStatusResponse> {
-    const order = await this.repo.userOrder(userId, orderId);
-    if (!order) throw new AppError(ErrorCode.NOT_FOUND);
+    const order = await this.findOrder(userId, orderId);
     await this.repo.cancelOrder(order.id).catch(toAppError);
     return this.status(userId, orderId);
+  }
+
+  /** The caller's own order, or one of an organization they are an org_admin of; anything else is `NOT_FOUND`. */
+  private async findOrder(userId: string, orderId: string): Promise<Order> {
+    const own = await this.repo.userOrder(userId, orderId);
+    if (own) return own;
+    const orgId = await this.repo.orderOrgId(orderId);
+    if (orgId !== null) {
+      try {
+        await this.orgs.authorize(userId, orgId, "org_admin");
+        const order = await this.repo.orgOrder(orgId, orderId);
+        if (order) return order;
+      } catch {
+        // A member without the role looks exactly like a stranger.
+      }
+    }
+    throw new AppError(ErrorCode.NOT_FOUND);
   }
 
   private async startCheckout(

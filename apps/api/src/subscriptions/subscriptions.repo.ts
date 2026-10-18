@@ -3,6 +3,7 @@ import {
   cancelAtPeriodEnd,
   creditPacks,
   orders,
+  organizations,
   paymentMethods,
   payments,
   plans,
@@ -15,6 +16,7 @@ import {
   type Order,
   type Plan,
   type Subscription,
+  type WalletOwner,
 } from "@wasfa/db";
 import { LIVE_SUBSCRIPTION_STATUSES } from "@wasfa/shared/billing";
 import { and, desc, eq, inArray } from "drizzle-orm";
@@ -31,14 +33,24 @@ export interface OrderListRow {
   at: string;
 }
 
-/** The caller's subscription, orders and receipts. Every query is scoped to the caller's user id. */
+const subscriptionOwner = (owner: WalletOwner) =>
+  owner.type === "org"
+    ? eq(subscriptions.ownerOrgId, owner.id)
+    : eq(subscriptions.ownerUserId, owner.id);
+const orderOwner = (owner: WalletOwner) =>
+  owner.type === "org" ? eq(orders.ownerOrgId, owner.id) : eq(orders.ownerUserId, owner.id);
+
+/**
+ * The subscription, orders and receipts of one owner: the caller (`/me`) or an organization whose
+ * org_admin the caller has been checked to be (`/orgs/:id`). Every query is scoped to that owner.
+ */
 @Injectable()
 export class SubscriptionsRepo {
   constructor(@Inject(DB) private readonly handle: DbHandle) {}
 
   /** The live subscription with its plan, or the newest ended one when `includeEnded`. */
   async current(
-    userId: string,
+    owner: WalletOwner,
     includeEnded = false,
   ): Promise<{ subscription: Subscription; plan: Plan } | undefined> {
     const [row] = await this.handle.db
@@ -47,7 +59,7 @@ export class SubscriptionsRepo {
       .innerJoin(plans, eq(plans.id, subscriptions.planId))
       .where(
         and(
-          eq(subscriptions.ownerUserId, userId),
+          subscriptionOwner(owner),
           includeEnded ? undefined : inArray(subscriptions.status, [...LIVE_SUBSCRIPTION_STATUSES]),
         ),
       )
@@ -64,12 +76,12 @@ export class SubscriptionsRepo {
     return row?.key ?? null;
   }
 
-  async lastOrderMonths(orderId: string | null, userId: string): Promise<number | null> {
+  async lastOrderMonths(orderId: string | null, owner: WalletOwner): Promise<number | null> {
     if (!orderId) return null;
     const [row] = await this.handle.db
       .select({ months: orders.months })
       .from(orders)
-      .where(and(eq(orders.id, orderId), eq(orders.ownerUserId, userId)));
+      .where(and(eq(orders.id, orderId), orderOwner(owner)));
     return row?.months ?? null;
   }
 
@@ -89,7 +101,11 @@ export class SubscriptionsRepo {
     return resume(this.handle.db, { type: "user", id: userId }, now);
   }
 
-  async orders(userId: string, limit: number, cursor: Cursor | undefined): Promise<OrderListRow[]> {
+  async orders(
+    owner: WalletOwner,
+    limit: number,
+    cursor: Cursor | undefined,
+  ): Promise<OrderListRow[]> {
     return this.handle.db
       .select({
         order: orders,
@@ -102,7 +118,7 @@ export class SubscriptionsRepo {
       .leftJoin(creditPacks, eq(creditPacks.id, orders.packId))
       .where(
         and(
-          eq(orders.ownerUserId, userId),
+          orderOwner(owner),
           cursor ? afterCursor(orders.createdAt, orders.id, cursor, "uuid") : undefined,
         ),
       )
@@ -110,18 +126,25 @@ export class SubscriptionsRepo {
       .limit(limit + 1);
   }
 
-  /** Everything a receipt shows, for a paid (or refunded) order of the caller; else undefined. */
-  async receiptData(userId: string, orderId: string) {
+  /** Everything a receipt shows, for a paid (or refunded) order of the owner; else undefined. */
+  async receiptData(owner: WalletOwner, orderId: string) {
     const [row] = await this.handle.db
-      .select({ order: orders, planKey: plans.key, packKey: creditPacks.key, user: users })
+      .select({
+        order: orders,
+        planKey: plans.key,
+        packKey: creditPacks.key,
+        user: users,
+        orgName: organizations.name,
+      })
       .from(orders)
-      .innerJoin(users, eq(users.id, orders.ownerUserId))
+      .leftJoin(users, eq(users.id, orders.ownerUserId))
+      .leftJoin(organizations, eq(organizations.id, orders.ownerOrgId))
       .leftJoin(plans, eq(plans.id, orders.planId))
       .leftJoin(creditPacks, eq(creditPacks.id, orders.packId))
       .where(
         and(
           eq(orders.id, orderId),
-          eq(orders.ownerUserId, userId),
+          orderOwner(owner),
           inArray(orders.status, [...RECEIPT_STATUSES]),
         ),
       );

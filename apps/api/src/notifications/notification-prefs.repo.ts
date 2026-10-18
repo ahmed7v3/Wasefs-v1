@@ -1,5 +1,14 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { customerContact, setWhatsappOptOut, users, type CustomerContact } from "@wasfa/db";
+import {
+  customerContact,
+  marketingState,
+  setMarketingOptIn,
+  setMarketingOptOut,
+  setWhatsappOptOut,
+  users,
+  type CustomerContact,
+  type MarketingState,
+} from "@wasfa/db";
 import { and, eq, isNotNull } from "drizzle-orm";
 
 import { DB, type DbHandle } from "../common/database.js";
@@ -15,6 +24,17 @@ export class NotificationPrefsRepo {
 
   setWhatsappOptOut(userId: string, optedOut: boolean): Promise<void> {
     return setWhatsappOptOut(this.handle.db, userId, optedOut, "account");
+  }
+
+  marketing(userId: string): Promise<MarketingState> {
+    return marketingState(this.handle.db, userId);
+  }
+
+  /** The account page switch: on records a new consent, off an opt-out from the account. */
+  setMarketing(userId: string, enabled: boolean): Promise<void> {
+    return enabled
+      ? setMarketingOptIn(this.handle.db, userId)
+      : setMarketingOptOut(this.handle.db, userId, "account");
   }
 
   /** The caller's verified phone (its chat goes into the bridge's opt-out set), or null. */

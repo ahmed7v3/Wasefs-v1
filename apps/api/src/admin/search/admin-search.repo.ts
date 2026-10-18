@@ -26,12 +26,15 @@ export class AdminSearchRepo {
   users({ text, phoneDigits, idPrefix }: UserSearchTerms) {
     const pattern = prefixOf(text);
     const matches: SQL[] = [ilike(users.email, pattern), ilike(users.name, pattern)];
-    if (phoneDigits.length >= 6) {
-      // `phone` is E.164: the full number with its country code, or the national part as a suffix
-      // (a leading trunk zero never appears in E.164).
+    // An agent types the part of an address they remember (`gmail`, `ahmed.s`): from three characters
+    // on, any part of the e-mail matches, not only its start.
+    if (text.length >= 3) matches.push(ilike(users.email, `%${escapeLike(text)}%`));
+    if (phoneDigits.length >= 4) {
+      // `phone` is E.164: the full number with its country code, or any tail of it, as callers read
+      // out the last digits (a leading trunk zero never appears in E.164).
       const national = phoneDigits.replace(/^0+/, "");
-      matches.push(sql`${users.phone} = ${`+${phoneDigits}`}`);
-      if (national.length >= 6) matches.push(sql`${users.phone} like ${`%${national}`}`);
+      if (phoneDigits.length >= 6) matches.push(sql`${users.phone} = ${`+${phoneDigits}`}`);
+      if (national.length >= 4) matches.push(sql`${users.phone} like ${`%${national}`}`);
     }
     if (idPrefix.length >= 4) matches.push(sql`${users.id}::text like ${`${idPrefix}%`}`);
     return this.handle.db

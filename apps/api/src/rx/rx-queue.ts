@@ -15,8 +15,16 @@ export class RxQueue implements OnApplicationShutdown {
   }
 
   /** One job per analysis: asking twice does not analyse twice. */
-  async analyze(analysisId: string): Promise<void> {
-    await this.queue.add("rx.analyze", { analysisId }, { jobId: `rx-${analysisId}` });
+  async analyze(
+    analysisId: string,
+    options: { planOrgId?: string | undefined; routePlanId?: string | undefined } = {},
+  ): Promise<void> {
+    const payload = {
+      analysisId,
+      ...(options.planOrgId ? { planOrgId: options.planOrgId } : {}),
+      ...(options.routePlanId ? { routePlanId: options.routePlanId } : {}),
+    };
+    await this.queue.add("rx.analyze", payload, { jobId: `rx-${analysisId}` });
   }
 
   async onApplicationShutdown(): Promise<void> {

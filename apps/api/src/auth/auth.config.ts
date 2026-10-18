@@ -1,5 +1,9 @@
 import {
   accounts,
+  attributeReferral,
+  ensureReferralCode,
+  requestSignupCheck,
+  setMarketingOptIn,
   sessions,
   twoFactors,
   userRoles,
@@ -7,12 +11,15 @@ import {
   verifications,
   type Database,
 } from "@wasfa/db";
+import { MARKETING_HEADER } from "@wasfa/shared/growth";
 import { isPlaceholderEmail } from "@wasfa/shared/identity";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { haveIBeenPwned, twoFactor } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
+
+import { referralFromHeaders } from "../referrals/referral-source.js";
 
 import { AuthCode } from "./auth-errors.js";
 import { isBlockedEmailDomain } from "./disposable-domains.js";
@@ -189,6 +196,44 @@ export function createAuth(deps: AuthDeps) {
                   message: "Email domain is not allowed",
                 });
               }
+            }
+          },
+          // A new account gets its own invite code and, when it came through someone's link or typed a
+          // code, its referral record (first touch). Nothing here may ever fail the sign-up.
+          after: async (user, context) => {
+            try {
+              await ensureReferralCode(db, user.id);
+              const hint = referralFromHeaders(context?.request?.headers ?? context?.headers);
+              if (hint) {
+                await attributeReferral(db, {
+                  refereeUserId: user.id,
+                  code: hint.code,
+                  source: hint.source,
+                });
+              }
+            } catch {
+              log("error", `Referral setup failed for user ${user.id}`);
+            }
+            // The register form's marketing checkbox (GROWTH §6). Consent is recorded or not; it never
+            // fails the sign-up.
+            const headers = context?.request?.headers ?? context?.headers;
+            if (headers?.get(MARKETING_HEADER) === "1") {
+              try {
+                await setMarketingOptIn(db, user.id);
+              } catch {
+                log("error", `Marketing consent could not be stored for user ${user.id}`);
+              }
+            }
+          },
+        },
+        update: {
+          // Verifying the mailbox may complete a referred person's sign-up conditions.
+          after: async (user) => {
+            if (user.emailVerified !== true) return;
+            try {
+              await requestSignupCheck(db, user.id, "email");
+            } catch {
+              log("error", `Sign-up check could not be queued for user ${user.id}`);
             }
           },
         },

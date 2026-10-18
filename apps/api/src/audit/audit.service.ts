@@ -25,6 +25,12 @@ export interface AuditEntry {
 export interface RecordOptions {
   /** Per-entity allowlist of top-level fields kept in `before`/`after`. */
   fields?: readonly string[];
+  /**
+   * Store `before`/`after` as given, without the redactor. Only for values that are ids and members
+   * of closed sets: the redactor reads a run of digits inside a UUID as a phone number and would
+   * mangle it. A caller with free text in the value must scrub it first.
+   */
+  verbatim?: boolean;
 }
 
 const MAX_USER_AGENT = 300;
@@ -51,8 +57,16 @@ export class AuditService {
       action: entry.action,
       targetType: entry.targetType,
       targetId: entry.targetId ?? null,
-      before: entry.before === undefined ? null : sanitizeAuditValue(entry.before, sanitize),
-      after: entry.after === undefined ? null : sanitizeAuditValue(entry.after, sanitize),
+      before: options.verbatim
+        ? (entry.before ?? null)
+        : entry.before === undefined
+          ? null
+          : sanitizeAuditValue(entry.before, sanitize),
+      after: options.verbatim
+        ? (entry.after ?? null)
+        : entry.after === undefined
+          ? null
+          : sanitizeAuditValue(entry.after, sanitize),
       ip: entry.ip ?? null,
       userAgent: entry.userAgent?.slice(0, MAX_USER_AGENT) ?? null,
     });

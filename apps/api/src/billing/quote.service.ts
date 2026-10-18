@@ -24,6 +24,7 @@ import {
   type QuoteTarget,
   type SimulateBillingInput,
 } from "@wasfa/shared/schemas/billing";
+import { simulateDealResponseSchema, type SimulateDealInput } from "@wasfa/shared/schemas/deals";
 import { Redis } from "ioredis";
 import { z } from "zod";
 
@@ -31,6 +32,7 @@ import { AuthRateLimiter } from "../auth/rate-limiter.js";
 import { REDIS } from "../common/redis.js";
 import { API_ENV } from "../config/config.module.js";
 import { encryptionKey, type ApiEnv } from "../config/env.js";
+import { OrgsService } from "../orgs/orgs.service.js";
 import { SettingsService } from "../settings/settings.service.js";
 
 import { DEAL_RESOLVER, type DealResolver } from "./deal-resolver.js";
@@ -38,7 +40,7 @@ import { engineSettings } from "./engine-settings.js";
 import { QuoteInputsRepo, audienceFits, type MethodSummary } from "./quote-inputs.repo.js";
 
 import type { Market } from "../catalog/market.js";
-import type { Coupon, Plan } from "@wasfa/db";
+import type { Coupon, Plan, WalletOwner } from "@wasfa/db";
 
 const COUPON_USER_LIMIT = { max: 10, windowSeconds: 60 };
 const COUPON_IP_LIMIT = { max: 30, windowSeconds: 60 };
@@ -46,17 +48,21 @@ const COUPON_IP_LIMIT = { max: 30, windowSeconds: 60 };
 const quoteKey = (quoteId: string) => `billing:quote:${quoteId}`;
 
 const storedQuoteSchema = z.object({
-  v: z.literal(2),
+  v: z.literal(3),
   userId: z.string(),
+  /** The organization the quote is for (it will own the order); null = the user's own purchase. */
+  orgId: z.uuid().nullable(),
   target: quoteTargetSchema,
   quote: priceQuoteSchema,
-  /** HMAC over `{ userId, target, quote }`: nobody may edit, re-own or re-target the quote. */
+  /** HMAC over `{ userId, orgId, target, quote }`: nobody may edit, re-own or re-target the quote. */
   signature: z.string(),
 });
 
 /** A stored quote that passed every check, ready for `POST /billing/orders`. */
 export interface CheckoutQuote {
   quote: PriceQuote;
+  /** Who will own the order: the organization it was quoted for, else the user. */
+  orgId: string | null;
   target: QuoteTarget;
   /** `quote_hash` of the order: HMAC over the quote alone. */
   hash: string;
@@ -84,6 +90,7 @@ interface PlanInputs {
   couponCheck: CouponCheck | null;
   target: QuoteTarget;
   names: ReadonlyMap<string, string>;
+  orgId: string | null;
 }
 
 function toMethodInput(method: MethodSummary): PaymentMethodInput {
@@ -114,6 +121,7 @@ export class QuoteService {
     private readonly repo: QuoteInputsRepo,
     private readonly settings: SettingsService,
     private readonly limiter: AuthRateLimiter,
+    private readonly orgs: OrgsService,
   ) {
     // A purpose-bound subkey: the master key never signs anything directly.
     this.hashKey = Buffer.from(
@@ -153,16 +161,21 @@ export class QuoteService {
     const stored = storedQuoteSchema.safeParse(data);
     if (!stored.success || stored.data.userId !== userId) return null;
     // Sign what was stored, not what was parsed: an unknown extra key must break the signature too.
-    const envelope = data as { quote: unknown; target: unknown };
+    const envelope = data as { quote: unknown; target: unknown; orgId: unknown };
     const expected = Buffer.from(
-      this.hmac({ userId, target: envelope.target, quote: envelope.quote }),
+      this.hmac({ userId, orgId: envelope.orgId, target: envelope.target, quote: envelope.quote }),
       "hex",
     );
     const actual = Buffer.from(stored.data.signature, "hex");
     if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null;
     // Shape checked above by the schemas, integrity by the HMAC.
     const quote = envelope.quote as PriceQuote;
-    return { quote, target: stored.data.target, hash: this.hashQuote(quote) };
+    return {
+      quote,
+      orgId: stored.data.orgId,
+      target: stored.data.target,
+      hash: this.hashQuote(quote),
+    };
   }
 
   /**
@@ -184,6 +197,14 @@ export class QuoteService {
     ip: string,
     now = new Date(),
   ): Promise<QuoteResponse> {
+    // Buying for an organization is an org_admin act, checked against the database on every quote.
+    if (request.orgId !== undefined) {
+      await this.orgs.authorize(userId, request.orgId, "org_admin");
+      // A manual-invoice deal means the organization pays offline (recorded by an admin), not here.
+      if (await this.deals.isManualInvoice(request.orgId, now)) {
+        throw new AppError(ErrorCode.CONFLICT, { details: { reason: "manual_invoice" } });
+      }
+    }
     return "packKey" in request
       ? this.quotePack(userId, request, market, now)
       : this.quotePlan(userId, request, market, ip, now);
@@ -204,9 +225,17 @@ export class QuoteService {
       now,
     );
     if (!inputs.result.ok) throw new AppError(ErrorCode[inputs.result.code]);
-    return inputs.couponCheck
+    const outcome = inputs.couponCheck
       ? this.checkedCouponOutcome(inputs.couponCheck, inputs.result.quote, inputs.input)
       : INVALID_COUPON;
+    // The funnel learns that a code was tried and whether it took, never which code.
+    await this.repo.recordEvent({
+      name: outcome.status === "applied" ? "coupon_applied" : "coupon_failed",
+      sessionId: `srv:${userId}`,
+      userId,
+      props: { plan: request.planKey, months: request.months },
+    });
+    return outcome;
   }
 
   async simulate(request: SimulateBillingInput, market: Market, now = new Date()) {
@@ -221,11 +250,13 @@ export class QuoteService {
         months: request.months,
         couponCode: request.couponCode,
         methodKey: request.methodKey,
+        ...(request.orgId ? { orgId: request.orgId } : {}),
       },
       resolvedMarket,
       now,
       { includeHidden: true },
     );
+    const deal = await this.dealSimulation(inputs, request.userId, now);
     const quote = inputs.result.ok ? inputs.result.quote : null;
     const noDiscount = priceQuote({ ...inputs.input, discounts: [] });
     const coupon = inputs.couponCheck
@@ -254,8 +285,72 @@ export class QuoteService {
       quote,
       error: inputs.result.ok ? null : inputs.result.code,
       coupon,
+      deal,
       candidates,
     });
+  }
+
+  /**
+   * Task 3.10 simulator: the quote without any deal and with the deal engine, plus which deal won
+   * and why. For a person, an organization or a hypothetical new member of an organization.
+   */
+  async simulateDeal(request: SimulateDealInput, market: Market, now = new Date()) {
+    const resolvedMarket = {
+      currency: request.currency ?? market.currency,
+      country: market.country,
+    };
+    const orgId = request.orgId ?? null;
+    const inputs = await this.planInputs(
+      request.userId,
+      {
+        planKey: request.planKey,
+        months: request.months,
+        couponCode: request.couponCode,
+        ...(orgId ? { orgId } : {}),
+      },
+      resolvedMarket,
+      now,
+      { includeHidden: true, newMemberOfOrgId: request.newMember?.orgId },
+    );
+    const before = priceQuote({ ...inputs.input, deal: null });
+    const coupon = inputs.couponCheck
+      ? inputs.result.ok
+        ? this.couponOutcome(inputs.couponCheck, inputs.result.quote, inputs.input)
+        : (inputs.couponCheck.outcome ?? INVALID_COUPON)
+      : null;
+    const deal = await this.dealSimulation(inputs, request.userId, now, request.newMember?.orgId);
+    return simulateDealResponseSchema.parse({
+      before: before.ok ? before.quote : null,
+      after: inputs.result.ok ? inputs.result.quote : null,
+      error: inputs.result.ok ? null : inputs.result.code,
+      coupon,
+      deal,
+    });
+  }
+
+  private async dealSimulation(
+    inputs: PlanInputs,
+    userId: string | undefined,
+    now: Date,
+    newMemberOfOrgId?: string,
+  ) {
+    const { price } = inputs.input;
+    const orgId = inputs.orgId;
+    if (!price) return { chosen: null, chosenBecause: null, candidates: [] };
+    const resolution = await this.deals.explain(
+      orgId ? { ownerOrgId: orgId } : { ownerUserId: userId, newMemberOfOrgId },
+      price.planKey,
+      price.months,
+      price.currency,
+      now,
+    );
+    return {
+      chosen: resolution.deal
+        ? { id: resolution.deal.id, name: resolution.deal.name, kind: resolution.kind }
+        : null,
+      chosenBecause: resolution.chosenBecause,
+      candidates: resolution.candidates,
+    };
   }
 
   /** Credit packs: list price, tax and the method fee. Discounts and proration belong to plans. */
@@ -266,13 +361,15 @@ export class QuoteService {
     now: Date,
   ): Promise<QuoteResponse> {
     const { currency, country } = market;
+    const orgId = request.orgId ?? null;
+    const owner: WalletOwner = orgId ? { type: "org", id: orgId } : { type: "user", id: userId };
     const [billing, pack, taxRule, methods, packs, paid] = await Promise.all([
       this.settings.get("billing"),
       this.repo.packForQuote(request.packKey, currency),
       this.repo.taxRuleFor(country),
       this.repo.enabledMethods(currency, country),
       this.repo.creditPacks(currency),
-      this.repo.hasPaidOrder(userId),
+      this.repo.hasPaidOrder(owner),
     ]);
     if (!pack) throw new AppError(ErrorCode.NOT_FOUND);
     const result = priceQuote({
@@ -295,7 +392,7 @@ export class QuoteService {
       packId: pack.id,
       months: null,
     };
-    const quoteId = await this.store(userId, target, result.quote, billing.quoteTtlMinutes);
+    const quoteId = await this.store(userId, orgId, target, result.quote, billing.quoteTtlMinutes);
     return { quoteId, quote: result.quote, target, coupon: null };
   }
 
@@ -314,6 +411,7 @@ export class QuoteService {
       : null;
     const quoteId = await this.store(
       userId,
+      request.orgId ?? null,
       inputs.target,
       inputs.result.quote,
       inputs.input.settings.quoteTtlMinutes,
@@ -336,34 +434,53 @@ export class QuoteService {
     request: PlanQuoteRequest,
     market: Market,
     now: Date,
-    options: { includeHidden?: boolean } = {},
+    options: { includeHidden?: boolean; newMemberOfOrgId?: string | undefined } = {},
   ): Promise<PlanInputs> {
     const plan = options.includeHidden
       ? await this.repo.planForSimulation(request.planKey)
       : await this.repo.publicPlan(request.planKey);
-    if (!plan || plan.audience === "organization") throw new AppError(ErrorCode.NOT_FOUND);
+    const orgId = request.orgId ?? null;
+    // An organization buys organization plans, a person buys individual ones.
+    if (!plan || plan.audience === (orgId ? "individual" : "organization")) {
+      throw new AppError(ErrorCode.NOT_FOUND);
+    }
+    const purchase = orgId ? "organization" : "individual";
+    const owner: WalletOwner | undefined = orgId
+      ? { type: "org", id: orgId }
+      : userId
+        ? { type: "user", id: userId }
+        : undefined;
     const { currency, country } = market;
     const [billing, priceRow, promotions, offers, taxRule, methods, packs] = await Promise.all([
       this.settings.get("billing"),
       this.repo.activePrice(plan.id, request.months, currency),
       this.repo.activePromotions(now),
-      userId ? this.repo.personalOfferDiscounts(userId, now) : Promise.resolve([]),
+      userId && !orgId ? this.repo.personalOfferDiscounts(userId, now) : Promise.resolve([]),
       this.repo.taxRuleFor(country),
       this.repo.enabledMethods(currency, country),
       this.repo.creditPacks(currency),
     ]);
     const [isFirstPurchase, upgradeFrom, deal, couponCheck] = await Promise.all([
-      userId ? this.repo.hasPaidOrder(userId).then((paid) => !paid) : Promise.resolve(true),
-      userId ? this.upgradeBasis(userId, plan, currency) : Promise.resolve(null),
-      userId
-        ? this.deals.resolve(userId, plan.key, request.months, currency, now)
+      owner ? this.repo.hasPaidOrder(owner).then((paid) => !paid) : Promise.resolve(true),
+      owner ? this.upgradeBasis(owner, plan, currency) : Promise.resolve(null),
+      // The organization's own deal for an organization quote, the person's deal for a personal one.
+      orgId || userId || options.newMemberOfOrgId
+        ? this.deals.resolve(
+            orgId
+              ? { ownerOrgId: orgId }
+              : { ownerUserId: userId, newMemberOfOrgId: options.newMemberOfOrgId },
+            plan.key,
+            request.months,
+            currency,
+            now,
+          )
         : Promise.resolve(null),
       request.couponCode === undefined
         ? Promise.resolve(null)
-        : this.checkCoupon(request.couponCode, userId, now),
+        : this.checkCoupon(request.couponCode, userId, now, orgId),
     ]);
     const promotionEntries = promotions.filter((entry) =>
-      audienceFits(entry.promotion.audience, "individual"),
+      audienceFits(entry.promotion.audience, purchase),
     );
     const automatic = [...promotionEntries.map((entry) => entry.def), ...offers];
     const discounts = couponCheck?.def ? [...automatic, couponCheck.def] : automatic;
@@ -393,17 +510,25 @@ export class QuoteService {
       promotionEntries.map((entry) => [entry.promotion.id, entry.promotion.name]),
     );
     if (couponCheck?.coupon) names.set(couponCheck.coupon.id, couponCheck.coupon.name);
-    return { plan, input, result, couponCheck, target, names };
+    return { plan, input, result, couponCheck, target, names, orgId };
   }
 
   private async store(
     userId: string,
+    orgId: string | null,
     target: QuoteTarget,
     quote: PriceQuote,
     ttlMinutes: number,
   ): Promise<string> {
     const quoteId = randomUUID();
-    const stored = { v: 2, userId, target, quote, signature: this.hmac({ userId, target, quote }) };
+    const stored = {
+      v: 3,
+      userId,
+      orgId,
+      target,
+      quote,
+      signature: this.hmac({ userId, orgId, target, quote }),
+    };
     try {
       await this.redis.set(quoteKey(quoteId), JSON.stringify(stored), "EX", ttlMinutes * 60);
     } catch (cause) {
@@ -418,13 +543,13 @@ export class QuoteService {
 
   /** Proration applies only when moving from an active paid plan to one with more monthly credits. */
   private async upgradeBasis(
-    userId: string,
+    owner: WalletOwner,
     target: Plan,
     currency: string,
   ): Promise<QuoteInput["history"]["upgradeFrom"]> {
-    const subscription = await this.repo.liveSubscription(userId);
+    const subscription = await this.repo.liveSubscription(owner);
     if (!subscription || target.monthlyCredits <= subscription.planMonthlyCredits) return null;
-    const lastOrder = await this.repo.lastPaidPlanOrder(userId);
+    const lastOrder = await this.repo.lastPaidPlanOrder(owner);
     if (!lastOrder || lastOrder.currency !== currency) return null;
     return {
       periodStart: subscription.currentPeriodStart,
@@ -443,23 +568,32 @@ export class QuoteService {
     code: string,
     userId: string | undefined,
     now: Date,
+    orgId: string | null = null,
   ): Promise<CouponCheck> {
     const coupon = await this.repo.findCoupon(normalizeCouponCode(code));
     if (!coupon) return { outcome: INVALID_COUPON };
     if (
-      (coupon.targetUserId !== null && coupon.targetUserId !== userId) ||
-      coupon.targetOrgId !== null ||
+      // A coupon made for a person is not for their organization, and one made for an organization
+      // is only for that organization.
+      (coupon.targetUserId !== null && (orgId !== null || coupon.targetUserId !== userId)) ||
+      (coupon.targetOrgId !== null && coupon.targetOrgId !== orgId) ||
       (coupon.status !== "active" && coupon.status !== "scheduled") ||
       (coupon.endsAt !== null && coupon.endsAt <= now) ||
       (coupon.maxRedemptions !== null && coupon.redeemedCount >= coupon.maxRedemptions) ||
-      !audienceFits(coupon.audience, "individual")
+      !audienceFits(coupon.audience, orgId !== null ? "organization" : "individual")
     ) {
       return { outcome: INVALID_COUPON };
     }
+    const redeemer: WalletOwner | undefined =
+      orgId !== null
+        ? { type: "org", id: orgId }
+        : userId
+          ? { type: "user", id: userId }
+          : undefined;
     if (
-      userId !== undefined &&
+      redeemer !== undefined &&
       coupon.perOwnerLimit !== null &&
-      (await this.repo.couponUsesByUser(coupon.id, userId)) >= coupon.perOwnerLimit
+      (await this.repo.couponUsesByOwner(coupon.id, redeemer)) >= coupon.perOwnerLimit
     ) {
       return { outcome: INVALID_COUPON };
     }

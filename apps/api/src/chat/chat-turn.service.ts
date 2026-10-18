@@ -16,6 +16,7 @@ import { PinoLogger } from "nestjs-pino";
 
 import { AiRuntimeService } from "../ai-runtime/ai-runtime.service.js";
 import { CreditsService } from "../credits/credits.service.js";
+import { PayerService, type PayerContext } from "../orgs/wallet/payer.service.js";
 import { PlansService } from "../plans/plans.service.js";
 import { QuotaService } from "../quota/quota.service.js";
 import { SettingsService } from "../settings/settings.service.js";
@@ -85,6 +86,7 @@ export class ChatTurnService {
     private readonly quota: QuotaService,
     private readonly plans: PlansService,
     private readonly credits: CreditsService,
+    private readonly payer: PayerService,
     private readonly settings: SettingsService,
     private readonly images: ChatImages,
     private readonly background: ChatBackground,
@@ -101,7 +103,9 @@ export class ChatTurnService {
     io: ChatStreamIo,
   ): Promise<void> {
     const chat = await this.repo.require(user.id, chatId);
-    const owner: WalletOwner = { type: "user", id: user.id };
+    // An organization context needs an active membership; its plan and quota then apply.
+    const payer = await this.payer.resolve(user.id, input.orgId);
+    const owner = payer.planOwner;
     const task = taskOf(input.mode);
 
     await this.skills.assertAllowed(owner, isChatSkill(chat.skill) ? chat.skill : null);
@@ -117,13 +121,13 @@ export class ChatTurnService {
       input.regenerate === undefined ? await this.images.load(user.id, input.fileIds) : [];
 
     const ticket = await this.quota.check({
-      ownerUserId: user.id,
+      ...this.payer.quotaOwner(payer),
       userId: user.id,
       task,
       mode: input.mode,
     });
     try {
-      await this.turn({ user, chat, owner, task, input, attached, io });
+      await this.turn({ user, chat, owner, payer, task, input, attached, io });
     } finally {
       await ticket.release();
     }
@@ -133,12 +137,13 @@ export class ChatTurnService {
     user: AuthenticatedUser;
     chat: Chat;
     owner: WalletOwner;
+    payer: PayerContext;
     task: AiTask;
     input: SendMessageInput;
     attached: ChatImage[];
     io: ChatStreamIo;
   }): Promise<void> {
-    const { user, chat, owner, task, input, io } = args;
+    const { user, chat, owner, payer, task, input, io } = args;
     const plan = await this.plans.effectivePlan(owner);
     const aiSettings = await this.settings.get("ai");
 
@@ -196,7 +201,7 @@ export class ChatTurnService {
       multiplierBp: first.model.creditMultiplierBp,
       creditValueUsdMicros: aiSettings.creditValueUsdMicros,
     });
-    const { reservation } = await this.credits.reserve(owner, hold, {
+    const { reservation, walletOwner } = await this.payer.reserve(payer, hold, {
       idempotencyKey: `chat:${assistantMessageId}:reserve`,
       purpose: "chat",
     });
@@ -314,7 +319,8 @@ export class ChatTurnService {
     await this.finish({
       user,
       chat,
-      owner,
+      // The wallet that was charged (the personal one after a fallback): its balance is what the client sees.
+      owner: walletOwner,
       plan: plan.id,
       reservationId: reservation.id,
       assistantMessageId,

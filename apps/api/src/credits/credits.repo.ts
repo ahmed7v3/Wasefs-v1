@@ -82,7 +82,12 @@ export class CreditsRepo {
   reserve(
     owner: WalletOwner,
     amount: number,
-    options: { idempotencyKey: string; purpose: string; ttlSeconds?: number },
+    options: {
+      idempotencyKey: string;
+      purpose: string;
+      ttlSeconds?: number;
+      member?: { userId: string };
+    },
   ): Promise<ReservationResult> {
     return reserveLedger(this.handle.db, owner, amount, options);
   }

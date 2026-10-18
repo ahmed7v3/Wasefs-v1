@@ -39,6 +39,8 @@ function toAppError(error: LedgerError): AppError {
       return new AppError(ErrorCode.NOT_FOUND);
     case "invalid_amount":
       return new AppError(ErrorCode.VALIDATION_FAILED, { details: { fields: ["amount"] } });
+    case "member_cap_reached":
+      return new AppError(ErrorCode.QUOTA_EXCEEDED, { details: { reason: "member_cap_reached" } });
   }
 }
 
@@ -125,11 +127,20 @@ export class CreditsService {
     return this.repo.ensureWallet(owner);
   }
 
-  /** `QUOTA_EXCEEDED` (`insufficient_credits`) when the balance is lower than `amount`. Idempotent by key. */
+  /**
+   * `QUOTA_EXCEEDED` (`insufficient_credits`) when the balance is lower than `amount`. Idempotent by key.
+   * `member` (org wallets): the organization member this hold is for; their monthly cap applies
+   * (`QUOTA_EXCEEDED` `member_cap_reached`) and settling attributes the charge to them.
+   */
   reserve(
     owner: WalletOwner,
     amount: number,
-    options: { idempotencyKey: string; purpose: string; ttlSeconds?: number },
+    options: {
+      idempotencyKey: string;
+      purpose: string;
+      ttlSeconds?: number;
+      member?: { userId: string };
+    },
   ): Promise<ReservationResult> {
     return refusals(this.repo.reserve(owner, amount, options));
   }
@@ -188,7 +199,11 @@ export class CreditsService {
     return refusals(this.repo.refund(owner, amount, options));
   }
 
-  /** `GET /me/credits`: the caller's personal wallet and plan. No wallet yet reads as a zero balance. */
+  /**
+   * `GET /me/credits`: the caller's personal wallet and plan. No wallet yet reads as a zero balance.
+   * Always the personal context (`wallets` lists only the personal wallet); `WalletViewService`
+   * adds the organization wallets and the payer of an organization context on top of this.
+   */
   async forUser(userId: string, now = new Date()): Promise<MeCreditsResponse> {
     const owner = { type: "user", id: userId } as const;
     const [wallet, plan, period] = await Promise.all([
@@ -202,8 +217,9 @@ export class CreditsService {
       this.quota.usedToday(owner, tasks, now),
       this.quota.usedThisMonth(owner, tasks, now),
     ]);
+    const balance = wallet?.balance ?? 0;
     return {
-      wallet: { ownerType: "user", balance: wallet?.balance ?? 0 },
+      wallet: { ownerType: "user", balance },
       plan: { key: plan.key, nameAr: plan.nameAr, nameEn: plan.nameEn },
       monthlyCredits: plan.monthlyCredits,
       nextGrantAt: nextGrantFor(now, period).toISOString(),
@@ -218,6 +234,8 @@ export class CreditsService {
         monthlyCap: item.monthlyCap,
       })),
       chat: chatFeatures(allowed),
+      wallets: [{ kind: "personal", balance }],
+      payer: { kind: "personal", fallback: false },
     };
   }
 

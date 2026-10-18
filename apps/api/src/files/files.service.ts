@@ -172,6 +172,20 @@ export class FilesService {
     };
   }
 
+  /**
+   * A short link to a prescription or chat picture for the admin viewer (after a PHI access
+   * session). `null` once the retention job deleted the picture: the row stays, the file is gone.
+   */
+  async adminPictureUrl(fileId: string): Promise<FileUrlResponse | null> {
+    const file = await this.repo.findById(fileId);
+    if (!file || file.purpose === "payment_proof") throw new AppError(ErrorCode.NOT_FOUND);
+    if (file.status !== "processed") return null;
+    return {
+      url: await this.storage.presignGet(file.r2Key, FILE_URL_TTL_SECONDS),
+      expiresInSeconds: FILE_URL_TTL_SECONDS,
+    };
+  }
+
   private async require(user: FileViewer, fileId: string): Promise<FileRecord> {
     const file = await this.repo.findFor(user, fileId);
     if (!file) throw new AppError(ErrorCode.NOT_FOUND);

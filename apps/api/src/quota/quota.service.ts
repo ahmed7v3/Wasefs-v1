@@ -30,6 +30,11 @@ export type QuotaCheckInput = QuotaOwner & {
   userId: string;
   task: AiTask;
   mode: AiMode;
+  /**
+   * A taste grant (Task 3.14) lets a free plan try one premium mode once: the task must still be
+   * allowed, the caps still count, only the mode list is not consulted. Set by `TasteService` only.
+   */
+  modeGranted?: boolean;
 };
 
 export interface QuotaTicket {
@@ -84,7 +89,10 @@ export class QuotaService {
   async check(input: QuotaCheckInput, now = new Date()): Promise<QuotaTicket> {
     const owner = ownerOf(input);
     const entitlement = await this.plans.entitlement(owner, input.task);
-    if (!entitlement?.allowed || !entitlement.modes.includes(input.mode)) {
+    if (
+      !entitlement?.allowed ||
+      (input.modeGranted !== true && !entitlement.modes.includes(input.mode))
+    ) {
       throw new AppError(ErrorCode.PAYMENT_REQUIRED, { details: { reason: "plan_feature" } });
     }
 

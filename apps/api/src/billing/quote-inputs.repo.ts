@@ -17,6 +17,9 @@ import {
   type PlanPrice,
   type Promotion,
   type TaxRule,
+  type WalletOwner,
+  recordGrowthEvent,
+  type GrowthEventRecord,
 } from "@wasfa/db";
 import {
   and,
@@ -129,6 +132,9 @@ export function toDiscountDef(
   }
 }
 
+const orderOwner = (owner: WalletOwner) =>
+  owner.type === "org" ? eq(orders.ownerOrgId, owner.id) : eq(orders.ownerUserId, owner.id);
+
 /** Whether a discount meant for `audience` may be used when buying a plan for `purchase`. */
 export function audienceFits(audience: PlanAudience, purchase: "individual" | "organization") {
   return audience === "any" || audience === purchase;
@@ -141,6 +147,11 @@ export function audienceFits(audience: PlanAudience, purchase: "individual" | "o
 @Injectable()
 export class QuoteInputsRepo {
   constructor(@Inject(DB) private readonly handle: DbHandle) {}
+
+  /** A funnel event (`coupon_applied` / `coupon_failed`); never throws. */
+  recordEvent(event: GrowthEventRecord): Promise<boolean> {
+    return recordGrowthEvent(this.handle.db, event);
+  }
 
   async planKeyMap(): Promise<Map<string, string>> {
     const rows = await this.handle.db.select({ id: plans.id, key: plans.key }).from(plans);
@@ -316,17 +327,17 @@ export class QuoteInputsRepo {
 
   // --- History of one user ----------------------------------------------------------------------
 
-  async hasPaidOrder(userId: string): Promise<boolean> {
+  async hasPaidOrder(owner: WalletOwner): Promise<boolean> {
     const [row] = await this.handle.db
       .select({ id: orders.id })
       .from(orders)
-      .where(and(eq(orders.ownerUserId, userId), eq(orders.status, "paid")))
+      .where(and(orderOwner(owner), eq(orders.status, "paid")))
       .limit(1);
     return row !== undefined;
   }
 
-  /** The user's active, paid-for subscription (a trial, grant or deal period is not prorated). */
-  async liveSubscription(userId: string): Promise<LiveSubscriptionBasis | undefined> {
+  /** The owner's active, paid-for subscription (a trial, grant or deal period is not prorated). */
+  async liveSubscription(owner: WalletOwner): Promise<LiveSubscriptionBasis | undefined> {
     const [row] = await this.handle.db
       .select({
         planMonthlyCredits: plans.monthlyCredits,
@@ -337,7 +348,9 @@ export class QuoteInputsRepo {
       .innerJoin(plans, eq(plans.id, subscriptions.planId))
       .where(
         and(
-          eq(subscriptions.ownerUserId, userId),
+          owner.type === "org"
+            ? eq(subscriptions.ownerOrgId, owner.id)
+            : eq(subscriptions.ownerUserId, owner.id),
           eq(subscriptions.status, "active"),
           eq(subscriptions.source, "paid"),
         ),
@@ -346,18 +359,12 @@ export class QuoteInputsRepo {
     return row;
   }
 
-  /** The newest paid plan order of the user: what the proration credit is worth. */
-  async lastPaidPlanOrder(userId: string): Promise<LastPaidOrder | undefined> {
+  /** The newest paid plan order of the owner: what the proration credit is worth. */
+  async lastPaidPlanOrder(owner: WalletOwner): Promise<LastPaidOrder | undefined> {
     const [row] = await this.handle.db
       .select({ currency: orders.currency, subtotalMinor: orders.subtotalMinor })
       .from(orders)
-      .where(
-        and(
-          eq(orders.ownerUserId, userId),
-          eq(orders.status, "paid"),
-          ne(orders.kind, "credit_pack"),
-        ),
-      )
+      .where(and(orderOwner(owner), eq(orders.status, "paid"), ne(orders.kind, "credit_pack")))
       .orderBy(desc(orders.paidAt), desc(orders.id))
       .limit(1);
     return row;
@@ -414,15 +421,17 @@ export class QuoteInputsRepo {
     return row;
   }
 
-  /** How often this user has used (or has reserved) the coupon. */
-  async couponUsesByUser(couponId: string, userId: string): Promise<number> {
+  /** How often this owner (a user or an organization) has used (or has reserved) the coupon. */
+  async couponUsesByOwner(couponId: string, owner: WalletOwner): Promise<number> {
     const [row] = await this.handle.db
       .select({ total: count() })
       .from(couponRedemptions)
       .where(
         and(
           eq(couponRedemptions.couponId, couponId),
-          eq(couponRedemptions.ownerUserId, userId),
+          owner.type === "org"
+            ? eq(couponRedemptions.ownerOrgId, owner.id)
+            : eq(couponRedemptions.ownerUserId, owner.id),
           ne(couponRedemptions.status, "released"),
         ),
       );

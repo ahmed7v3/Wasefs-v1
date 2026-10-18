@@ -12,6 +12,9 @@ import { AdminCreditsModule } from "./credits/admin-credits.module.js";
 import { AdminDrugsModule } from "./drugs/admin-drugs.module.js";
 import { AdminEvalsModule } from "./evals/admin-evals.module.js";
 import { AdminFlagsModule } from "./flags/admin-flags.module.js";
+import { AdminDealsModule } from "./growth/admin-deals.module.js";
+import { AdminReferralsModule } from "./growth/admin-referrals.module.js";
+import { AdminWithdrawalsModule } from "./growth/withdrawals.module.js";
 import { AdminIssuesModule } from "./issues/admin-issues.module.js";
 import { AdminOrgsModule } from "./orgs/admin-orgs.module.js";
 import { AdminPlansModule } from "./plans/admin-plans.module.js";
@@ -47,6 +50,9 @@ import { AdminWhatsappModule } from "./whatsapp/admin-whatsapp.module.js";
     AdminBillingPaymentsModule,
     AdminBillingMethodsModule,
     AdminBillingPricingModule,
+    AdminDealsModule,
+    AdminReferralsModule,
+    AdminWithdrawalsModule,
     AdminDrugsModule,
     AdminEvalsModule,
   ],

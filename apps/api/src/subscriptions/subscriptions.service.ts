@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { SubscriptionsError, type Plan, type Subscription } from "@wasfa/db";
+import { SubscriptionsError, type Plan, type Subscription, type WalletOwner } from "@wasfa/db";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import {
   anniversaries,
@@ -34,10 +34,19 @@ export class SubscriptionsService {
   ) {}
 
   async mine(userId: string, now = new Date()): Promise<MySubscriptionResponse> {
-    const current = await this.repo.current(userId);
+    const current = await this.repo.current({ type: "user", id: userId });
     return {
       subscription: current ? await this.view(current.subscription, current.plan, now) : null,
       trialAvailable: await this.repo.trialAvailable(userId),
+    };
+  }
+
+  /** An organization's subscription view; the caller has been checked as its org_admin. Trials are personal. */
+  async ofOrg(orgId: string, now = new Date()): Promise<MySubscriptionResponse> {
+    const current = await this.repo.current({ type: "org", id: orgId });
+    return {
+      subscription: current ? await this.view(current.subscription, current.plan, now) : null,
+      trialAvailable: false,
     };
   }
 
@@ -60,11 +69,12 @@ export class SubscriptionsService {
 
   /** A quote for the same plan again (the one-tap renew link); the plan never comes from the client. */
   async renewQuote(userId: string, input: RenewQuoteInput, market: Market, ip: string) {
-    const current = await this.repo.current(userId, true);
+    const owner: WalletOwner = { type: "user", id: userId };
+    const current = await this.repo.current(owner, true);
     if (!current) throw new AppError(ErrorCode.NOT_FOUND);
     const months =
       input.months ??
-      (await this.repo.lastOrderMonths(current.subscription.lastOrderId, userId)) ??
+      (await this.repo.lastOrderMonths(current.subscription.lastOrderId, owner)) ??
       1;
     return this.quotes.quote(
       userId,
@@ -79,7 +89,20 @@ export class SubscriptionsService {
   }
 
   async orders(userId: string, limit: number, rawCursor?: string): Promise<MyOrdersResponse> {
-    const rows = await this.repo.orders(userId, limit, decodeCursor(rawCursor, "uuid"));
+    return this.ordersOf({ type: "user", id: userId }, limit, rawCursor);
+  }
+
+  /** Order history of an organization (its org_admin has been checked by the caller). */
+  async ordersOfOrg(orgId: string, limit: number, rawCursor?: string): Promise<MyOrdersResponse> {
+    return this.ordersOf({ type: "org", id: orgId }, limit, rawCursor);
+  }
+
+  private async ordersOf(
+    owner: WalletOwner,
+    limit: number,
+    rawCursor?: string,
+  ): Promise<MyOrdersResponse> {
+    const rows = await this.repo.orders(owner, limit, decodeCursor(rawCursor, "uuid"));
     const page = rows.slice(0, limit);
     const last = page.at(-1);
     return {
@@ -103,7 +126,16 @@ export class SubscriptionsService {
   }
 
   async receipt(userId: string, orderId: string): Promise<Receipt> {
-    const data = await this.repo.receiptData(userId, orderId);
+    return this.receiptOf({ type: "user", id: userId }, orderId);
+  }
+
+  /** The receipt of an organization's order (printable document; the caller is its org_admin). */
+  async receiptOfOrg(orgId: string, orderId: string): Promise<Receipt> {
+    return this.receiptOf({ type: "org", id: orgId }, orderId);
+  }
+
+  private async receiptOf(owner: WalletOwner, orderId: string): Promise<Receipt> {
+    const data = await this.repo.receiptData(owner, orderId);
     if (!data) throw new AppError(ErrorCode.NOT_FOUND);
     const { company } = await this.settings.get("billing");
     const quote = data.order.quote as { lines?: unknown; taxMode?: "added" | "inclusive" | null };
@@ -126,7 +158,10 @@ export class SubscriptionsService {
         lines: quote.lines,
         taxMode: quote.taxMode ?? null,
       },
-      buyer: { name: data.user.name, email: data.user.email, phone: data.user.phone },
+      // An organization's receipt is made out to the organization, not to whoever paid.
+      buyer: data.user
+        ? { name: data.user.name, email: data.user.email, phone: data.user.phone }
+        : { name: data.orgName ?? "", email: null, phone: null },
       company,
       payment: data.payment
         ? {

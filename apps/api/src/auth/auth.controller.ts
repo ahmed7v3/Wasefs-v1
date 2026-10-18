@@ -1,5 +1,7 @@
 import { All, Body, Controller, Get, HttpCode, Inject, Post, Req, Res } from "@nestjs/common";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
+import { MARKETING_HEADER } from "@wasfa/shared/growth";
+import { REFERRAL_HEADER } from "@wasfa/shared/rewards";
 import { reauthSchema } from "@wasfa/shared/schemas/auth";
 
 import { AuditService } from "../audit/audit.service.js";
@@ -209,14 +211,30 @@ export class AuthController {
     const headers = new Headers();
     for (const [name, value] of Object.entries(request.headers)) {
       // Never forward a client-supplied IP header: ours is the only one Better Auth trusts.
-      if (value === undefined || name === "content-length" || name === CLIENT_IP_HEADER) continue;
+      if (
+        value === undefined ||
+        name === "content-length" ||
+        name === CLIENT_IP_HEADER ||
+        name === REFERRAL_HEADER ||
+        name === MARKETING_HEADER
+      ) {
+        continue;
+      }
       for (const item of Array.isArray(value) ? value : [value]) headers.append(name, item);
     }
     headers.set(CLIENT_IP_HEADER, ip);
 
     if (request.method === "GET") return new Request(target, { method: "GET", headers });
     headers.set("content-type", "application/json");
-    return new Request(target, { method: "POST", headers, body: JSON.stringify(body ?? {}) });
+    // The invite code typed on the register form is not a Better Auth field: it travels in a header
+    // only we set (a client-supplied copy was dropped above) for the user-creation hook to read.
+    // The marketing checkbox (never pre-checked) takes the same route.
+    const { referralCode, marketingOptIn, ...forwarded } = body ?? {};
+    if (typeof referralCode === "string" && referralCode.trim() !== "") {
+      headers.set(REFERRAL_HEADER, referralCode.trim());
+    }
+    if (marketingOptIn === true) headers.set(MARKETING_HEADER, "1");
+    return new Request(target, { method: "POST", headers, body: JSON.stringify(forwarded) });
   }
 
   private async relay(route: AuthRoute, response: Response, reply: FastifyReply): Promise<void> {

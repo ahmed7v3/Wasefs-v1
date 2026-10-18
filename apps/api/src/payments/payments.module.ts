@@ -6,6 +6,7 @@ import { BillingModule } from "../billing/billing.module.js";
 import { FilesModule } from "../files/files.module.js";
 import { OrdersController } from "../orders/orders.controller.js";
 import { OrdersService } from "../orders/orders.service.js";
+import { OrgsModule } from "../orgs/orgs.module.js";
 
 import { GatewayRegistry } from "./gateway-registry.js";
 import { ManualPaymentsController } from "./manual/manual-payments.controller.js";
@@ -17,7 +18,7 @@ import { WebhooksController } from "./webhooks.controller.js";
 
 /** Orders, payments, provider webhooks and refunds (BILLING §5, Task 3.3). */
 @Module({
-  imports: [AuthModule, BillingModule, FilesModule],
+  imports: [AuthModule, BillingModule, FilesModule, OrgsModule],
   controllers: [OrdersController, WebhooksController, ManualPaymentsController],
   providers: [
     GatewayRegistry,

@@ -4,6 +4,7 @@ import { AiRuntimeModule } from "../ai-runtime/ai-runtime.module.js";
 import { CreditsModule } from "../credits/credits.module.js";
 import { DrugsModule } from "../drugs/drugs.module.js";
 import { FilesModule } from "../files/files.module.js";
+import { OrgWalletModule } from "../orgs/wallet/wallet.module.js";
 import { PlansModule } from "../plans/plans.module.js";
 import { QuotaModule } from "../quota/quota.module.js";
 import { SettingsModule } from "../settings/settings.module.js";
@@ -21,11 +22,13 @@ import { RxService } from "./rx.service.js";
     CreditsModule,
     DrugsModule,
     FilesModule,
+    OrgWalletModule,
     PlansModule,
     QuotaModule,
     SettingsModule,
   ],
   controllers: [RxController],
   providers: [RxRepo, RxQueue, RxEventHub, RxService],
+  exports: [RxService],
 })
 export class RxModule {}

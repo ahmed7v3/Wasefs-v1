@@ -18,6 +18,7 @@ import { RbacService } from "../rbac/rbac.service.js";
 
 import { OrgsRepo, type InviteTarget, type VerifiedIdentity } from "./orgs.repo.js";
 import { OrgsService } from "./orgs.service.js";
+import { SEAT_LIMIT_SOURCE, seatLimitError, type SeatLimitSource } from "./seats/seat-limit.js";
 
 import type { CreateInviteBody } from "./orgs.schemas.js";
 import type { AuditScope } from "../audit/audited.decorator.js";
@@ -74,6 +75,7 @@ export class InvitesService {
     private readonly limiter: AuthRateLimiter,
     private readonly emails: EmailQueue,
     private readonly rbac: RbacService,
+    @Inject(SEAT_LIMIT_SOURCE) private readonly seats: SeatLimitSource,
   ) {
     const [origin] = env.WEB_ORIGIN;
     if (!origin) throw new Error("WEB_ORIGIN must list at least one origin");
@@ -99,6 +101,7 @@ export class InvitesService {
     const org = await this.repo.findOrg(orgId);
     if (!org) throw new AppError(ErrorCode.NOT_FOUND);
 
+    const seatLimit = await this.seats.limitFor(orgId);
     const token = randomBytes(32).toString("base64url");
     const invite = await this.repo.withOrgLock(orgId, async (locked) => {
       if ((await locked.pendingInviteCount()) >= MAX_PENDING_INVITES_PER_ORG) {
@@ -111,6 +114,10 @@ export class InvitesService {
       }
       if (await locked.hasPendingInvite(target)) {
         throw new AppError(ErrorCode.CONFLICT, { details: { reason: "invite_pending" } });
+      }
+      // Members plus open invitations fill the seats; the plan (or a deal) says how many there are.
+      if (seatLimit !== null && (await locked.seatsTaken()) >= seatLimit) {
+        throw seatLimitError(orgId);
       }
       return locked.insertInvite({
         ...target,
