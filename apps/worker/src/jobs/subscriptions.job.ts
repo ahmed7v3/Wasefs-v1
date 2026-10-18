@@ -1,8 +1,8 @@
 import {
   advanceSubscription,
   backfillPaidSubscriptionOrders,
+  growthLifecycleHooks,
   liveSubscriptionIds,
-  NO_LIFECYCLE_HOOKS,
 } from "@wasfa/db";
 
 import type { JobContext } from "../queues.js";
@@ -32,7 +32,7 @@ export async function subscriptionsLifecycleJob(
     if (ids.length === 0) break;
     for (const id of ids) {
       try {
-        await advanceSubscription(db, id, now, NO_LIFECYCLE_HOOKS);
+        await advanceSubscription(db, id, now, growthLifecycleHooks);
         advanced++;
       } catch {
         // Driver messages can quote row values; only the count is reported.

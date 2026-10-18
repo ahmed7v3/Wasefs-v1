@@ -46,12 +46,15 @@ export interface Block {
   ignoreNote: boolean;
   action?: { label: string; link: string };
   note?: string;
+  /** Marketing mail only: the footer's one-click unsubscribe link (also sent as `List-Unsubscribe`). */
+  unsubscribe?: { label: string; link: string; oneClick: string };
 }
 
 export interface Rendered {
   subject: string;
   html: string;
   text: string;
+  headers?: Record<string, string>;
 }
 
 export interface LayoutInput {
@@ -95,6 +98,10 @@ export function renderLayout({ locale, name, subject, block }: LayoutInput): Ren
     ? `<p style="margin:0 0 16px;font-size:14px;line-height:1.8;color:${COLOR.muted};">${escapeHtml(tr(locale, "email.ignoreIfNotYou"))}</p>`
     : "";
 
+  const unsubscribe = block.unsubscribe
+    ? `<br><a href="${escapeHtml(block.unsubscribe.link)}" style="color:${COLOR.muted};">${escapeHtml(block.unsubscribe.label)}</a>`
+    : "";
+
   const html = `<!doctype html>
 <html lang="${locale}" dir="${dir}">
 <head>
@@ -114,7 +121,7 @@ ${paragraphs}${action}${note}
 ${ignore}
 </td></tr>
 <tr><td style="padding:16px 28px 24px;font-family:${FONT};direction:${dir};text-align:${align};border-top:1px solid ${COLOR.border};font-size:12px;line-height:1.8;color:${COLOR.muted};">
-${escapeHtml(tr(locale, "email.disclaimer"))}<br>${escapeHtml(tr(locale, "email.footer"))}
+${escapeHtml(tr(locale, "email.disclaimer"))}<br>${escapeHtml(tr(locale, "email.footer"))}${unsubscribe}
 </td></tr>
 </table>
 </td></tr>
@@ -129,5 +136,19 @@ ${escapeHtml(tr(locale, "email.disclaimer"))}<br>${escapeHtml(tr(locale, "email.
   if (block.note) textParts.push(block.note, "");
   if (block.ignoreNote) textParts.push(tr(locale, "email.ignoreIfNotYou"), "");
   textParts.push("--", brand, tr(locale, "email.footer"));
-  return { subject, html, text: textParts.join("\n") };
+  if (block.unsubscribe) textParts.push(`${block.unsubscribe.label}: ${block.unsubscribe.link}`);
+  return {
+    subject,
+    html,
+    text: textParts.join("\n"),
+    ...(block.unsubscribe
+      ? {
+          // RFC 8058: mail clients show their own one-click button and POST to this URL.
+          headers: {
+            "List-Unsubscribe": `<${block.unsubscribe.oneClick}>`,
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          },
+        }
+      : {}),
+  };
 }

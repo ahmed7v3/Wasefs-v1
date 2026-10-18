@@ -4,6 +4,11 @@ import type { Logger } from "pino";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const KEY_TTL_SECONDS = 2 * 24 * 60 * 60;
 const ALERT_RATIO = 0.8;
+/**
+ * Marketing (lifecycle) mail stops at this share of the daily cap, so the rest of the day's quota is
+ * always left for transactional mail (GROWTH §6: lifecycle mail is deferred before anything else).
+ */
+const MARKETING_RATIO = 0.6;
 
 export interface Reservation {
   key: string;
@@ -30,14 +35,15 @@ export class MailCapGuard {
     private readonly now: () => number = Date.now,
   ) {}
 
-  async reserve(critical: boolean): Promise<CapDecision> {
+  async reserve(critical: boolean, marketing = false): Promise<CapDecision> {
     const at = this.now();
     const day = utcDay(at);
     const key = `mail:count:${day}`;
     const used = await this.redis.incr(key);
     if (used === 1) await this.redis.expire(key, KEY_TTL_SECONDS);
 
-    if (used > this.cap && !critical) {
+    const limit = marketing ? Math.floor(this.cap * MARKETING_RATIO) : this.cap;
+    if (used > limit && !critical) {
       await this.redis.decr(key);
       // Next UTC midnight plus up to 5 minutes, so a backlog does not all wake in the same second.
       const nextDay = (Math.floor(at / DAY_MS) + 1) * DAY_MS;

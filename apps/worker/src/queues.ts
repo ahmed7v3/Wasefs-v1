@@ -19,9 +19,11 @@ import { alertsRetentionJob } from "./jobs/alerts-retention.job.js";
 import { grantMonthlyJob } from "./jobs/credits.grant.job.js";
 import { reconcileCreditsJob } from "./jobs/credits.reconcile.job.js";
 import { sweepReservationsJob } from "./jobs/credits.sweep.job.js";
+import { dealsMonthlyBonusJob } from "./jobs/deals.job.js";
 import { drugImportJob } from "./jobs/drug-import.job.js";
 import { evalImportJob, evalRunJob } from "./jobs/eval.job.js";
 import { filesRetentionJob } from "./jobs/files.retention.job.js";
+import { growthLifecycleJob, growthRetentionJob } from "./jobs/growth.job.js";
 import { heartbeatJob } from "./jobs/health.job.js";
 import { imageProcessJob } from "./jobs/image.job.js";
 import { drainOutboxJob } from "./jobs/outbox.job.js";
@@ -34,8 +36,10 @@ import {
   reconcilePaymentsJob,
 } from "./jobs/payments.job.js";
 import { promotionsStatusJob } from "./jobs/promotions.job.js";
+import { reconcileRewardsJob, releaseRewardsJob } from "./jobs/rewards.job.js";
 import { rxAnalyzeJob } from "./jobs/rx.job.js";
 import { subscriptionsBackfillJob, subscriptionsLifecycleJob } from "./jobs/subscriptions.job.js";
+import { withdrawalsOverdueJob, withdrawalsReconcileJob } from "./jobs/withdrawals.job.js";
 import { customerNotifyJob, customerWhatsappCheckJob } from "./notifications/customer.job.js";
 import { emailSendJob, type EmailRuntime } from "./notifications/email.js";
 
@@ -114,6 +118,13 @@ export const HANDLERS: Handlers = {
     "subscriptions.lifecycle": subscriptionsLifecycleJob,
     "subscriptions.backfill": subscriptionsBackfillJob,
     "promotions.status": promotionsStatusJob,
+    "rewards.release": releaseRewardsJob,
+    "rewards.reconcile": reconcileRewardsJob,
+    "withdrawals.overdue": withdrawalsOverdueJob,
+    "withdrawals.reconcile": withdrawalsReconcileJob,
+    "deals.monthly_bonus": dealsMonthlyBonusJob,
+    "growth.lifecycle": growthLifecycleJob,
+    "growth.retention": growthRetentionJob,
   },
 };
 
@@ -218,6 +229,22 @@ const SUBSCRIPTIONS_LIFECYCLE_INTERVAL_MS = 15 * 60_000;
 /** Nightly at 02:40 UTC: paid subscription orders that still have no period (also run at start). */
 const SUBSCRIPTIONS_BACKFILL_PATTERN = "40 2 * * *";
 const PROMOTIONS_STATUS_INTERVAL_MS = 60_000;
+/** Hourly at minute 7: pending rewards whose hold ended move to cash or credit-only (REFERRALS §4). */
+export const REWARDS_RELEASE_PATTERN = "7 * * * *";
+/** Nightly at 03:10 UTC: wallet buckets against the points ledger. */
+export const REWARDS_RECONCILE_PATTERN = "10 3 * * *";
+/** Every 30 minutes: withdrawals past `payoutSlaHours` are re-announced inside business hours. */
+const WITHDRAWALS_OVERDUE_INTERVAL_MS = 30 * 60_000;
+/** Nightly at 03:30 UTC: paid-out requests against the points ledger. */
+export const WITHDRAWALS_RECONCILE_PATTERN = "30 3 * * *";
+
+/** Daily at 04:20 UTC: the monthly bonus credits of active organization deals (REFERRALS §7.2). */
+export const DEALS_MONTHLY_BONUS_PATTERN = "20 4 * * *";
+
+/** Hourly at minute 25: personal offers, lifecycle mail and taste credits (GROWTH §6). */
+export const GROWTH_LIFECYCLE_PATTERN = "25 * * * *";
+/** Nightly at 04:40 UTC: growth events and the mail log past 13 months. */
+export const GROWTH_RETENTION_PATTERN = "40 4 * * *";
 
 /** Registers repeatable jobs. Upserting by id is idempotent, so restarts never duplicate them. */
 export async function registerSchedules(queues: readonly Queue[]): Promise<void> {
@@ -327,6 +354,41 @@ export async function registerSchedules(queues: readonly Queue[]): Promise<void>
     "promotions.status",
     { every: PROMOTIONS_STATUS_INTERVAL_MS },
     { name: "promotions.status", data: {} },
+  );
+  await payments.upsertJobScheduler(
+    "rewards.release",
+    { pattern: REWARDS_RELEASE_PATTERN, tz: "UTC" },
+    { name: "rewards.release", data: {} },
+  );
+  await payments.upsertJobScheduler(
+    "rewards.reconcile",
+    { pattern: REWARDS_RECONCILE_PATTERN, tz: "UTC" },
+    { name: "rewards.reconcile", data: {} },
+  );
+  await payments.upsertJobScheduler(
+    "deals.monthly_bonus",
+    { pattern: DEALS_MONTHLY_BONUS_PATTERN, tz: "UTC" },
+    { name: "deals.monthly_bonus", data: {} },
+  );
+  await payments.upsertJobScheduler(
+    "growth.lifecycle",
+    { pattern: GROWTH_LIFECYCLE_PATTERN, tz: "UTC" },
+    { name: "growth.lifecycle", data: {} },
+  );
+  await payments.upsertJobScheduler(
+    "growth.retention",
+    { pattern: GROWTH_RETENTION_PATTERN, tz: "UTC" },
+    { name: "growth.retention", data: {} },
+  );
+  await payments.upsertJobScheduler(
+    "withdrawals.overdue",
+    { every: WITHDRAWALS_OVERDUE_INTERVAL_MS },
+    { name: "withdrawals.overdue", data: {} },
+  );
+  await payments.upsertJobScheduler(
+    "withdrawals.reconcile",
+    { pattern: WITHDRAWALS_RECONCILE_PATTERN, tz: "UTC" },
+    { name: "withdrawals.reconcile", data: {} },
   );
   await payments.upsertJobScheduler(
     "subscriptions.backfill",

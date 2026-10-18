@@ -161,6 +161,7 @@ services:
       WORKER_CONCURRENCY_PAYMENTS: ${WORKER_CONCURRENCY_PAYMENTS:-1}
       # Receipt links point at the web app; reconciliation calls the payment provider (egress).
       WEB_ORIGIN: ${WEB_ORIGIN:-https://wasfa.online}
+      API_PUBLIC_URL: https://${API_DOMAIN:-api.wasfa.online}
       # Same bucket and keys as the api: the worker re-encodes uploads and deletes expired ones.
       R2_UPLOADS_ENDPOINT: ${R2_UPLOADS_ENDPOINT:-}
       R2_UPLOADS_BUCKET: ${R2_UPLOADS_BUCKET:-}

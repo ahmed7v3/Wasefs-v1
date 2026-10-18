@@ -15,9 +15,14 @@ import {
   refunds,
   type OutboxHandler,
   type OutboxPostCommitAction,
+  dealRewardOverrides,
+  type RewardEvaluationOptions,
+  silenceMarketing,
 } from "@wasfa/db";
 import { ALERT_CHANNELS } from "@wasfa/shared/billing";
+import { decodeEncryptionKey, decryptSecret } from "@wasfa/shared/crypto";
 import { type CustomerMessageInput } from "@wasfa/shared/customer-messages";
+import { MARKETING_SILENCE_AFTER_COMPLAINT_DAYS } from "@wasfa/shared/growth";
 import { formatMoney } from "@wasfa/shared/money";
 import { ALERT_KIND_PERMISSION } from "@wasfa/shared/permissions";
 import { SUBSCRIPTION_REMINDER_SLOTS } from "@wasfa/shared/subscriptions";
@@ -25,6 +30,10 @@ import { and, desc, eq, gte, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 
 import { jobIdFor } from "../notifications/customer-channel.js";
+
+import { adminPlanChangeOutboxHandlers } from "./admin-plan-change.job.js";
+import { rewardOutboxHandlers } from "./rewards.job.js";
+import { withdrawalOutboxHandlers } from "./withdrawals.job.js";
 
 import type { PaymentsRuntime } from "../payments/runtime.js";
 import type { JobContext } from "../queues.js";
@@ -51,6 +60,7 @@ export function outboxHandlers(
     PaymentsRuntime,
     "enqueueEmail" | "webOrigin" | "enqueueAlertDelivery" | "enqueueAlertDigest"
   >,
+  rewards: RewardEvaluationOptions = { deals: dealRewardOverrides },
 ): Record<string, OutboxHandler> {
   return {
     "alerts.fan_out": async (tx, entry) => {
@@ -243,6 +253,7 @@ export function outboxHandlers(
                   and(
                     eq(organizationMembers.orgId, subscription.ownerOrgId),
                     eq(organizationMembers.role, "org_admin"),
+                    eq(organizationMembers.status, "active"),
                   ),
                 )
             ).map((member) => member.userId)
@@ -299,7 +310,7 @@ export function outboxHandlers(
     "billing.order_paid": async (tx, entry) => {
       const { orderId } = orderPayload.parse(entry.payload);
       const [order] = await tx.select().from(orders).where(eq(orders.id, orderId));
-      if (!order?.ownerUserId) return; // Organization receipts arrive with WP6.
+      if (!order?.ownerUserId) return; // An organization order's receipt is read in its dashboard.
       const [owner] = await tx
         .select({
           id: users.id,
@@ -374,6 +385,8 @@ export function outboxHandlers(
         params: { orderNumber: order.number, refundId },
         link: `/billing/orders/${order.id}`,
       });
+      // No marketing for 30 days after a refund (GROWTH §6): an offer now would be tone-deaf.
+      await silenceMarketing(tx, order.ownerUserId, MARKETING_SILENCE_AFTER_COMPLAINT_DAYS);
       const [refund] = await tx.select().from(refunds).where(eq(refunds.id, refundId));
       const [owner] = await tx
         .select({ locale: users.locale })
@@ -393,21 +406,45 @@ export function outboxHandlers(
         }),
       ];
     },
+    // Referral rewards (Task 3.11): sign-up checks, paid and refunded orders, and `orgs.member_joined`
+    // (a person joined an organization through a join link or an approved request).
+    ...rewardOutboxHandlers(rewards),
+    // Customer notices of withdrawal steps and new payout destinations (Task 3.12).
+    ...withdrawalOutboxHandlers(runtime),
+    // Customer notice of an admin plan change (gift, compensation, trial, sponsored; Task 3.15).
+    ...adminPlanChangeOutboxHandlers(),
   };
 }
 
-type OutboxContext = Pick<JobContext, "db" | "logger" | "payments">;
+type OutboxContext = Pick<JobContext, "db" | "logger" | "payments" | "env">;
+
+/** Opens the sealed sender number of a manual payment for the same-payer fraud check. */
+function senderPhoneOpener(env: JobContext["env"]): RewardEvaluationOptions["openSenderPhone"] {
+  if (env === undefined) return undefined;
+  const key = decodeEncryptionKey(env.ENCRYPTION_KEY);
+  return (sealed, paymentId) => {
+    try {
+      return decryptSecret(sealed, key, `payment.sender_phone:${paymentId}`);
+    } catch {
+      return null;
+    }
+  };
+}
 
 /** `outbox.drain`, every 30 seconds. */
 export async function drainOutboxJob(
   _payload: JobPayload<"payments", "outbox.drain">,
-  { db, logger, payments }: OutboxContext,
+  { db, logger, payments, env }: OutboxContext,
 ): Promise<void> {
   if (!payments) {
     logger.warn({ event: "payments.runtime_missing" }, "Outbox drain skipped");
     return;
   }
-  const result = await drainOutbox(db, outboxHandlers(payments), new Date(), 50, async (action) => {
+  const handlers = outboxHandlers(payments, {
+    deals: dealRewardOverrides,
+    openSenderPhone: senderPhoneOpener(env),
+  });
+  const result = await drainOutbox(db, handlers, new Date(), 50, async (action) => {
     if (action.kind === "alert_delivery") {
       await payments.enqueueAlertDelivery(action.deliveryId, action.jobId);
     } else if (action.kind === "customer_message") {

@@ -50,6 +50,8 @@ export const workerEnvSchema = z
       .default("http://localhost:3000")
       .transform((value) => value.split(",")[0]?.trim() ?? "")
       .pipe(z.url()),
+    /** The API's public base URL: the one-click unsubscribe target of lifecycle mail (RFC 8058). */
+    API_PUBLIC_URL: z.url().default("http://localhost:4000"),
     /** How long shutdown waits for active jobs before force-closing. */
     WORKER_SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).default(30_000),
 

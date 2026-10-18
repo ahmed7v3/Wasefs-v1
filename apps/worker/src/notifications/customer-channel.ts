@@ -124,6 +124,12 @@ const KIND_KEYS: Record<Exclude<CustomerMessageKind, "subscription_reminder">, M
   payment_resubmit: "whatsapp.customer.paymentResubmit",
   order_refunded: "whatsapp.customer.orderRefunded",
   offer: "whatsapp.customer.offer",
+  withdrawal_requested: "whatsapp.customer.withdrawalRequested",
+  withdrawal_approved: "whatsapp.customer.withdrawalApproved",
+  withdrawal_rejected: "whatsapp.customer.withdrawalRejected",
+  withdrawal_paid: "whatsapp.customer.withdrawalPaid",
+  withdrawal_canceled: "whatsapp.customer.withdrawalCanceled",
+  payout_destination_added: "whatsapp.customer.payoutDestinationAdded",
 };
 
 function asText(params: CustomerMessagePayload["params"]): Record<string, string> {

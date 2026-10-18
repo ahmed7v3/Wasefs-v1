@@ -16,7 +16,7 @@ import type { JobPayload } from "@wasfa/shared/queues";
 /** Overdue reviews are re-announced at most once per slot. */
 const SLOT_MS = 30 * 60_000;
 
-function isWithinBusinessHours(
+export function isWithinBusinessHours(
   now: Date,
   hours: { timezone: string; startHour: number; endHour: number; days: number[] },
 ): boolean {

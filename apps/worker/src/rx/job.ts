@@ -1,5 +1,5 @@
 import { skillVersion } from "@wasfa/ai";
-import { refund, release, settle, type WalletOwner } from "@wasfa/db";
+import { refund, release, requestSignupCheck, settle, type WalletOwner } from "@wasfa/db";
 import { busyLockKey } from "@wasfa/shared/busy";
 import { isAppError } from "@wasfa/shared/errors";
 import { newErrorRef } from "@wasfa/shared/ids";
@@ -21,6 +21,7 @@ import {
   loadPages,
   markFailed,
   markVerifying,
+  reservationWallet,
   reservedAmount,
   setUsageCredits,
 } from "./repo.js";
@@ -48,7 +49,7 @@ const walletOf = (row: { ownerUserId: string | null; ownerOrgId: string | null }
  * by the run that ends the analysis. Logs carry ids, counts and codes, never prescription content.
  */
 export async function rxAnalyzeJob(
-  { analysisId }: JobPayload<"rx", "rx.analyze">,
+  { analysisId, planOrgId, routePlanId }: JobPayload<"rx", "rx.analyze">,
   { db, redis, logger, storage, ai }: RxContext,
 ): Promise<void> {
   if (storage === undefined) {
@@ -85,7 +86,15 @@ export async function rxAnalyzeJob(
       images.push(bytes);
     }
 
-    const planId = await effectivePlanId(db, row, new Date());
+    // In an organization context the API priced and quota-checked the organization's plan: route by it too.
+    // A taste is routed by the paid plan whose Deep reading it lets the user try once.
+    const planId =
+      routePlanId ??
+      (await effectivePlanId(
+        db,
+        planOrgId === undefined ? row : { ownerUserId: null, ownerOrgId: planOrgId },
+        new Date(),
+      ));
     const base = {
       mode: row.mode,
       planId,
@@ -134,6 +143,12 @@ export async function rxAnalyzeJob(
       skillVersion: skill,
     });
     if (finished) await events.done(status);
+    // A first finished analysis can complete a referred person's sign-up conditions (Task 3.11).
+    if (finished && status === "done" && row.ownerUserId !== null) {
+      await requestSignupCheck(db, row.ownerUserId, "usage").catch(() => {
+        logger.warn({ analysisId }, "rewards sign-up check could not be queued");
+      });
+    }
     logger.info(
       {
         analysisId,
@@ -189,7 +204,8 @@ async function settleCredits(args: SettleArgs): Promise<number> {
   if (refundAll) {
     // "No result, no charge": the ledger shows the charge and the refund that cancels it.
     if (settled.charged > 0) {
-      await refund(db, wallet, settled.charged, {
+      // The charge may sit on an organization wallet: the refund goes to the wallet that paid.
+      await refund(db, (await reservationWallet(db, reservationId)) ?? wallet, settled.charged, {
         reason: "no_result",
         idempotencyKey: `rx:${analysisId}:refund`,
         reservationId,

@@ -3,6 +3,8 @@ import { formatMoney } from "@wasfa/shared/money";
 
 import { assertWebLink, renderLayout, tr, type Rendered } from "./layout.js";
 
+import type { WithdrawalMailEvent } from "@wasfa/shared/email";
+import type { GrowthMailKind } from "@wasfa/shared/growth";
 import type { MessageKey, Locale } from "@wasfa/shared/i18n";
 import type { SubscriptionReminderSlot } from "@wasfa/shared/subscriptions";
 
@@ -70,6 +72,29 @@ export type TemplateInput =
       orderNumber: string;
       note?: string | null;
       link: string;
+    }
+  | {
+      template: "withdrawal_update";
+      locale: Locale;
+      name: string;
+      event: WithdrawalMailEvent;
+      points: number;
+      amountMinor: number;
+      currency: string;
+      reference?: string | null;
+      reason?: string | null;
+      note?: string | null;
+      link: string;
+    }
+  | {
+      template: "lifecycle_mail";
+      locale: Locale;
+      name: string;
+      kind: GrowthMailKind;
+      params: Record<string, string | number>;
+      link: string;
+      unsubscribeUrl: string;
+      oneClickUrl: string;
     };
 
 /** Arabic-first RTL HTML plus a plain-text alternative for every template. */
@@ -236,5 +261,51 @@ export function renderEmail(input: TemplateInput): Rendered {
           ignoreNote: false,
         },
       });
+    case "withdrawal_update": {
+      const reasonKey = `rewards.withdrawal.reject.${input.reason ?? "other"}` as MessageKey;
+      const params = {
+        points: String(input.points),
+        amount: formatMoney(input.amountMinor, input.currency, locale),
+        reference: input.reference ?? "",
+        reason: input.reason ? tr(locale, reasonKey) : "",
+      };
+      return renderLayout({
+        locale,
+        name,
+        subject: tr(locale, `email.withdrawal.${input.event}.subject` as MessageKey),
+        block: {
+          paragraphs: [
+            tr(locale, `email.withdrawal.${input.event}.body` as MessageKey, params),
+            ...(input.note ? [tr(locale, "email.withdrawal.note", { note: input.note })] : []),
+          ],
+          action: { label: tr(locale, "email.withdrawal.button"), link: assertWebLink(input.link) },
+          ignoreNote: false,
+        },
+      });
+    }
+    case "lifecycle_mail": {
+      // Copy is keyed by kind; the numbers are the person's own (counts, a date, a percent), never health data.
+      const params = Object.fromEntries(
+        Object.entries(input.params).map(([key, value]) => [key, String(value)]),
+      );
+      return renderLayout({
+        locale,
+        name,
+        subject: tr(locale, `email.lifecycle.${input.kind}.subject` as MessageKey, params),
+        block: {
+          paragraphs: [tr(locale, `email.lifecycle.${input.kind}.body` as MessageKey, params)],
+          action: {
+            label: tr(locale, `email.lifecycle.${input.kind}.button` as MessageKey),
+            link: assertWebLink(input.link),
+          },
+          ignoreNote: false,
+          unsubscribe: {
+            label: tr(locale, "email.lifecycle.unsubscribe"),
+            link: assertWebLink(input.unsubscribeUrl),
+            oneClick: assertWebLink(input.oneClickUrl),
+          },
+        },
+      });
+    }
   }
 }
