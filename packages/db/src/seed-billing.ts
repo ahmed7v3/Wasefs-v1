@@ -257,12 +257,7 @@ export const PAYOUT_METHOD_SEEDS: readonly NewPayoutMethodSeed[] = [
     nameEn: "Vodafone Cash",
     fieldSchema: {
       fields: [
-        {
-          key: "number",
-          type: "egyptian_mobile",
-          labelAr: "رقم المحفظة",
-          labelEn: "Wallet number",
-        },
+        { key: "number", labelKey: "rewards.payout.field.number", kind: "egypt_mobile", required: true },
       ],
     },
     enabled: false,
@@ -276,13 +271,30 @@ export const PAYOUT_METHOD_SEEDS: readonly NewPayoutMethodSeed[] = [
     nameEn: "InstaPay",
     fieldSchema: {
       fields: [
-        { key: "address", type: "text", labelAr: "عنوان إنستاباي", labelEn: "InstaPay address" },
+        {
+          key: "address",
+          labelKey: "rewards.payout.field.address",
+          kind: "instapay_address",
+          required: true,
+        },
       ],
     },
     enabled: false,
     noteAr: "خلال 48 ساعة عمل",
     noteEn: "Within 48 working hours",
     sort: 20,
+  },
+  {
+    key: "bank",
+    nameAr: "تحويل بنكي",
+    nameEn: "Bank transfer",
+    fieldSchema: {
+      fields: [{ key: "iban", labelKey: "rewards.payout.field.iban", kind: "iban", required: true }],
+    },
+    enabled: false,
+    noteAr: "خلال 3 أيام عمل",
+    noteEn: "Within 3 working days",
+    sort: 30,
   },
 ];
 

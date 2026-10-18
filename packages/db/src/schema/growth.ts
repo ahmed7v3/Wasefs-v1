@@ -3,6 +3,7 @@ import {
   EXPERIMENT_STATUSES,
   GROWTH_EVENT_NAMES,
   GROWTH_EVENT_PROPS_MAX_BYTES,
+  GROWTH_MAIL_KINDS,
   PHI_ACCESS_REASONS,
 } from "@wasfa/shared/growth";
 import { SLUG_PATTERN } from "@wasfa/shared/rewards";
@@ -17,6 +18,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -57,6 +59,35 @@ export const growthEvents = pgTable(
     index("growth_events_user_occurred_idx")
       .on(table.userId, table.occurredAt)
       .where(sql`${table.userId} is not null`),
+  ],
+);
+
+/**
+ * Lifecycle mails sent (GROWTH §6): the unique key makes each mail at-most-once per user and kind
+ * and period, and the weekly cap counts the rows of the last 7 days. Retention: 13 months.
+ */
+export const growthMailLog = pgTable(
+  "growth_mail_log",
+  {
+    id: idColumn(),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text({ enum: GROWTH_MAIL_KINDS }).notNull(),
+    // What the mail is once for: `once`, a subscription period end, a month; keeps repeats idempotent.
+    periodKey: text().notNull(),
+    sentAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check("growth_mail_log_kind_check", inList(table.kind, GROWTH_MAIL_KINDS)),
+    check("growth_mail_log_period_key_check", sql`char_length(${table.periodKey}) between 1 and 64`),
+    uniqueIndex("growth_mail_log_user_kind_period_key").on(
+      table.userId,
+      table.kind,
+      table.periodKey,
+    ),
+    index("growth_mail_log_user_sent_idx").on(table.userId, table.sentAt),
+    index("growth_mail_log_sent_idx").on(table.sentAt),
   ],
 );
 
@@ -196,6 +227,8 @@ export const campaignLinks = pgTable(
 
 export type GrowthEvent = typeof growthEvents.$inferSelect;
 export type NewGrowthEvent = typeof growthEvents.$inferInsert;
+export type GrowthMailLogEntry = typeof growthMailLog.$inferSelect;
+export type NewGrowthMailLogEntry = typeof growthMailLog.$inferInsert;
 export type GrowthRule = typeof growthRules.$inferSelect;
 export type NewGrowthRule = typeof growthRules.$inferInsert;
 export type Experiment = typeof experiments.$inferSelect;

@@ -142,6 +142,7 @@ const SPEC: NameSpec = {
     "taste_grants_feature_check",
     "taste_grants_period_key_check",
     "taste_grants_expires_check",
+    "taste_grants_credits_check",
     "user_notifications_kind_check",
     "user_notifications_params_check",
     "credit_ledger_kind_check",
@@ -188,6 +189,7 @@ const SPEC: NameSpec = {
     "subscriptions_period_end_idx",
     "taste_grants_owner_user_period_key",
     "taste_grants_owner_org_period_key",
+    "taste_grants_analysis_idx",
     "user_notifications_user_created_idx",
     "user_notifications_unread_idx",
     "plan_assignments_subscription_idx",
@@ -228,6 +230,8 @@ const SPEC: NameSpec = {
     ["subscriptions_created_by_users_id_fk", "set null"],
     ["taste_grants_owner_user_id_users_id_fk", "restrict"],
     ["taste_grants_owner_org_id_organizations_id_fk", "restrict"],
+    ["taste_grants_source_analysis_id_rx_analyses_id_fk", "set null"],
+    ["taste_grants_analysis_id_rx_analyses_id_fk", "set null"],
     ["user_notifications_user_id_users_id_fk", "cascade"],
     ["plan_assignments_subscription_id_subscriptions_id_fk", "set null"],
   ],
@@ -942,6 +946,13 @@ function checkCases(): Case[] {
         db()
           .insert(tasteGrants)
           .values(taste({ expiresAt: new Date(Date.now() - DAY) })),
+    ],
+    [
+      "taste_grants_credits_check",
+      () =>
+        db()
+          .insert(tasteGrants)
+          .values(taste({ credits: -1 })),
     ],
     [
       "user_notifications_kind_check",

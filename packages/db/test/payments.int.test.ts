@@ -785,6 +785,8 @@ describe("outbox", () => {
   const quiet: Record<string, OutboxHandler> = {
     "billing.order_paid": () => Promise.resolve(),
     "billing.order_refunded": () => Promise.resolve(),
+    "rewards.order_paid": () => Promise.resolve(),
+    "rewards.order_refunded": () => Promise.resolve(),
     "alerts.fan_out": () => Promise.resolve(),
     "billing.payment_rejected": () => Promise.resolve(),
     "billing.payment_resubmit": () => Promise.resolve(),
@@ -808,11 +810,11 @@ describe("outbox", () => {
       },
       "test.fail": () => Promise.reject(new TypeError("boom")),
     };
-    const first = await drainOutbox(db(), handlers, drainAt());
+    const first = await drainOutbox(db(), handlers, drainAt(), 500);
     expect(first.processed).toBeGreaterThanOrEqual(1);
     expect(first.failed).toBe(1);
     expect(first.parked).toBe(1);
-    const second = await drainOutbox(db(), handlers, drainAt());
+    const second = await drainOutbox(db(), handlers, drainAt(), 500);
     expect(second).toEqual({ processed: 0, failed: 0, parked: 0 });
     expect(runs).toBe(1);
     const [failed] = await db()
@@ -844,6 +846,7 @@ describe("outbox", () => {
         },
       },
       drainAt(),
+      500,
     );
     expect(result.failed).toBe(1);
     const notes = await db()
@@ -878,7 +881,7 @@ describe("outbox", () => {
         },
       },
       drainAt(),
-      50,
+      500,
       async (action) => {
         const [entry] = await db()
           .select()

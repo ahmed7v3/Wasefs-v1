@@ -1,11 +1,14 @@
-import { randomInt, randomUUID } from "node:crypto";
+import { createHash, randomInt, randomUUID } from "node:crypto";
 
 import { assertSafeAlertSummary } from "@wasfa/shared/alert-safety";
 import { PAYMENT_MAX_PROOF_SUBMISSIONS } from "@wasfa/shared/billing";
+import { MARKETING_SILENCE_AFTER_COMPLAINT_DAYS } from "@wasfa/shared/growth";
 import { formatMoney } from "@wasfa/shared/money";
 import { and, asc, eq, gt, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 
 import { moveCreditsInTransaction, type Transaction, type WalletOwner } from "./credits-ledger.js";
+import { recordGrowthEvent, serverSessionId } from "./growth.js";
+import { silenceMarketing } from "./notification-prefs.js";
 import { isUniqueViolation } from "./pg-errors.js";
 import { adminAlerts } from "./schema/alerts.js";
 import {
@@ -56,7 +59,8 @@ export type PaymentsErrorReason =
   | "proof_invalid"
   | "duplicate_txn"
   | "proof_not_allowed"
-  | "same_reviewer";
+  | "same_reviewer"
+  | "method_unavailable";
 
 export class PaymentsError extends Error {
   constructor(readonly reason: PaymentsErrorReason) {
@@ -227,6 +231,18 @@ async function transitionLocked(
     payload: { from: payment.status, to, ...(reason ? { reason } : {}) },
     signatureOk: true,
   });
+  if (to === "failed" || to === "rejected") {
+    const [owner] = await tx
+      .select({ userId: orders.ownerUserId })
+      .from(orders)
+      .where(eq(orders.id, payment.orderId));
+    await recordGrowthEvent(tx, {
+      name: "payment_failed",
+      sessionId: serverSessionId(owner?.userId ?? null, payment.id),
+      userId: owner?.userId ?? null,
+      props: { method: payment.methodKey, outcome: to },
+    });
+  }
   return updated;
 }
 
@@ -340,6 +356,12 @@ export async function submitManualProof(
         { ...payment, txnId: input.txnId, proofSubmissions: payment.proofSubmissions + 1 },
         "awaiting_review",
       );
+      await recordGrowthEvent(tx, {
+        name: "proof_submitted",
+        sessionId: serverSessionId(input.userId, payment.id),
+        userId: input.userId,
+        props: { method: payment.methodKey },
+      });
       const duplicated = flags.length > 0;
       const alertId = await raiseAdminAlert(tx, {
         kind: "payment.review_needed",
@@ -526,6 +548,12 @@ export async function createOrder(
           .returning();
         if (!order) throw new Error("Order was not stored");
         if (input.applied.couponId) await reserveCoupon(tx, input.applied.couponId, order, now);
+        await recordGrowthEvent(tx, {
+          name: "checkout_started",
+          sessionId: serverSessionId(order.ownerUserId, order.id),
+          userId: order.ownerUserId,
+          props: { kind: order.kind, method: input.method?.key ?? "free" },
+        });
 
         if (input.totalMinor === 0) {
           const paid = await activateLocked(tx, order, null, now, hooks);
@@ -671,13 +699,28 @@ async function activateLocked(
       );
   }
   if (applied.personalOfferId) {
-    await tx
+    const consumed = await tx
       .update(personalOffers)
       .set({ consumedAt: now })
       .where(
         and(eq(personalOffers.id, applied.personalOfferId), isNull(personalOffers.consumedAt)),
-      );
+      )
+      .returning({ kind: personalOffers.kind });
+    if (consumed[0]) {
+      await recordGrowthEvent(tx, {
+        name: "offer_used",
+        sessionId: serverSessionId(paid.ownerUserId, paid.id),
+        userId: paid.ownerUserId,
+        props: { kind: consumed[0].kind },
+      });
+    }
   }
+  await recordGrowthEvent(tx, {
+    name: "payment_succeeded",
+    sessionId: serverSessionId(paid.ownerUserId, paid.id),
+    userId: paid.ownerUserId,
+    props: { kind: paid.kind, method: payment?.methodKey ?? "free", currency: paid.currency },
+  });
 
   const owner = orderOwner(paid);
   if (paid.kind === "credit_pack" && paid.packId) {
@@ -702,6 +745,8 @@ async function activateLocked(
     });
   }
   await enqueue(tx, "billing.order_paid", { orderId: paid.id }, `order_paid:${paid.id}`);
+  // Referral rewards for the buyer's referrer (Task 3.11); evaluated by the worker, once per order.
+  await enqueue(tx, "rewards.order_paid", { orderId: paid.id }, `rewards_order_paid:${paid.id}`);
   return paid;
 }
 
@@ -717,6 +762,120 @@ export async function activatePayment(
   now = new Date(),
 ): Promise<ActivationOutcome> {
   return db.transaction((tx) => activateInTransaction(tx, paymentId, reported, hooks, now));
+}
+
+export interface OfflinePaymentInput {
+  owner: WalletOwner;
+  planId: string;
+  months: number;
+  currency: string;
+  amountMinor: number;
+  /** An existing manual payment method. */
+  methodKey: string;
+  /** The transfer or receipt reference; unique per method, so one transfer is recorded once. */
+  reference: string;
+  adminId: string;
+  reason: string;
+  /** The admin form's idempotency id, kept in the quote so a retried request is recognised. */
+  requestId?: string;
+}
+
+/**
+ * An admin records money received outside the app (a transfer, cash) for a subscription: an order
+ * (`quote.source = "admin_offline"`) and a manual payment that is approved by the admin right away,
+ * then the SAME activation as an approved manual payment (`activateInTransaction`: subscription
+ * hooks, `billing.order_paid` and the rewards entry in the outbox), so revenue reports include it.
+ * Runs in the caller's transaction, so extra credits and audit rows can join it.
+ */
+export async function recordOfflinePayment(
+  tx: Transaction,
+  input: OfflinePaymentInput,
+  hooks: PaymentHooks,
+  now = new Date(),
+): Promise<{ order: Order; payment: Payment; activation: ActivationOutcome }> {
+  const [method] = await tx
+    .select({ kind: paymentMethods.kind })
+    .from(paymentMethods)
+    .where(eq(paymentMethods.key, input.methodKey));
+  if (method?.kind !== "manual") throw new PaymentsError("method_unavailable");
+
+  const quote = {
+    source: "admin_offline",
+    planId: input.planId,
+    months: input.months,
+    currency: input.currency,
+    totalMinor: input.amountMinor,
+    // The receipt is built from the quote's lines: one plan line for the whole amount, no tax split
+    // (the amount is what the customer paid outside the app).
+    lines: [{ kind: "plan", labelKey: "billing.line.plan", amountMinor: input.amountMinor }],
+    taxMode: null,
+    methodKey: input.methodKey,
+    adminId: input.adminId,
+    ...(input.requestId ? { requestId: input.requestId } : {}),
+  };
+  // There is no quote signing key in this package: the hash is a plain digest, `source` says why.
+  const quoteHash = createHash("sha256").update(JSON.stringify(quote)).digest("hex");
+  const [order] = await tx
+    .insert(orders)
+    .values({
+      ownerUserId: input.owner.type === "user" ? input.owner.id : null,
+      ownerOrgId: input.owner.type === "org" ? input.owner.id : null,
+      kind: "subscription",
+      planId: input.planId,
+      months: input.months,
+      currency: input.currency,
+      quote,
+      quoteHash,
+      subtotalMinor: input.amountMinor,
+      totalMinor: input.amountMinor,
+      expiresAt: now,
+    })
+    .returning();
+  if (!order) throw new Error("Order was not stored");
+
+  let payment: Payment | undefined;
+  try {
+    [payment] = await tx
+      .insert(payments)
+      .values({
+        orderId: order.id,
+        reference: paymentReference(),
+        methodKey: input.methodKey,
+        gateway: null,
+        status: "created",
+        amountMinor: input.amountMinor,
+        currency: input.currency,
+        txnId: input.reference,
+        reviewedBy: input.adminId,
+        reviewedAt: now,
+        reviewNote: input.reason,
+      })
+      .returning();
+  } catch (error) {
+    if (isUniqueViolation(error, "payments_method_txn_id_key")) {
+      throw new PaymentsError("duplicate_txn");
+    }
+    throw error;
+  }
+  if (!payment) throw new Error("Payment was not stored");
+  await tx.insert(paymentEvents).values({
+    provider: "internal",
+    eventId: `offline_approval:${payment.id}`,
+    type: "admin_offline_approval",
+    paymentId: payment.id,
+    payload: { adminId: input.adminId, methodKey: input.methodKey },
+    signatureOk: true,
+  });
+  const activation = await activateInTransaction(
+    tx,
+    payment.id,
+    { amountMinor: order.totalMinor, currency: order.currency },
+    hooks,
+    now,
+  );
+  const [paid] = await tx.select().from(orders).where(eq(orders.id, order.id));
+  const [settled] = await tx.select().from(payments).where(eq(payments.id, payment.id));
+  return { order: paid ?? order, payment: settled ?? payment, activation };
 }
 
 export async function approveManualPayment(
@@ -1211,12 +1370,22 @@ export async function completeRefund(
         actorId: result.actorId,
       });
     }
+    // A refund is a complaint in kind: no marketing mail for 30 days (GROWTH §6).
+    if (order.ownerUserId !== null) {
+      await silenceMarketing(tx, order.ownerUserId, MARKETING_SILENCE_AFTER_COMPLAINT_DAYS, now);
+    }
     await hooks.onRefund(tx, { order, payment: moved, refund: completed, now });
     await enqueue(
       tx,
       "billing.order_refunded",
       { orderId: order.id, refundId },
       `order_refunded:${refundId}`,
+    );
+    await enqueue(
+      tx,
+      "rewards.order_refunded",
+      { orderId: order.id, refundId },
+      `rewards_order_refunded:${refundId}`,
     );
     return completed;
   });

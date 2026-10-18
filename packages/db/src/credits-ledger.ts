@@ -1,10 +1,11 @@
-import { and, asc, eq, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
 
 import { isUniqueViolation } from "./pg-errors.js";
 import {
   creditLedger,
   creditReservations,
   creditWallets,
+  organizationMemberLimits,
   type CreditLedgerEntry,
   type CreditReservation,
   type CreditWallet,
@@ -39,7 +40,8 @@ export type LedgerErrorReason =
   | "insufficient_balance"
   | "idempotency_key_reused"
   | "reservation_not_found"
-  | "invalid_amount";
+  | "invalid_amount"
+  | "member_cap_reached";
 
 /** An expected refusal; the API turns it into an `AppError`, the worker just logs it. */
 export class LedgerError extends Error {
@@ -202,8 +204,57 @@ function sameWallet(existing: CreditLedgerEntry, wallet: CreditWallet): void {
 }
 
 /**
+ * An organization member's monthly cap (BILLING §8), checked under the org wallet's lock so two
+ * parallel reservations cannot both pass it. Usage = what the member's settled calls took from this
+ * wallet this UTC month (ledger rows they are the actor of) plus their other open holds.
+ */
+async function enforceMemberCap(
+  tx: Transaction,
+  wallet: CreditWallet,
+  orgId: string,
+  memberId: string,
+  amount: number,
+  now: Date,
+): Promise<void> {
+  const [limit] = await tx
+    .select({ cap: organizationMemberLimits.monthlyCreditCap })
+    .from(organizationMemberLimits)
+    .where(
+      and(eq(organizationMemberLimits.orgId, orgId), eq(organizationMemberLimits.userId, memberId)),
+    );
+  if (!limit) return;
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const [settled] = await tx
+    .select({ total: sql<number>`coalesce(sum(-${creditLedger.amount}), 0)::int` })
+    .from(creditLedger)
+    .where(
+      and(
+        eq(creditLedger.walletId, wallet.id),
+        eq(creditLedger.kind, "usage_settle"),
+        eq(creditLedger.actorId, memberId),
+        gte(creditLedger.createdAt, monthStart),
+      ),
+    );
+  const [held] = await tx
+    .select({ total: sql<number>`coalesce(sum(${creditReservations.amount}), 0)::int` })
+    .from(creditReservations)
+    .where(
+      and(
+        eq(creditReservations.walletId, wallet.id),
+        eq(creditReservations.memberUserId, memberId),
+        eq(creditReservations.status, "open"),
+      ),
+    );
+  if ((settled?.total ?? 0) + (held?.total ?? 0) + amount > limit.cap) {
+    throw new LedgerError("member_cap_reached");
+  }
+}
+
+/**
  * Holds `amount` credits for an in-flight call. `insufficient_credits` when the balance is lower.
  * A retry with the same `idempotencyKey` returns the original reservation and holds nothing more.
+ * `member` (org wallets only) is the organization member the hold is for: their monthly cap is
+ * enforced (`member_cap_reached`) and settling records them as the ledger row's actor.
  */
 export async function reserve(
   db: Database,
@@ -214,6 +265,7 @@ export async function reserve(
     purpose: string;
     ttlSeconds?: number;
     now?: Date;
+    member?: { userId: string };
   },
 ): Promise<ReservationResult> {
   requirePositive(amount);
@@ -232,9 +284,13 @@ export async function reserve(
       if (!reservation) throw new Error("Reservation of a stored ledger row is missing");
       return { reservation, replayed: true };
     }
+    const now = options.now ?? new Date();
+    const memberUserId = owner.type === "org" ? (options.member?.userId ?? null) : null;
+    if (memberUserId !== null) {
+      await enforceMemberCap(tx, wallet, owner.id, memberUserId, amount, now);
+    }
     if (wallet.balance < amount) throw new LedgerError("insufficient_credits");
 
-    const now = options.now ?? new Date();
     const ttlMs = (options.ttlSeconds ?? RESERVATION_DEFAULT_TTL_SECONDS) * 1_000;
     const [reservation] = await tx
       .insert(creditReservations)
@@ -243,6 +299,7 @@ export async function reserve(
         amount,
         purpose: options.purpose,
         status: "open",
+        memberUserId,
         expiresAt: new Date(now.getTime() + ttlMs),
       })
       .returning();
@@ -314,6 +371,7 @@ export async function settle(
         idempotencyKey: `settle:${reservation.id}`,
         reservationId: reservation.id,
         aiUsageId: options.aiUsageId,
+        actorId: reservation.memberUserId ?? undefined,
       });
     }
     const [updated] = await tx

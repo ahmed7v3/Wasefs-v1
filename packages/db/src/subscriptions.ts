@@ -781,7 +781,11 @@ async function audit(
   });
 }
 
-/** Gives an owner a plan for a while without payment. Refuses over a paid subscription. */
+/**
+ * Gives an owner a plan for a while without payment. Refuses over a paid subscription. `kind` (gift,
+ * compensation, trial, sponsored...) and `dealId` are recorded on the subscription event; `source`
+ * defaults to `admin_grant`, a sponsored grant is a `deal`.
+ */
 export async function adminGrant(
   db: Database,
   input: {
@@ -791,6 +795,13 @@ export async function adminGrant(
     reason: string;
     actorId: string;
     now: Date;
+    kind?: string;
+    source?: "admin_grant" | "deal";
+    dealId?: string;
+    /** The admin form's idempotency id, kept on the event so a retried request is recognised. */
+    requestId?: string;
+    /** Runs in the same transaction (extra credits, the customer notice), so all of it or none. */
+    onApplied?: (tx: Transaction, subscription: Subscription) => Promise<void>;
   },
 ): Promise<Subscription> {
   validLength(input.length);
@@ -811,7 +822,7 @@ export async function adminGrant(
         ...ownerColumnsOf(input.owner),
         planId: plan.id,
         status: "active",
-        source: "admin_grant",
+        source: input.source ?? "admin_grant",
         currentPeriodStart: input.now,
         currentPeriodEnd: extend(input.now, input.length),
         createdBy: input.actorId,
@@ -823,7 +834,15 @@ export async function adminGrant(
       tx,
       created.id,
       "admin_changed",
-      { action: "grant", planId: plan.id, ...input.length, reason: input.reason },
+      {
+        action: "grant",
+        planId: plan.id,
+        ...input.length,
+        reason: input.reason,
+        ...(input.kind ? { kind: input.kind } : {}),
+        ...(input.dealId ? { dealId: input.dealId } : {}),
+        ...(input.requestId ? { requestId: input.requestId } : {}),
+      },
       input.actorId,
     );
     await audit(tx, "subscription.granted", created.id, input.actorId, {
@@ -832,13 +851,23 @@ export async function adminGrant(
       reason: input.reason,
     });
     await grantDueCredits(tx, created, input.now);
+    await input.onApplied?.(tx, created);
     return created;
   });
 }
 
 export async function adminExtend(
   db: Database,
-  input: { subscriptionId: string; length: Length; reason: string; actorId: string; now: Date },
+  input: {
+    subscriptionId: string;
+    length: Length;
+    reason: string;
+    actorId: string;
+    now: Date;
+    kind?: string;
+    requestId?: string;
+    onApplied?: (tx: Transaction, subscription: Subscription) => Promise<void>;
+  },
 ): Promise<Subscription> {
   validLength(input.length);
   return db.transaction(async (tx) => {
@@ -856,7 +885,13 @@ export async function adminExtend(
       tx,
       subscription.id,
       "admin_changed",
-      { action: "extend", ...input.length, reason: input.reason },
+      {
+        action: "extend",
+        ...input.length,
+        reason: input.reason,
+        ...(input.kind ? { kind: input.kind } : {}),
+        ...(input.requestId ? { requestId: input.requestId } : {}),
+      },
       input.actorId,
     );
     await audit(tx, "subscription.extended", subscription.id, input.actorId, {
@@ -864,6 +899,7 @@ export async function adminExtend(
       reason: input.reason,
       to: extended.currentPeriodEnd.toISOString(),
     });
+    await input.onApplied?.(tx, extended);
     return extended;
   });
 }

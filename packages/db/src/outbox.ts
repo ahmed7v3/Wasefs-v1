@@ -26,6 +26,25 @@ export type OutboxPostCommitAction =
     }
   | { kind: "customer_message"; payload: CustomerMessageInput; jobId: string };
 
+/**
+ * Writes a side effect in the caller's transaction. A repeated idempotency key is a no-op, so an
+ * event that can be raised twice (a verification, a retried request) is handled once.
+ */
+export async function enqueueOutbox(
+  tx: Transaction | Database,
+  topic: string,
+  payload: Record<string, unknown>,
+  idempotencyKey: string,
+): Promise<void> {
+  await tx
+    .insert(outbox)
+    .values({ topic, payload, idempotencyKey })
+    .onConflictDoNothing({
+      target: outbox.idempotencyKey,
+      where: sql`${outbox.idempotencyKey} is not null`,
+    });
+}
+
 export type OutboxHandler = (tx: Transaction, entry: OutboxEntry) => Promise<unknown>;
 
 export interface DrainResult {

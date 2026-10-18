@@ -444,7 +444,9 @@ describe("anniversary grants", () => {
     const second = grants[1];
     expect(second?.createdAt.getTime()).toBeGreaterThan(0);
     expect(addMonthsClamped(start, 1).toISOString()).toBe("2027-02-28T09:00:00.000Z");
-  }, 120_000);
+    // About 1,600 sequential job runs against a real Postgres: well over two minutes on a slower
+    // Docker host, so the budget is generous.
+  }, 300_000);
 });
 
 describe("trials", () => {

@@ -25,6 +25,7 @@ import { idColumn, inList, matches, timestamps } from "./columns.js";
 import { billingOwnerColumns, ownerCheck } from "./owner.js";
 import { plans } from "./plans.js";
 import { coupons, promotions } from "./promotions.js";
+import { rxAnalyses } from "./rx.js";
 import { users } from "./users.js";
 
 /*
@@ -150,9 +151,18 @@ export const tasteGrants = pgTable(
     grantedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     usedAt: timestamp({ withTimezone: true }),
     expiresAt: timestamp({ withTimezone: true }).notNull(),
+    // The analysis the person tasted from, and the new premium-mode analysis of the same pages.
+    sourceAnalysisId: uuid().references(() => rxAnalyses.id, { onDelete: "set null" }),
+    analysisId: uuid().references(() => rxAnalyses.id, { onDelete: "set null" }),
+    // Credits granted through the ledger (`trial_grant`, key `taste:<id>`): the cost of one taste.
+    credits: integer().notNull().default(0),
   },
   (table) => [
     ownerCheck("taste_grants", table),
+    check("taste_grants_credits_check", sql`${table.credits} >= 0`),
+    index("taste_grants_analysis_idx")
+      .on(table.analysisId)
+      .where(sql`${table.analysisId} is not null`),
     check("taste_grants_feature_check", matches(table.feature, IDENTIFIER_PATTERN.source)),
     check("taste_grants_period_key_check", sql`char_length(${table.periodKey}) between 1 and 32`),
     check("taste_grants_expires_check", sql`${table.expiresAt} > ${table.grantedAt}`),

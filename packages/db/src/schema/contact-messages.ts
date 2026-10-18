@@ -3,7 +3,7 @@ import { E164_PATTERN } from "@wasfa/shared/identity";
 import {
   CONTACT_MESSAGE_MAX_LENGTH,
   CONTACT_STATUSES,
-  CONTACT_TOPICS,
+  CONTACT_STORED_TOPICS,
 } from "@wasfa/shared/schemas/contact";
 import { sql } from "drizzle-orm";
 import { check, index, pgTable, text, uuid } from "drizzle-orm/pg-core";
@@ -24,7 +24,7 @@ export const contactMessages = pgTable(
     name: text().notNull(),
     email: citext(),
     phone: text(),
-    topic: text({ enum: CONTACT_TOPICS }).notNull(),
+    topic: text({ enum: CONTACT_STORED_TOPICS }).notNull(),
     message: text().notNull(),
     locale: text({ enum: LOCALES }).notNull().default("ar"),
     userId: uuid().references(() => users.id, { onDelete: "set null" }),
@@ -32,7 +32,7 @@ export const contactMessages = pgTable(
     ...timestamps(),
   },
   (table) => [
-    check("contact_messages_topic_check", inList(table.topic, CONTACT_TOPICS)),
+    check("contact_messages_topic_check", inList(table.topic, CONTACT_STORED_TOPICS)),
     check("contact_messages_status_check", inList(table.status, CONTACT_STATUSES)),
     check("contact_messages_locale_check", inList(table.locale, LOCALES)),
     check(

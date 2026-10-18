@@ -2,6 +2,7 @@ import {
   COUNTRY_CODE_PATTERN,
   E164_PATTERN,
   ORG_MEMBER_ROLES,
+  ORG_MEMBER_STATUSES,
   ORG_TYPES,
 } from "@wasfa/shared/identity";
 import { sql } from "drizzle-orm";
@@ -65,10 +66,14 @@ export const organizationMembers = pgTable(
     joinedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     // Phase 3: the join link the member arrived through (its deal terms follow the member).
     joinedViaLinkId: uuid(),
+    // Phase 3: `pending` = joined through a `requires_approval` link and not approved yet. A pending
+    // row is not a member: every membership read filters `status = 'active'`.
+    status: text({ enum: ORG_MEMBER_STATUSES }).notNull().default("active"),
   },
   (table) => [
     primaryKey({ columns: [table.orgId, table.userId], name: "organization_members_pkey" }),
     check("organization_members_role_check", inList(table.role, ORG_MEMBER_ROLES)),
+    check("organization_members_status_check", inList(table.status, ORG_MEMBER_STATUSES)),
     // Explicit name: the generated one is over 63 characters.
     foreignKey({
       name: "organization_members_join_link_fk",

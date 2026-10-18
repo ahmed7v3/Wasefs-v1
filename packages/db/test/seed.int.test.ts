@@ -317,6 +317,7 @@ describe("Phase 3 seed", () => {
     expect(payouts.map((method) => [method.key, method.enabled])).toEqual([
       ["vodafone_cash", false],
       ["instapay", false],
+      ["bank", false],
     ]);
 
     const settings = new Map(

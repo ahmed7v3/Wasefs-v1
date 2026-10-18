@@ -8,7 +8,9 @@ import {
   campaignLinks,
   experiments,
   growthEvents,
+  growthMailLog,
   growthRules,
+  notificationPrefs,
   phiAccessSessions,
   promotions,
   referralCodes,
@@ -46,6 +48,8 @@ const SPEC: NameSpec = {
     "growth_events_name_check",
     "growth_events_session_check",
     "growth_events_props_check",
+    "growth_mail_log_kind_check",
+    "growth_mail_log_period_key_check",
     "growth_rules_key_check",
     "growth_rules_kind_check",
     "growth_rules_condition_check",
@@ -54,6 +58,8 @@ const SPEC: NameSpec = {
     "phi_access_sessions_reason_check",
     "phi_access_sessions_expires_check",
     "user_notes_body_check",
+    "notification_prefs_marketing_opt_out_via_check",
+    "notification_prefs_marketing_opt_out_pair_check",
   ],
   uniques: [
     "alert_deliveries_alert_admin_channel_key",
@@ -70,6 +76,9 @@ const SPEC: NameSpec = {
     "growth_events_name_occurred_idx",
     "growth_events_occurred_idx",
     "growth_events_user_occurred_idx",
+    "growth_mail_log_user_kind_period_key",
+    "growth_mail_log_user_sent_idx",
+    "growth_mail_log_sent_idx",
     "phi_access_sessions_admin_user_expires_idx",
     "user_notes_user_created_idx",
   ],
@@ -82,6 +91,7 @@ const SPEC: NameSpec = {
     ["campaign_links_created_by_users_id_fk", "set null"],
     ["experiments_created_by_users_id_fk", "set null"],
     ["growth_events_user_id_users_id_fk", "set null"],
+    ["growth_mail_log_user_id_users_id_fk", "cascade"],
     ["growth_rules_promotion_id_promotions_id_fk", "set null"],
     ["phi_access_sessions_admin_user_id_users_id_fk", "restrict"],
     ["phi_access_sessions_user_id_users_id_fk", "restrict"],
@@ -341,6 +351,35 @@ function checkCases(): Case[] {
       () => db().insert(userNotes).values({ userId: ctx.user.id, body: "  " }),
     ],
     [
+      "growth_mail_log_kind_check",
+      () =>
+        db()
+          .insert(growthMailLog)
+          .values({ userId: ctx.user.id, kind: bad("newsletter"), periodKey: "once" }),
+    ],
+    [
+      "growth_mail_log_period_key_check",
+      () => db().insert(growthMailLog).values({ userId: ctx.user.id, kind: "day1_guide", periodKey: "" }),
+    ],
+    [
+      "notification_prefs_marketing_opt_out_via_check",
+      async () =>
+        db()
+          .insert(notificationPrefs)
+          .values({
+            userId: (await newUser()).id,
+            marketingOptedOutAt: new Date(),
+            marketingOptedOutVia: bad("telepathy"),
+          }),
+    ],
+    [
+      "notification_prefs_marketing_opt_out_pair_check",
+      async () =>
+        db()
+          .insert(notificationPrefs)
+          .values({ userId: (await newUser()).id, marketingOptedOutAt: new Date() }),
+    ],
+    [
       "phi_access_sessions_reason_check",
       () =>
         db()
@@ -423,6 +462,18 @@ describe("Phase 3 growth schema: CHECK constraints", () => {
 });
 
 describe("Phase 3 growth schema: unique constraints", () => {
+  it("growth mail log: one mail per user, kind and period", async () => {
+    const user = await newUser();
+    const row = { userId: user.id, kind: "day3_value" as const, periodKey: "once" };
+    await db().insert(growthMailLog).values(row);
+    expect(await rejection(() => db().insert(growthMailLog).values(row))).toBe(
+      "growth_mail_log_user_kind_period_key",
+    );
+    await db()
+      .insert(growthMailLog)
+      .values({ ...row, periodKey: "2026-11" });
+  });
+
   it("alert deliveries: one per alert, admin and channel", async () => {
     const alert = await newAlert();
     const row = { alertId: alert.id, adminUserId: ctx.admin.id, channel: "email" as const };

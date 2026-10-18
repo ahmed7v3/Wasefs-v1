@@ -42,10 +42,16 @@ export const creditReservations = pgTable(
     settledAmount: integer(),
     status: text({ enum: CREDIT_RESERVATION_STATUSES }).notNull().default("open"),
     purpose: text().notNull(),
+    // Phase 3: the organization member a hold on an ORG wallet was made for (their monthly cap counts
+    // it while open; settling writes it as the ledger row's actor). Null for personal wallets.
+    memberUserId: uuid().references(() => users.id, { onDelete: "set null" }),
     expiresAt: timestamp({ withTimezone: true }).notNull(),
     ...timestamps(),
   },
   (table) => [
+    index("credit_reservations_member_open_idx")
+      .on(table.walletId, table.memberUserId)
+      .where(sql`${table.status} = 'open' and ${table.memberUserId} is not null`),
     check("credit_reservations_amount_check", sql`${table.amount} > 0`),
     check(
       "credit_reservations_settled_amount_check",
