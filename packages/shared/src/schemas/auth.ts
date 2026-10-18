@@ -48,11 +48,25 @@ const nameSchema = z.string().trim().min(1).max(100);
 
 export const phoneNumberSchema = z.string().trim().regex(E164_PATTERN);
 
+/**
+ * Optional invite code typed on the register form. Deliberately lenient: an unknown or malformed
+ * code is ignored at attribution time and must never block a sign-up.
+ */
+export const signUpReferralCodeSchema = z.string().trim().max(32).optional();
+
+/**
+ * The marketing-mail checkbox of the register form (GROWTH §6). Never pre-checked, so the default is
+ * `false`; it only records consent and never blocks or changes the sign-up.
+ */
+export const signUpMarketingOptInSchema = z.boolean().default(false);
+
 export const signUpEmailSchema = z.object({
   name: nameSchema,
   email: emailSchema,
   password: newPasswordSchema,
   callbackURL: redirectTargetSchema.optional(),
+  referralCode: signUpReferralCodeSchema,
+  marketingOptIn: signUpMarketingOptInSchema,
 });
 
 export const signInEmailSchema = z.object({
@@ -66,6 +80,8 @@ export const signUpPhoneSchema = z.object({
   name: nameSchema,
   phoneNumber: phoneNumberSchema,
   password: newPasswordSchema,
+  referralCode: signUpReferralCodeSchema,
+  marketingOptIn: signUpMarketingOptInSchema,
 });
 
 export const signInPhoneSchema = z.object({

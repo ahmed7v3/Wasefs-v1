@@ -2,16 +2,25 @@ import { ERROR_CODES, ERROR_INFO, type ErrorCode } from "../errors/codes.js";
 
 import { arAdminAi } from "./ar.admin-ai.js";
 import { arAdminBilling } from "./ar.admin-billing.js";
+import { arAdminConsole } from "./ar.admin-console.js";
 import { arAdminDrugs } from "./ar.admin-drugs.js";
 import { arAdminEvals } from "./ar.admin-evals.js";
 import { arAdminGateways } from "./ar.admin-gateways.js";
+import { arAdminGrowth } from "./ar.admin-growth.js";
 import { arAdminRevenue } from "./ar.admin-revenue.js";
 import { arAdmin } from "./ar.admin.js";
 import { arBilling } from "./ar.billing.js";
 import { arCapture } from "./ar.capture.js";
 import { arChat } from "./ar.chat.js";
 import { arDashboard } from "./ar.dashboard.js";
+import { arGrowthConsole } from "./ar.growth-console.js";
+import { arGrowth } from "./ar.growth.js";
+import { arOrg } from "./ar.org.js";
+import { arReferralsWeb } from "./ar.referrals-web.js";
+import { arRewards } from "./ar.rewards.js";
 import { arRx } from "./ar.rx.js";
+import { arWithdrawWeb } from "./ar.withdraw-web.js";
+import { arWithdrawals } from "./ar.withdrawals.js";
 
 type ErrorMessageKey = `error.${ErrorCode}`;
 
@@ -573,10 +582,19 @@ export const ar = {
   ...arAdminAi,
   ...arAdminBilling,
   ...arAdminGateways,
+  ...arAdminGrowth,
+  ...arAdminConsole,
   ...arAdminRevenue,
   ...arAdminDrugs,
   ...arAdminEvals,
   ...arRx,
+  ...arRewards,
+  ...arReferralsWeb,
+  ...arOrg,
+  ...arWithdrawals,
+  ...arWithdrawWeb,
+  ...arGrowth,
+  ...arGrowthConsole,
   ...arCapture,
   ...arChat,
   ...arDashboard,

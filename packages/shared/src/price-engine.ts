@@ -38,6 +38,8 @@ export interface DiscountDef {
 
 export interface DealTerms {
   id: string;
+  /** Shown to the customer as the discount line's name (the engine's math never reads it). */
+  name?: string | undefined;
   pricing:
     { mode: "fixed"; amountMinor: number; currency: string } | { mode: "percent_off"; bps: number };
   stackWithPromotions: boolean;
@@ -312,7 +314,7 @@ export function quote(input: QuoteInput): QuoteResult {
         kind: "discount",
         labelKey: "billing.line.deal",
         amountMinor: -(listMinor - dealPrice),
-        meta: { dealId: deal.id },
+        meta: deal.name ? { dealId: deal.id, name: deal.name } : { dealId: deal.id },
       });
     }
   }

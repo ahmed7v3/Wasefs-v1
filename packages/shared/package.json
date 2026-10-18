@@ -140,6 +140,16 @@
       "import": "./dist/rewards.js",
       "default": "./dist/rewards.js"
     },
+    "./withdrawals": {
+      "types": "./dist/withdrawals.d.ts",
+      "import": "./dist/withdrawals.js",
+      "default": "./dist/withdrawals.js"
+    },
+    "./schemas/withdrawals": {
+      "types": "./dist/schemas/withdrawals.d.ts",
+      "import": "./dist/schemas/withdrawals.js",
+      "default": "./dist/schemas/withdrawals.js"
+    },
     "./growth": {
       "types": "./dist/growth.d.ts",
       "import": "./dist/growth.js",
@@ -265,6 +275,11 @@
       "import": "./dist/schemas/admin-billing-console.js",
       "default": "./dist/schemas/admin-billing-console.js"
     },
+    "./schemas/admin-user-360": {
+      "types": "./dist/schemas/admin-user-360.d.ts",
+      "import": "./dist/schemas/admin-user-360.js",
+      "default": "./dist/schemas/admin-user-360.js"
+    },
     "./schemas/wa-alert": {
       "types": "./dist/schemas/wa-alert.d.ts",
       "import": "./dist/schemas/wa-alert.js",
@@ -324,6 +339,16 @@
       "types": "./dist/schemas/plans.d.ts",
       "import": "./dist/schemas/plans.js",
       "default": "./dist/schemas/plans.js"
+    },
+    "./schemas/admin-growth": {
+      "types": "./dist/schemas/admin-growth.d.ts",
+      "import": "./dist/schemas/admin-growth.js",
+      "default": "./dist/schemas/admin-growth.js"
+    },
+    "./reward-sentence": {
+      "types": "./dist/reward-sentence.d.ts",
+      "import": "./dist/reward-sentence.js",
+      "default": "./dist/reward-sentence.js"
     }
   },
   "files": [

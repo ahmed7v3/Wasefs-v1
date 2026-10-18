@@ -19,6 +19,7 @@ import {
 } from "../billing.js";
 import { PLAN_AUDIENCES, PLAN_KEY_PATTERN } from "../plans.js";
 import { QUOTE_ERROR_CODES } from "../price-engine.js";
+import { DEAL_TARGET_KINDS } from "../rewards.js";
 
 /*
  * Billing contract (Phase 3, Task 3.1). The client never sends a price: a quote request names the
@@ -48,11 +49,14 @@ export const planQuoteRequestSchema = z.object({
   months: monthsSchema,
   couponCode: couponCodeSchema.optional(),
   methodKey: paymentMethodKeySchema.optional(),
+  /** Buy for this organization (the caller must be its org_admin); the quote is then owned by the org. */
+  orgId: z.uuid().optional(),
 });
 /** `POST /billing/quote` for a credit pack: no promotions, coupons or proration apply to packs. */
 export const packQuoteRequestSchema = z.strictObject({
   packKey: z.string().regex(BILLING_KEY_PATTERN),
   methodKey: paymentMethodKeySchema.optional(),
+  orgId: z.uuid().optional(),
 });
 export const quoteRequestSchema = z.union([packQuoteRequestSchema, planQuoteRequestSchema]);
 export type PlanQuoteRequest = z.output<typeof planQuoteRequestSchema>;
@@ -263,6 +267,8 @@ export const couponCheckSchema = z.object({
 });
 export const simulateBillingSchema = z.object({
   userId: z.uuid().optional(),
+  /** Price an organization purchase (deals of the organization apply). */
+  orgId: z.uuid().optional(),
   planKey: z.string().max(40).regex(PLAN_KEY_PATTERN),
   months: z.union([z.literal(1), z.literal(3), z.literal(6), z.literal(12)]),
   couponCode: couponCodeSchema.optional(),
@@ -504,11 +510,35 @@ export const quoteResponseSchema = z.object({
 });
 export type QuoteResponse = z.output<typeof quoteResponseSchema>;
 
+/** An i18n key with its params: the client renders it in the admin's language. */
+export const dealExplanationSchema = z.object({
+  key: z.string(),
+  params: z.record(z.string(), z.union([z.string(), z.number()])),
+});
+export type DealExplanation = z.output<typeof dealExplanationSchema>;
+
+export const dealCandidateViewSchema = z.object({
+  dealId: z.uuid(),
+  name: z.string(),
+  kind: z.enum(DEAL_TARGET_KINDS),
+  chosen: z.boolean(),
+  reason: dealExplanationSchema,
+});
+
+/** What the simulators say about the deal engine: who won, why, and why the others did not. */
+export const dealSimulationSchema = z.object({
+  chosen: z.object({ id: z.uuid(), name: z.string(), kind: z.enum(DEAL_TARGET_KINDS) }).nullable(),
+  chosenBecause: dealExplanationSchema.nullable(),
+  candidates: z.array(dealCandidateViewSchema),
+});
+export type DealSimulation = z.output<typeof dealSimulationSchema>;
+
 /** `POST /admin/billing/simulate` (Task 3.6): the engine quote for an admin, with why each discount won or lost. */
 export const simulateBillingResponseSchema = z.object({
   quote: priceQuoteSchema.nullable(),
   error: z.enum(QUOTE_ERROR_CODES).nullable(),
   coupon: couponOutcomeSchema.nullable(),
+  deal: dealSimulationSchema,
   candidates: z.array(
     z.object({
       id: z.uuid(),
@@ -529,6 +559,8 @@ export const createOrderSchema = z.strictObject({
   quoteId: z.uuid(),
   methodKey: paymentMethodKeySchema.optional(),
   locale: z.enum(["ar", "en"]).default("ar"),
+  /** Must match the organization the quote was made for (absent = a personal quote). */
+  orgId: z.uuid().optional(),
 });
 export type CreateOrderInput = z.output<typeof createOrderSchema>;
 

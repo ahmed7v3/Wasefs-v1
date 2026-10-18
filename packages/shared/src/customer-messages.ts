@@ -18,6 +18,12 @@ export const CUSTOMER_MESSAGE_KINDS = [
   "payment_resubmit",
   "order_refunded",
   "offer",
+  "withdrawal_requested",
+  "withdrawal_approved",
+  "withdrawal_rejected",
+  "withdrawal_paid",
+  "withdrawal_canceled",
+  "payout_destination_added",
 ] as const;
 export type CustomerMessageKind = (typeof CUSTOMER_MESSAGE_KINDS)[number];
 

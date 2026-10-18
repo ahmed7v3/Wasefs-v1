@@ -112,6 +112,17 @@ export const QUEUE_REGISTRY = {
     "subscriptions.lifecycle": paymentsMaintenancePayloadSchema,
     "subscriptions.backfill": paymentsMaintenancePayloadSchema,
     "promotions.status": paymentsMaintenancePayloadSchema,
+    // Rewards (Task 3.11): hourly release of pending points, nightly check of wallets against the ledger.
+    "rewards.release": paymentsMaintenancePayloadSchema,
+    "rewards.reconcile": paymentsMaintenancePayloadSchema,
+    // Deals (Task 3.10): the monthly bonus credits of active organization deals, daily at 04:20 UTC.
+    "deals.monthly_bonus": paymentsMaintenancePayloadSchema,
+    // Conversion engine (Task 3.14): offers, lifecycle mail and taste credits hourly; retention nightly.
+    "growth.lifecycle": paymentsMaintenancePayloadSchema,
+    "growth.retention": paymentsMaintenancePayloadSchema,
+    // Withdrawals (Task 3.12): overdue reminders every 30 minutes, nightly paid-out vs ledger check.
+    "withdrawals.overdue": paymentsMaintenancePayloadSchema,
+    "withdrawals.reconcile": paymentsMaintenancePayloadSchema,
   },
   /** Accuracy evaluation (Phase 2, Task 2.10): label-set imports and eval runs; no credits, no users. */
   evals: {

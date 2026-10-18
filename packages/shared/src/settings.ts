@@ -253,6 +253,8 @@ export const billingSettingsSchema = z.object({
   maxTotalDiscountBps: bps.default(7_000),
   /** Manual payments at or above this need a second admin. */
   fourEyesThresholdMinor: nonNegativeInt.default(500_000),
+  /** An admin plan change whose list price reaches this (default currency) needs a fresh sign-in. */
+  adminPlanChangeFreshAuthMinor: nonNegativeInt.default(50_000),
   reviewSlaMinutes: z.number().int().min(1).max(10_080).default(120),
   failureSpike: z
     .object({
@@ -299,6 +301,11 @@ export const billingSettingsSchema = z.object({
 export const rewardsSettingsSchema = z.object({
   enabled: z.boolean().default(false),
   killSwitch: z.boolean().default(false),
+  /**
+   * Real cash payouts. Off until the owner has settled the legal treatment of paying individuals with
+   * an accountant (phase3.md, Open question 2); points can still be earned and converted to credits.
+   */
+  cashOutEnabled: z.boolean().default(false),
   /** Piasters per point: 10 means 1,000 points = 100 EGP. */
   pointValueMinor: z.number().int().min(1).max(1_000_000).default(10),
   currency: currencyCode.default("EGP"),
@@ -330,33 +337,52 @@ export const rewardsSettingsSchema = z.object({
     }),
   payoutSlaHours: z.number().int().min(1).max(720).default(48),
   tiersEnabled: z.boolean().default(false),
+  /** The referred person's private first-purchase coupon (REFERRALS §3.3); 0 turns the coupon off. */
+  refereeFirstPaymentDiscountBps: bps.default(1_000),
+  refereeCouponValidDays: z.number().int().min(1).max(365).default(30),
 });
 
 /** Conversion prompts, taste grants, lifecycle mail and experiments (Phase 3, GROWTH-STRATEGY §9). Admin only. */
 export const growthSettingsSchema = z.object({
+  /** Stops prompts, tastes, personal offers and lifecycle mail at once. */
+  killSwitch: z.boolean().default(false),
   prompts: z
     .object({
       enabled: z.boolean().default(true),
       cooldownDays: z.number().int().min(0).max(365).default(7),
+      /** The doubling cooldown after repeated dismissals never goes beyond this (GROWTH §2.6). */
+      maxCooldownDays: z.number().int().min(1).max(365).default(60),
       maxPerSession: z.number().int().min(0).max(10).default(1),
     })
-    .default({ enabled: true, cooldownDays: 7, maxPerSession: 1 }),
+    .default({ enabled: true, cooldownDays: 7, maxCooldownDays: 60, maxPerSession: 1 }),
   taste: z
     .object({
       enabled: z.boolean().default(true),
       /** Global cap of free premium uses per week (cost control). */
       weeklyCap: z.number().int().min(0).max(1_000_000).default(100),
+      perUserPerWeek: z.number().int().min(0).max(7).default(1),
+      /** Global cap of the credits the week's tastes may cost (the credits of the taste analyses). */
+      weeklyBudgetCredits: z.number().int().min(0).max(100_000_000).default(2_000),
     })
-    .default({ enabled: true, weeklyCap: 100 }),
+    .default({ enabled: true, weeklyCap: 100, perUserPerWeek: 1, weeklyBudgetCredits: 2_000 }),
   proof: z
-    .object({ minCount: z.number().int().min(0).max(1_000_000).default(50) })
-    .default({ minCount: 50 }),
+    .object({ minCount: z.number().int().min(0).max(1_000_000).default(500) })
+    .default({ minCount: 500 }),
   mostChosen: z
     .object({ minSample: z.number().int().min(1).max(1_000_000).default(50) })
     .default({ minSample: 50 }),
+  /** The value ledger's time estimate; always shown as an estimate. */
+  value: z
+    .object({ minutesSavedPerAnalysis: z.number().int().min(0).max(240).default(10) })
+    .default({ minutesSavedPerAnalysis: 10 }),
+  lifecycle: z.object({ enabled: z.boolean().default(true) }).default({ enabled: true }),
   marketingMail: z
-    .object({ maxPerWeek: z.number().int().min(0).max(14).default(1) })
-    .default({ maxPerWeek: 1 }),
+    .object({
+      maxPerWeek: z.number().int().min(0).max(14).default(1),
+      /** No marketing mail this long after sign-up (GROWTH §6: never in the first 24 hours). */
+      quietHoursAfterSignup: z.number().int().min(0).max(720).default(24),
+    })
+    .default({ maxPerWeek: 1, quietHoursAfterSignup: 24 }),
   experiments: z
     .object({
       /** A variant that worsens a guardrail metric by more than this is flagged red. */

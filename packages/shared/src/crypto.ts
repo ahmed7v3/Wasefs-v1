@@ -1,4 +1,11 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  createHmac,
+  randomBytes,
+  timingSafeEqual,
+} from "node:crypto";
 
 const ALGORITHM = "aes-256-gcm";
 const VERSION = "v2";
@@ -104,4 +111,34 @@ export function decodeEncryptionKey(base64: string): Buffer {
   const key = Buffer.from(base64, "base64");
   assertKey(key);
   return key;
+}
+
+// --- Unsubscribe tokens (Phase 3, Task 3.14) ------------------------------------------------------------
+
+const UNSUBSCRIBE_PURPOSE = "marketing_unsubscribe";
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+function unsubscribeSignature(userId: string, key: Buffer): string {
+  assertKey(key);
+  return createHmac("sha256", key)
+    .update(`${UNSUBSCRIBE_PURPOSE}:${userId}`)
+    .digest("base64url");
+}
+
+/**
+ * The link token of a marketing mail: the user id and an HMAC over `purpose:userId`. It has no expiry
+ * on purpose (an old mail must still unsubscribe), and it can do one thing only: turn marketing off.
+ */
+export function signUnsubscribeToken(userId: string, key: Buffer): string {
+  return `${userId}.${unsubscribeSignature(userId, key)}`;
+}
+
+/** The user id a valid unsubscribe token names, or `null` for anything else. */
+export function verifyUnsubscribeToken(token: string, key: Buffer): string | null {
+  const [userId, signature, ...rest] = token.split(".");
+  if (userId === undefined || signature === undefined || rest.length > 0) return null;
+  if (!UUID_PATTERN.test(userId)) return null;
+  const expected = Buffer.from(unsubscribeSignature(userId, key));
+  const given = Buffer.from(signature);
+  return given.length === expected.length && timingSafeEqual(given, expected) ? userId : null;
 }
