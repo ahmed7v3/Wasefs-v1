@@ -363,3 +363,15 @@ Not added yet, on purpose: a trigram index for admin user search by name/email/p
 ### Customer notification preferences (migration 0016)
 
 `notification_prefs` (one row per user, absent = defaults): `whatsapp_opted_out_at` and `whatsapp_opted_out_via` (`whatsapp` for a STOP sent to our number, `account` for the switch on the account page), both null or both set (CHECK). `wasfa_api` may SELECT, INSERT and UPDATE. Deleted with the user (cascade); an anonymized account loses its phone, so it is never messaged anyway. Whether WhatsApp is possible at all comes from `users.phone_verified_at`.
+
+### Organisation wallets and join links (migration 0017, Task 3.9)
+
+`organization_members.status` (`active` | `pending`, default `active`, CHECK): a `requires_approval` join link creates a `pending` membership that grants nothing; every membership read (RBAC, onboarding, users, admin, worker) filters `status = 'active'`. `credit_reservations.member_user_id` (FK users, set null) names the member an organization-wallet hold is for, so the per-member monthly cap (`organization_member_limits`) counts settled debits (`credit_ledger.actor_id` = member) plus the member's open holds under the wallet's row lock; a partial index `credit_reservations_member_open_idx` serves that sum. `contact_messages.topic` adds `institution_lead` (the «اطلب عرضًا خاصًا» form, which also opens a draft deal).
+
+### Marketing consent, lifecycle mail and taste accounting (migration 0018, Task 3.14)
+
+`notification_prefs` adds `marketing_opted_in_at`, `marketing_opted_out_at`, `marketing_opted_out_via` (`unsubscribe_link` | `one_click` | `account` | `admin`; set together with `opted_out_at`, CHECK) and `marketing_silenced_until`. Consent = an opt-in that no later opt-out withdrew; existing users have none, so they receive no lifecycle mail. A refund silences marketing for 30 days and the expiry + 30 last call for 90 days.
+
+`growth_mail_log` (user, kind, period_key, sent_at): one row per lifecycle mail, unique `(user_id, kind, period_key)` makes each mail at-most-once; the weekly cap counts rows of the last 7 days. `wasfa_api` may SELECT, INSERT and DELETE (retention), never UPDATE. Retention 13 months, together with `growth_events` (worker job `growth.retention`, nightly 04:40 UTC). Deleted with the user (cascade).
+
+`taste_grants` adds `source_analysis_id` and `analysis_id` (FK rx_analyses, set null) and `credits`: the free Deep try grants exactly the analysis' price (credit ledger `trial_grant`, key `taste:<grantId>`), the analysis then reserves and settles normally, and the unused part is taken back (`expiry`, key `taste:<grantId>:expire`).

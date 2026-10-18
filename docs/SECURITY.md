@@ -41,7 +41,19 @@ Phase 0 rows come from ARCHITECTURE.md §8. Rows marked **P1** are the identity 
 | WhatsApp number ban **P1** | The anti-ban rules in §8; kill switch `auth.phoneVerification = disabled`; verification degrades to email, so a ban is an inconvenience, not an outage | Task 1.5 |
 | Email abuse and cost **P1** | Turnstile and rate limits on every endpoint that triggers mail (register, reset, invites, phone start); daily cap guard under Brevo's 300/day with an alert at 80 %; per-organization pending-invite cap; no mail to unverified third parties beyond the verification mail itself | Task 1.3 / 1.4 / 1.7 |
 | Denial-of-wallet (AI cost) **P2** | Credits are reserved before every provider call and settled after (append-only ledger, wallet row lock, idempotency keys); per-plan daily caps and one running analysis and one chat stream per user (Redis); a global daily USD cap with an alert at `ai.alertPercent` and `ai_paused` refusal at 100 %; kill switch per task or global (`ai.killswitch`, fresh auth); a fixed price per page and `maxOutputTokens` on every route; the browser quality gate and the exact-hash cache (a re-upload costs no provider call); route changes need fresh auth; every provider call writes an `ai_usage` row. If Redis is down the spend guard and breaker fail open (AI keeps working, the cap is not enforced): the ledger and plan checks still bound each user | **Done** (Tasks 2.2-2.4, 2.8, 2.11) |
-| Payment fraud | Server-side pricing, signed idempotent webhooks (Phase 3) | Phase 3 |
+| Price tampering **P3** | The client sends only ids and intent; one pure price engine prices on the server; a quote is stored in Redis for 15 min with an HMAC over user, organisation, target and quote, claimed atomically once, and re-verified when the order is created; a payment must equal the order total | **Done** (Tasks 3.2, 3.3) |
+| Webhook forgery / replay **P3** | Signature verified before parsing; unique provider event id; a bad signature answers 401 and is recorded; a webhook never activates without the provider's status call agreeing on amount and currency; the return page only reads | **Done** (Task 3.3); Kashier webhook body still to verify against a live test payment |
+| Double activation **P3** | Order → payment → subscription → wallet row locks; activation idempotent per order (event carrying `orderId`); 10 duplicate webhooks ⇒ 1 activation (tested); a second success on a paid order is alerted for a manual refund | **Done** |
+| Coupon brute force and races **P3** | `POST /billing/coupons/check` 10/min per user and 30/min per IP, one generic answer for every refusal; redemptions reserved under lock with a unique `(coupon, order)`; 100 parallel redemptions of a 10-use coupon ⇒ exactly 10 (tested) | **Done** (Task 3.6) |
+| Manual-payment fraud (reused or forged proofs) **P3** | Transaction id unique per method; SHA-256 and dHash comparison against every earlier proof (flags, critical alert); at most 3 submissions; always human-approved; four-eyes above the threshold; nobody reviews their own payment | **Done** (Task 3.4) |
+| Payout fraud **P3** | Withdrawals only from the `cash` bucket, under the wallet lock (20 parallel requests never exceed it); destinations sealed, hashed and unique across accounts (a second account is refused and alerted); 48 h cooldown and a notice for a new destination; first withdrawal flagged; four-eyes above `rewards.fourEyesThresholdPoints`; reveal audited; transfer reference unique; cash-out off until the accountant answers | **Done** (Task 3.12) |
+| Referral farming **P3** | Rewards only after email and phone verification and a first analysis; sign-up rewards are credit-only; same phone, payer number or device ⇒ held; velocity rule holds and alerts; weekly budget; hold before release; reversal on refund with a debt; kill switch | **Done** (Task 3.11) |
+| Account takeover then withdrawal **P3** | Fresh sign-in (and 2FA where enabled) to request; new-destination cooldown and notice; reward and withdrawal notices by mail and in-app; manual review | **Done** |
+| Admin collusion **P3** | Four-eyes on large manual payments and withdrawals with two different admins; no one acts on their own payment, request or account; every money action needs a reason and fresh auth and is audited; account-number changes need TOTP, wait 10 min and can be cancelled by another admin | **Done** |
+| PHI access by staff **P3** | `users.read_health` / `users.read_chats` (not granted to support by default); a reasoned 30-minute access session of the same admin for the same user; a `phi.view` audit row per open; metadata-only lists (no drug names, no chat titles); `no-store`; no export route | **Done** (Task 3.15) |
+| Alert-channel leakage **P3** | Alert text redacted on write (phones masked, private file links removed); no proof image or full phone in any alert; WhatsApp alerts off by default, opt-in from a verified phone, capped, no links | **Done** (Task 3.4) |
+| Gateway key theft **P3** | Keys entered in the admin, sealed with AES-256-GCM, write-only and masked; a credential or mode change disables the gateway, alerts and needs a new verification payment | **Done** (Task 3.3) |
+| Marketing without consent **P3** | Stored explicit opt-in (never pre-checked); signed one-click unsubscribe; weekly cap; silences after a refund and the last call; email only | **Done** (Task 3.14) |
 | IDOR / data mixing | `scopedRepo` for every query on user-owned data; ownership checks in services; a wrong-owner integration test for every endpoint | Task 1.6 / 1.7 |
 | Injection (SQL / XSS / SSRF) | Drizzle parameterized queries only (a CHECK may inline **constants** from our own code, never input); strict nonce CSP; Markdown through a sanitizer; no user-controlled outbound URLs; `next` redirect targets are same-origin relative paths only | Done / Task 1.9 |
 | Open redirect **P1** | `?next=` accepts only a relative path starting with a single `/`; anything else falls back to `/dashboard` | **Done** in the api (Task 1.3, tested); web side Task 1.9 |
@@ -465,3 +477,149 @@ Open security items from Phase 0 and design decisions. Each has an owner task; n
 | `GET /admin/billing/credit-packs`, `POST /credit-packs`, `PATCH /credit-packs/:id`, `PUT /credit-packs/:id/prices` | Cookie + MFA session; `billing.read` for reads, `billing.write` for writes | Shared key and integer price schemas; deactivation replaces deletion; price writes require fresh auth ≤10 min | Writes audited; no delete route |
 | `GET /admin/billing/methods`, `PATCH /methods/:key` | Cookie + MFA session; `billing.read` / `billing.write`; patch requires fresh auth ≤10 min | Account destination masked on reads and excluded from PATCH schema; gateway methods require enabled, verified gateway; 20/min write | Before/after only changed public fields; audited |
 | `GET /admin/billing/tax-rules`, `POST /tax-rules`, `PATCH /tax-rules/:id` | Cookie + MFA session; `billing.read` / `billing.write`; writes require fresh auth ≤10 min | Shared tax schema; one active rule per country/default; replacement deactivates the previous rule in the same transaction | Writes audited |
+
+### Task 3.9 endpoint register (organisations)
+
+| Route | Authentication / permission | Boundary and protections | Audit / status |
+| --- | --- | --- | --- |
+| `GET /me/credits` | Cookie session | Shared query (`meCreditsQuerySchema`); 60/min | Read only |
+| `GET /orgs/:id/join-links` | Cookie session | `idParamSchema` param; 60/min | Read only |
+| `POST /orgs/:id/join-links` | Cookie session | `idParamSchema` param; shared body (`createJoinLinkSchema`); 20/min | `org.join_link_create` audit row |
+| `POST /orgs/:id/join-links/:linkId/disable` | Cookie session | `orgLinkParamsSchema` param; 20/min | `org.join_link_disable` audit row |
+| `POST /orgs/:id/members/:userId/approve` | Cookie session | `orgMemberParamsSchema` param; 30/min | `org.member_approve` audit row |
+| `POST /orgs/:id/members/:userId/reject` | Cookie session | `orgMemberParamsSchema` param; 30/min; answers 204 | `org.member_reject` audit row |
+| `GET /join/:slug` | Public | `joinSlugParamSchema` param; 60/min | Read only |
+| `POST /join/:slug/accept` | Cookie session | `joinSlugParamSchema` param; 10/min | `org.join_accept` audit row |
+| `GET /admin/orgs/:id/join-links` | Cookie + MFA session, `orgs.read` | `idParamSchema` param; 120/min | Read only |
+| `POST /admin/orgs/:id/join-links` | Cookie + MFA session, `orgs.write` | `idParamSchema` param; shared body (`createJoinLinkSchema`); 60/min | `admin.org.join_link_create` audit row |
+| `POST /admin/orgs/:id/join-links/:linkId/disable` | Cookie + MFA session, `orgs.write` | `orgLinkParamsSchema` param; 60/min | `admin.org.join_link_disable` audit row |
+| `GET /orgs/:id/dashboard` | Cookie session | `idParamSchema` param; 60/min | Read only |
+| `GET /orgs/:id/usage.csv` | Cookie session | `idParamSchema` param; `orgUsageQuerySchema` query; 10/min; `no-store` (`@Header`); CSV attachment | Read only |
+| `PUT /orgs/:id/members/:userId/limit` | Cookie session | `orgMemberParamsSchema` param; `memberLimitSchema` body; 30/min | `org.member_limit_set` audit row |
+| `GET /orgs/:id/subscription` | Cookie session, `org_admin` role via `orgs.authorize` | `idParamSchema` param; 60/min | Read only |
+| `GET /orgs/:id/orders` | Cookie session, `org_admin` role via `orgs.authorize` | `idParamSchema` param; `myOrdersQuerySchema` query; 60/min | Read only |
+| `GET /orgs/:id/orders/:orderId/receipt` | Cookie session, `org_admin` role via `orgs.authorize` | `orgOrderParamsSchema` param; 60/min | Read only |
+| `POST /institutions/leads` | Public | `institutionLeadSchema` body; `x-turnstile-token` header; 10/min | See service |
+
+### Task 3.11 endpoint register (referrals and rewards)
+
+| Route | Authentication / permission | Boundary and protections | Audit / status |
+| --- | --- | --- | --- |
+| `GET /me/referral` | Cookie session | No input; 60/min | Read only |
+| `PATCH /me/referral` | Cookie session | `updateReferralCodeSchema` body; 10/hour | See service |
+| `GET /r/:code` | Public | Raw `code` path param; 60/min; `no-store` (reply header); sets first-party cookie and 302 redirect | Read only |
+| `GET /me/rewards` | Cookie session | No input; 60/min | Read only |
+| `GET /me/rewards/activity` | Cookie session | `meRewardsActivityQuerySchema` query; 60/min | Read only |
+| `GET /me/rewards/convert/preview` | Cookie session | `convertPreviewQuerySchema` query; 60/min | Read only |
+| `POST /me/rewards/convert` | Cookie session | `convertPointsSchema` body; 10/hour | See service |
+
+### Task 3.12 endpoint register (withdrawals)
+
+| Route | Authentication / permission | Boundary and protections | Audit / status |
+| --- | --- | --- | --- |
+| `GET /me/payout-destinations` | Cookie session | No input; 60/min; values sealed, masked text only | Read only |
+| `POST /me/payout-destinations` | Cookie session | `payoutDestinationInputSchema` body; 20/hour | See service |
+| `DELETE /me/payout-destinations/:id` | Cookie session | `adminWithdrawalIdSchema` param; 20/hour; answers 204 | See service |
+| `GET /me/withdrawals/eligibility` | Cookie session | No input; 60/min | Read only |
+| `GET /me/withdrawals` | Cookie session | No input; 60/min | Read only |
+| `POST /me/withdrawals` | Cookie session, fresh auth ≤10 min | `withdrawalRequestSchema` body; 20/hour | See service |
+| `POST /me/withdrawals/:id/cancel` | Cookie session | `adminWithdrawalIdSchema` param; 20/hour | See service |
+| `GET /admin/growth/withdrawals` | Cookie + MFA session, `withdrawals.review` | `adminWithdrawalListQuerySchema` query; 60/min | Read only |
+| `GET /admin/growth/withdrawals/export.csv` | Cookie + MFA session, `finance.export` | `withdrawalExportQuerySchema` query; 10/min; `no-store` (`@Header`); CSV attachment | `withdrawal.export` audit row |
+| `GET /admin/growth/withdrawals/:id` | Cookie + MFA session, `withdrawals.review` | `adminWithdrawalIdSchema` param; 60/min | `withdrawal.opened` audit row |
+| `POST /admin/growth/withdrawals/:id/claim` | Cookie + MFA session, `withdrawals.review` | `adminWithdrawalIdSchema` param; 30/min | `withdrawal.claimed` audit row |
+| `POST /admin/growth/withdrawals/:id/approve` | Cookie + MFA session, `withdrawals.review`, fresh auth ≤10 min | `adminWithdrawalIdSchema` param; `approveWithdrawalSchema` body; 10/min | `withdrawal.approved` audit row |
+| `POST /admin/growth/withdrawals/:id/reject` | Cookie + MFA session, `withdrawals.review`, fresh auth ≤10 min | `adminWithdrawalIdSchema` param; `rejectWithdrawalSchema` body; 10/min | `withdrawal.rejected` audit row |
+| `POST /admin/growth/withdrawals/:id/reveal` | Cookie + MFA session, `withdrawals.pay`, fresh auth ≤10 min | `adminWithdrawalIdSchema` param; `revealDestinationSchema` body; 10/min | `withdrawal.destination_revealed` audit row |
+| `POST /admin/growth/withdrawals/:id/mark-paid` | Cookie + MFA session, `withdrawals.pay`, fresh auth ≤10 min | `adminWithdrawalIdSchema` param; `markWithdrawalPaidSchema` body; 10/min | `withdrawal.paid` audit row |
+
+### Task 3.10 and 3.13 endpoint register (deals and growth console)
+
+| Route | Authentication / permission | Boundary and protections | Audit / status |
+| --- | --- | --- | --- |
+| `GET /admin/growth/deals` | Cookie + MFA session, `referrals.read` | `dealListQuerySchema` query; 120/min | Read only |
+| `POST /admin/growth/deals/simulate` | Cookie + MFA session, `referrals.read` | `simulateDealSchema` body; market resolved from request headers and currency setting; 30/min | See service |
+| `GET /admin/growth/deals/:id` | Cookie + MFA session, `referrals.read` | `dealIdParamSchema` param; 120/min | Read only |
+| `POST /admin/growth/deals` | Cookie + MFA session, `deals.write` | `createDealSchema` body; 30/min | `deal.created` audit row |
+| `PATCH /admin/growth/deals/:id` | Cookie + MFA session, `deals.write` | `dealIdParamSchema` param; `updateDealSchema` body; 30/min | `deal.updated` audit row |
+| `POST /admin/growth/deals/:id/activate` | Cookie + MFA session, `deals.write`, fresh auth ≤10 min | `dealIdParamSchema` param; 30/min | `deal.activated` audit row |
+| `POST /admin/growth/deals/:id/pause` | Cookie + MFA session, `deals.write` | `dealIdParamSchema` param; 30/min | `deal.paused` audit row |
+| `POST /admin/growth/deals/:id/end` | Cookie + MFA session, `deals.write` | `dealIdParamSchema` param; 30/min | `deal.ended` audit row |
+| `POST /admin/growth/deals/:id/targets` | Cookie + MFA session, `deals.write` | `dealIdParamSchema` param; body parsed with `dealTargetInputSchema`; 30/min | `deal.target_added` audit row |
+| `DELETE /admin/growth/deals/:id/targets/:targetId` | Cookie + MFA session, `deals.write` | `dealTargetParamSchema` param; 30/min; answers 204 | `deal.target_removed` audit row |
+| `GET /admin/growth/fraud` | Cookie + MFA session, `referrals.read` | `fraudListQuerySchema` query; 120/min | Read only |
+| `POST /admin/growth/fraud/bulk` | Cookie + MFA session, `referrals.write`, fresh auth ≤10 min | `bulkFraudSchema` body; 10/min | `referral.fraud_bulk` audit row |
+| `GET /admin/growth/codes` | Cookie + MFA session, `referrals.read` | `codeListQuerySchema` query; 120/min | Read only |
+| `POST /admin/growth/codes` | Cookie + MFA session, `referrals.write` | `createCodeSchema` body; 30/min | `referral_code.created` audit row |
+| `POST /admin/growth/codes/:id/pause` | Cookie + MFA session, `referrals.write` | `growthIdParamSchema` param; `reasonBodySchema` body; 30/min | `referral_code.paused` audit row |
+| `POST /admin/growth/codes/:id/resume` | Cookie + MFA session, `referrals.write` | `growthIdParamSchema` param; `reasonBodySchema` body; 30/min | `referral_code.resumed` audit row |
+| `GET /admin/growth/referrals/overview` | Cookie + MFA session, `referrals.read` | `referralOverviewQuerySchema` query; 30/min | Read only |
+| `GET /admin/growth/referrals/tree` | Cookie + MFA session, `referrals.read` | `referralTreeQuerySchema` query; 60/min | Read only |
+| `GET /admin/growth/referrals/tree.csv` | Cookie + MFA session, `finance.export` | `referralTreeQuerySchema` query; 10/min; `no-store` (`@Header`); CSV attachment | `referral.tree_export` audit row |
+| `GET /admin/growth/programs` | Cookie + MFA session, `referrals.read` | No input; 120/min | Read only |
+| `POST /admin/growth/programs` | Cookie + MFA session, `referrals.write` | `createProgramSchema` body; 30/min | `referral_program.created` audit row |
+| `PATCH /admin/growth/programs/:id` | Cookie + MFA session, `referrals.write`, fresh auth ≤10 min | `growthIdParamSchema` param; `updateProgramSchema` body; 30/min | `referral_program.updated` audit row |
+| `POST /admin/growth/programs/:id/members` | Cookie + MFA session, `referrals.write`, fresh auth ≤10 min | `growthIdParamSchema` param; `moveMemberSchema` body; 30/min | `referral_program.member_moved` audit row |
+| `GET /admin/growth/programs/:id/rules` | Cookie + MFA session, `referrals.read` | `growthIdParamSchema` param; 120/min | Read only |
+| `POST /admin/growth/programs/:id/rules` | Cookie + MFA session, `referrals.write`, fresh auth ≤10 min | `growthIdParamSchema` param; `createRuleSchema` body; 30/min | `reward_rule.created` audit row |
+| `POST /admin/growth/rules/what-if` | Cookie + MFA session, `referrals.read` | `whatIfSchema` body; 60/min | See service |
+| `PATCH /admin/growth/rules/:id` | Cookie + MFA session, `referrals.write`, fresh auth ≤10 min | `growthIdParamSchema` param; `updateRuleSchema` body; 30/min | `reward_rule.updated` audit row |
+| `POST /admin/growth/rules/:id/deactivate` | Cookie + MFA session, `referrals.write`, fresh auth ≤10 min | `growthIdParamSchema` param; `reasonBodySchema` body; 30/min | `reward_rule.deactivated` audit row |
+| `GET /admin/growth/programs/:id/tiers` | Cookie + MFA session, `referrals.read` | `growthIdParamSchema` param; 120/min | Read only |
+| `POST /admin/growth/programs/:id/tiers` | Cookie + MFA session, `referrals.write`, fresh auth ≤10 min | `growthIdParamSchema` param; `createTierSchema` body; 30/min | `referral_tier.created` audit row |
+| `PATCH /admin/growth/tiers/:id` | Cookie + MFA session, `referrals.write`, fresh auth ≤10 min | `growthIdParamSchema` param; `updateTierSchema` body; 30/min | `referral_tier.updated` audit row |
+| `DELETE /admin/growth/tiers/:id` | Cookie + MFA session, `referrals.write`, fresh auth ≤10 min | `growthIdParamSchema` param; `deleteTierQuerySchema` query; 30/min; answers 204 | `referral_tier.deleted` audit row |
+| `GET /admin/growth/settings/rewards/preview` | Cookie + MFA session, `referrals.read` | No input; 60/min | Read only |
+
+### Task 3.14 endpoint register (conversion engine)
+
+| Route | Authentication / permission | Boundary and protections | Audit / status |
+| --- | --- | --- | --- |
+| `GET /me/growth/prompt` | Cookie session | `growthPromptQuerySchema` query; 120/min | Read only |
+| `POST /me/taste` | Cookie session | `startTasteSchema` body; 10/hour; verified free accounts only, once a week, global weekly credit budget, kill switch | `taste_grants` row + `trial_grant` ledger row; unused credits taken back |
+| `GET /me/taste/:grantId/compare` | Cookie session | `tasteGrantParamSchema` param; 60/min | Read only |
+| `GET /me/offers` | Cookie session | No input; 60/min | Read only |
+| `GET /me/value` | Cookie session | No input; 60/min | Read only |
+| `GET /me/experiments` | Cookie session | No input; 60/min | Read only |
+| `GET /public/proof` | Public | No input; 60/min | Read only |
+| `POST /growth/events` | Public; session attached if present | `growthEventsRequestSchema` body; 16 KB cap (`GROWTH_EVENTS_MAX_BODY_BYTES`); ≤ 20 events; 60/min; client-reportable names only, prompt events need a session, props that look personal drop the event, variants recomputed server-side | `growth_events` rows, no PHI |
+| `POST /unsubscribe` | Public; origin check skipped | `unsubscribeQuerySchema` token from query (one-click) or body; 20/min; HMAC token (subkey of `ENCRYPTION_KEY`) naming one user, can only turn marketing off; bad token `NOT_FOUND` | `notification_prefs` opt-out with its route |
+| `GET /admin/growth/experiments` | Cookie + MFA session, `referrals.read` | No input; 120/min | Read only |
+| `POST /admin/growth/experiments` | Cookie + MFA session, `promotions.write` | `createExperimentSchema` body; 30/min | `experiment.created` audit row |
+| `PATCH /admin/growth/experiments/:id` | Cookie + MFA session, `promotions.write` | `experimentIdParamSchema` param; `updateExperimentSchema` body; 30/min | `experiment.updated` audit row |
+| `POST /admin/growth/experiments/:id/start` | Cookie + MFA session, `promotions.write` | `experimentIdParamSchema` param; 30/min | `experiment.started` audit row |
+| `POST /admin/growth/experiments/:id/stop` | Cookie + MFA session, `promotions.write` | `experimentIdParamSchema` param; 30/min | `experiment.stopped` audit row |
+| `POST /admin/growth/experiments/:id/complete` | Cookie + MFA session, `promotions.write` | `experimentIdParamSchema` param; 30/min | `experiment.completed` audit row |
+| `GET /admin/growth/experiments/:id/results` | Cookie + MFA session, `referrals.read` | `experimentIdParamSchema` param; 60/min | Read only |
+| `GET /admin/growth/funnel` | Cookie + MFA session, `billing.read` | `growthFunnelQuerySchema` query; 60/min | Read only |
+
+### Task 3.15 endpoint register (user 360)
+
+| Route | Authentication / permission | Boundary and protections | Audit / status |
+| --- | --- | --- | --- |
+| `GET /admin/users/:id/summary` | Cookie + MFA session, `users.read` | `adminUserParamsSchema` param; 120/min | Read only |
+| `POST /admin/users/:id/reveal-contact` | Cookie + MFA session, `users.read` | `adminUserParamsSchema` param; `adminRevealContactSchema` body; 20/min; `no-store` (`NoStoreInterceptor`) | `user.contact_revealed` audit row |
+| `GET /admin/users/:id/timeline` | Cookie + MFA session, `users.read` | `adminUserParamsSchema` param; `adminUserPageQuerySchema` query; 120/min | Read only |
+| `GET /admin/users/:id/billing` | Cookie + MFA session, `billing.read` | `adminUserParamsSchema` param; `adminUserPageQuerySchema` query; 120/min | Read only |
+| `GET /admin/users/:id/credits` | Cookie + MFA session, all of `users.read`, `usage.read` | `adminUserParamsSchema` param; `adminUserPageQuerySchema` query; 120/min | Read only |
+| `GET /admin/users/:id/referrals` | Cookie + MFA session, `referrals.read` | `adminUserParamsSchema` param; `adminUserPageQuerySchema` query; 120/min | Read only |
+| `POST /admin/users/:id/coupon-grant` | Cookie + MFA session, `coupons.write` | `adminUserParamsSchema` param; `adminCouponGrantSchema` body; 30/min | See service |
+| `POST /admin/users/:id/personal-offer` | Cookie + MFA session, `promotions.write` | `adminUserParamsSchema` param; `adminPersonalOfferSchema` body; 30/min | See service |
+| `POST /admin/users/:id/points-adjust` | Cookie + MFA session, `rewards.adjust`, fresh auth ≤10 min | `adminUserParamsSchema` param; `adminPointsAdjustSchema` body; 20/min | See service |
+| `POST /admin/referrals/:referralId/release` | Cookie + MFA session, `referrals.write` | `adminReferralParamsSchema` param; `adminReferralActionSchema` body; 30/min | See service |
+| `POST /admin/referrals/:referralId/void` | Cookie + MFA session, `referrals.write` | `adminReferralParamsSchema` param; `adminReferralActionSchema` body; 30/min | See service |
+| `POST /admin/referrals/:referralId/block-referrer` | Cookie + MFA session, `referrals.write` | `adminReferralParamsSchema` param; `adminReferralActionSchema` body; 30/min | See service |
+| `GET /admin/users/:id/notes` | Cookie + MFA session, `users.read` | `adminUserParamsSchema` param; `adminUserPageQuerySchema` query; 120/min | Read only |
+| `POST /admin/users/:id/notes` | Cookie + MFA session, `users.read` | `adminUserParamsSchema` param; `adminNoteCreateSchema` body; 30/min | See service |
+| `PATCH /admin/users/:id/notes/:noteId` | Cookie + MFA session, `users.read` | `adminUserNoteParamsSchema` param; `adminNotePatchSchema` body; 30/min | See service |
+| `DELETE /admin/users/:id/notes/:noteId` | Cookie + MFA session, `users.read` | `adminUserNoteParamsSchema` param; 30/min | See service |
+| `POST /admin/users/:id/phi-sessions` | Cookie + MFA session, any of `users.read_health`, `users.read_chats` | `adminUserParamsSchema` param; `adminPhiSessionSchema` body; 20/min; `no-store` (controller `NoStoreInterceptor`) | See service |
+| `GET /admin/users/:id/phi-sessions` | Cookie + MFA session, any of `users.read_health`, `users.read_chats` | `adminUserParamsSchema` param; 60/min; `no-store` (controller `NoStoreInterceptor`) | Read only |
+| `GET /admin/users/:id/prescriptions` | Cookie + MFA session, `users.read_health` | `adminUserParamsSchema` param; `adminUserPageQuerySchema` query; 120/min; `no-store` (controller `NoStoreInterceptor`) | Read only |
+| `GET /admin/users/:id/prescriptions/:rxId` | Cookie + MFA session, `users.read_health` | `adminUserRxParamsSchema` param; 60/min; `no-store` (controller `NoStoreInterceptor`); requires an unexpired access session of the same admin for the same user (`FORBIDDEN` `phi_session_required`) | `phi.view` audit row per open (service), before the data leaves |
+| `GET /admin/users/:id/chats` | Cookie + MFA session, `users.read_chats` | `adminUserParamsSchema` param; `adminUserPageQuerySchema` query; 120/min; `no-store` (controller `NoStoreInterceptor`) | Read only |
+| `GET /admin/users/:id/chats/:chatId` | Cookie + MFA session, `users.read_chats` | `adminUserChatParamsSchema` param; `adminUserPageQuerySchema` query; 60/min; `no-store` (controller `NoStoreInterceptor`); same access-session rule; chat scoped to the viewed user | `phi.view` audit row per open (service) |
+| `POST /admin/users/:id/plan-change/preview` | Cookie + MFA session, `users.upgrade` | `adminUserParamsSchema` param; `adminPlanChangePreviewSchema` body; 60/min | See service |
+| `POST /admin/users/:id/plan-change` | Cookie + MFA session, `users.upgrade` | `adminUserParamsSchema` param; `adminPlanChangeSchema` body; 20/min; fresh sign-in demanded by service | See service |
+| `POST /admin/orgs/:id/plan-change/preview` | Cookie + MFA session, `users.upgrade` | `adminUserParamsSchema` param; `adminPlanChangePreviewSchema` body; 60/min | See service |
+| `POST /admin/orgs/:id/plan-change` | Cookie + MFA session, `users.upgrade` | `adminUserParamsSchema` param; `adminPlanChangeSchema` body; 20/min; fresh sign-in demanded by service | See service |

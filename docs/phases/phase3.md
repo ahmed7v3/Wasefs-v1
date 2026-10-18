@@ -264,8 +264,8 @@ Acceptance
 6. Leads: «اطلب عرضًا خاصًا» form creating a lead record and a draft deal for admins.
 
 Acceptance
-- [ ] Tests: member spends org credits then personal fallback on/off; cap enforcement; link with max uses and expiry; non-admin cannot create links; wrong-org access ⇒ `NOT_FOUND`; the Phase 2 credit/quota suites pass.
-- [ ] E2E: organisation admin creates a link, a new user joins through it and appears as a member.
+- [x] Tests: member spends org credits then personal fallback on/off; cap enforcement; link with max uses and expiry; non-admin cannot create links; wrong-org access ⇒ `NOT_FOUND`; the Phase 2 credit/quota suites pass.
+- [x] E2E: organisation admin creates a link, a new user joins through it and appears as a member. *(`e2e/orgs.spec.ts`)*
 
 ## Task 3.10 — Deals engine (WP6)
 
@@ -277,8 +277,8 @@ Acceptance
 4. Simulator explains the chosen deal and the losing candidates.
 
 Acceptance
-- [ ] Tests: precedence matrix, expiry, membership duration, domain deals require verified email, a deal cannot push a price below the minimum, stacking off blocks coupons, audit rows on every change.
-- [ ] E2E: join through an institution's link ⇒ the member sees the special price at checkout.
+- [x] Tests: precedence matrix, expiry, membership duration, domain deals require verified email, a deal cannot push a price below the minimum, stacking off blocks coupons, audit rows on every change.
+- [x] E2E: join through an institution's link ⇒ the member sees the special price at checkout. *(`e2e/deals.spec.ts`: list price minus the discount line equals the deal's 79.00)*
 
 ## Task 3.11 — Points, rewards and referrals (WP7)
 
@@ -293,8 +293,8 @@ Acceptance
 7. Referee benefits: welcome credits, first-payment discount via rule-generated coupon.
 
 Acceptance
-- [ ] Tests: sign-up reward only after verification and first usage; first payment creates pending then releases after the hold (simulated clock); refund reverses rewards incl. debt path; self-referral by same phone/device held; velocity rule holds; kill switch stops accrual; **idempotent reprocessing of the same event pays once**; reconcile 0 drift after concurrency tests.
-- [ ] E2E: invite link → friend registers and verifies (both get points/credits) → friend subscribes (referrer gets pending points) → hold passes → referrer converts to credits.
+- [x] Tests: sign-up reward only after verification and first usage; first payment creates pending then releases after the hold (simulated clock); refund reverses rewards incl. debt path; self-referral by same phone/device held; velocity rule holds; kill switch stops accrual; **idempotent reprocessing of the same event pays once**; reconcile 0 drift after concurrency tests.
+- [x] E2E: invite link → friend registers and verifies (both get points/credits) → friend subscribes (referrer gets pending points) → hold passes → referrer converts to credits. *(`e2e/rewards.spec.ts`: 20 credits and 50 pending points on verification, pending after the payment, holds ended on the clock and `rewards.release` run, all points converted on `/rewards`; same-device hold switched off for that journey because both browsers share one machine)*
 
 ## Task 3.12 — Withdrawals (WP7)
 
@@ -308,8 +308,8 @@ Acceptance
 6. User screens: eligibility explainer, progress to the minimum, destination manager, request form with a confirmation showing the EGP amount and ETA, status timeline.
 
 Acceptance
-- [ ] Tests: minimum 1,000 points enforced from settings; concurrent requests never exceed `cash`; new destination cooldown; first withdrawal flagged; reject returns points; paid is idempotent; reveal writes audit; admin cannot approve/pay their own request; four-eyes; alert reaches two admins; all strings Arabic.
-- [ ] E2E: request → admin approves → marks paid → user sees paid with reference.
+- [x] Tests: minimum 1,000 points enforced from settings; concurrent requests never exceed `cash`; new destination cooldown; first withdrawal flagged; reject returns points; paid is idempotent; reveal writes audit; admin cannot approve/pay their own request; four-eyes; alert reaches two admins; all strings Arabic.
+- [x] E2E: request → admin approves → marks paid → user sees paid with reference. *(`e2e/withdrawals.spec.ts`)*
 
 ## Task 3.13 — Admin growth console (WP8)
 
@@ -320,7 +320,7 @@ Acceptance
 3. All writes audited, reasons and fresh auth per spec.
 
 Acceptance
-- [ ] E2E: admin creates a partner code with a deal (30% commission), a friend subscribes through it and the partner's pending reward matches the what-if panel; admin creates an institution deal + link in the wizard in under 2 minutes of scripted steps; releases a held reward; permission tests per page.
+- [x] E2E: admin creates a partner code with a deal (30% commission), a friend subscribes through it and the partner's pending reward matches the what-if panel; admin creates an institution deal + link in the wizard in under 2 minutes of scripted steps; releases a held reward; permission tests per page. *(`e2e/deals.spec.ts` covers the partner code, the what-if and the wizard; releasing a held reward and the per-page permission checks run in the API suites `admin-user-360.int`, `admin-growth.int`, `withdrawals.int` and the admin nav unit test)*
 
 ### Release B gate
 - [ ] Workspace lint, typecheck, tests, E2E, CI green; deployed; reconcile jobs 0 drift for 7 days in staging/production.
@@ -343,8 +343,8 @@ Acceptance
 7. Tests of the guardrails (GROWTH §2) as automated checks: prompt frequency, no prompt on error/upload states, countdown equals server deadline, no pre-checked add-ons.
 
 Acceptance
-- [ ] Tests/E2E: prompt appears after a good result once, honours dismissal cooldown, never during upload/error; taste works once per week and costs recorded; welcome offer deadline identical across two browsers and after clearing storage; unsubscribe works; experiment buckets are stable.
-- [ ] Funnel dashboard shows each step for a scripted user journey.
+- [x] Tests/E2E: prompt appears after a good result once, honours dismissal cooldown, never during upload/error; taste works once per week and costs recorded; welcome offer deadline identical across two browsers and after clearing storage; unsubscribe works; experiment buckets are stable.
+- [x] Funnel dashboard shows each step for a scripted user journey. *(API `growth.int` "reports every funnel step"; `e2e/growth.spec.ts` renders every step)*
 
 ## Task 3.15 — Admin user 360 and upgrade dialog (WP10)
 
@@ -357,8 +357,8 @@ Acceptance
 5. Notes with pinning; quick actions (credits, coupon/offer grant, suspend).
 
 Acceptance
-- [ ] Tests: `users.read_health` required for prescriptions and chats, access session required, audit rows written, support role cannot see health data unless granted; upgrade dialog creates the right subscription/assignment/events/notifications for each kind; paid-offline creates revenue-correct records.
-- [ ] E2E: admin finds a user by phone through the palette, upgrades them to Pro for 3 months, opens a prescription with a reason, and the audit log shows both actions.
+- [x] Tests: `users.read_health` required for prescriptions and chats, access session required, audit rows written, support role cannot see health data unless granted; upgrade dialog creates the right subscription/assignment/events/notifications for each kind; paid-offline creates revenue-correct records.
+- [x] E2E: admin finds a user by phone through the palette, upgrades them to Pro for 3 months, opens a prescription with a reason, and the audit log shows both actions.
 
 ## Task 3.16 — Campaign links and tracking (optional, WP11; may move to Phase 4 start without blocking release)
 
@@ -473,6 +473,21 @@ _(agent fills in deviations here)_
 - **E2E (run separately per file, `--workers=1`):** billing.spec.ts 10/10; admin-billing.spec.ts 8/8. Running both files together let one test's data (a 10% launch promotion) affect the other; keep them separate.
 - **Not done (open):** Lighthouse on `/pricing` and checkout (3.7 acceptance); a Kashier test-mode run for the webhook and refund fixtures (Task 3.3, still open). Existing Phase 1 a11y tests (register, forgot-password, verify-email, contact, the phone steps of onboarding) time out on `networkidle` or wait for a WhatsApp message in this environment; they were not re-run on the base commit, so their status is unknown.
 - **Not built (known gaps):** purchased credit packs do not expire after `valid_months` (see 3.5); organisation billing waits for Task 3.9; the funnel and campaign events are read from `growth_events`, which Phase 3 Release B fills.
+
+### Tasks 3.9-3.15 and 3.17 (Milestones B and C)
+- **Build method.** Sonnet builders produced the first drafts of 3.9, 3.10, 3.11 and 3.12 (reviewed and corrected in review); three builders (3.13, 3.14, 3.15 APIs) stopped mid-task at a usage limit and the main session finished them, then wrote every web screen, the remaining tests and the docs (the owner asked for no further sub-agents; a Haiku runner extracted the endpoint register, reviewed and corrected). The project moved from Windows to the Fedora workstation during this work.
+- **Organisations (3.9).** Org context is explicit per request (`orgId` on rx and chat bodies, Decision 51); the organisation's plan, quota and routes apply (the rx job carries `planOrgId` so the worker routes by the same plan, a gap found in review) and its wallet pays first, after the member's monthly cap, which is checked under the wallet lock (10 parallel holds against a cap for 3 ⇒ 3). Join links never grant `org_admin` (Decision 52, found in review); phone-only accounts can join (made consistent with the rewards sign-up rule). Seats come from the active organisation deal, else the plan. Leads reuse `contact_messages` and open a draft deal.
+- **Deals (3.10).** One resolver with the fixed precedence (user > organisation membership or join link > referral code > verified email domain), membership duration and new-members-only, `org_pays`/`manual_invoice` not applied to personal quotes, seats and welcome/monthly credits through the ledger, reward overrides through one pure `dealRuleFor` (also used by the admin what-if, so the preview equals what is paid).
+- **Rewards (3.11).** Fixed in review: a credit pack bought before the first subscription made that subscription count as a "renewal"; first payment now counts subscription orders only.
+- **Withdrawals (3.12).** A destination already saved on another account is refused and alerted (REFERRALS §6); `withdraw_hold` debits cash at request, release on reject/cancel, paid writes no balance row (the ledger CHECK forbids zero amounts) and the nightly reconcile checks hold/release pairs. Four-eyes is recorded on the request (no extra status). `rewards.cashOutEnabled` (default false) gates real payouts until the accountant answers.
+- **Conversion engine (3.14).** Prompts are side-effect free (the session slot is taken on `prompt_shown`), variants are computed server-side, browsers may report only visitor and prompt events (Decision 55). The taste goes through the normal reserve/settle path with a `trial_grant` of exactly its price, routed by the cheapest public plan that sells Deep (Decision 54). Marketing consent is stored opt-in (migration 0018, Decision 53): existing users get no lifecycle mail; one-click unsubscribe (RFC 8058) plus a confirm page; weekly cap, 24 h quiet start, 30-day silence after a refund, 90 days after the last call; lifecycle mail takes at most 60 % of the daily mail cap. Funnel and experiment results compute guardrails per arm and flag a variant red against the control.
+- **User 360 (3.15).** Bug found and fixed in review: correlated subqueries in single-table selects bound the outer column to the inner table (drizzle renders it unqualified), so chat message counts, prescription page counts and AI cost, and referral counts per code were always 0. Paid-offline orders now carry a plan line, so their receipts show the item.
+- **Admin alerts screen.** `/admin/alerts` (inbox and delivery preferences: channels, Telegram chat id, muted kinds) closes the gap the runbook found.
+- **Not built (decision):** Task 3.16 (campaign links and pixels) moves to the start of Phase 4, as this plan allows; nothing in Releases A-C depends on it. The value recap mail kind exists but is not scheduled (the day-3 recap covers GROWTH §6).
+- **Docs.** SECURITY (endpoint register for every new route, 13 threat rows), DATABASE (0017, 0018), ARCHITECTURE (Decisions 51-55), DOCKER-GUIDE (`API_DOMAIN`, Telegram token, webhook WAF step), BILLING-RUNBOOK (withdrawals, deals, fraud, experiments), REUSE-INDEX, and `docs/LEGAL-DRAFTS-PHASE3.md` (terms/privacy drafts, not published until the owner and a lawyer approve them).
+- **Found by the E2E pass (fixed).** Withdrawals: the request form kept the destination it saw on first render, so a person who saved their first destination on the page could not continue; the eligibility card listed no reason when only a destination was missing, and nothing explained a disabled "add" button while every payout method is off (they ship off until the accountant answers). Growth: an analysis's number among the person's finished ones compared `finished_at` with a millisecond copy of itself, so a `finished_at` written by `now()` (microseconds) made the first analysis count as 0 and the taste prompt never appeared; the cutoff is now read from the row (regression test fails on the old line). Harness: `verifyPhoneViaApi` left the bridge "connected", making the phone step mandatory for every account onboarded later in the same test; account labels with spaces gave invalid e-mails; a redirect-with-error from e-mail verification passed as success; `next build`/`next start` read `apps/web/.env.local`, so a real Turnstile key there put a live widget on the default stack (the key is now always set explicitly).
+- **Final verification (2026-10-18, Linux workstation).** Workspace lint and typecheck green; unit and integration suites green (shared 530, ui 113, web 481, db 484, worker 230, api 1,538; the few files that time out only when every suite runs at once pass alone). Playwright: the whole suite green (98 tests, 1 skip that predates Phase 3) after the fixes listed above. `pnpm audit --prod`: no known vulnerabilities (the `uuid` advisory under `exceljs` is fixed by an override). Production images (`docker image ls`, unpacked / gzip-compressed): **api 270 / 56 MB, worker 384 / 83 MB, web 261 / 62 MB**. The Phase 0 carry-over target (api < 200 MB, worker < 200 MB) is still not met and needs the owner's sign-off or a pruning task; the worker grew with sharp, pdf.js and canvas in Phase 2.
+- **Test environment (Linux).** Testcontainers needs `TESTCONTAINERS_RYUK_PRIVILEGED=true` on this Fedora machine (SELinux); the db package now has the same 180 s hook budget as the api, because every file boots its own Postgres.
 
 ## Open questions
 1. **Answered 2026-10-17:** the owner chose WhatsApp from the bridge, extended to customers (Decision 50, SECURITY §8.1); admin alerts keep their opt-in rule. **WhatsApp alerts to admins (owner decision).** The Phase 1 bridge is receive-only to avoid bans, because an unofficial client can lose the number (which would also break phone verification). The plan keeps it off by default and, if enabled, sends only to admins who opted in by messaging the bridge first, at most 20 messages/day. The safer official route is the WhatsApp Cloud API with a template message. Which do you want: (a) email + Telegram only, (b) the opt-in bridge, (c) the official API later?
