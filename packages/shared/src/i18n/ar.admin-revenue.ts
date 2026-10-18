@@ -305,6 +305,8 @@ export const arAdminRevenue = {
   "admin.revenue.review.approveConfirm": "اعتماد وتفعيل",
   "admin.revenue.review.approved": "اعتُمدت الدفعة وفُعّل الاشتراك",
   "admin.revenue.review.sentSecond": "أُرسلت للموافقة الثانية",
+  "admin.revenue.review.reason.own_payment":
+    "هذه الدفعة من حسابك أو من مؤسستك، ولا يجوز لك مراجعتها. اطلب من مسؤول آخر مراجعتها.",
   "admin.revenue.review.reject": "رفض",
   "admin.revenue.review.reject.title": "رفض الدفعة",
   "admin.revenue.review.reject.body": "اختر السبب ليصل العميل شرح واضح.",

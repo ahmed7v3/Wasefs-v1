@@ -108,6 +108,8 @@ const REASON_MESSAGES: Record<string, MessageKey> = {
   below_minimum: "rewardsPage.reason.below_minimum",
   open_reward_debt: "rewardsPage.reason.open_reward_debt",
   idempotency_key_reused: "rewardsPage.reason.idempotency_key_reused",
+  // Billing review: nobody approves, rejects or refunds a payment of their own.
+  own_payment: "admin.revenue.review.reason.own_payment",
 };
 
 const PRICING_PATH = /^\/pricing(\?[A-Za-z0-9=&_-]*)?$/;
