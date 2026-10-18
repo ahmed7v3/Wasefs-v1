@@ -55,6 +55,34 @@ describe("kashier", () => {
     expect(kashierCheckoutHash(credentials, "order-1", "283.10", "EGP")).toBe(expected);
   });
 
+  it("signs webhook values URL-encoded, keys sorted, like Kashier's documented sample", () => {
+    // Computed by hand from developers.kashier.io/docs/webhooks, not by the function under test.
+    const data = {
+      status: "SUCCESS",
+      channel: "online | e-commerce",
+      creationDate: "2026-10-19T10:00:00.000Z",
+      amount: 79,
+      method: "card",
+      signatureKeys: ["status", "channel", "creationDate", "amount", "method"],
+    };
+    const expected = createHmac("sha256", "pay-key")
+      .update(
+        "amount=79&channel=online%20%7C%20e-commerce&creationDate=2026-10-19T10%3A00%3A00.000Z" +
+          "&method=card&status=SUCCESS",
+      )
+      .digest("hex");
+    expect(kashierWebhookSignature("pay-key", data)).toBe(expected);
+    const { body } = signed(data);
+    expect(() =>
+      kashier.verifyWebhook(
+        { ...body, data: { ...data, merchantOrderId: "x" } },
+        {
+          "x-kashier-signature": expected,
+        },
+      ),
+    ).not.toThrow();
+  });
+
   it("builds the hosted page URL with the major-unit amount and both callbacks", async () => {
     const { redirectUrl, providerRef } = await kashier.createCheckout({
       paymentId: "pay-1",

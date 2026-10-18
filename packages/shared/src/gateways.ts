@@ -139,7 +139,20 @@ export function kashierCheckoutHash(
   return hmacHex(credentials.paymentApiKey, path);
 }
 
-/** The webhook signature: HMAC over `key=value&...` of `data.signatureKeys`, sorted. */
+/** RFC 3986 encoding of one value, as Kashier's `query-string` / `rawurlencode` samples do. */
+function kashierEncode(value: string): string {
+  return encodeURIComponent(value).replace(
+    /[!'()*]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+}
+
+/**
+ * The webhook signature (developers.kashier.io/docs/webhooks): HMAC over `key=value&...` of
+ * `data.signatureKeys`, sorted, with each value URL-encoded ("online | e-commerce" ->
+ * "online%20%7C%20e-commerce"). Missing keys are left out and null values sign as the bare key,
+ * like `query-string` does.
+ */
 export function kashierWebhookSignature(
   paymentApiKey: string,
   data: Record<string, unknown>,
@@ -149,7 +162,12 @@ export function kashierWebhookSignature(
     : [];
   const message = [...keys]
     .sort()
-    .map((key) => `${key}=${String(data[key] ?? "")}`)
+    .filter((key) => data[key] !== undefined)
+    .map((key) =>
+      data[key] === null
+        ? kashierEncode(key)
+        : `${kashierEncode(key)}=${kashierEncode(String(data[key]))}`,
+    )
     .join("&");
   return hmacHex(paymentApiKey, message);
 }
