@@ -23,6 +23,7 @@ import {
   kashierWebhookSignature,
   type FakeWebhookBody,
 } from "@wasfa/shared/gateways";
+import { alertHealthSchema, type AlertHealth } from "@wasfa/shared/schemas/admin-alerts";
 import {
   createOrderResponseSchema,
   orderStatusResponseSchema,
@@ -415,6 +416,90 @@ describe("manual payment HTTP flow", () => {
         401,
       );
     }
+  });
+
+  it("reports alert delivery health by channel and reason, without alert text", async () => {
+    const first = await ctx.admin("super_admin");
+    const second = await ctx.admin("super_admin");
+    const health = async () => {
+      const res = await ctx.harness.call("GET", "/admin/alerts/health", { jar: first.jar });
+      expect(res.statusCode, res.body).toBe(200);
+      return alertHealthSchema.parse(res.json());
+    };
+    const channel = (body: AlertHealth, name: string) =>
+      body.channels.find((entry) => entry.channel === name);
+    const before = await health();
+    expect(before.channels.map((entry) => entry.channel)).toEqual([
+      "in_app",
+      "email",
+      "telegram",
+      "whatsapp",
+    ]);
+    expect(before.whatsapp).toMatchObject({ alertsEnabled: false, customerMessagesEnabled: false });
+    expect(before.me).toMatchObject({ telegramChatIdSet: false, whatsappLinked: false });
+
+    const alertId = await ctx.app.get(AdminAlertService).notify({
+      kind: "payment.review_needed",
+      severity: "warning",
+      refType: "payment",
+      refId: randomUUID(),
+      summary: "Health check alert.",
+      link: "/admin/billing/payments",
+    });
+    const sentAt = new Date();
+    await ctx.owner.db.insert(alertDeliveries).values([
+      { alertId, adminUserId: first.userId, channel: "email", status: "sent", sentAt },
+      {
+        alertId,
+        adminUserId: first.userId,
+        channel: "telegram",
+        status: "skipped",
+        error: "not_configured",
+      },
+      {
+        alertId,
+        adminUserId: second.userId,
+        channel: "telegram",
+        status: "skipped",
+        error: "not_configured",
+      },
+      {
+        alertId,
+        adminUserId: second.userId,
+        channel: "email",
+        status: "failed",
+        error: "send_failed",
+      },
+      {
+        alertId,
+        adminUserId: first.userId,
+        channel: "whatsapp",
+        status: "skipped",
+        error: "disabled",
+      },
+    ]);
+
+    const after = await health();
+    const reason = (body: AlertHealth, name: string, code: string) =>
+      channel(body, name)?.reasons.find((entry) => entry.reason === code)?.count ?? 0;
+    expect((channel(after, "email")?.sent ?? 0) - (channel(before, "email")?.sent ?? 0)).toBe(1);
+    expect((channel(after, "email")?.failed ?? 0) - (channel(before, "email")?.failed ?? 0)).toBe(
+      1,
+    );
+    expect(
+      reason(after, "telegram", "not_configured") - reason(before, "telegram", "not_configured"),
+    ).toBe(2);
+    expect(reason(after, "whatsapp", "disabled") - reason(before, "whatsapp", "disabled")).toBe(1);
+    expect(channel(after, "email")?.lastSentAt).not.toBeNull();
+    // Counts and reasons only: never the summary of an alert.
+    const raw = (await ctx.harness.call("GET", "/admin/alerts/health", { jar: first.jar })).body;
+    expect(raw).not.toContain("Health check alert");
+
+    const customer = await ctx.harness.signedInUser();
+    expect(
+      (await ctx.harness.call("GET", "/admin/alerts/health", { jar: customer.jar })).statusCode,
+    ).toBe(403);
+    expect((await ctx.harness.call("GET", "/admin/alerts/health")).statusCode).toBe(401);
   });
 
   it("returns only the current admin's in-app alerts and validates alert preferences", async () => {

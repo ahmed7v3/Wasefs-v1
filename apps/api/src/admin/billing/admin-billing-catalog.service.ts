@@ -67,6 +67,8 @@ export class AdminBillingCatalogService {
         maxMembers: plan.maxMembers,
         fairUseNoteAr: plan.fairUseNoteAr,
         fairUseNoteEn: plan.fairUseNoteEn,
+        availableFrom: plan.availableFrom?.toISOString() ?? null,
+        availableUntil: plan.availableUntil?.toISOString() ?? null,
         prices: prices.map((price) => ({
           months: price.months,
           currency: price.currency,

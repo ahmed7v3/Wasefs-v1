@@ -228,6 +228,8 @@ function planView(): PlanView {
     sort: 0,
     badgeAr: null,
     badgeEn: null,
+    availableFrom: null,
+    availableUntil: null,
     createdAt: "2026-10-01T00:00:00.000Z",
     updatedAt: "2026-10-01T00:00:00.000Z",
     entitlements: [

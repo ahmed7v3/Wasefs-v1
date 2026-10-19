@@ -20,6 +20,7 @@ import {
   type WalletOwner,
 } from "./credits-ledger.js";
 import { raiseAdminAlert, type PaymentHooks } from "./payments.js";
+import { isPlanOnSale, planOnSale } from "./plan-sale.js";
 import { auditLogs } from "./schema/audit-logs.js";
 import { orders, outbox, type Order } from "./schema/billing.js";
 import { creditLedger } from "./schema/credits.js";
@@ -644,7 +645,7 @@ export async function startTrial(
   return db.transaction(async (tx) => {
     const settings = await billingSettingsOf(tx);
     const [plan] = await tx.select().from(plans).where(eq(plans.key, input.planKey));
-    if (!plan || plan.visibility !== "public" || plan.isDefault || plan.trialDays <= 0) {
+    if (!plan || !isPlanOnSale(plan, input.now) || plan.isDefault || plan.trialDays <= 0) {
       throw new SubscriptionsError("trial_unavailable");
     }
     if (settings.trial.credits <= 0) throw new SubscriptionsError("trial_unavailable");
@@ -717,7 +718,7 @@ export async function trialAvailable(db: Database, userId: string): Promise<bool
   const [trialPlan] = await db
     .select({ id: plans.id })
     .from(plans)
-    .where(and(eq(plans.visibility, "public"), gt(plans.trialDays, 0), eq(plans.isDefault, false)))
+    .where(and(planOnSale(new Date()), gt(plans.trialDays, 0), eq(plans.isDefault, false)))
     .limit(1);
   if (!trialPlan) return false;
   const [earlier] = await db

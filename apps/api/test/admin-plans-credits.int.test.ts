@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { creditLedger, creditWallets, planEntitlements, plans } from "@wasfa/db";
+import { creditLedger, creditWallets, orders, planEntitlements, plans } from "@wasfa/db";
 import {
   adminAdjustResponseSchema,
   adminCreditWalletPageSchema,
@@ -379,6 +379,48 @@ describe("plans", () => {
     );
   });
 
+  it("schedules a sale window, refuses an end before the start, and audits readable dates", async () => {
+    const created = await createPlan();
+    const res = await call("PATCH", `/admin/plans/${created.id}`, boss, {
+      availableFrom: "2030-01-01T08:00:00.000Z",
+      availableUntil: "2030-02-01T08:00:00.000Z",
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(planViewSchema.parse(res.json())).toMatchObject({
+      availableFrom: "2030-01-01T08:00:00.000Z",
+      availableUntil: "2030-02-01T08:00:00.000Z",
+    });
+    const rows = await ctx.auditRowsFor("plan.update", created.id);
+    // Slashes, not dashes: the audit redactor would read 2030-01-01 as a phone number.
+    expect(rows[0]?.after).toMatchObject({
+      availableFrom: "2030/01/01 08:00 UTC",
+      availableUntil: "2030/02/01 08:00 UTC",
+    });
+
+    // Checked against the stored bound the patch leaves alone.
+    expectError(
+      await call("PATCH", `/admin/plans/${created.id}`, boss, {
+        availableUntil: "2029-12-31T08:00:00.000Z",
+      }),
+      409,
+      "CONFLICT",
+      "invalid_window",
+    );
+    const cleared = await call("PATCH", `/admin/plans/${created.id}`, boss, {
+      availableFrom: null,
+      availableUntil: null,
+    });
+    expect(planViewSchema.parse(cleared.json())).toMatchObject({
+      availableFrom: null,
+      availableUntil: null,
+    });
+    expectError(
+      await call("PATCH", `/admin/plans/${created.id}`, boss, { availableFrom: "tomorrow" }),
+      400,
+      "VALIDATION_FAILED",
+    );
+  });
+
   it("moves the default flag: making a plan the default unsets the old one", async () => {
     const original = (await defaultPlanKey())[0];
     expect(original).toBeDefined();
@@ -516,6 +558,29 @@ describe("plans", () => {
       "CONFLICT",
       "plan_in_use",
     );
+    // An order (even an unpaid one) keeps its plan too: a clear 409, not a foreign-key 500.
+    const ordered = await createPlan();
+    await ctx.owner.db.insert(orders).values({
+      ownerUserId: owner.id,
+      kind: "subscription",
+      planId: ordered.id,
+      months: 1,
+      currency: "EGP",
+      quote: {},
+      quoteHash: "a".repeat(64),
+      subtotalMinor: 9_900,
+      totalMinor: 9_900,
+      status: "pending_payment",
+      paymentKind: "gateway",
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
+    expectError(
+      await call("DELETE", `/admin/plans/${ordered.id}`, boss),
+      409,
+      "CONFLICT",
+      "plan_in_use",
+    );
+
     // Ending the assignment does not make the plan deletable: history keeps pointing at it.
     await call(
       "POST",

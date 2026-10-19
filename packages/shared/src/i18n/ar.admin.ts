@@ -10,9 +10,9 @@ export const arAdmin = {
   // Navigation
   "admin.nav.label": "تنقّل لوحة الإدارة",
   "admin.nav.group.overview": "نظرة عامة",
-  "admin.nav.group.people": "الأشخاص",
-  "admin.nav.group.access": "الوصول",
-  "admin.nav.group.configuration": "الإعدادات",
+  "admin.nav.group.people": "العملاء",
+  "admin.nav.group.access": "الفريق والصلاحيات",
+  "admin.nav.group.configuration": "إعدادات الموقع",
   "admin.nav.group.monitoring": "المراقبة",
   "admin.nav.overview": "نظرة عامة",
   "admin.nav.overview.description": "أرقام المنصة في لمحة.",
@@ -22,14 +22,16 @@ export const arAdmin = {
   "admin.nav.orgs.description": "الصيدليات والعيادات والمستشفيات وأعضاؤها.",
   "admin.nav.roles": "الأدوار",
   "admin.nav.roles.description": "الأدوار والصلاحيات الممنوحة لكل دور.",
-  "admin.nav.settings": "إعدادات الموقع",
-  "admin.nav.settings.description": "الهوية والتواصل والعملات والوصول.",
+  "admin.nav.settings": "الإعدادات العامة",
+  "admin.nav.settings.description":
+    "التسجيل والدخول، وقنوات التواصل، واللغة والعملات، وإعدادات التحليل والملفات. إعدادات الفوترة والمكافآت والإشعارات لها صفحاتها الخاصة.",
   "admin.nav.branding": "الهوية البصرية",
   "admin.nav.branding.description": "الشعار وأيقونة المتصفح وأسماء المنصة.",
   "admin.nav.flags": "مفاتيح الميزات",
   "admin.nav.flags.description": "تشغيل الميزات وإيقافها لفئات محددة.",
-  "admin.nav.whatsapp": "رقم واتساب",
-  "admin.nav.whatsapp.description": "ربط رقم التحقق من الهاتف ومراقبته.",
+  "admin.nav.whatsapp": "ربط واتساب",
+  "admin.nav.whatsapp.description":
+    "ربط رقم واتساب المنصة ومراقبته: يُستخدم للتحقق من الهاتف ولرسائل العملاء وتنبيهات المسؤولين.",
   "admin.reason.whatsapp_already_linked": "يوجد رقم مرتبط بالفعل. فُكّ ربطه أولًا لربط رقم آخر.",
   "admin.reason.bridge_down": "جسر واتساب لا يستجيب الآن. تأكد من تشغيله ثم حاول مرة أخرى.",
   "admin.reason.queue_unavailable": "تعذّر إرسال الأمر إلى الجسر. حاول مرة أخرى بعد قليل.",
@@ -376,13 +378,13 @@ export const arAdmin = {
   "admin.settings.field.uploads.retentionDays": "أيام الاحتفاظ بالصور",
   "admin.settings.billing.title": "الفوترة",
   "admin.settings.billing.description":
-    "الحد الأدنى للدفع ومدة صلاحية العرض والطلب وأيام السماح ومهلة الاسترداد وحد الموافقة المزدوجة والتجربة وبيانات الإيصال. المبالغ بوحدات العملة الصغرى.",
-  "admin.settings.rewards.title": "الإحالات والمكافآت",
+    "كيف تعمل الطلبات والدفع والاشتراكات في المنصة. اكتب المبالغ بالجنيه والنسب بالمئة، وكل حقل يشرح نفسه.",
+  "admin.settings.rewards.title": "برنامج الإحالات والمكافآت",
   "admin.settings.rewards.description":
     "تشغيل مكافآت الإحالة وقيمة النقطة وقواعد السحب وحدود مكافحة الاحتيال. متوقفة إلى أن يفعّلها المالك.",
-  "admin.settings.growth.title": "النمو",
+  "admin.settings.growth.title": "أدوات النمو والتسويق",
   "admin.settings.growth.description":
-    "رسائل التحويل وتجارب الأوضاع المميزة وعروض دورة حياة العميل وضوابط التجارب.",
+    "رسائل الترقية داخل التطبيق، والتجربة المجانية للميزات المدفوعة، والعروض الشخصية، ورسائل البريد التسويقية، وتجارب النصوص.",
   "admin.settings.rx.description": "سعر الصفحة بالنقاط وحدود التحليل. ظاهر للمستخدمين قبل التحليل.",
   "admin.settings.auth.title": "المصادقة",
   "admin.settings.auth.description":

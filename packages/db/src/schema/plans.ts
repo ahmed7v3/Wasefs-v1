@@ -53,6 +53,10 @@ export const plans = pgTable(
     maxMembers: integer(),
     fairUseNoteAr: text(),
     fairUseNoteEn: text(),
+    // Optional sale window of a public plan (null = no bound): outside it the plan is not offered
+    // or sold, exactly like a hidden one. Current subscriptions are not touched.
+    availableFrom: timestamp({ withTimezone: true }),
+    availableUntil: timestamp({ withTimezone: true }),
     ...timestamps(),
   },
   (table) => [
@@ -66,6 +70,10 @@ export const plans = pgTable(
     ),
     check("plans_trial_days_check", sql`${table.trialDays} between 0 and 365`),
     check("plans_max_members_check", sql`${table.maxMembers} is null or ${table.maxMembers} > 0`),
+    check(
+      "plans_available_window_check",
+      sql`${table.availableFrom} is null or ${table.availableUntil} is null or ${table.availableFrom} < ${table.availableUntil}`,
+    ),
     // At most one default plan; the service guarantees there is one.
     uniqueIndex("plans_one_default_idx")
       .on(table.isDefault)

@@ -62,6 +62,9 @@ export const updatePlanSchema = z
     maxMembers: z.number().int().positive().nullable(),
     fairUseNoteAr: z.string().trim().max(2_000).nullable(),
     fairUseNoteEn: z.string().trim().max(2_000).nullable(),
+    /** Optional sale window of a public plan; null removes that bound. Checked against the stored other bound. */
+    availableFrom: isoDate.nullable(),
+    availableUntil: isoDate.nullable(),
   })
   .partial()
   .refine((value) => Object.keys(value).length > 0, "at least one field");
@@ -121,6 +124,8 @@ export const planViewSchema = z.object({
   sort: z.number().int(),
   badgeAr: z.string().nullable(),
   badgeEn: z.string().nullable(),
+  availableFrom: isoDate.nullable(),
+  availableUntil: isoDate.nullable(),
   createdAt: isoDate,
   updatedAt: isoDate,
   entitlements: z.array(planEntitlementViewSchema),

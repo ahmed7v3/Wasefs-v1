@@ -20,6 +20,19 @@ export type SettingField =
 /** What the form holds per leaf: text for everything but checkboxes. Keyed by dotted path. */
 export type SettingDraft = Record<string, string | boolean>;
 
+/**
+ * Display scales per dotted path: the form shows `stored / scale` and saves `typed × scale`
+ * (percent for basis points, pounds for piasters). Paths without a scale are shown as stored.
+ */
+export type SettingScales = Readonly<Record<string, number>>;
+
+/** `typed × scale` as the integer the schema expects; a value finer than one stored unit stays fractional so the schema rejects it. */
+function scaleUp(value: number, scale: number): number {
+  const scaled = value * scale;
+  const rounded = Math.round(scaled);
+  return Math.abs(scaled - rounded) < 1e-6 ? rounded : scaled;
+}
+
 type Def = Record<string, unknown>;
 
 function isSchema(value: unknown): value is z.ZodType {
@@ -109,9 +122,14 @@ function valueAt(value: unknown, path: string): unknown {
   return current;
 }
 
-function draftOf(field: SettingField, value: unknown, draft: SettingDraft): void {
+function draftOf(
+  field: SettingField,
+  value: unknown,
+  draft: SettingDraft,
+  scales: SettingScales,
+): void {
   if (field.kind === "group") {
-    for (const child of field.fields) draftOf(child, value, draft);
+    for (const child of field.fields) draftOf(child, value, draft, scales);
     return;
   }
   const current = valueAt(value, field.path);
@@ -125,21 +143,36 @@ function draftOf(field: SettingField, value: unknown, draft: SettingDraft): void
     case "json":
       draft[field.path] = current === undefined ? "" : JSON.stringify(current, null, 2);
       break;
+    case "number": {
+      const scale = scales[field.path] ?? 1;
+      draft[field.path] =
+        typeof current === "number"
+          ? String(current / scale)
+          : current == null
+            ? ""
+            : String(current);
+      break;
+    }
     default:
       draft[field.path] = current === null || current === undefined ? "" : String(current);
   }
 }
 
 /** The form's starting state for a stored (or default) value. */
-export function toDraft(fields: readonly SettingField[], value: unknown): SettingDraft {
+export function toDraft(
+  fields: readonly SettingField[],
+  value: unknown,
+  scales: SettingScales = {},
+): SettingDraft {
   const draft: SettingDraft = {};
-  for (const field of fields) draftOf(field, value, draft);
+  for (const field of fields) draftOf(field, value, draft, scales);
   return draft;
 }
 
 function leafValue(
   field: Exclude<SettingField, { kind: "group" }>,
   raw: string | boolean | undefined,
+  scale: number,
 ): unknown {
   if (field.kind === "boolean") return raw === true;
   const text = typeof raw === "string" ? raw : "";
@@ -148,7 +181,7 @@ function leafValue(
       if (text.trim() === "") return field.nullable ? null : undefined;
       const parsed = Number(text);
       // A non-number is passed on as text so the schema rejects it with its own message.
-      return Number.isFinite(parsed) ? parsed : text;
+      return Number.isFinite(parsed) ? scaleUp(parsed, scale) : text;
     }
     case "list":
       return text
@@ -171,11 +204,17 @@ function leafValue(
   }
 }
 
-function assign(fields: readonly SettingField[], draft: SettingDraft): Record<string, unknown> {
+function assign(
+  fields: readonly SettingField[],
+  draft: SettingDraft,
+  scales: SettingScales,
+): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const field of fields) {
     result[field.name] =
-      field.kind === "group" ? assign(field.fields, draft) : leafValue(field, draft[field.path]);
+      field.kind === "group"
+        ? assign(field.fields, draft, scales)
+        : leafValue(field, draft[field.path], scales[field.path] ?? 1);
   }
   return result;
 }
@@ -184,6 +223,7 @@ function assign(fields: readonly SettingField[], draft: SettingDraft): Record<st
 export function fromDraft(
   fields: readonly SettingField[],
   draft: SettingDraft,
+  scales: SettingScales = {},
 ): Record<string, unknown> {
-  return assign(fields, draft);
+  return assign(fields, draft, scales);
 }

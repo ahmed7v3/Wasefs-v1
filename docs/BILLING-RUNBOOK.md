@@ -6,7 +6,7 @@ Design background lives in `BILLING.md`; the screens in `ADMIN-CONSOLE-SPEC.md`.
 
 ## 0. Before you start
 
-**Where things are.** In the admin side menu, group "الإيرادات" (Revenue) and group "التسعير" (Pricing):
+**Where things are.** In the admin side menu, groups "الإيرادات" (Revenue), "الباقات والتسعير" (Plans and pricing) and "إعداد الدفع" (Payment setup). Every page shows one line under its title saying what it is for.
 
 | Menu label | Path | Use it for |
 |---|---|---|
@@ -15,12 +15,16 @@ Design background lives in `BILLING.md`; the screens in `ADMIN-CONSOLE-SPEC.md`.
 | "الاشتراكات" | `/admin/billing/subscriptions` | Who subscribes, extend, end |
 | "الطلبات والفواتير" | `/admin/billing/orders` | Orders, receipts, resend receipt |
 | "الاستردادات" | `/admin/billing/refunds` | List of recorded refunds |
-| "الباقات والأسعار" | `/admin/billing/plans` | Prices (draft, publish) |
+| "الباقات والأسعار" | `/admin/billing/plans` | All plans: create, order, show/hide, schedule, delete; prices (draft, publish), allowances, features, margin |
+| "تعيين الباقات يدويًا" | `/admin/plans` | Give a user or organization a plan without payment, end one |
 | "العروض" | `/admin/billing/promotions` | Promotions |
 | "الكوبونات" | `/admin/billing/coupons` | Coupons and batches |
 | "باقات الرصيد" | `/admin/billing/credit-packs` | Credit packs |
 | "طرق الدفع والرسوم" | `/admin/billing/methods` | Methods, account numbers, fees, tax |
 | "بوابة الدفع" | `/admin/billing/gateways` | Kashier keys and verification |
+| "إعدادات الفوترة" | `/admin/billing/settings` | Order and checkout rules, grace and refund windows, trials, review limits, failure-spike alert, company details on receipts |
+
+Other settings live with their feature: rewards, withdrawals, fraud holds and growth campaigns on "إعدادات النمو والمكافآت" (`/admin/growth/settings`); alert channels on "إعدادات الإشعارات" (`/admin/notifications`); site-wide settings (sign-up, contact, language, currencies, analysis) on "الإعدادات العامة" (`/admin/settings`). Percentages are typed as percent (5 = 5%) and money in pounds (10 = 10.00 EGP); every field explains itself and shows its default when you change it.
 
 **Quick search.** Press Ctrl+K anywhere in the admin ("بحث في لوحة الإدارة") and type a phone, email, order number `WSO-...`, payment reference `WSP-...` or a coupon code (at least 2-3 characters; the box tells you).
 
@@ -185,7 +189,7 @@ The record appears in "الاستردادات" with its state ("مطلوب", "م
 
 **Steps (billing write permission, fresh sign-in)**
 
-1. Go to "الباقات والأسعار", pick the plan from "الباقات".
+1. Go to "الباقات والأسعار", pick the plan in the list "كل الباقات".
 2. Open the tab "الأسعار" (Prices). The grid shows price per period ("{n} شهر") and currency. An empty cell means "غير متاح" (not offered in that period and currency). Amounts are typed as whole currency amounts.
 3. Edit cells. The helper "السنة = الشهري × 10" fills the yearly price. "إضافة عملة (3 أحرف)" adds a currency column. Edits show "تعديلات غير محفوظة" / "مسودة غير منشورة".
 4. Check the tab "الهامش" (Margin calculator). It shows for each price: the AI cost for the period, the margin, and the usage level at which you break even. Colours: "هامش جيد", "هامش منخفض" (under 50%), "هامش سالب" (negative; selling at a loss).
@@ -206,6 +210,19 @@ The record appears in "الاستردادات" with its state ("مطلوب", "م
 | Published but the page shows the old price after 2 minutes | Hard-reload the page; if still old, tell the owner and check the logs (section 9). |
 | Wrong price published | Edit the cells again and publish again. Orders already created keep the price they were quoted. |
 | A customer complains about a price they were quoted | A quote lives 15 minutes (`billing.quoteTtlMinutes`) and an order 24 hours (`billing.orderTtlHours`); within that they pay the quoted price. |
+
+---
+
+### Create, order, show or hide, schedule, or delete a plan
+
+**Where:** "الباقات والأسعار" (`/admin/billing/plans`), list "كل الباقات" at the top. Each row shows the plan's status for customers right now ("معروضة للبيع", "مجدولة", "انتهى عرضها", "مخفية"), its monthly price, active subscribers and monthly credits. Needs the plans write permission.
+
+- **New plan:** "باقة جديدة". Give it a key (never changes), names and monthly credits. It is not sold until it has published prices (above).
+- **Order on the pricing page:** the arrows on the row. The list order is the pricing-page order.
+- **Stop or start selling:** "إخفاء" / "عرض للبيع". Hidden plans disappear from the pricing page and checkout at once; current subscribers keep them until their period ends, and you can still give a hidden plan by hand ("تعيين الباقات يدويًا").
+- **Schedule:** open the plan, tab "نظرة عامة", block "الظهور ومواعيد التوفر": "متاحة بدءًا من" and "متاحة حتى" (your device's time zone). Outside that window the plan behaves exactly like a hidden one, and the status line says when it starts or ends. Leave both empty for "always".
+- **Default plan:** the star. The default plan is what everyone without a paid plan has; there is always exactly one.
+- **Delete:** the bin. Refused ("لا يمكن حذف هذه الباقة…") for the default plan and for any plan that has, or ever had, a subscription, a hand-given assignment or an order: history keeps pointing at it. Hide such a plan instead.
 
 ---
 
@@ -413,15 +430,15 @@ Note: the real Kashier webhook body and signature header have not yet been check
 2. Each admin opens Telegram, finds the bot and presses Start.
 3. The admin finds their numeric chat id (any "get my id" bot shows it).
 4. The chat id is saved in the admin's alert preferences (`telegramChatId`, digits only, 5 to 20), with Telegram turned on.
-5. **A screen for this is (not in the console yet).** The preferences exist in the API (`GET/PUT /admin/alerts/prefs`: `inAppEnabled`, `emailEnabled`, `telegramEnabled`, `whatsappEnabled`, `telegramChatId`, `mutedKinds`); until a screen is built, ask the developer to set them. The alerts bell/inbox is also **(not in the console yet)**; rely on email and Telegram.
+5. Each admin saves it on "التنبيهات" (`/admin/alerts`), card of preferences, and turns Telegram on there.
 
-**Muting:** an admin can mute chosen non-critical alert kinds (`mutedKinds` in the same preferences; same note: no screen yet). Critical alerts cannot be muted.
+**Muting:** an admin can mute chosen non-critical alert kinds in the same preferences. Critical alerts cannot be muted.
 
 **Why WhatsApp alerts are off by default:** the WhatsApp number is an unofficial client. Sending many messages risks a ban, and a ban would also break phone verification for customers. So alerts to admins on WhatsApp ship **off** (setting `alerts.whatsapp.enabled = false` and `WA_ALERTS_ENABLED=false`). If the owner turns both on: only admins who messaged `تنبيهات` or `ALERTS ON` to the bridge from their **verified** phone are linked, at most 20 messages per day in total, and there are no links in the text. Prefer email and Telegram. The safer official route (WhatsApp Cloud API) is an open question for the owner.
 
-**Customer WhatsApp messages** (receipts, reminders) are a different thing: they are controlled in `/admin/whatsapp` ("رقم واتساب") in the card "Customer messages" and also ship off.
+**Customer WhatsApp messages** (receipts, reminders) are a different thing: they are controlled in `/admin/whatsapp` ("ربط واتساب") in the card "Customer messages" and also ship off.
 
-**If you stop receiving alerts:** check your spam folder, whether Telegram was blocked, and whether you still have the permission; ask the developer to check the `alert_deliveries` table state.
+**If you stop receiving alerts:** open "إعدادات الإشعارات" (`/admin/notifications`). The top panel "هل تصل التنبيهات؟" shows, per channel, what happened in the last 7 days (arrived, waiting, not sent, failed), the recorded reason with what to do (for example "بوت تيليجرام غير مضبوط على الخادم" or "لم يرسل كلمة «تنبيهات»"), and a checklist of what is still missing for you. Also check your spam folder and whether you still have the permission.
 
 ---
 

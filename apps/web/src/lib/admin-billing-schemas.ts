@@ -7,7 +7,10 @@ import { z } from "zod";
  */
 
 const money = z.record(z.string(), z.number());
-const count = z.number().nullable().transform((value) => value ?? 0);
+const count = z
+  .number()
+  .nullable()
+  .transform((value) => value ?? 0);
 const iso = z.string();
 
 const kpiSchema = z.object({
@@ -62,9 +65,16 @@ export const overviewSchema = z.object({
         ownerLabel: z.string(),
       }),
     ),
-    promotionsEnding: z.array(z.object({ id: z.string(), name: z.string(), endsAt: iso.nullable() })),
+    promotionsEnding: z.array(
+      z.object({ id: z.string(), name: z.string(), endsAt: iso.nullable() }),
+    ),
     couponsNearLimit: z.array(
-      z.object({ id: z.string(), code: z.string(), redeemed: z.number(), max: z.number().nullable() }),
+      z.object({
+        id: z.string(),
+        code: z.string(),
+        redeemed: z.number(),
+        max: z.number().nullable(),
+      }),
     ),
   }),
 });
@@ -402,6 +412,8 @@ export const adminPlanSchema = z.object({
   maxMembers: z.number().nullable(),
   fairUseNoteAr: z.string().nullable(),
   fairUseNoteEn: z.string().nullable(),
+  availableFrom: z.string().nullable(),
+  availableUntil: z.string().nullable(),
   prices: z.array(
     z.object({ months: z.number(), currency: z.string(), amountMinor: z.number().nullable() }),
   ),
@@ -425,7 +437,9 @@ const marginSchema = z.object({
 });
 export const pricePreviewSchema = z.object({
   diff: z.object({
-    added: z.array(z.object({ months: z.number(), currency: z.string(), amountMinor: z.number().nullable() })),
+    added: z.array(
+      z.object({ months: z.number(), currency: z.string(), amountMinor: z.number().nullable() }),
+    ),
     changed: z.array(
       z.object({
         months: z.number(),
@@ -434,7 +448,9 @@ export const pricePreviewSchema = z.object({
         to: z.number().nullable(),
       }),
     ),
-    removed: z.array(z.object({ months: z.number(), currency: z.string(), amountMinor: z.number() })),
+    removed: z.array(
+      z.object({ months: z.number(), currency: z.string(), amountMinor: z.number() }),
+    ),
   }),
   activeSubscribers: z.number(),
   margin: z.array(

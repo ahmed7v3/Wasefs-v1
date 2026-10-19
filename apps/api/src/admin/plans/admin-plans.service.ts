@@ -44,6 +44,8 @@ export const PLAN_AUDIT_FIELDS = [
   "maxMembers",
   "fairUseNoteAr",
   "fairUseNoteEn",
+  "availableFrom",
+  "availableUntil",
 ] as const;
 export const ENTITLEMENT_AUDIT_FIELDS = ["entitlements"] as const;
 // No ids or dates in `before`/`after`: the audit redactor scrubs digit runs (phone numbers) and
@@ -83,9 +85,25 @@ const entitlementView = (row: PlanEntitlement) => ({
   webSearch: row.webSearch,
 });
 
+/**
+ * `2026/10/20 10:00 UTC`: the audit redactor reads `2026-10-20` as a phone-like digit run and would
+ * scrub it, slashes keep the date readable.
+ */
+const auditDate = (date: Date | null) =>
+  date ? `${date.toISOString().slice(0, 16).replaceAll("-", "/").replace("T", " ")} UTC` : null;
+
+/** Audit snapshot of a plan: its fields and its sale window. */
+const auditFields = (plan: Plan) => ({
+  ...planFields(plan),
+  availableFrom: auditDate(plan.availableFrom),
+  availableUntil: auditDate(plan.availableUntil),
+});
+
 const planView = (plan: PlanWithEntitlements): PlanView => ({
   id: plan.id,
   ...planFields(plan),
+  availableFrom: plan.availableFrom?.toISOString() ?? null,
+  availableUntil: plan.availableUntil?.toISOString() ?? null,
   createdAt: plan.createdAt.toISOString(),
   updatedAt: plan.updatedAt.toISOString(),
   entitlements: plan.entitlements.map(entitlementView),
@@ -137,18 +155,28 @@ export class AdminPlansService {
     const created = await this.repo.create(input);
     if (!created) throw conflict("plan_key_exists");
     audit.targetId = created.id;
-    audit.after = planFields(created);
+    audit.after = auditFields(created);
     return planView({ ...created, entitlements: [] });
   }
 
   async update(id: string, input: UpdatePlanInput, audit: AuditScope): Promise<PlanView> {
-    const patch: PlanPatch = { ...input };
+    const { availableFrom, availableUntil, ...rest } = input;
+    const patch: PlanPatch = {
+      ...rest,
+      ...(availableFrom === undefined
+        ? {}
+        : { availableFrom: availableFrom === null ? null : new Date(availableFrom) }),
+      ...(availableUntil === undefined
+        ? {}
+        : { availableUntil: availableUntil === null ? null : new Date(availableUntil) }),
+    };
     const outcome = await this.repo.update(id, patch);
     if (outcome.kind === "not_found") throw new AppError(ErrorCode.NOT_FOUND);
     if (outcome.kind === "default_required") throw conflict("default_plan_required");
+    if (outcome.kind === "invalid_window") throw conflict("invalid_window");
     audit.targetId = id;
-    audit.before = planFields(outcome.before);
-    audit.after = planFields(outcome.after);
+    audit.before = auditFields(outcome.before);
+    audit.after = auditFields(outcome.after);
     const plan = await this.repo.find(id);
     if (!plan) throw new AppError(ErrorCode.NOT_FOUND);
     return planView(plan);
@@ -174,7 +202,7 @@ export class AdminPlansService {
     if (outcome.kind === "not_found") throw new AppError(ErrorCode.NOT_FOUND);
     if (outcome.kind !== "deleted") throw conflict("plan_in_use");
     audit.targetId = id;
-    audit.before = planFields(outcome.plan);
+    audit.before = auditFields(outcome.plan);
   }
 
   async assignments(query: PlanAssignmentsQuery) {

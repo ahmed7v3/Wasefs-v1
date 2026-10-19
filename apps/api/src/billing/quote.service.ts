@@ -438,7 +438,7 @@ export class QuoteService {
   ): Promise<PlanInputs> {
     const plan = options.includeHidden
       ? await this.repo.planForSimulation(request.planKey)
-      : await this.repo.publicPlan(request.planKey);
+      : await this.repo.publicPlan(request.planKey, now);
     const orgId = request.orgId ?? null;
     // An organization buys organization plans, a person buys individual ones.
     if (!plan || plan.audience === (orgId ? "individual" : "organization")) {

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { t } from "@wasfa/shared/i18n";
+import { ar, t } from "@wasfa/shared/i18n";
 import {
   SETTING_KEYS,
   SETTINGS_REGISTRY,
@@ -12,7 +12,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import { SettingForm } from "../src/components/admin/setting-form";
 import { ApiRequestError } from "../src/lib/api-error";
-import { fromDraft, settingFields, toDraft } from "../src/lib/setting-fields";
+import { fromDraft, settingFields, toDraft, type SettingField } from "../src/lib/setting-fields";
+import {
+  GENERAL_SETTINGS_GROUPS,
+  SETTING_LAYOUTS,
+  SETTING_UNITS,
+  UNIT_SCALE,
+} from "../src/lib/setting-meta";
 
 /** `skills` is a per-plan map edited on /admin/ai/skills, not a generated form. */
 const FORM_KEYS = SETTING_KEYS.filter((key) => key !== "skills");
@@ -137,5 +143,107 @@ describe("SettingForm", () => {
     for (const input of screen.getAllByRole("checkbox")) {
       expect((input as HTMLInputElement).disabled).toBe(true);
     }
+  });
+});
+
+describe("settings presentation", () => {
+  const leafPaths = (fields: readonly SettingField[]): SettingField[] =>
+    fields.flatMap((field) =>
+      field.kind === "group" ? [field, ...leafPaths(field.fields)] : [field],
+    );
+
+  /** Keys edited by the generic form somewhere in the admin (the rest have dedicated editors). */
+  const GENERIC_PAGE_KEYS: SettingKey[] = [
+    ...GENERAL_SETTINGS_GROUPS.flatMap((group) => group.keys),
+    "billing",
+    "rewards",
+    "growth",
+    "alerts",
+  ];
+
+  it("gives every settings key exactly one home", () => {
+    const dedicated: SettingKey[] = ["branding", "whatsapp", "ai", "skills"];
+    const homes = [...GENERIC_PAGE_KEYS, ...dedicated];
+    expect([...homes].sort()).toEqual([...SETTING_KEYS].sort());
+    expect(new Set(homes).size).toBe(homes.length);
+  });
+
+  it("labels every field of the generic pages in Arabic, so no raw key reaches the screen", () => {
+    const dictionary = ar as Record<string, string>;
+    for (const key of GENERIC_PAGE_KEYS) {
+      expect(dictionary[`admin.settings.${key}.title`], key).toBeTruthy();
+      expect(dictionary[`admin.settings.${key}.description`], key).toBeTruthy();
+      for (const field of leafPaths(settingFields(SETTINGS_REGISTRY[key].schema))) {
+        expect(
+          dictionary[`admin.settings.field.${key}.${field.path}`],
+          `${key}.${field.path}`,
+        ).toBeTruthy();
+      }
+    }
+  });
+
+  it("places every field of a laid-out key in exactly one section", () => {
+    for (const [key, sections] of Object.entries(SETTING_LAYOUTS)) {
+      const names = settingFields(SETTINGS_REGISTRY[key as SettingKey].schema).map(
+        (field) => field.name,
+      );
+      const placed = sections.flatMap((section) => section.paths);
+      expect([...placed].sort(), key).toEqual([...names].sort());
+    }
+  });
+
+  it("names only real number fields in the unit table", () => {
+    for (const [entry, unit] of Object.entries(SETTING_UNITS)) {
+      const [key, ...rest] = entry.split(".");
+      const field = leafPaths(settingFields(SETTINGS_REGISTRY[key as SettingKey].schema)).find(
+        (candidate) => candidate.path === rest.join("."),
+      );
+      expect(field?.kind, entry).toBe("number");
+      expect(Object.hasOwn(ar, `admin.settings.unit.${unit}`), unit).toBe(true);
+    }
+  });
+
+  it("edits percent and pounds and stores basis points and piasters unchanged", () => {
+    const fields = settingFields(SETTINGS_REGISTRY.billing.schema);
+    const scales = {
+      maxTotalDiscountBps: UNIT_SCALE.bps ?? 1,
+      minChargeMinor: UNIT_SCALE.minor ?? 1,
+    };
+    const draft = toDraft(fields, settingDefault("billing"), scales);
+    expect(draft["maxTotalDiscountBps"]).toBe("70");
+    expect(draft["minChargeMinor"]).toBe("10");
+    const edited = fromDraft(
+      fields,
+      { ...draft, maxTotalDiscountBps: "12.5", minChargeMinor: "7.35" },
+      scales,
+    );
+    expect(edited).toMatchObject({ maxTotalDiscountBps: 1_250, minChargeMinor: 735 });
+    expect(SETTINGS_REGISTRY.billing.schema.safeParse(edited).success).toBe(true);
+  });
+
+  it("refuses a percent finer than one basis point instead of rounding it", async () => {
+    const onSave = renderForm("billing");
+    const discount = screen.getByLabelText(t("admin.settings.field.billing.maxTotalDiscountBps"));
+    expect((discount as HTMLInputElement).value).toBe("70");
+    await userEvent.clear(discount);
+    await userEvent.type(discount, "12.345");
+    await userEvent.click(screen.getByRole("button", { name: t("common.save") }));
+    expect(await screen.findByText(t("admin.settings.error.tooPrecise"))).toBeTruthy();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("saves a percent typed by the admin as basis points", async () => {
+    const onSave = renderForm("growth");
+    const guardrail = screen.getByLabelText(
+      t("admin.settings.field.growth.experiments.guardrailBps"),
+    );
+    expect((guardrail as HTMLInputElement).value).toBe("5");
+    await userEvent.clear(guardrail);
+    await userEvent.type(guardrail, "7.5");
+    await userEvent.click(screen.getByRole("button", { name: t("common.save") }));
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledTimes(1);
+    });
+    expect(onSave.mock.calls[0]?.[0]).toMatchObject({ experiments: { guardrailBps: 750 } });
   });
 });

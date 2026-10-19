@@ -6,7 +6,7 @@
 export const arAdminRevenue = {
   // --- Navigation ---------------------------------------------------------------------------------
   "admin.nav.group.revenue": "الإيرادات",
-  "admin.nav.group.pricing": "التسعير",
+  "admin.nav.group.pricing": "الباقات والتسعير",
   "admin.nav.badge.waiting": "بانتظار المراجعة",
   "admin.nav.billingOverview": "نظرة على الإيرادات",
   "admin.nav.billingOverview.description": "ما يحتاج انتباهك اليوم وأرقام الإيرادات",
@@ -19,7 +19,8 @@ export const arAdminRevenue = {
   "admin.nav.refunds": "الاستردادات",
   "admin.nav.refunds.description": "طلبات الاسترداد وحالتها",
   "admin.nav.pricingPlans": "الباقات والأسعار",
-  "admin.nav.pricingPlans.description": "تعديل الأسعار مع معاينة حيّة وحاسبة الهامش",
+  "admin.nav.pricingPlans.description":
+    "كل باقات المنصة في مكان واحد: إنشاؤها وترتيبها وإظهارها أو إخفاؤها وجدولة توفرها، وأسعارها وحدودها ومزاياها، مع معاينة حيّة وحاسبة للهامش.",
   "admin.nav.promotions": "العروض",
   "admin.nav.promotions.description": "خصومات تظهر في صفحة الأسعار",
   "admin.nav.coupons": "الكوبونات",
@@ -563,10 +564,11 @@ export const arAdminRevenue = {
   "admin.pricing.plan.audience.individual": "الأفراد",
   "admin.pricing.plan.audience.organization": "المؤسسات",
   "admin.pricing.plan.visibility": "الظهور",
-  "admin.pricing.plan.visibility.public": "ظاهرة للجميع",
-  "admin.pricing.plan.visibility.hidden": "مخفية",
+  "admin.pricing.plan.visibility.public": "معروضة للبيع",
+  "admin.pricing.plan.visibility.hidden": "مخفية (لا تُباع)",
   "admin.pricing.plan.trialDays": "أيام التجربة المجانية",
-  "admin.pricing.plan.trialHint": "صفر يعني بلا تجربة.",
+  "admin.pricing.plan.trialHint":
+    "أيام تجربة مجانية قبل الدفع عند الاشتراك أول مرة. صفر يعني بلا تجربة. رصيد التجربة يُضبط في «إعدادات الفوترة».",
   "admin.pricing.plan.pin": "ثبّتها كالباقة الموصى بها",
   "admin.pricing.plan.save": "حفظ التعديلات",
   "admin.pricing.plan.saved": "حُفظت الباقة «{name}»",

@@ -52,6 +52,7 @@ const REASON_MESSAGES: Record<string, MessageKey> = {
   plan_key_exists: "admin.plans.reason.plan_key_exists",
   plan_in_use: "admin.plans.reason.plan_in_use",
   default_plan_required: "admin.plans.reason.default_plan_required",
+  invalid_window: "admin.reason.invalid_window",
   assignment_ended: "admin.plans.reason.assignment_ended",
   insufficient_balance: "admin.credits.reason.insufficient_balance",
   // Logo and favicon uploads.

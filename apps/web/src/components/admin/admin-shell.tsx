@@ -77,6 +77,10 @@ export function AdminShell({ user, permissions, branding, children }: AdminShell
           </div>
         </header>
         <main id="main" className="min-w-0 flex-1 p-4 pb-16 sm:p-6 sm:pb-16">
+          {/* What this page is for, from its navigation entry: every page explains itself. */}
+          {title ? (
+            <p className="mb-5 max-w-3xl text-base text-text-muted">{t(title.description)}</p>
+          ) : null}
           {children}
         </main>
       </div>
