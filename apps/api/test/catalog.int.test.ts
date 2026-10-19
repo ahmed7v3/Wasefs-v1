@@ -233,6 +233,19 @@ describe("GET /catalog", () => {
     }
   });
 
+  it("shows the default currency's plans when no plan is priced in the asked one", async () => {
+    const { db } = ctx.owner;
+    await db.update(planPrices).set({ active: false }).where(eq(planPrices.currency, "SAR"));
+    try {
+      // A country of its own: the catalog is cached per currency and country.
+      const { body } = await getCatalog("/catalog?currency=SAR&country=OM");
+      expect(body.currency).toBe("EGP");
+      expect(keys(body)).toEqual(["plus", "pro"]);
+    } finally {
+      await db.update(planPrices).set({ active: true }).where(eq(planPrices.currency, "SAR"));
+    }
+  });
+
   it("drops its cache when the catalog topic is published", async () => {
     const { db } = ctx.owner;
     const [pro] = await db.select({ id: plans.id }).from(plans).where(eq(plans.key, "pro"));

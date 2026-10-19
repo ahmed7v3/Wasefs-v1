@@ -6,6 +6,9 @@ export const enDashboard: Partial<Record<keyof typeof arDashboard, string>> = {
   "dashboard.capture.lead":
     "Drop or paste a prescription photo here and we take you to the analysis.",
   "dashboard.capture.going": "Pictures uploaded, taking you to the prescription analysis…",
+  "dashboard.planEnding": "Your {plan} plan ends in {days} days ({date}).",
+  "dashboard.planEnding.renew": "Renew now",
+  "dashboard.planEnding.choose": "Choose a plan",
   "dashboard.credits.title": "Your credits",
   "dashboard.credits.balance": "{balance} credits",
   "dashboard.credits.balanceLabel": "Current balance",

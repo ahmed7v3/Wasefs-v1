@@ -45,6 +45,13 @@ export class AlertsController {
     return { read: true };
   }
 
+  /** Sends the caller a test alert on every channel they have switched on (nobody else gets it). */
+  @Post("test")
+  @RateLimit(3)
+  test(@CurrentUser() user: AuthenticatedUser) {
+    return this.alerts.sendTest(user.id);
+  }
+
   @Get("health")
   @RateLimit(30)
   health(@CurrentUser() user: AuthenticatedUser) {

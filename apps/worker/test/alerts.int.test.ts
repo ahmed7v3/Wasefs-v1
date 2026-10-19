@@ -305,6 +305,50 @@ describe("admin alert fan-out", () => {
     ).toBe(true);
   });
 
+  it("sends a test alert only to the admin who asked, unmuted and outside the digest window", async () => {
+    // The burst above left an open Telegram window for this admin: a test must not wait for it.
+    await db.db
+      .update(adminAlertPrefs)
+      .set({ mutedKinds: ["system.test"] })
+      .where(eq(adminAlertPrefs.userId, adminId));
+    const runtime = {
+      webOrigin: "https://wasfa.example",
+      enqueueEmail: async () => undefined,
+      enqueueAlertDelivery: async () => undefined,
+      enqueueAlertDigest: async () => undefined,
+    };
+    const fanOut = outboxHandlers(runtime)["alerts.fan_out"];
+    if (!fanOut) throw new Error("fan-out handler missing");
+    const alertId = await raiseAdminAlert(db.db, {
+      kind: "system.test",
+      severity: "info",
+      refType: "user",
+      refId: adminId,
+      summary: "Test alert.",
+      link: "/admin/notifications",
+    });
+    const [entry] = await db.db
+      .select()
+      .from(outbox)
+      .where(eq(outbox.idempotencyKey, `alert:${alertId}`));
+    if (!entry) throw new Error("alert outbox row missing");
+    const created = await db.db.transaction((tx) => fanOut(tx, entry));
+    const actions = (Array.isArray(created) ? created : []) as OutboxPostCommitAction[];
+    const rows = await db.db
+      .select()
+      .from(alertDeliveries)
+      .where(eq(alertDeliveries.alertId, alertId));
+    expect(new Set(rows.map((row) => row.adminUserId))).toEqual(new Set([adminId]));
+    expect(rows.map((row) => row.channel).sort()).toEqual(["in_app", "telegram"]);
+    expect(rows.find((row) => row.channel === "telegram")?.error).toBeNull();
+    expect(actions.filter((action) => action.kind === "alert_delivery")).toHaveLength(1);
+    expect(actions.filter((action) => action.kind === "alert_digest")).toHaveLength(0);
+    await db.db
+      .update(adminAlertPrefs)
+      .set({ mutedKinds: [] })
+      .where(eq(adminAlertPrefs.userId, adminId));
+  });
+
   it("sweeps a digest whose post-commit enqueue failed and sends it after the window", async () => {
     await db.db.delete(alertDeliveries);
     const now = new Date();

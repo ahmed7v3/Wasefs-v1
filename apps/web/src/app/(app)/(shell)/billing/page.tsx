@@ -1,12 +1,14 @@
 import { t } from "@wasfa/shared/i18n";
 import { meCreditsResponseSchema } from "@wasfa/shared/schemas/credits";
 import { mySubscriptionResponseSchema } from "@wasfa/shared/schemas/subscriptions";
-import { Badge, Card, PriceTag, buttonStyles, periodLabel } from "@wasfa/ui";
-import { CalendarClock, Coins, MessageCircle } from "lucide-react";
+import { Badge, Card, PriceTag, buttonStyles } from "@wasfa/ui";
+import { Coins, MessageCircle } from "lucide-react";
 import Link from "next/link";
 
 import { OrderHistory } from "../../../../components/billing/order-history";
+import { PlanDetails } from "../../../../components/billing/plan-details";
 import { SubscriptionActions } from "../../../../components/billing/subscription-actions";
+import { Notice } from "../../../../components/notice";
 import { PayerLine } from "../../../../components/workspace/payer-line";
 import { getCatalog, requestedCurrency } from "../../../../lib/billing-server";
 import { checkoutHref } from "../../../../lib/checkout-target";
@@ -116,27 +118,22 @@ export default async function BillingPage() {
             </p>
             {subscription ? <StatusChips subscription={subscription} /> : null}
           </div>
-          {subscription ? (
-            <ul className="flex flex-col gap-1.5 text-base text-text-muted">
-              <li className="flex items-center gap-2">
-                <CalendarClock aria-hidden className="size-4 shrink-0" />
-                {t("billing.account.periodEnd", {
-                  date: formatDate(subscription.currentPeriodEnd),
-                })}
-                {subscription.monthsPaid > 0 ? ` · ${periodLabel(subscription.monthsPaid)}` : ""}
-              </li>
-              {pending ? (
-                <li>
-                  {t("billing.account.pendingChange", {
-                    plan: names[pending.planKey] ?? pending.planKey,
-                    date: formatDate(pending.effectiveAt),
-                  })}
-                </li>
-              ) : null}
-            </ul>
-          ) : (
+          {subscription ? null : (
             <p className="text-base text-text-muted">{t("billing.account.freeLead")}</p>
           )}
+          {pending ? (
+            <Notice tone="info">
+              {t("billing.account.pendingChange", {
+                plan: names[pending.planKey] ?? pending.planKey,
+                date: formatDate(pending.effectiveAt),
+              })}
+            </Notice>
+          ) : null}
+          <PlanDetails
+            subscription={subscription}
+            credits={credits}
+            plan={plans.find((plan) => plan.key === currentKey)}
+          />
           <SubscriptionActions
             hasSubscription={subscription !== null}
             canRenew={subscription !== null && subscription.status !== "trialing"}

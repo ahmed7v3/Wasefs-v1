@@ -29,6 +29,7 @@ import { useReauth } from "../../lib/reauth";
 import { useResource } from "../../lib/use-admin-data";
 import { useUrlParams } from "../../lib/use-url-params";
 import { ErrorNotice } from "../error-notice";
+import { Notice } from "../notice";
 
 import { EntitlementsEditor } from "./entitlements-editor";
 import { PlanFeaturesTab } from "./plan-features-tab";
@@ -269,6 +270,40 @@ function Editor({
   );
 }
 
+/**
+ * What /pricing shows right now, by the catalog's rule: a plan is listed when it is on sale
+ * (`planSaleState`) and has a published price. Says plainly when the page has no paid plan.
+ */
+function PricingPageStatus({ plans }: { plans: readonly AdminPlan[] }) {
+  const now = new Date();
+  const onSale = plans.filter((plan) => planSaleState(plan, now) === "on_sale");
+  const listed = onSale.filter((plan) => plan.prices.some((price) => price.amountMinor !== null));
+  const unpriced = onSale.filter((plan) => !listed.includes(plan));
+  return (
+    <div className="flex flex-col gap-2">
+      {listed.length === 0 ? (
+        <Notice tone="warning">{t("admin.pricing.page.none")}</Notice>
+      ) : (
+        <Notice tone="success">
+          {t("admin.pricing.page.listed", {
+            plans: listed.map((plan) => plan.nameAr).join("، "),
+          })}{" "}
+          <Link href="/pricing" target="_blank" className="font-medium underline">
+            {t("admin.pricing.page.open")}
+          </Link>
+        </Notice>
+      )}
+      {unpriced.length > 0 ? (
+        <Notice tone="warning">
+          {t("admin.pricing.page.unpriced", {
+            plans: unpriced.map((plan) => plan.nameAr).join("، "),
+          })}
+        </Notice>
+      ) : null}
+    </div>
+  );
+}
+
 function Loaded({
   plans,
   canPublish,
@@ -295,6 +330,7 @@ function Loaded({
 
   return (
     <div className="flex flex-col gap-4">
+      <PricingPageStatus plans={sorted} />
       <PlanRoster
         plans={sorted}
         selectedId={selected.id}
