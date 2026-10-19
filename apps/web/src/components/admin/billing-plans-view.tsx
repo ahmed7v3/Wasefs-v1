@@ -24,7 +24,12 @@ import {
   type PlanDraft,
 } from "../../lib/plan-draft";
 import { marginAssumptions } from "../../lib/plan-margin";
-import { matrixCurrencies, matrixFromPrices, type MatrixDraft } from "../../lib/price-matrix";
+import {
+  matrixCurrencies,
+  matrixFromPrices,
+  matrixMonths,
+  type MatrixDraft,
+} from "../../lib/price-matrix";
 import { useReauth } from "../../lib/reauth";
 import { useResource } from "../../lib/use-admin-data";
 import { useUrlParams } from "../../lib/use-url-params";
@@ -77,6 +82,7 @@ function Editor({
   const [draft, setDraft] = useState<PlanDraft>(() => draftFromPlan(plan));
   const [matrix, setMatrix] = useState<MatrixDraft>(() => matrixFromPrices(plan.prices));
   const [extra, setExtra] = useState<string[]>([]);
+  const [extraMonths, setExtraMonths] = useState<number[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<ApiRequestError | null>(null);
 
@@ -88,11 +94,8 @@ function Editor({
   const dirty = isDirty(plan, draft);
   const currencies = matrixCurrencies(plan.prices, extra);
   const monthsList = useMemo(
-    () =>
-      [...new Set([1, 3, 6, 12, ...plan.prices.map((price) => price.months)])].sort(
-        (a, b) => a - b,
-      ),
-    [plan.prices],
+    () => matrixMonths(plan.prices, extraMonths),
+    [plan.prices, extraMonths],
   );
   const monthlyCredits = Number(draft.monthlyCredits);
 
@@ -174,11 +177,15 @@ function Editor({
               plan={plan}
               matrix={matrix}
               extraCurrencies={extra}
+              extraMonths={extraMonths}
               disabled={!canPublish}
               dirty={matrixDirty}
               onMatrix={setMatrix}
               onAddCurrency={(currency) => {
                 setExtra((current) => [...current, currency]);
+              }}
+              onAddMonths={(months) => {
+                setExtraMonths((current) => [...current, months]);
               }}
               onPublished={onChanged}
             />
@@ -277,11 +284,14 @@ function Editor({
 function PricingPageStatus({ plans }: { plans: readonly AdminPlan[] }) {
   const now = new Date();
   const onSale = plans.filter((plan) => planSaleState(plan, now) === "on_sale");
-  const listed = onSale.filter((plan) => plan.prices.some((price) => price.amountMinor !== null));
+  // The default plan is the free card: it needs no price.
+  const listed = onSale.filter(
+    (plan) => plan.isDefault || plan.prices.some((price) => price.amountMinor !== null),
+  );
   const unpriced = onSale.filter((plan) => !listed.includes(plan));
   return (
     <div className="flex flex-col gap-2">
-      {listed.length === 0 ? (
+      {listed.every((plan) => plan.isDefault) ? (
         <Notice tone="warning">{t("admin.pricing.page.none")}</Notice>
       ) : (
         <Notice tone="success">

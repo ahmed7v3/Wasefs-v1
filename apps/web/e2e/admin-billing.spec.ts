@@ -64,7 +64,7 @@ test.describe("admin billing console", () => {
 
     // --- both are on the public pricing page
     // The pricing page caches the catalog for about a minute (BILLING-RUNBOOK §4): reload until then.
-    await page.goto("/pricing");
+    await page.goto("/pricing?period=1");
     await expect(async () => {
       await page.reload();
       await expect(page.getByText(/123\.45/).first()).toBeVisible({ timeout: 2_000 });

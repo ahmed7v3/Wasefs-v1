@@ -37,6 +37,8 @@ const SALE_TONE = {
 
 /** The plan's headline price: one month in EGP when offered, else its shortest offered period. */
 function headlinePrice(plan: AdminPlan): string {
+  if (plan.isDefault && plan.prices.every((price) => price.amountMinor === null))
+    return t("admin.pricing.roster.free");
   const offered = plan.prices
     .filter((price) => price.amountMinor !== null)
     .sort(

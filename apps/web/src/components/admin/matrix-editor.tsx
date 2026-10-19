@@ -1,5 +1,6 @@
 "use client";
 
+import { BILLING_MAX_MONTHS, BILLING_MIN_MONTHS } from "@wasfa/shared/billing";
 import { t } from "@wasfa/shared/i18n";
 import { Button, Input, cn } from "@wasfa/ui";
 import { Plus, Sparkles } from "lucide-react";
@@ -17,6 +18,8 @@ export interface MatrixEditorProps {
   onChange: (key: string, text: string) => void;
   onFillYear: (currency: string) => void;
   onAddCurrency: (currency: string) => void;
+  /** Adds a period row (1 to 24 months); absent = the rows are fixed. */
+  onAddMonths?: (months: number) => void;
 }
 
 const head =
@@ -36,9 +39,17 @@ export function MatrixEditor({
   onChange,
   onFillYear,
   onAddCurrency,
+  onAddMonths,
 }: MatrixEditorProps) {
   const [extra, setExtra] = useState("");
   const extraValid = /^[A-Z]{3}$/.test(extra) && !currencies.includes(extra);
+  const [period, setPeriod] = useState("");
+  const periodCount = Number(period);
+  const periodValid =
+    /^\d{1,2}$/.test(period) &&
+    periodCount >= BILLING_MIN_MONTHS &&
+    periodCount <= BILLING_MAX_MONTHS &&
+    !months.includes(periodCount);
 
   return (
     <div className="flex flex-col gap-3">
@@ -142,7 +153,42 @@ export function MatrixEditor({
             <Plus aria-hidden className="size-5" />
             {t("admin.pricing.matrix.add")}
           </Button>
+          {onAddMonths ? (
+            <>
+              <label className="ms-0 flex flex-col gap-1 text-sm font-semibold text-text sm:ms-4">
+                {t("admin.pricing.matrix.addPeriod")}
+                <Input
+                  name="new-period"
+                  ltr
+                  inputMode="numeric"
+                  maxLength={2}
+                  autoComplete="off"
+                  placeholder="24"
+                  className="w-28"
+                  value={period}
+                  onChange={(event) => {
+                    setPeriod(event.target.value.trim());
+                  }}
+                />
+              </label>
+              <Button
+                variant="secondary"
+                name="add-period"
+                disabled={!periodValid}
+                onClick={() => {
+                  onAddMonths(periodCount);
+                  setPeriod("");
+                }}
+              >
+                <Plus aria-hidden className="size-5" />
+                {t("admin.pricing.matrix.addPeriodButton")}
+              </Button>
+            </>
+          ) : null}
         </div>
+      ) : null}
+      {!disabled && onAddMonths ? (
+        <p className="text-sm text-text-muted">{t("admin.pricing.matrix.periodsHint")}</p>
       ) : null}
     </div>
   );

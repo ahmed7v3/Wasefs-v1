@@ -246,6 +246,24 @@ describe("GET /catalog", () => {
     }
   });
 
+  it("shows the default plan as the free card while it is on sale, never as a plan to buy", async () => {
+    const { db } = ctx.owner;
+    const visible = await getCatalog("/catalog?country=JO");
+    expect(visible.body.freePlan).toMatchObject({
+      key: "free",
+      names: { ar: "المجانية", en: "Free" },
+      monthlyCredits: 30,
+    });
+    expect(keys(visible.body)).not.toContain("free");
+    await db.update(plans).set({ visibility: "hidden" }).where(eq(plans.key, "free"));
+    try {
+      // A country of its own: the catalog is cached per currency and country.
+      expect((await getCatalog("/catalog?country=LB")).body.freePlan).toBeNull();
+    } finally {
+      await db.update(plans).set({ visibility: "public" }).where(eq(plans.key, "free"));
+    }
+  });
+
   it("drops its cache when the catalog topic is published", async () => {
     const { db } = ctx.owner;
     const [pro] = await db.select({ id: plans.id }).from(plans).where(eq(plans.key, "pro"));

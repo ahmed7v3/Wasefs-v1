@@ -5,6 +5,7 @@ import { buttonStyles } from "@wasfa/ui";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { CheckoutDurations } from "../../../../components/billing/checkout-durations";
 import { CheckoutForm } from "../../../../components/billing/checkout-form";
 import { ErrorNotice } from "../../../../components/error-notice";
 import { Notice } from "../../../../components/notice";
@@ -114,9 +115,11 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
     throw error;
   }
 
+  const checkoutPlan =
+    target.kind === "plan" ? catalog.plans.find((plan) => plan.key === target.planKey) : undefined;
   const subjectName =
     target.kind === "plan"
-      ? (catalog.plans.find((plan) => plan.key === target.planKey)?.names.ar ?? target.planKey)
+      ? (checkoutPlan?.names.ar ?? target.planKey)
       : target.kind === "pack"
         ? (catalog.creditPacks.find((pack) => pack.key === target.packKey)?.names.ar ??
           target.packKey)
@@ -130,7 +133,16 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
         </h1>
         <p className="text-base text-text-muted">{t("billing.checkout.lead")}</p>
       </header>
+      {checkoutPlan && target.kind === "plan" ? (
+        <CheckoutDurations
+          plan={checkoutPlan}
+          months={target.months}
+          currency={catalog.currency}
+          orgId={orgId}
+        />
+      ) : null}
       <CheckoutForm
+        key={target.kind === "plan" ? target.months : undefined}
         target={target}
         initial={quote}
         initialMethodKey={methodKey}

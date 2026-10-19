@@ -32,10 +32,13 @@ export interface PlanPricesTabProps {
   plan: AdminPlan;
   matrix: MatrixDraft;
   extraCurrencies: readonly string[];
+  /** Periods the admin added in this session (rows with no price yet). */
+  extraMonths: readonly number[];
   disabled: boolean;
   dirty: boolean;
   onMatrix: (matrix: MatrixDraft) => void;
   onAddCurrency: (currency: string) => void;
+  onAddMonths: (months: number) => void;
   onPublished: () => void;
 }
 
@@ -195,14 +198,16 @@ export function PlanPricesTab({
   plan,
   matrix,
   extraCurrencies,
+  extraMonths,
   disabled,
   dirty,
   onMatrix,
   onAddCurrency,
+  onAddMonths,
   onPublished,
 }: PlanPricesTabProps) {
   const stored: PriceCell[] = plan.prices;
-  const months = matrixMonths(stored);
+  const months = matrixMonths(stored, extraMonths);
   const currencies = matrixCurrencies(stored, extraCurrencies);
   const { prices, errors } = pricesFromMatrix(matrix, stored);
   const [busy, setBusy] = useState(false);
@@ -232,6 +237,15 @@ export function PlanPricesTab({
     );
   };
 
+  if (plan.isDefault && plan.prices.every((price) => price.amountMinor === null)) {
+    return (
+      <div className="flex flex-col gap-3 rounded-lg border border-border bg-primary-soft p-4">
+        <p className="text-base font-semibold text-text">{t("admin.pricing.free.title")}</p>
+        <p className="text-base text-text">{t("admin.pricing.free.body")}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <p className="text-base text-text-muted">{t("admin.pricing.prices.lead")}</p>
@@ -248,6 +262,7 @@ export function PlanPricesTab({
           onMatrix(fillYearFromMonthly(matrix, currency));
         }}
         onAddCurrency={onAddCurrency}
+        onAddMonths={onAddMonths}
       />
       {error ? <ErrorNotice error={error} /> : null}
       {!disabled ? (

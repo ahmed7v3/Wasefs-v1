@@ -1,6 +1,13 @@
 import { t } from "@wasfa/shared/i18n";
 import { Card, ComparisonTable, Container, PriceTag, buttonStyles, periodLabel } from "@wasfa/ui";
-import { ChevronDown, MessageCircle } from "lucide-react";
+import {
+  CalendarX,
+  ChevronDown,
+  MessageCircle,
+  RotateCcw,
+  ShieldCheck,
+  Wallet,
+} from "lucide-react";
 import Link from "next/link";
 
 import { CurrencySwitch } from "../../../components/billing/currency-switch";
@@ -44,6 +51,7 @@ export default async function PricingPage({
 }) {
   const params = await searchParams;
   const orgId = orgFromParams(params);
+  const period = Number(Array.isArray(params["period"]) ? params["period"][0] : params["period"]);
   const currencyParam = await requestedCurrency(params);
   const [catalog, settings, nonce] = await Promise.all([
     getCatalog(currencyParam),
@@ -65,11 +73,19 @@ export default async function PricingPage({
     );
   }
 
-  const { currency, plans, promotions, creditPacks, tax, billing } = catalog;
-  const comparison = comparisonModel(plans, settings.free_tier.monthlyAnalyses);
+  const { currency, plans, freePlan, promotions, creditPacks, tax, billing } = catalog;
+  const comparison = comparisonModel(plans, freePlan);
   const whatsapp = contactLinks(settings.contact).find((link) => link.channel === "whatsapp");
   const organisationPlan = plans.find((plan) => plan.audience === "organization");
   const faq = FAQ.map((entry) => ({ question: t(entry.question), answer: t(entry.answer) }));
+  const trust = [
+    { icon: CalendarX, text: t("billing.trust.noAutoRenew") },
+    ...(billing.refundWindowDays > 0
+      ? [{ icon: RotateCcw, text: t("billing.trust.refund", { days: billing.refundWindowDays }) }]
+      : []),
+    { icon: Wallet, text: t("billing.trust.methods") },
+    { icon: ShieldCheck, text: t("billing.trust.private") },
+  ];
 
   return (
     <>
@@ -89,59 +105,83 @@ export default async function PricingPage({
       />
       <JsonLd nonce={nonce} data={faqJsonLd(faq)} />
 
-      <Container className="flex flex-col gap-12 py-10 sm:gap-16 sm:py-16">
-        <header className="flex flex-col gap-3">
-          <h1 className="font-heading text-3xl font-bold leading-snug text-primary sm:text-5xl">
-            {t("billing.pricing.title")}
-          </h1>
-          <p className="max-w-reading text-lg text-text-muted">{t("billing.pricing.lead")}</p>
-          <ul className="flex flex-wrap gap-x-5 gap-y-1 text-base font-semibold text-text">
-            <li>{t("billing.trust.noCard")}</li>
-            <li>{t("billing.trust.noAutoRenew")}</li>
-            {billing.refundWindowDays > 0 ? (
-              <li>{t("billing.trust.refund", { days: billing.refundWindowDays })}</li>
-            ) : null}
-            <li>{t("billing.trust.methods")}</li>
-          </ul>
-        </header>
+      <Container className="flex flex-col gap-16 py-12 sm:gap-24 sm:py-20">
+        <section aria-labelledby="pricing-title" className="flex flex-col gap-10">
+          <header className="mx-auto flex max-w-3xl flex-col items-center gap-4 text-center">
+            <h1
+              id="pricing-title"
+              className="font-heading text-3xl font-bold leading-snug text-primary sm:text-5xl"
+            >
+              {t("billing.pricing.title")}
+            </h1>
+            <p className="max-w-reading text-lg text-text-muted">{t("billing.pricing.lead")}</p>
+            <ul className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm font-medium text-text">
+              {trust.map(({ icon: Icon, text }) => (
+                <li key={text} className="inline-flex items-center gap-1.5">
+                  <Icon aria-hidden className="size-4 text-success" />
+                  {text}
+                </li>
+              ))}
+            </ul>
+          </header>
 
-        <section aria-labelledby="plans-title" className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <h2 id="plans-title" className="font-heading text-2xl font-bold text-text">
+          <div className="flex flex-col gap-3">
+            <h2 id="plans-title" className="sr-only">
               {t("billing.pricing.plans")}
             </h2>
-            <CurrencySwitch current={currency} options={settings.currency.enabled} />
+            <PricingPlans
+              currency={currency}
+              plans={plans}
+              freePlan={freePlan}
+              promotions={promotions}
+              trialAvailable={billing.trialAvailable}
+              initialMonths={Number.isInteger(period) ? period : undefined}
+              currencySwitch={
+                <CurrencySwitch current={currency} options={settings.currency.enabled} />
+              }
+              orgId={orgId}
+            />
+            {plans.length === 0 ? (
+              <Notice tone="info" className="mx-auto max-w-reading">
+                {t("billing.pricing.noPlans")}
+              </Notice>
+            ) : null}
+            {tax.mode !== "none" ? (
+              <p className="text-center text-sm text-text-muted">
+                {tax.mode === "inclusive" ? t("billing.tax.inclusive") : t("billing.tax.added")}
+              </p>
+            ) : null}
           </div>
-          <PricingPlans
-            currency={currency}
-            plans={plans}
-            promotions={promotions}
-            freeMonthlyAnalyses={settings.free_tier.monthlyAnalyses}
-            trialAvailable={billing.trialAvailable}
-            orgId={orgId}
-          />
-          {plans.length === 0 ? (
-            <Notice tone="info">{t("billing.pricing.noPlans")}</Notice>
-          ) : null}
-          {tax.mode !== "none" ? (
-            <p className="text-sm text-text-muted">
-              {tax.mode === "inclusive" ? t("billing.tax.inclusive") : t("billing.tax.added")}
-            </p>
-          ) : null}
         </section>
 
+        {comparison.columns.length > 1 ? (
+          <section aria-labelledby="compare-title" className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1 text-center">
+              <h2 id="compare-title" className="font-heading text-2xl font-bold text-text">
+                {t("billing.compare.title")}
+              </h2>
+              <p className="text-base text-text-muted">{t("billing.compare.lead")}</p>
+            </div>
+            <ComparisonTable
+              caption={t("billing.compare.title")}
+              columns={comparison.columns}
+              rows={comparison.rows}
+            />
+          </section>
+        ) : null}
+
         {creditPacks.length > 0 ? (
-          <section aria-labelledby="packs-title" className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1">
+          <section aria-labelledby="packs-title" className="flex flex-col gap-6">
+            <div className="flex flex-col gap-1 text-center">
               <h2 id="packs-title" className="font-heading text-2xl font-bold text-text">
                 {t("billing.packs.title")}
               </h2>
               <p className="text-base text-text-muted">{t("billing.packs.lead")}</p>
             </div>
-            <ul className="grid gap-4 sm:grid-cols-3">
+            <ul className="mx-auto grid w-full max-w-5xl gap-4 sm:grid-cols-3">
               {creditPacks.map((pack) => (
                 <li key={pack.key}>
-                  <Card elevation="card" padding="compact" className="flex h-full flex-col gap-3">
+                  <Card elevation="flat" padding="compact" className="flex h-full flex-col gap-3">
                     <h3 className="font-heading text-lg font-bold text-text">{pack.names.ar}</h3>
                     <p className="text-base text-text-muted">
                       {pack.bonusCredits > 0
@@ -171,42 +211,34 @@ export default async function PricingPage({
           </section>
         ) : null}
 
-        {plans.length > 0 ? (
-          <section aria-labelledby="compare-title" className="flex flex-col gap-4">
-            <h2 id="compare-title" className="font-heading text-2xl font-bold text-text">
-              {t("billing.compare.title")}
-            </h2>
-            <ComparisonTable
-              caption={t("billing.compare.title")}
-              columns={comparison.columns}
-              rows={comparison.rows}
-            />
-          </section>
-        ) : null}
-
         <section
           aria-labelledby="org-title"
-          className="flex flex-col gap-3 rounded-xl border border-border/60 bg-surface p-5 shadow-card sm:p-8"
+          className="flex flex-col items-start gap-4 rounded-2xl border border-border/60 bg-surface p-6 shadow-card sm:flex-row sm:items-center sm:justify-between sm:p-8"
         >
-          <h2 id="org-title" className="font-heading text-2xl font-bold text-text">
-            {t("billing.org.title")}
-          </h2>
-          <p className="max-w-reading text-base text-text-muted">
-            {organisationPlan
-              ? t("billing.org.leadWithPlan", {
-                  plan: organisationPlan.names.ar,
-                  members: organisationPlan.maxMembers ?? 0,
-                  credits: organisationPlan.monthlyCredits,
-                })
-              : t("billing.org.lead")}
-          </p>
-          <div>
+          <div className="flex flex-col gap-2">
+            <h2 id="org-title" className="font-heading text-2xl font-bold text-text">
+              {t("billing.org.title")}
+            </h2>
+            <p className="max-w-reading text-base text-text-muted">
+              {organisationPlan
+                ? t("billing.org.leadWithPlan", {
+                    plan: organisationPlan.names.ar,
+                    members: organisationPlan.maxMembers ?? 0,
+                    credits: organisationPlan.monthlyCredits,
+                  })
+                : t("billing.org.lead")}
+            </p>
+          </div>
+          <div className="shrink-0">
             <OrgLeadDialog nonce={nonce} />
           </div>
         </section>
 
-        <section aria-labelledby="faq-title" className="flex flex-col gap-4">
-          <h2 id="faq-title" className="font-heading text-2xl font-bold text-text">
+        <section
+          aria-labelledby="faq-title"
+          className="mx-auto flex w-full max-w-3xl flex-col gap-4"
+        >
+          <h2 id="faq-title" className="text-center font-heading text-2xl font-bold text-text">
             {t("billing.faq.title")}
           </h2>
           <div className="flex flex-col gap-2">
@@ -229,7 +261,7 @@ export default async function PricingPage({
         </section>
 
         {whatsapp ? (
-          <section className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-primary-soft p-5 sm:p-8">
+          <section className="mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-4 rounded-2xl bg-primary-soft p-6 sm:p-8">
             <div className="flex flex-col gap-1">
               <h2 className="font-heading text-xl font-bold text-primary">
                 {t("billing.help.title")}

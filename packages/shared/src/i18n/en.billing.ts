@@ -44,7 +44,11 @@ export const enBilling: Partial<Record<keyof typeof arBilling, string>> = {
   "billing.plan.free.analyses": "{count} analyses a month",
   "billing.plan.free.noCard": "No bank card needed",
   "billing.plan.free.cta": "Start free",
+  "billing.plan.free.note": "Free forever, no bank card.",
+  "billing.plan.free.current": "You are on this plan",
+  "billing.plan.includes": "Included",
   "billing.compare.title": "Compare plans",
+  "billing.compare.lead": "Everything each plan includes, side by side.",
   "billing.compare.feature": "Feature",
   "billing.compare.credits": "Monthly usage",
   "billing.compare.members": "Members",
@@ -67,6 +71,12 @@ export const enBilling: Partial<Record<keyof typeof arBilling, string>> = {
   "billing.pricing.annual": "Yearly",
   "billing.pricing.annualSavings": "Save up to {amount} a year",
   "billing.pricing.perMonth": "Equals {amount} a month",
+  "billing.pricing.perMonthSuffix": "/ month",
+  "billing.pricing.savePercent": "Save {percent}%",
+  "billing.pricing.billedMonthly": "Paid monthly; renew whenever you like.",
+  "billing.pricing.billedUpfront": "{amount} paid once for {period}.",
+  "billing.pricing.savingsVsMonthly": "You save {percent}% compared with paying monthly",
+  "billing.pricing.onlyPeriod": "This plan is sold for {period}.",
   "billing.pricing.unavailable": "Prices are unavailable for a moment. Please try again shortly.",
   "billing.pricing.noPlans":
     "Paid plans are not on offer right now. Start with the free plan, or contact us to hear which plans are available.",
@@ -77,6 +87,7 @@ export const enBilling: Partial<Record<keyof typeof arBilling, string>> = {
   "billing.trust.noAutoRenew": "No automatic renewal",
   "billing.trust.refund": "Refund within {days} days",
   "billing.trust.methods": "Pay with InstaPay, Vodafone Cash or card",
+  "billing.trust.private": "Your medical data stays private",
   "billing.recommend.title": "Best for you",
   "billing.recommend.badge": "Best for you",
   "billing.recommend.usage": "You used {count} credits in the last 30 days.",
@@ -114,6 +125,9 @@ export const enBilling: Partial<Record<keyof typeof arBilling, string>> = {
   "billing.help.whatsapp": "Message us on WhatsApp",
 
   "billing.checkout.title": "Checkout",
+  "billing.checkout.period": "Subscription length",
+  "billing.checkout.periodMonthly": "{amount} a month",
+  "billing.checkout.periodTotal": "{amount} paid now",
   "billing.checkout.lead":
     "Review your order and pick a payment method. You see the full total here before paying, and it does not change after you press the button.",
   "billing.checkout.unavailable":
