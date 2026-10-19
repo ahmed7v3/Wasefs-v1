@@ -50,7 +50,11 @@ export const arBilling = {
   "billing.plan.free.analyses": "{count} تحاليل شهريًا",
   "billing.plan.free.noCard": "لا حاجة لبطاقة بنكية",
   "billing.plan.free.cta": "ابدأ مجانًا",
+  "billing.plan.free.note": "مجانية دائمًا، بدون بطاقة بنكية.",
+  "billing.plan.free.current": "أنت على هذه الباقة",
+  "billing.plan.includes": "تشمل الباقة",
   "billing.compare.title": "مقارنة الباقات",
+  "billing.compare.lead": "كل ما تشمله كل باقة جنبًا إلى جنب.",
   "billing.compare.feature": "الميزة",
   "billing.compare.credits": "الاستخدام الشهري",
   "billing.compare.members": "عدد الأعضاء",
@@ -74,6 +78,12 @@ export const arBilling = {
   "billing.pricing.annual": "سنوي",
   "billing.pricing.annualSavings": "وفّر حتى {amount} سنويًا",
   "billing.pricing.perMonth": "تعادل {amount} شهريًا",
+  "billing.pricing.perMonthSuffix": "/ شهريًا",
+  "billing.pricing.savePercent": "وفّر {percent}%",
+  "billing.pricing.billedMonthly": "تُدفع شهريًا، وتجدّد وقتما تشاء.",
+  "billing.pricing.billedUpfront": "تُدفع {amount} مرة واحدة مقابل {period}.",
+  "billing.pricing.savingsVsMonthly": "توفّر {percent}% مقارنة بالدفع الشهري",
+  "billing.pricing.onlyPeriod": "هذه الباقة متاحة بمدة {period}.",
   "billing.pricing.unavailable": "الأسعار غير متاحة لحظيًا. أعد المحاولة بعد قليل.",
   "billing.pricing.noPlans":
     "الباقات المدفوعة غير معروضة حاليًا. يمكنك البدء بالباقة المجانية، أو التواصل معنا لمعرفة الباقات المتاحة.",
@@ -84,6 +94,7 @@ export const arBilling = {
   "billing.trust.noAutoRenew": "بدون تجديد تلقائي",
   "billing.trust.refund": "استرداد خلال {days} أيام",
   "billing.trust.methods": "ادفع بإنستا باي أو فودافون كاش أو بطاقة",
+  "billing.trust.private": "بياناتك الطبية خاصة ومحمية",
   "billing.recommend.title": "الأنسب لك",
   "billing.recommend.badge": "الأنسب لك",
   "billing.recommend.usage": "استخدمت {count} كريدت في آخر 30 يومًا.",
@@ -122,6 +133,9 @@ export const arBilling = {
 
   // --- Checkout -------------------------------------------------------------------------------------
   "billing.checkout.title": "إتمام الشراء",
+  "billing.checkout.period": "مدة الاشتراك",
+  "billing.checkout.periodMonthly": "{amount} شهريًا",
+  "billing.checkout.periodTotal": "تدفع الآن {amount}",
   "billing.checkout.lead":
     "راجع طلبك واختر وسيلة الدفع. ترى الإجمالي كاملًا هنا قبل أن تدفع، ولا يتغير بعد الضغط.",
   "billing.checkout.unavailable": "تعذّر تحميل بيانات الدفع الآن. حاول مرة أخرى بعد قليل.",

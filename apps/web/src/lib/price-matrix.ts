@@ -39,9 +39,9 @@ export function matrixCurrencies(
   return [...new Set([...prices.map((price) => price.currency), ...DEFAULT_CURRENCIES, ...extra])];
 }
 
-/** The rows to show: the standard periods plus any other period that already has a price. */
-export function matrixMonths(prices: readonly PriceCell[]): number[] {
-  return [...new Set([...MATRIX_MONTHS, ...prices.map((price) => price.months)])].sort(
+/** The rows to show: the standard periods, any other period that already has a price, and added ones. */
+export function matrixMonths(prices: readonly PriceCell[], extra: readonly number[] = []): number[] {
+  return [...new Set([...MATRIX_MONTHS, ...prices.map((price) => price.months), ...extra])].sort(
     (left, right) => left - right,
   );
 }

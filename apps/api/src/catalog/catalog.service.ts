@@ -70,9 +70,10 @@ export class CatalogService {
     if (cached) return cached;
 
     const { currency, country } = market;
-    const [billing, rows, promotions, packs, taxRule, methods] = await Promise.all([
+    const [billing, rows, free, promotions, packs, taxRule, methods] = await Promise.all([
       this.settings.get("billing"),
       this.repo.offeredPlans(currency),
+      this.repo.freePlan(now),
       this.inputs.activePromotions(now),
       this.inputs.creditPacks(currency),
       this.inputs.taxRuleFor(country),
@@ -156,6 +157,16 @@ export class CatalogService {
       currency,
       country,
       plans,
+      freePlan: free
+        ? {
+            key: free.key,
+            names: { ar: free.nameAr, en: free.nameEn },
+            tagline: localized(free.taglineAr, free.taglineEn),
+            features: free.features,
+            badge: localized(free.badgeAr, free.badgeEn),
+            monthlyCredits: free.monthlyCredits,
+          }
+        : null,
       promotions: promotions.filter(({ promotion }) => promotion.showOnPricing).map(toPromotion),
       creditPacks: packs.map((pack) => ({
         key: pack.key,

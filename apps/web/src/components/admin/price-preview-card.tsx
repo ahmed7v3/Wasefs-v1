@@ -11,6 +11,8 @@ export interface PricePreviewCardProps {
   features: readonly PlanCardFeature[];
   /** The price of the previewed period; `null` renders "not offered". */
   amountMinor: number | null;
+  /** The free (default) plan: shows "مجانًا" instead of a price. */
+  free?: boolean | undefined;
   months: number;
   currency: string;
 }
@@ -26,6 +28,7 @@ export function PricePreviewCard({
   highlighted,
   features,
   amountMinor,
+  free = false,
   months,
   currency,
 }: PricePreviewCardProps) {
@@ -36,7 +39,11 @@ export function PricePreviewCard({
       highlighted={highlighted}
       badges={badge ? <PromoBadge tone="info">{badge}</PromoBadge> : undefined}
       price={
-        amountMinor === null ? (
+        free ? (
+          <span className="font-heading text-4xl font-bold text-text">
+            {t("billing.plan.free.price")}
+          </span>
+        ) : amountMinor === null ? (
           <p className="text-base font-semibold text-text-muted">
             {t("admin.pricing.preview.notOffered", { currency })}
           </p>
@@ -44,13 +51,13 @@ export function PricePreviewCard({
           <PriceTag
             amountMinor={months === 1 ? amountMinor : Math.floor(amountMinor / months)}
             currency={currency}
-            size="lg"
+            size="xl"
             suffix={t("admin.pricing.preview.perMonth")}
           />
         )
       }
       priceNote={
-        amountMinor !== null && months > 1
+        !free && amountMinor !== null && months > 1
           ? t("admin.pricing.preview.billedTotal", {
               amount: moneyText(amountMinor, currency),
               months,

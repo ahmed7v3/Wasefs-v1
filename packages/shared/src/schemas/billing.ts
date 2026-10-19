@@ -389,6 +389,20 @@ export const catalogPlanSchema = z.object({
   annualSavingsMinor: minorAmountSchema.optional(),
 });
 
+/**
+ * The free plan as the admin set it up: the default plan (what everyone without a paid plan has),
+ * shown on the pricing page only while it is on sale. It has no price: nobody buys it.
+ */
+export const catalogFreePlanSchema = z.object({
+  key: z.string(),
+  names: localizedSchema,
+  tagline: localizedSchema.nullable(),
+  features: planFeaturesSchema,
+  badge: localizedSchema.nullable(),
+  monthlyCredits: z.number().int().min(0),
+});
+export type CatalogFreePlan = z.output<typeof catalogFreePlanSchema>;
+
 export const catalogPromotionSchema = z.object({
   id: z.uuid(),
   title: localizedSchema,
@@ -422,6 +436,8 @@ export const catalogResponseSchema = z.object({
     .regex(/^[A-Z]{2}$/)
     .nullable(),
   plans: z.array(catalogPlanSchema),
+  /** Null when the default plan is hidden (or outside its sale window): no free card is shown. */
+  freePlan: catalogFreePlanSchema.nullable().default(null),
   promotions: z.array(catalogPromotionSchema),
   creditPacks: z.array(catalogCreditPackSchema),
   tax: z.object({ mode: z.enum(["inclusive", "added", "none"]) }),

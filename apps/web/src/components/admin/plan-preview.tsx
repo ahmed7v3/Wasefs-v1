@@ -3,14 +3,17 @@
 import { t } from "@wasfa/shared/i18n";
 import { Button, Card, CardTitle, ComparisonTable, Select } from "@wasfa/ui";
 import { Monitor, Smartphone } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { type AdminPlan } from "../../lib/admin-billing-schemas";
 import { storedPlanToCatalog, toCatalogPlan, type PlanDraft } from "../../lib/plan-draft";
 import { type MatrixDraft } from "../../lib/price-matrix";
 import { comparisonModel } from "../../lib/pricing-compare";
+import { offeredDurations } from "../../lib/pricing-durations";
 
 import { PricePreviewCard } from "./price-preview-card";
+
+import type { CatalogFreePlan } from "@wasfa/shared/schemas/billing";
 
 export interface PlanPreviewProps {
   plans: readonly AdminPlan[];
@@ -22,29 +25,62 @@ export interface PlanPreviewProps {
 
 /**
  * What customers see, drawn with the pricing page's own components: the plan card (mobile) or all
- * plan cards and the comparison table (desktop), in a chosen currency and for 1 or 12 months.
+ * plan cards and the comparison table (desktop), in a chosen currency and for any priced period.
  * The selected plan shows the unsaved draft; the others show what is stored.
  */
 export function PlanPreview({ plans, selected, draft, matrix, currencies }: PlanPreviewProps) {
   const [device, setDevice] = useState<"mobile" | "desktop">("mobile");
   const [currency, setCurrency] = useState(currencies[0] ?? "EGP");
-  const [months, setMonths] = useState<1 | 12>(1);
+  const [chosenMonths, setMonths] = useState(1);
   const activeCurrency = currencies.includes(currency) ? currency : (currencies[0] ?? "EGP");
 
-  const catalog = useMemo(
-    () =>
-      plans
-        .filter((plan) => plan.visibility === "public" || plan.id === selected.id)
-        .filter((plan) => !plan.isDefault || plan.id === selected.id)
-        .map((plan) =>
-          plan.id === selected.id
-            ? toCatalogPlan(plan, draft, matrix, activeCurrency)
-            : storedPlanToCatalog(plan, activeCurrency),
-        ),
-    [plans, selected.id, draft, matrix, activeCurrency],
+  const asCatalog = (plan: AdminPlan) =>
+    plan.id === selected.id
+      ? toCatalogPlan(plan, draft, matrix, activeCurrency)
+      : storedPlanToCatalog(plan, activeCurrency);
+  // Cheap to rebuild on every render: a handful of plans.
+  const catalog = plans
+    .filter((plan) => !plan.isDefault)
+    .filter((plan) => plan.visibility === "public" || plan.id === selected.id)
+    .map(asCatalog);
+  // The free card: the default plan (its draft when it is the one being edited), as the page shows it.
+  const freeStored = plans.find((plan) => plan.isDefault);
+  const freeShown =
+    freeStored && (freeStored.visibility === "public" || freeStored.id === selected.id)
+      ? asCatalog(freeStored)
+      : null;
+  const freePlan: CatalogFreePlan | null = freeShown
+    ? {
+        key: freeShown.key,
+        names: freeShown.names,
+        tagline: freeShown.tagline,
+        features: freeShown.features,
+        badge: freeShown.badge,
+        monthlyCredits: freeShown.monthlyCredits,
+      }
+    : null;
+  const comparison = comparisonModel(catalog, freePlan);
+  const durations = offeredDurations(catalog);
+  const months = durations.includes(chosenMonths) ? chosenMonths : (durations[0] ?? 1);
+
+  const freeCard = (plan: CatalogFreePlan) => (
+    <PricePreviewCard
+      key={plan.key}
+      name={plan.names.ar}
+      tagline={plan.tagline?.ar ?? null}
+      badge={plan.badge?.ar ?? null}
+      highlighted={false}
+      features={plan.features.map((feature) => ({
+        text: feature.textAr,
+        included: feature.included,
+        highlight: feature.highlight,
+      }))}
+      amountMinor={null}
+      free
+      months={months}
+      currency={activeCurrency}
+    />
   );
-  const freeCredits = plans.find((plan) => plan.isDefault)?.monthlyCredits ?? 0;
-  const comparison = useMemo(() => comparisonModel(catalog, freeCredits), [catalog, freeCredits]);
 
   const card = (plan: (typeof catalog)[number]) => {
     const price = plan.prices.find((entry) => entry.months === months);
@@ -114,7 +150,7 @@ export function PlanPreview({ plans, selected, draft, matrix, currencies }: Plan
           </Select>
         </label>
         <div role="group" aria-label={t("admin.pricing.preview.period")} className="flex gap-2">
-          {([1, 12] as const).map((value) => (
+          {(durations.length > 0 ? durations : [1]).map((value) => (
             <Button
               key={value}
               variant={months === value ? "primary" : "secondary"}
@@ -130,11 +166,16 @@ export function PlanPreview({ plans, selected, draft, matrix, currencies }: Plan
       </div>
       {device === "mobile" ? (
         <div className="mx-auto w-full max-w-xs">
-          {catalog.filter((plan) => plan.key === selected.key).map(card)}
+          {selected.isDefault && freePlan
+            ? freeCard(freePlan)
+            : catalog.filter((plan) => plan.key === selected.key).map(card)}
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="grid gap-4 md:grid-cols-2">{catalog.map(card)}</div>
+          <div className="grid gap-4 pt-4 md:grid-cols-2">
+            {freePlan ? freeCard(freePlan) : null}
+            {catalog.map(card)}
+          </div>
           <ComparisonTable
             caption={t("admin.pricing.preview.compare")}
             columns={comparison.columns}

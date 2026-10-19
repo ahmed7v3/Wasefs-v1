@@ -15,15 +15,24 @@ import {
 } from "@wasfa/ui";
 import { Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 
 import { fetchRecommendation } from "../../lib/billing-api";
 import { checkoutHref } from "../../lib/checkout-target";
 import { trackGrowth } from "../../lib/growth-events";
-import { OffersCard } from "../growth/offers-card";
-import { ValueLedger } from "../growth/value-ledger";
+import {
+  bestSavingsPercent,
+  defaultDuration,
+  durationLabel,
+  offeredDurations,
+  planOffer,
+} from "../../lib/pricing-durations";
 
-import type { CatalogResponse, RecommendationResponse } from "@wasfa/shared/schemas/billing";
+import type {
+  CatalogFreePlan,
+  CatalogResponse,
+  RecommendationResponse,
+} from "@wasfa/shared/schemas/billing";
 
 type Plan = CatalogResponse["plans"][number];
 type Promotion = CatalogResponse["promotions"][number];
@@ -31,42 +40,46 @@ type Promotion = CatalogResponse["promotions"][number];
 export interface PricingPlansProps {
   currency: string;
   plans: readonly Plan[];
+  /** The admin's default plan when it is on sale; null = no free card. */
+  freePlan: CatalogFreePlan | null;
   promotions: readonly Promotion[];
-  /** Monthly analyses of the free plan (`free_tier` setting). */
-  freeMonthlyAnalyses: number;
   trialAvailable: boolean;
+  /** The currency control, shown under the period switcher. */
+  currencySwitch?: ReactNode;
+  /** `?period=` on the page: the period to open on when it is sold. */
+  initialMonths?: number | undefined;
   /** Buying for this organization (`/pricing?org=`): checkout links carry it. */
   orgId?: string | undefined;
 }
 
-/** The free plan key the API uses for people without a paid plan. */
-const FREE_PLAN_KEY = "free";
-
-function planFeatures(plan: Plan): PlanCardFeature[] {
-  const facts: PlanCardFeature[] = [
+/** Included features only: what is missing is in the comparison table, not on the card. */
+function includedFeatures(
+  monthlyCredits: number,
+  maxMembers: number | null,
+  features: Plan["features"],
+): PlanCardFeature[] {
+  return [
     {
-      text: t("billing.plan.monthlyCredits", { count: plan.monthlyCredits }),
+      text: t("billing.plan.monthlyCredits", { count: monthlyCredits }),
       included: true,
       highlight: true,
     },
-  ];
-  if (plan.maxMembers !== null) {
-    facts.push({
-      text: t("billing.plan.maxMembers", { count: plan.maxMembers }),
-      included: true,
-      highlight: false,
-    });
-  }
-  return [
-    ...facts,
-    ...plan.features.map((feature) => ({
-      text: feature.textAr,
-      included: feature.included,
-      highlight: feature.highlight,
-    })),
+    ...(maxMembers !== null
+      ? [
+          {
+            text: t("billing.plan.maxMembers", { count: maxMembers }),
+            included: true,
+            highlight: false,
+          },
+        ]
+      : []),
+    ...features
+      .filter((feature) => feature.included)
+      .map((feature) => ({ text: feature.textAr, included: true, highlight: feature.highlight })),
   ];
 }
 
+/** The signed-in hint: which plan fits the person's own use. One calm line, never a banner wall. */
 function Recommendation({
   recommendation,
   plans,
@@ -80,56 +93,106 @@ function Recommendation({
   const plan = recommended
     ? plans.find((candidate) => candidate.key === recommended.planKey)
     : null;
-  if (recommendation.usage30dCredits <= 0 && !plan) return null;
+  if (!plan || !recommended) return null;
   const cheaperThanPacks =
-    recommended !== null &&
     recommendation.packPerCreditMinor !== null &&
     recommended.perCreditMinor < recommendation.packPerCreditMinor;
   return (
-    <section
-      aria-label={t("billing.recommend.title")}
-      className="flex flex-col gap-1 rounded-xl border border-primary/30 bg-primary-soft p-4 sm:p-5"
-    >
-      <p className="inline-flex items-center gap-2 font-heading text-lg font-bold text-primary">
-        <Sparkles aria-hidden className="size-5" />
-        {t("billing.recommend.title")}
-      </p>
-      {recommendation.usage30dCredits > 0 ? (
-        <p className="text-base text-text">
-          {t("billing.recommend.usage", { count: recommendation.usage30dCredits })}
-        </p>
-      ) : null}
-      {plan && recommended ? (
-        <p className="text-base text-text">
-          {cheaperThanPacks && recommendation.packPerCreditMinor !== null
-            ? t("billing.recommend.plan", {
-                plan: plan.names.ar,
-                perCredit: moneyText(recommended.perCreditMinor, currency),
-                pack: moneyText(recommendation.packPerCreditMinor, currency),
-              })
-            : t("billing.recommend.planSimple", { plan: plan.names.ar })}
-        </p>
-      ) : null}
-    </section>
+    <p className="mx-auto flex max-w-reading items-start gap-2 rounded-xl bg-primary-soft px-4 py-3 text-base text-text">
+      <Sparkles aria-hidden className="mt-1 size-4 shrink-0 text-primary" />
+      <span>
+        {recommendation.usage30dCredits > 0
+          ? `${t("billing.recommend.usage", { count: recommendation.usage30dCredits })} `
+          : null}
+        {cheaperThanPacks && recommendation.packPerCreditMinor !== null
+          ? t("billing.recommend.plan", {
+              plan: plan.names.ar,
+              perCredit: moneyText(recommended.perCreditMinor, currency),
+              pack: moneyText(recommendation.packPerCreditMinor, currency),
+            })
+          : t("billing.recommend.planSimple", { plan: plan.names.ar })}
+      </span>
+    </p>
+  );
+}
+
+/** The period switcher: every duration the admin priced, with the best saving it brings. */
+function DurationSwitch({
+  durations,
+  value,
+  plans,
+  onChange,
+}: {
+  durations: readonly number[];
+  value: number;
+  plans: readonly Plan[];
+  onChange: (months: number) => void;
+}) {
+  const groupName = useId();
+  if (durations.length < 2) return null;
+  return (
+    <fieldset className="flex flex-col items-center gap-2">
+      <legend className="mb-2 w-full text-center text-sm font-semibold text-text-muted">
+        {t("billing.pricing.period")}
+      </legend>
+      <div className="flex max-w-full flex-wrap justify-center gap-1 rounded-2xl bg-neutral-100 p-1.5">
+        {durations.map((months) => {
+          const saving = bestSavingsPercent(plans, months);
+          const active = value === months;
+          return (
+            <label
+              key={months}
+              className={cn(
+                "inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl px-4 text-base font-semibold transition-colors duration-150 has-[:focus-visible]:shadow-focus",
+                active ? "bg-surface text-primary shadow-card" : "text-text hover:bg-surface/60",
+              )}
+            >
+              <input
+                type="radio"
+                name={groupName}
+                value={months}
+                checked={active}
+                onChange={() => {
+                  onChange(months);
+                }}
+                className="sr-only"
+              />
+              {durationLabel(months)}
+              {saving > 0 ? (
+                <span className="rounded-full bg-success-soft px-2 py-0.5 text-xs font-bold text-success">
+                  {t("billing.pricing.savePercent", { percent: saving })}
+                </span>
+              ) : null}
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
   );
 }
 
 /**
- * The plan grid: free plus the paid plans of the catalog, monthly or annual (real savings from the
- * catalog), promotions with their server-side end time. The page around it is server-rendered and
- * cacheable; only the signed-in extras (current plan, «الأنسب لك») load here after mount.
+ * The plan grid: the free plan (as the admin set it up) and the paid plans of the catalog for one
+ * billing period at a time. Each card leads with the effective monthly price for that period and
+ * says plainly what is paid upfront; the period switcher lists exactly the periods that are sold.
  */
 export function PricingPlans({
   currency,
   plans,
+  freePlan,
   promotions,
-  freeMonthlyAnalyses,
   trialAvailable,
+  initialMonths,
+  currencySwitch,
   orgId,
 }: PricingPlansProps) {
-  const [annual, setAnnual] = useState(false);
+  const durations = offeredDurations(plans);
+  const [months, setMonths] = useState<number>(() =>
+    initialMonths !== undefined && durations.includes(initialMonths)
+      ? initialMonths
+      : (defaultDuration(durations) ?? 1),
+  );
   const [recommendation, setRecommendation] = useState<RecommendationResponse | null>(null);
-  const groupName = useId();
 
   useEffect(() => {
     trackGrowth("pricing_viewed", { currency, ...(orgId ? { org: true } : {}) });
@@ -146,32 +209,20 @@ export function PricingPlans({
     };
   }, [currency]);
 
-  const months = annual ? 12 : 1;
-  const bestSavings = Math.max(0, ...plans.map((plan) => plan.annualSavingsMinor ?? 0));
   const currentKey = recommendation?.currentPlanKey ?? null;
   const recommendedKey = recommendation?.recommended?.planKey ?? null;
-  const pinned = plans.find((plan) => plan.pinRecommended)?.key ?? null;
-  const highlightKey = recommendedKey ?? pinned;
-  const toggleBase =
-    "inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full px-5 text-base font-semibold transition-colors duration-150 has-[:focus-visible]:shadow-focus";
+  const pinnedKey = plans.find((plan) => plan.pinRecommended)?.key ?? null;
+  const highlightKey = recommendedKey ?? pinnedKey;
+  const cards = (freePlan ? 1 : 0) + plans.length;
 
   return (
-    <div className="flex flex-col gap-6">
-      {recommendation ? (
-        <>
-          {/* Signed-in extras: the person's own value (GROWTH §7.4) and their personal offers. */}
-          <ValueLedger />
-          <OffersCard />
-          <Recommendation recommendation={recommendation} plans={plans} currency={currency} />
-        </>
-      ) : null}
-
+    <div className="flex flex-col gap-8">
       {promotions.length > 0 ? (
-        <ul aria-label={t("billing.promo.title")} className="flex flex-col gap-2">
+        <ul aria-label={t("billing.promo.title")} className="flex flex-col items-center gap-2">
           {promotions.map((promotion) => (
             <li
               key={promotion.id}
-              className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-success/30 bg-success-soft p-3 sm:p-4"
+              className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-full border border-success/30 bg-success-soft px-4 py-2 text-center"
             >
               {promotion.badge ? <PromoBadge>{promotion.badge.ar}</PromoBadge> : null}
               <span className="text-base font-semibold text-text">{promotion.title.ar}</span>
@@ -181,113 +232,134 @@ export function PricingPlans({
         </ul>
       ) : null}
 
-      <fieldset className="flex flex-wrap items-center gap-3">
-        <legend className="sr-only">{t("billing.pricing.period")}</legend>
-        <div className="inline-flex rounded-full bg-neutral-100 p-1">
-          {([false, true] as const).map((value) => (
-            <label
-              key={String(value)}
-              className={cn(
-                toggleBase,
-                annual === value ? "bg-primary text-on-primary" : "text-text hover:bg-primary-soft",
-              )}
-            >
-              <input
-                type="radio"
-                name={groupName}
-                checked={annual === value}
-                onChange={() => {
-                  setAnnual(value);
-                }}
-                className="sr-only"
-              />
-              {value ? t("billing.pricing.annual") : t("billing.pricing.monthly")}
-            </label>
-          ))}
-        </div>
-        {bestSavings > 0 ? (
-          <Badge tone="success">
-            {t("billing.pricing.annualSavings", { amount: moneyText(bestSavings, currency) })}
-          </Badge>
-        ) : null}
-      </fieldset>
+      <div className="flex flex-col items-center gap-3">
+        <DurationSwitch durations={durations} value={months} plans={plans} onChange={setMonths} />
+        {currencySwitch}
+      </div>
 
-      <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <li>
-          <PlanCard
-            name={t("billing.plan.free.name")}
-            tagline={t("billing.plan.free.tagline")}
-            badges={
-              currentKey === FREE_PLAN_KEY ? (
-                <Badge tone="info">{t("billing.plan.current")}</Badge>
-              ) : null
-            }
-            price={
-              <span className="font-heading text-3xl font-bold text-text">
-                {t("billing.plan.free.price")}
-              </span>
-            }
-            features={[
-              {
-                text: t("billing.plan.free.analyses", { count: freeMonthlyAnalyses }),
-                included: true,
-                highlight: true,
-              },
-              { text: t("billing.plan.free.noCard"), included: true, highlight: false },
-            ]}
-            cta={
-              <Link
-                href="/register"
-                className={buttonStyles({ variant: "secondary", className: "w-full" })}
-              >
-                {t("billing.plan.free.cta")}
-              </Link>
-            }
-          />
-        </li>
+      {recommendation ? (
+        <Recommendation recommendation={recommendation} plans={plans} currency={currency} />
+      ) : null}
+
+      <ul
+        className={cn(
+          "grid gap-6 pt-4",
+          cards <= 1
+            ? "mx-auto w-full max-w-md"
+            : cards === 2
+              ? "mx-auto w-full max-w-4xl md:grid-cols-2"
+              : cards === 3
+                ? "md:grid-cols-2 lg:grid-cols-3"
+                : "md:grid-cols-2 xl:grid-cols-4",
+        )}
+      >
+        {freePlan ? (
+          <li>
+            <PlanCard
+              name={freePlan.names.ar}
+              tagline={freePlan.tagline?.ar ?? t("billing.plan.free.tagline")}
+              badges={
+                <>
+                  {freePlan.badge ? <Badge tone="neutral">{freePlan.badge.ar}</Badge> : null}
+                  {currentKey === freePlan.key ? (
+                    <Badge tone="info">{t("billing.plan.current")}</Badge>
+                  ) : null}
+                </>
+              }
+              price={
+                <span className="font-heading text-4xl font-bold text-text">
+                  {t("billing.plan.free.price")}
+                </span>
+              }
+              priceNote={t("billing.plan.free.note")}
+              featuresTitle={t("billing.plan.includes")}
+              features={includedFeatures(freePlan.monthlyCredits, null, freePlan.features)}
+              cta={
+                currentKey === freePlan.key ? (
+                  <Link
+                    href="/dashboard"
+                    className={buttonStyles({ variant: "secondary", className: "w-full" })}
+                  >
+                    {t("billing.plan.free.current")}
+                  </Link>
+                ) : currentKey !== null ? null : (
+                  <Link
+                    href="/register"
+                    className={buttonStyles({ variant: "secondary", className: "w-full" })}
+                  >
+                    {t("billing.plan.free.cta")}
+                  </Link>
+                )
+              }
+            />
+          </li>
+        ) : null}
         {plans.map((plan) => {
-          const price =
-            plan.prices.find((candidate) => candidate.months === months) ?? plan.prices[0];
-          if (!price) return null;
+          const offer = planOffer(plan, months);
+          if (!offer) return null;
+          const { price } = offer;
           const promotion = price.promotionId
             ? promotions.find((candidate) => candidate.id === price.promotionId)
             : undefined;
           const current = currentKey === plan.key;
-          const badges = (
-            <>
-              {recommendedKey === plan.key ? (
-                <PromoBadge tone="info">{t("billing.recommend.badge")}</PromoBadge>
-              ) : plan.pinRecommended ? (
-                <PromoBadge tone="info">{t("billing.plan.pinned")}</PromoBadge>
-              ) : null}
-              {promotion?.badge ? <PromoBadge>{promotion.badge.ar}</PromoBadge> : null}
-              {plan.badge ? <Badge tone="neutral">{plan.badge.ar}</Badge> : null}
-              {current ? <Badge tone="info">{t("billing.plan.current")}</Badge> : null}
-            </>
-          );
+          const highlighted = highlightKey === plan.key;
+          const struckPerMonth =
+            price.display.struckMinor !== null
+              ? Math.floor(price.display.struckMinor / price.months)
+              : null;
           return (
             <li key={plan.key}>
               <PlanCard
                 name={plan.names.ar}
                 tagline={plan.tagline?.ar}
-                badges={badges}
-                highlighted={highlightKey === plan.key}
+                highlighted={highlighted}
+                ribbon={
+                  recommendedKey === plan.key
+                    ? t("billing.recommend.badge")
+                    : highlighted
+                      ? t("billing.plan.pinned")
+                      : null
+                }
+                badges={
+                  <>
+                    {promotion?.badge ? <PromoBadge>{promotion.badge.ar}</PromoBadge> : null}
+                    {plan.badge ? <Badge tone="neutral">{plan.badge.ar}</Badge> : null}
+                    {current ? <Badge tone="info">{t("billing.plan.current")}</Badge> : null}
+                  </>
+                }
                 price={
                   <PriceTag
-                    amountMinor={price.display.headlineMinor}
+                    amountMinor={price.display.perMonthMinor}
                     currency={currency}
-                    struckMinor={price.display.struckMinor}
-                    suffix={`/ ${periodLabel(price.months)}`}
+                    struckMinor={struckPerMonth}
+                    suffix={t("billing.pricing.perMonthSuffix")}
+                    size="xl"
                   />
                 }
                 priceNote={
-                  price.months > 1
-                    ? t("billing.pricing.perMonth", {
-                        amount: moneyText(price.display.perMonthMinor, currency),
-                      })
-                    : undefined
+                  <span className="flex flex-col gap-1">
+                    <span>
+                      {price.months === 1
+                        ? t("billing.pricing.billedMonthly")
+                        : t("billing.pricing.billedUpfront", {
+                            amount: moneyText(price.display.headlineMinor, currency),
+                            period: periodLabel(price.months),
+                          })}
+                    </span>
+                    {offer.savingsPercent > 0 ? (
+                      <span className="font-semibold text-success">
+                        {t("billing.pricing.savingsVsMonthly", { percent: offer.savingsPercent })}
+                      </span>
+                    ) : null}
+                    {!offer.exact ? (
+                      <span>
+                        {t("billing.pricing.onlyPeriod", { period: periodLabel(price.months) })}
+                      </span>
+                    ) : null}
+                  </span>
                 }
-                features={planFeatures(plan)}
+                featuresTitle={t("billing.plan.includes")}
+                features={includedFeatures(plan.monthlyCredits, plan.maxMembers, plan.features)}
                 cta={
                   current ? (
                     <Link
@@ -304,11 +376,16 @@ export function PricingPlans({
                         orgId,
                       )}
                       className={buttonStyles({
-                        variant: highlightKey === plan.key ? "primary" : "secondary",
+                        variant: highlighted ? "primary" : "secondary",
+                        size: "lg",
                         className: "w-full",
                       })}
                       onClick={() => {
-                        trackGrowth("plan_selected", { plan: plan.key, months: price.months }, true);
+                        trackGrowth(
+                          "plan_selected",
+                          { plan: plan.key, months: price.months },
+                          true,
+                        );
                       }}
                     >
                       {t("billing.plan.choose", { name: plan.names.ar })}
@@ -316,15 +393,11 @@ export function PricingPlans({
                   )
                 }
                 footnote={
-                  <>
-                    {plan.trialDays > 0 && trialAvailable ? (
-                      <span className="block">
-                        {t("billing.plan.trial", { days: plan.trialDays })}
-                      </span>
-                    ) : null}
-                    {plan.fairUseNote ? <span className="block">{plan.fairUseNote.ar}</span> : null}
-                  </>
+                  plan.trialDays > 0 && trialAvailable
+                    ? t("billing.plan.trial", { days: plan.trialDays })
+                    : undefined
                 }
+                finePrint={plan.fairUseNote?.ar}
               />
             </li>
           );

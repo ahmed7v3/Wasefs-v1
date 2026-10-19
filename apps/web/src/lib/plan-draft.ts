@@ -146,7 +146,12 @@ export function toCatalogPlan(
   currency: string,
 ): CatalogPlan {
   const prices: CatalogPlan["prices"] = [];
-  for (const months of [1, 3, 6, 12, 24]) {
+  const periods = Object.keys(matrix)
+    .filter((key) => key.endsWith(`:${currency}`))
+    .map((key) => Number(key.split(":")[0]))
+    .filter((months) => Number.isInteger(months) && months > 0)
+    .sort((left, right) => left - right);
+  for (const months of periods) {
     const text = (matrix[cellKey(months, currency)] ?? "").trim();
     if (text === "") continue;
     try {

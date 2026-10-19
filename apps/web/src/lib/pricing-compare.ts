@@ -1,6 +1,6 @@
 import { t } from "@wasfa/shared/i18n";
 
-import type { CatalogResponse } from "@wasfa/shared/schemas/billing";
+import type { CatalogFreePlan, CatalogResponse } from "@wasfa/shared/schemas/billing";
 import type { ComparisonColumn, ComparisonRow } from "@wasfa/ui";
 
 type Plan = CatalogResponse["plans"][number];
@@ -12,15 +12,16 @@ export interface ComparisonModel {
 
 /**
  * The comparison table from the catalog alone: the plan facts (credits, members, trial) and one row
- * per feature text any plan lists. The free plan's column only fills the rows the settings state
- * (its monthly analyses); for the others it shows a dash rather than claiming something untrue.
+ * per feature text any plan lists. The free plan (the admin's default plan, when it is on sale) is
+ * the first column and is compared like the others; facts that do not apply to it show a dash.
  */
 export function comparisonModel(
   plans: readonly Plan[],
-  freeMonthlyAnalyses: number,
+  free: CatalogFreePlan | null,
 ): ComparisonModel {
+  const pad = <T>(value: T): T[] => (free ? [value] : []);
   const columns: ComparisonColumn[] = [
-    { key: "free", name: t("billing.plan.free.name") },
+    ...(free ? [{ key: free.key, name: free.names.ar }] : []),
     ...plans.map((plan) => ({
       key: plan.key,
       name: plan.names.ar,
@@ -33,7 +34,7 @@ export function comparisonModel(
       key: "credits",
       label: t("billing.compare.credits"),
       cells: [
-        t("billing.plan.free.analyses", { count: freeMonthlyAnalyses }),
+        ...(free ? [t("billing.plan.monthlyCredits", { count: free.monthlyCredits })] : []),
         ...plans.map((plan) => t("billing.plan.monthlyCredits", { count: plan.monthlyCredits })),
       ],
     },
@@ -44,38 +45,38 @@ export function comparisonModel(
       key: "members",
       label: t("billing.compare.members"),
       cells: [
-        null,
+        ...pad(null),
         ...plans.map((plan) => (plan.maxMembers === null ? null : String(plan.maxMembers))),
       ],
     });
   }
 
-  rows.push({
-    key: "trial",
-    label: t("billing.compare.trial"),
-    cells: [
-      null,
-      ...plans.map((plan) =>
-        plan.trialDays > 0 ? t("billing.compare.trialDays", { days: plan.trialDays }) : false,
-      ),
-    ],
-  });
+  if (plans.some((plan) => plan.trialDays > 0)) {
+    rows.push({
+      key: "trial",
+      label: t("billing.compare.trial"),
+      cells: [
+        ...pad(null),
+        ...plans.map((plan) =>
+          plan.trialDays > 0 ? t("billing.compare.trialDays", { days: plan.trialDays }) : false,
+        ),
+      ],
+    });
+  }
 
+  const all = [...(free ? [free] : []), ...plans];
   const seen = new Set<string>();
-  for (const plan of plans) {
+  for (const plan of all) {
     for (const feature of plan.features) {
       if (seen.has(feature.textAr)) continue;
       seen.add(feature.textAr);
       rows.push({
         key: `feature-${feature.textAr}`,
         label: feature.textAr,
-        cells: [
-          null,
-          ...plans.map((candidate) => {
-            const found = candidate.features.find((entry) => entry.textAr === feature.textAr);
-            return found ? found.included : false;
-          }),
-        ],
+        cells: all.map((candidate) => {
+          const found = candidate.features.find((entry) => entry.textAr === feature.textAr);
+          return found ? found.included : false;
+        }),
       });
     }
   }

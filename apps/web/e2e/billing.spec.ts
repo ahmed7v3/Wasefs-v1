@@ -71,11 +71,18 @@ test.describe("pricing", () => {
       page.getByRole("link", { name: t("billing.plan.choose", { name: PLUS }) }),
     ).toBeVisible();
     await expect(page.getByRole("link", { name: t("billing.plan.free.cta") })).toBeVisible();
-    // The annual toggle switches the period of every card.
-    await page.getByText(t("billing.pricing.annual"), { exact: true }).click();
-    await expect(
-      page.getByRole("link", { name: t("billing.plan.choose", { name: PLUS }) }),
-    ).toHaveAttribute("href", /months=12/);
+    // Opens on the year (the best monthly rate); the switcher changes the period of every card.
+    const choose = page.getByRole("link", { name: t("billing.plan.choose", { name: PLUS }) });
+    await expect(choose).toHaveAttribute("href", /months=12/);
+    // The radios are visually hidden inside their labels: a person clicks the label.
+    const period = (label: string) =>
+      page
+        .locator("label")
+        .filter({ has: page.getByRole("radio", { name: new RegExp(`^${label}`) }) });
+    await period(t("billing.pricing.monthly")).click();
+    await expect(choose).toHaveAttribute("href", /months=1(&|$)/);
+    await period(t("billing.pricing.annual")).click();
+    await expect(choose).toHaveAttribute("href", /months=12/);
     const ld = await page.locator('script[type="application/ld+json"]').allTextContents();
     expect(
       ld.some((json) => json.includes('"@type":"Product"') && json.includes('"@type":"Offer"')),
@@ -95,7 +102,7 @@ test.describe("checkout", () => {
     await page.goto("/billing");
     await expect(page.getByTestId("current-plan")).not.toHaveText(PLUS);
 
-    await page.goto("/pricing");
+    await page.goto("/pricing?period=1");
     await page.getByRole("link", { name: t("billing.plan.choose", { name: PLUS }) }).click();
     await expect(page).toHaveURL(/\/checkout\?plan=plus&months=1/);
     await page.getByRole("button", { name: PAY }).click();
