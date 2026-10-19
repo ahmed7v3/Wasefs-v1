@@ -53,6 +53,14 @@ const LTR_FIELDS = new Set([
   "timezone",
   "currency",
   "taxId",
+  "titleTemplate",
+  "defaultOgImage",
+  "google",
+  "bing",
+  "yandex",
+  "key",
+  "brandRegex",
+  "aiReferrerHosts",
 ]);
 
 export interface SettingFormProps {

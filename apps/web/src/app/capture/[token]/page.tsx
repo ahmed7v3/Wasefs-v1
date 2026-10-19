@@ -1,5 +1,5 @@
 import { t } from "@wasfa/shared/i18n";
-import { Container } from "@wasfa/ui";
+import { Container, ToastProvider } from "@wasfa/ui";
 import { notFound } from "next/navigation";
 
 import { PhoneCapture } from "../../../components/capture/phone-capture";
@@ -33,7 +33,9 @@ export default async function CapturePage({ params }: { params: Promise<{ token:
             </h1>
             <p className="text-lg text-text-muted">{t("capture.phonePage.lead")}</p>
           </header>
-          <PhoneCapture token={token} remaining={status.remaining} />
+          <ToastProvider>
+            <PhoneCapture token={token} remaining={status.remaining} />
+          </ToastProvider>
         </main>
       </Container>
     </div>

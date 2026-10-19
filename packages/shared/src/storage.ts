@@ -86,3 +86,58 @@ export function processedObjectKey(ownerId: string, fileId: string): string {
 export function isPdfObjectKey(key: string): boolean {
   return key.endsWith("/original.pdf");
 }
+
+/*
+ * Public media bucket (Phase 4, WP2). Same R2 account and endpoint as uploads, but a DIFFERENT
+ * bucket that anyone can read: prescription images live in the uploads bucket and must never be
+ * reachable from here. `R2_MEDIA_ACCESS_KEY_ID`/`SECRET` are optional because R2 tokens are
+ * usually scoped to one bucket; without them the uploads credentials are used (MinIO locally).
+ */
+export const mediaEnvShape = {
+  R2_MEDIA_BUCKET: blankAsUnset(z.string().min(3).max(63)),
+  R2_MEDIA_ACCESS_KEY_ID: blankAsUnset(z.string().min(1)),
+  R2_MEDIA_SECRET_ACCESS_KEY: blankAsUnset(z.string().min(1)),
+  /** Where browsers read published media, e.g. `https://media.wasfa.online` (path allowed: MinIO serves `<origin>/<bucket>`). */
+  MEDIA_PUBLIC_ORIGIN: blankAsUnset(z.url({ protocol: /^https?$/ })),
+};
+
+interface MediaEnv extends UploadsEnv {
+  R2_MEDIA_BUCKET?: string | undefined;
+  R2_MEDIA_ACCESS_KEY_ID?: string | undefined;
+  R2_MEDIA_SECRET_ACCESS_KEY?: string | undefined;
+}
+
+/** The media bucket must not be the uploads bucket, and its own credentials come as a pair. */
+export function refineMediaEnv(env: MediaEnv, ctx: z.RefinementCtx): void {
+  if (env.R2_MEDIA_BUCKET !== undefined && env.R2_MEDIA_BUCKET === env.R2_UPLOADS_BUCKET) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["R2_MEDIA_BUCKET"],
+      message: "must differ from R2_UPLOADS_BUCKET (uploads are private, media is public)",
+    });
+  }
+  if (
+    (env.R2_MEDIA_ACCESS_KEY_ID === undefined) !==
+    (env.R2_MEDIA_SECRET_ACCESS_KEY === undefined)
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["R2_MEDIA_SECRET_ACCESS_KEY"],
+      message: "R2_MEDIA_ACCESS_KEY_ID and R2_MEDIA_SECRET_ACCESS_KEY must be set together",
+    });
+  }
+}
+
+/** The media bucket configuration, or `undefined` when it is not configured (media routes then answer 503). */
+export function mediaStorageConfig(env: MediaEnv): UploadsStorageConfig | undefined {
+  const uploads = uploadsStorageConfig(env);
+  const bucket = env.R2_MEDIA_BUCKET;
+  if (uploads === undefined || bucket === undefined || bucket === uploads.bucket) return undefined;
+  return {
+    endpoint: uploads.endpoint,
+    bucket,
+    accessKeyId: env.R2_MEDIA_ACCESS_KEY_ID ?? uploads.accessKeyId,
+    secretAccessKey: env.R2_MEDIA_SECRET_ACCESS_KEY ?? uploads.secretAccessKey,
+    region: uploads.region,
+  };
+}

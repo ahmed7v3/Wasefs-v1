@@ -2,17 +2,17 @@ import { Container, buttonStyles } from "@wasfa/ui";
 import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 
-import { landing } from "../../content/landing";
+import { landingFor } from "../../content/landing-locale";
+import { localizedPath, type Locale } from "../../lib/locale";
 
 import { Mascot } from "./mascot";
-
-const { faq } = landing;
 
 /**
  * Native disclosure widgets: keyboard and screen-reader support for free, and no client JavaScript.
  * The same `faq.items` feed the `FAQPage` JSON-LD, so the markup and the structured data cannot differ.
  */
-export function FaqSection() {
+export function FaqSection({ locale = "ar" }: { locale?: Locale }) {
+  const { faq } = landingFor(locale);
   return (
     <section
       id={faq.id}
@@ -33,7 +33,7 @@ export function FaqSection() {
             <div>
               <p className="text-base font-bold text-text">{faq.moreTitle}</p>
               <Link
-                href="/contact"
+                href={localizedPath("/contact", locale)}
                 className={buttonStyles({ variant: "ghost", className: "-ms-3 mt-1" })}
               >
                 {faq.moreLink}

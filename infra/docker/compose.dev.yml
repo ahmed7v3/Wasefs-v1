@@ -67,6 +67,28 @@ services:
       MC_HOST_local: http://wasfa:wasfa_dev_password@minio:9000
     command: ["mb", "--ignore-existing", "local/wasfa-uploads"]
 
+  # The PUBLIC media bucket (Phase 4 WP2): only the `media/` prefix is world-readable (published
+  # variants); `staging/` (unvalidated uploads) stays private. The image has no shell, so the
+  # bucket and its policy are two one-shot services.
+  minio-media-init:
+    image: cgr.dev/chainguard/minio-client@sha256:d8a93c5d335509ff353774eefec8f82fa2a2a975e800139702232d8be3dbe6b9
+    depends_on:
+      - minio
+    restart: on-failure
+    environment:
+      MC_HOST_local: http://wasfa:wasfa_dev_password@minio:9000
+    command: ["mb", "--ignore-existing", "local/wasfa-media"]
+
+  minio-media-policy:
+    image: cgr.dev/chainguard/minio-client@sha256:d8a93c5d335509ff353774eefec8f82fa2a2a975e800139702232d8be3dbe6b9
+    depends_on:
+      minio-media-init:
+        condition: service_completed_successfully
+    restart: on-failure
+    environment:
+      MC_HOST_local: http://wasfa:wasfa_dev_password@minio:9000
+    command: ["anonymous", "set", "download", "local/wasfa-media/media"]
+
 volumes:
   postgres-data:
   redis-data:

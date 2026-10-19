@@ -207,6 +207,9 @@ jobs:
     name: Lighthouse (home page)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    # Non-blocking while the Phase 4 baseline is recorded (/, /pricing, /en, stricter budgets):
+    # switch to blocking once it is.
+    continue-on-error: true
     env:
       # This build is a throwaway local server. `production` is what makes the page indexable
       # (any other value is noindex, which would fail the SEO audit by design); nothing is deployed.

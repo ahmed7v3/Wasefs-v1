@@ -1,14 +1,10 @@
 import { isProduction, publicEnv } from "../lib/env";
+import { getPublicSettings } from "../lib/public-settings";
+import { robotsRules } from "../lib/seo-robots";
 
 import type { MetadataRoute } from "next";
 
-export default function robots(): MetadataRoute.Robots {
-  if (!isProduction) {
-    // Staging, previews and local runs must never end up in a search index.
-    return { rules: { userAgent: "*", disallow: "/" } };
-  }
-  return {
-    rules: { userAgent: "*", allow: "/" },
-    sitemap: new URL("/sitemap.xml", publicEnv.NEXT_PUBLIC_SITE_URL).toString(),
-  };
+export default async function robots(): Promise<MetadataRoute.Robots> {
+  const { seo } = await getPublicSettings();
+  return robotsRules(seo, publicEnv.NEXT_PUBLIC_SITE_URL, isProduction);
 }

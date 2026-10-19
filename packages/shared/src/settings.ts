@@ -404,6 +404,79 @@ export const growthSettingsSchema = z.object({
     .default({ enabled: true, validityDays: 7 }),
 });
 
+/** AI crawlers the owner can switch per bot (SEO-GEO §10.4); search engines are always allowed. */
+export const AI_CRAWLERS = [
+  "GPTBot",
+  "OAI-SearchBot",
+  "ChatGPT-User",
+  "ClaudeBot",
+  "Claude-SearchBot",
+  "Claude-User",
+  "PerplexityBot",
+  "Perplexity-User",
+  "Google-Extended",
+  "Applebot-Extended",
+  "CCBot",
+] as const;
+export type AiCrawler = (typeof AI_CRAWLERS)[number];
+
+const verificationToken = z.string().trim().min(1).max(200).nullable().default(null);
+
+/**
+ * Search and discoverability (SEO-GEO §13). Public: robots.txt, llms.txt, the IndexNow key file and
+ * the verification meta tags are rendered by the web app, and none of these values is a secret (the
+ * IndexNow key is published by protocol). Search Console credentials will live in an admin key.
+ */
+export const seoSettingsSchema = z.object({
+  /** `%s` is replaced by the page title; `null` keeps the built-in "<title> | <brand>". */
+  titleTemplate: z
+    .string()
+    .trim()
+    .max(120)
+    .refine((value) => value.includes("%s"), "must contain %s")
+    .nullable()
+    .default(null),
+  defaultDescription: z.string().trim().min(1).max(300).nullable().default(null),
+  verification: z
+    .object({ google: verificationToken, bing: verificationToken, yandex: verificationToken })
+    .default({ google: null, bing: null, yandex: null }),
+  /** `true` = allowed. Missing bots default to allowed (recorded decision: allow by default). */
+  aiCrawlers: z
+    .partialRecord(z.enum(AI_CRAWLERS), z.boolean())
+    .default({})
+    .transform((map) =>
+      Object.fromEntries(AI_CRAWLERS.map((bot) => [bot, map[bot] ?? true])) as Record<
+        AiCrawler,
+        boolean
+      >,
+    ),
+  indexNow: z
+    .object({
+      enabled: z.boolean().default(false),
+      key: z
+        .string()
+        .regex(/^[A-Za-z0-9-]{8,128}$/)
+        .nullable()
+        .default(null),
+    })
+    .default({ enabled: false, key: null }),
+  llmsTxt: z.object({ enabled: z.boolean().default(true) }).default({ enabled: true }),
+  defaultOgImage: brandAssetUrl,
+  /** Case-insensitive pattern that splits brand from non-brand queries in the SEO reports. */
+  brandRegex: z.string().trim().min(1).max(200).default("wasfa|وصفة"),
+  aiReferrerHosts: z
+    .array(z.string().trim().toLowerCase().min(3).max(100))
+    .max(50)
+    .default([
+      "chatgpt.com",
+      "chat.openai.com",
+      "perplexity.ai",
+      "claude.ai",
+      "gemini.google.com",
+      "copilot.microsoft.com",
+    ]),
+});
+
 export const SETTING_VISIBILITIES = ["public", "admin"] as const;
 export type SettingVisibility = (typeof SETTING_VISIBILITIES)[number];
 
@@ -423,6 +496,7 @@ export const SETTINGS_REGISTRY = {
   ai: { schema: aiSettingsSchema, visibility: "admin" },
   /** Public: the price per page and the page limit are shown before a prescription is analysed. */
   rx: { schema: rxSettingsSchema, visibility: "public" },
+  seo: { schema: seoSettingsSchema, visibility: "public" },
   /** Admin only: the retention job reads it; users are told the number on the analysis page. */
   uploads: { schema: uploadsSettingsSchema, visibility: "admin" },
   /** Admin only: per-plan enablement of assistant skills, edited on `/admin/ai/skills`. */
@@ -466,6 +540,7 @@ export const publicSettingsSchema = z.object({
   access: accessSettingsSchema,
   free_tier: freeTierSettingsSchema,
   rx: rxSettingsSchema,
+  seo: seoSettingsSchema,
 }) satisfies z.ZodType<{ [K in PublicSettingKey]: SettingValue<K> }>;
 export type PublicSettings = z.output<typeof publicSettingsSchema>;
 

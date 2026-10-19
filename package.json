@@ -16,7 +16,8 @@
     "db:generate": "pnpm --filter @wasfa/shared build && pnpm --filter @wasfa/db db:generate",
     "db:migrate": "pnpm --filter @wasfa/shared build && pnpm --filter @wasfa/db db:migrate",
     "db:seed": "pnpm --filter @wasfa/shared build && pnpm --filter @wasfa/db db:seed",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "check:live": "node scripts/check-live-html.mjs"
   },
   "devDependencies": {
     "@wasfa/config": "workspace:*",

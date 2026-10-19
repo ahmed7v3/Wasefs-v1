@@ -2,11 +2,10 @@ import { Container, buttonStyles } from "@wasfa/ui";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
-import { landing } from "../../content/landing";
+import { landingFor } from "../../content/landing-locale";
+import { localizedPath, type Locale } from "../../lib/locale";
 
 import { Mascot } from "./mascot";
-
-const { cta } = landing;
 
 /** The whole family, from the edges in: the outer two only appear from `sm` up. */
 const GROUP = [
@@ -27,7 +26,8 @@ const GROUP = [
   },
 ] as const;
 
-export function FinalCta() {
+export function FinalCta({ locale = "ar" }: { locale?: Locale }) {
+  const { cta } = landingFor(locale);
   return (
     <section aria-labelledby="cta-title" className="pt-4 pb-16 sm:pb-24">
       <Container>
@@ -53,7 +53,10 @@ export function FinalCta() {
                 {cta.primary}
                 <ArrowRight aria-hidden="true" className="size-5 rtl:-scale-x-100" />
               </Link>
-              <Link href="/contact" className={buttonStyles({ size: "lg", variant: "secondary" })}>
+              <Link
+                href={localizedPath("/contact", locale)}
+                className={buttonStyles({ size: "lg", variant: "secondary" })}
+              >
                 {cta.secondary}
               </Link>
             </div>

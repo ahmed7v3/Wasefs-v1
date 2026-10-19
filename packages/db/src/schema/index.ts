@@ -13,6 +13,7 @@ export * from "./evals.js";
 export * from "./feature-flags.js";
 export * from "./files.js";
 export * from "./growth.js";
+export * from "./media.js";
 export * from "./onboarding.js";
 export * from "./notification-prefs.js";
 export * from "./organizations.js";

@@ -18,6 +18,8 @@ import { ErrorSummary } from "../forms/error-summary";
 import { PhoneInput } from "../forms/phone-input";
 import { Turnstile, useTurnstile } from "../turnstile";
 
+import type { Locale } from "../../lib/locale";
+
 const TOPIC_LABELS = {
   general: "contact.topic.general",
   support: "contact.topic.support",
@@ -28,15 +30,26 @@ const TOPIC_LABELS = {
 } as const satisfies Record<ContactTopic, MessageKey>;
 
 /** The marker next to a label of a field the visitor may leave empty. */
-function OptionalLabel({ children }: { children: string }) {
+function OptionalLabel({ children, locale }: { children: string; locale: Locale }) {
   return (
     <>
-      {children} <span className="text-sm font-normal text-text-muted">{t("ui.optional")}</span>
+      {children}{" "}
+      <span className="text-sm font-normal text-text-muted">
+        {t("ui.optional", undefined, locale)}
+      </span>
     </>
   );
 }
 
-function ContactFields({ nonce, onSent }: { nonce?: string | undefined; onSent: () => void }) {
+function ContactFields({
+  nonce,
+  locale,
+  onSent,
+}: {
+  nonce?: string | undefined;
+  locale: Locale;
+  onSent: () => void;
+}) {
   const ts = useTurnstile();
   const form = useApiForm({
     schema: contactMessageSchema,
@@ -60,37 +73,41 @@ function ContactFields({ nonce, onSent }: { nonce?: string | undefined; onSent: 
   const { email, phone, message } = form.values;
   // With neither field filled the schema's "email or phone" rule fires on `email`: say that, not "required".
   const emailError =
-    form.errors["email"] && !email && !phone ? t("contact.error.needOne") : form.errors["email"];
+    form.errors["email"] && !email && !phone
+      ? t("contact.error.needOne", undefined, locale)
+      : form.errors["email"];
 
   return (
     <form
       onSubmit={form.handleSubmit}
       noValidate
       className="flex flex-col gap-5"
-      aria-label={t("contact.form.label")}
+      aria-label={t("contact.form.label", undefined, locale)}
     >
       <ErrorSummary
         errors={form.errors}
         focusKey={form.submitCount}
         labels={{
-          name: t("auth.field.name"),
-          email: t("auth.field.email"),
-          phone: t("auth.field.phone"),
-          topic: t("contact.field.topic"),
-          message: t("contact.field.message"),
+          name: t("auth.field.name", undefined, locale),
+          email: t("auth.field.email", undefined, locale),
+          phone: t("auth.field.phone", undefined, locale),
+          topic: t("contact.field.topic", undefined, locale),
+          message: t("contact.field.message", undefined, locale),
         }}
       />
       <Field
-        label={t("auth.field.name")}
+        label={t("auth.field.name", undefined, locale)}
         required
         error={form.errors["name"]}
         announceError={form.submitCount > 0}
       >
         {(control) => <Input {...control} {...form.bind("name")} autoComplete="name" />}
       </Field>
-      <p className="text-sm text-text-muted">{t("contact.reach")}</p>
+      <p className="text-sm text-text-muted">{t("contact.reach", undefined, locale)}</p>
       <Field
-        label={<OptionalLabel>{t("auth.field.email")}</OptionalLabel>}
+        label={
+          <OptionalLabel locale={locale}>{t("auth.field.email", undefined, locale)}</OptionalLabel>
+        }
         error={emailError}
         announceError={form.submitCount > 0}
       >
@@ -109,7 +126,9 @@ function ContactFields({ nonce, onSent }: { nonce?: string | undefined; onSent: 
         )}
       </Field>
       <Field
-        label={<OptionalLabel>{t("auth.field.phone")}</OptionalLabel>}
+        label={
+          <OptionalLabel locale={locale}>{t("auth.field.phone", undefined, locale)}</OptionalLabel>
+        }
         error={form.errors["phone"]}
         announceError={form.submitCount > 0}
       >
@@ -127,7 +146,7 @@ function ContactFields({ nonce, onSent }: { nonce?: string | undefined; onSent: 
         )}
       </Field>
       <Field
-        label={t("contact.field.topic")}
+        label={t("contact.field.topic", undefined, locale)}
         required
         error={form.errors["topic"]}
         announceError={form.submitCount > 0}
@@ -136,16 +155,20 @@ function ContactFields({ nonce, onSent }: { nonce?: string | undefined; onSent: 
           <Select {...control} {...form.bind("topic")}>
             {CONTACT_TOPICS.map((topic) => (
               <option key={topic} value={topic}>
-                {t(TOPIC_LABELS[topic])}
+                {t(TOPIC_LABELS[topic], undefined, locale)}
               </option>
             ))}
           </Select>
         )}
       </Field>
       <Field
-        label={t("contact.field.message")}
+        label={t("contact.field.message", undefined, locale)}
         required
-        hint={t("contact.counter", { count: message.length, max: CONTACT_MESSAGE_MAX_LENGTH })}
+        hint={t(
+          "contact.counter",
+          { count: message.length, max: CONTACT_MESSAGE_MAX_LENGTH },
+          locale,
+        )}
         error={form.errors["message"]}
         announceError={form.submitCount > 0}
       >
@@ -169,14 +192,14 @@ function ContactFields({ nonce, onSent }: { nonce?: string | undefined; onSent: 
       {/* This is the support page: no "contact support" link back to itself. */}
       {form.formError ? <ErrorNotice error={form.formError} supportHref={null} /> : null}
       <Button type="submit" size="lg" name="submit" loading={form.submitting}>
-        {t("contact.submit")}
+        {t("contact.submit", undefined, locale)}
       </Button>
     </form>
   );
 }
 
 /** A finished flow gets a full confirmation (DESIGN-SYSTEM §7), and keyboard focus moves to it. */
-function Sent({ onAgain }: { onAgain: () => void }) {
+function Sent({ onAgain, locale }: { onAgain: () => void; locale: Locale }) {
   const title = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     title.current?.focus();
@@ -194,22 +217,29 @@ function Sent({ onAgain }: { onAgain: () => void }) {
         tabIndex={-1}
         className="font-heading text-2xl font-semibold text-text focus-visible:outline-none"
       >
-        {t("contact.success.title")}
+        {t("contact.success.title", undefined, locale)}
       </h2>
-      <p className="text-lg text-text-muted">{t("contact.success.body")}</p>
+      <p className="text-lg text-text-muted">{t("contact.success.body", undefined, locale)}</p>
       <Button variant="secondary" onClick={onAgain}>
-        {t("contact.success.again")}
+        {t("contact.success.again", undefined, locale)}
       </Button>
     </div>
   );
 }
 
 /** The public contact form: validates with the API's schema, sends it with the Turnstile token, then confirms. */
-export function ContactForm({ nonce }: { nonce?: string | undefined }) {
+export function ContactForm({
+  nonce,
+  locale = "ar",
+}: {
+  nonce?: string | undefined;
+  locale?: Locale;
+}) {
   const [sent, setSent] = useState(false);
   // "Send another" remounts the fields, which also clears the previous message.
   return sent ? (
     <Sent
+      locale={locale}
       onAgain={() => {
         setSent(false);
       }}
@@ -217,6 +247,7 @@ export function ContactForm({ nonce }: { nonce?: string | undefined }) {
   ) : (
     <ContactFields
       nonce={nonce}
+      locale={locale}
       onSent={() => {
         setSent(true);
       }}

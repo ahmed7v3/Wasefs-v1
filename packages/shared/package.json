@@ -255,6 +255,11 @@
       "import": "./dist/schemas/files.js",
       "default": "./dist/schemas/files.js"
     },
+    "./schemas/media": {
+      "types": "./dist/schemas/media.d.ts",
+      "import": "./dist/schemas/media.js",
+      "default": "./dist/schemas/media.js"
+    },
     "./schemas/manual-payment": {
       "types": "./dist/schemas/manual-payment.d.ts",
       "import": "./dist/schemas/manual-payment.js",

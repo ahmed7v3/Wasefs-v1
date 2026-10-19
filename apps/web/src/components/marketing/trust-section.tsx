@@ -2,11 +2,12 @@ import { Container } from "@wasfa/ui";
 import { Languages, Lock, ShieldCheck, Stethoscope } from "lucide-react";
 import Link from "next/link";
 
-import { landing, type TrustIcon } from "../../content/landing";
+import { type TrustIcon } from "../../content/landing";
+import { landingFor } from "../../content/landing-locale";
 
 import { SectionHeading } from "./section-heading";
 
-const { trust } = landing;
+import type { Locale } from "../../lib/locale";
 
 const ICONS = {
   shield: ShieldCheck,
@@ -18,7 +19,8 @@ const ICONS = {
 const focus = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white";
 
 /** Privacy and trust: the dark navy band of the page (light text, white lattice). */
-export function TrustSection() {
+export function TrustSection({ locale = "ar" }: { locale?: Locale }) {
+  const { trust } = landingFor(locale);
   return (
     <section
       aria-labelledby="trust-title"

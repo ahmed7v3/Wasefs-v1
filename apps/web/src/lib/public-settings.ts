@@ -15,6 +15,7 @@ export const PUBLIC_SETTINGS_FALLBACK: PublicSettings = {
   access: settingDefault("access"),
   free_tier: settingDefault("free_tier"),
   rx: settingDefault("rx"),
+  seo: settingDefault("seo"),
 };
 
 /** The public pages wait this long for the API, then render with the defaults. */

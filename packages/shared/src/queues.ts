@@ -63,6 +63,17 @@ export const drugImportPayloadSchema = z.object({
   actorId: z.uuid().optional(),
 });
 
+/** Most URLs one IndexNow request may carry in a single job (the protocol allows 10 000; we stay small). */
+export const INDEXNOW_MAX_URLS = 100;
+
+/** `seo.indexnow`: absolute https URLs that changed and should be announced to IndexNow. */
+export const indexNowPayloadSchema = z.object({
+  urls: z
+    .array(z.url({ protocol: /^https$/ }))
+    .min(1)
+    .max(INDEXNOW_MAX_URLS),
+});
+
 export const QUEUE_REGISTRY = {
   system: {
     "system.heartbeat": heartbeatPayloadSchema,
@@ -91,6 +102,8 @@ export const QUEUE_REGISTRY = {
   images: {
     "image.process": imageProcessPayloadSchema,
     "files.retention": filesRetentionPayloadSchema,
+    // Public media library (Phase 4): one asset per job. ":" is not allowed in BullMQ names, so `media.process`.
+    "media.process": z.object({ assetId: z.uuid() }),
   },
   drugs: {
     "drugs.import": drugImportPayloadSchema,
@@ -123,6 +136,10 @@ export const QUEUE_REGISTRY = {
     // Withdrawals (Task 3.12): overdue reminders every 30 minutes, nightly paid-out vs ledger check.
     "withdrawals.overdue": paymentsMaintenancePayloadSchema,
     "withdrawals.reconcile": paymentsMaintenancePayloadSchema,
+  },
+  /** Search discoverability (Phase 4): IndexNow pings. BullMQ names cannot contain ":", hence queue `seo`, job `seo.indexnow`. */
+  seo: {
+    "seo.indexnow": indexNowPayloadSchema,
   },
   /** Accuracy evaluation (Phase 2, Task 2.10): label-set imports and eval runs; no credits, no users. */
   evals: {

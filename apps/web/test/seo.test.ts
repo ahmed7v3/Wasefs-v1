@@ -1,17 +1,25 @@
 import { describe, expect, it } from "vitest";
 
-import sitemap from "../src/app/sitemap";
-import { PUBLIC_PAGES, pageMetadata, sitemapEntries } from "../src/lib/seo";
+import { PUBLIC_PAGES, pageMetadata } from "../src/lib/seo";
+import { pageSitemapUrls } from "../src/lib/sitemap-xml";
 
-describe("sitemap", () => {
-  it("lists the landing, pricing, privacy, terms, disclaimer and contact pages with absolute URLs", () => {
-    const urls = sitemap().map((entry) => new URL(entry.url).pathname);
-    expect(urls).toEqual(["/", "/pricing", "/contact", "/privacy", "/terms", "/disclaimer"]);
-    for (const entry of sitemap()) expect(entry.url).toMatch(/^https?:\/\//);
+describe("sitemap-pages", () => {
+  it("lists every public page, plus the English counterparts, with absolute URLs", () => {
+    const urls = pageSitemapUrls("https://wasfa.online").map((entry) => new URL(entry.url).pathname);
+    expect(urls).toEqual([
+      "/",
+      "/en",
+      "/pricing",
+      "/contact",
+      "/en/contact",
+      "/privacy",
+      "/terms",
+      "/disclaimer",
+    ]);
   });
 
   it("gives the landing page the top priority and every page a fixed lastModified date", () => {
-    const entries = sitemapEntries("https://wasfa.online");
+    const entries = pageSitemapUrls("https://wasfa.online");
     expect(entries[0]).toMatchObject({ url: "https://wasfa.online/", priority: 1 });
     for (const entry of entries) {
       expect(entry.priority).toBeLessThanOrEqual(1);

@@ -12,7 +12,9 @@
     "typecheck": "next typegen && tsc -p tsconfig.json && tsc -p e2e/tsconfig.json",
     "test": "vitest run --passWithNoTests",
     "e2e": "playwright test",
-    "og:images": "node scripts/og-images.mjs"
+    "og:images": "node scripts/og-images.mjs",
+    "test:prod-smoke": "playwright test --project=prod-smoke",
+    "check:bundles": "node scripts/check-public-bundles.mjs"
   },
   "dependencies": {
     "@wasfa/shared": "workspace:*",
@@ -53,5 +55,11 @@
     "testcontainers": "^12.2.0",
     "typescript": "^5.9.3",
     "vitest": "^5.0.3"
-  }
+  },
+  "browserslist": [
+    "chrome >= 111",
+    "edge >= 111",
+    "firefox >= 111",
+    "safari >= 16.4"
+  ]
 }

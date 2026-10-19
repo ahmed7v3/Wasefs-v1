@@ -1,11 +1,12 @@
 import { Badge, Container } from "@wasfa/ui";
 import { Database, Eye, Gauge, ScanLine, ShieldCheck, Timer, TriangleAlert } from "lucide-react";
 
-import { landing, type PipelineIcon } from "../../content/landing";
+import { type PipelineIcon } from "../../content/landing";
+import { landingFor } from "../../content/landing-locale";
 
 import { SectionHeading } from "./section-heading";
 
-const { precision, visual } = landing;
+import type { Locale } from "../../lib/locale";
 
 const ICONS = {
   scan: ScanLine,
@@ -40,7 +41,8 @@ function wave(y: number, width: number): string {
   }).join(" ");
 }
 
-function Paper() {
+function Paper({ locale }: { locale: Locale }) {
+  const { precision } = landingFor(locale);
   return (
     <div className="relative flex flex-col overflow-hidden rounded-2xl border border-border bg-surface p-5 shadow-card">
       <div className="flex items-center justify-between gap-2">
@@ -93,7 +95,8 @@ function Paper() {
   );
 }
 
-function Pipeline() {
+function Pipeline({ locale }: { locale: Locale }) {
+  const { precision } = landingFor(locale);
   return (
     <div className="flex flex-col gap-3">
       <p className="inline-flex items-center gap-2 self-center rounded-full bg-primary px-4 py-1 text-sm font-bold text-on-primary">
@@ -135,7 +138,8 @@ function Pipeline() {
   );
 }
 
-function Result() {
+function Result({ locale }: { locale: Locale }) {
+  const { precision, visual } = landingFor(locale);
   return (
     <div className="rounded-2xl border border-border bg-surface p-5 shadow-raised">
       <div className="flex items-center justify-between gap-2">
@@ -176,7 +180,8 @@ function Result() {
  * stages lighting in turn, and a result in which the uncertain line is flagged, not guessed.
  * Pure CSS motion (6 s loop); without motion every stage is lit and every result row visible.
  */
-export function PrecisionDemo() {
+export function PrecisionDemo({ locale = "ar" }: { locale?: Locale }) {
+  const { precision } = landingFor(locale);
   return (
     <section
       id={precision.id}
@@ -191,9 +196,9 @@ export function PrecisionDemo() {
           lead={precision.lead}
         />
         <div className="mt-12 grid items-stretch gap-5 lg:grid-cols-[1fr_1.15fr_1fr]">
-          <Paper />
-          <Pipeline />
-          <Result />
+          <Paper locale={locale} />
+          <Pipeline locale={locale} />
+          <Result locale={locale} />
         </div>
         <p className="mt-6 text-center text-sm text-text-muted">
           {precision.sampleBadge} · {precision.guarantee}

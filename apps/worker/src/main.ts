@@ -9,7 +9,7 @@ import { runCustomerPrefLoop } from "./notifications/customer-prefs.loop.js";
 import { createEmailRuntime } from "./notifications/email.js";
 import { createPaymentsRuntime } from "./payments/runtime.js";
 import { closeWorkers, registerSchedules, startWorkers } from "./queues.js";
-import { createObjectStore } from "./storage/object-store.js";
+import { createMediaStore, createObjectStore } from "./storage/object-store.js";
 
 const env = loadEnv();
 const logger = createLogger(env);
@@ -33,6 +33,7 @@ const { db, close: closeDb } = createDb({ url: env.DATABASE_URL, max: 3 });
 
 const email = createEmailRuntime(env, connection, logger);
 const storage = createObjectStore(env);
+const media = createMediaStore(env);
 const ai = createAiRuntime({ env, db, redis: connection, logger });
 const payments = createPaymentsRuntime(env, db, connection);
 const { workers, queues } = startWorkers(connection, queueConcurrency(env), {
@@ -41,6 +42,7 @@ const { workers, queues } = startWorkers(connection, queueConcurrency(env), {
   logger,
   email,
   storage,
+  media,
   ai,
   payments,
   env,
@@ -93,6 +95,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   await customerPrefsRedis.quit().catch(() => customerPrefsRedis.disconnect());
   email.transport.close();
   storage?.close();
+  media?.close();
   await connection.quit().catch(() => {
     connection.disconnect();
   });
