@@ -33,7 +33,7 @@ afterEach(() => {
 
 describe("seo.indexnow", () => {
   it("skips while IndexNow is disabled or has no key", async () => {
-    seo({ enabled: false, key: "abcdef0123456789" });
+    seo({ enabled: false, key: "test-indexnow-key" });
     await indexNowJob({ urls: ["https://wasfa.online/ar"] }, context);
     seo({ enabled: true, key: null });
     await indexNowJob({ urls: ["https://wasfa.online/ar"] }, context);
@@ -41,7 +41,7 @@ describe("seo.indexnow", () => {
   });
 
   it("posts the URLs with the host, key and key file location", async () => {
-    seo({ enabled: true, key: "abcdef0123456789" });
+    seo({ enabled: true, key: "test-indexnow-key" });
     fetchMock.mockResolvedValue(new Response(null, { status: 202 }));
     await indexNowJob(
       { urls: ["https://wasfa.online/ar/a", "https://wasfa.online/ar/b"] },
@@ -52,14 +52,14 @@ describe("seo.indexnow", () => {
     expect(url).toBe("https://api.indexnow.org/indexnow");
     expect(JSON.parse(init.body)).toEqual({
       host: "wasfa.online",
-      key: "abcdef0123456789",
+      key: "test-indexnow-key",
       keyLocation: "https://wasfa.online/indexnow.txt",
       urlList: ["https://wasfa.online/ar/a", "https://wasfa.online/ar/b"],
     });
   });
 
   it("throws on 429 and 5xx so BullMQ retries", async () => {
-    seo({ enabled: true, key: "abcdef0123456789" });
+    seo({ enabled: true, key: "test-indexnow-key" });
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 429 }));
     await expect(indexNowJob({ urls: ["https://wasfa.online/ar"] }, context)).rejects.toThrow(
       "429",
@@ -71,7 +71,7 @@ describe("seo.indexnow", () => {
   });
 
   it("does not retry other 4xx answers", async () => {
-    seo({ enabled: true, key: "abcdef0123456789" });
+    seo({ enabled: true, key: "test-indexnow-key" });
     fetchMock.mockResolvedValue(new Response(null, { status: 403 }));
     await expect(
       indexNowJob({ urls: ["https://wasfa.online/ar"] }, context),
@@ -80,7 +80,7 @@ describe("seo.indexnow", () => {
   });
 
   it("sends only URLs on the site host", async () => {
-    seo({ enabled: true, key: "abcdef0123456789" });
+    seo({ enabled: true, key: "test-indexnow-key" });
     fetchMock.mockResolvedValue(new Response(null, { status: 200 }));
     await indexNowJob({ urls: ["https://wasfa.online/ar", "https://evil.example/ar"] }, context);
     const [, init] = fetchMock.mock.calls[0] as [string, { body: string }];
