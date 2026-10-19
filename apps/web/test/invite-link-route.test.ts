@@ -11,10 +11,8 @@ describe("/r/[code]", () => {
   it("remembers a well-formed code for 30 days and sends the visitor to register with it", async () => {
     const response = await call("ab12cd");
     expect(response.status).toBe(302);
-    expect(
-      new URL(response.headers.get("location") ?? "").pathname +
-        new URL(response.headers.get("location") ?? "").search,
-    ).toBe("/register?ref=AB12CD");
+    // Relative, so the browser keeps the public host (the server behind the proxy only knows 0.0.0.0).
+    expect(response.headers.get("location")).toBe("/register?ref=AB12CD");
     const cookie = response.cookies.get("wasfa_ref");
     expect(cookie?.value).toBe("AB12CD");
     expect(cookie?.maxAge).toBe(30 * 86_400);
@@ -27,8 +25,7 @@ describe("/r/[code]", () => {
     for (const bad of ["a", "ab", "has-dash", "x".repeat(21), "%3Cscript%3E"]) {
       const response = await call(bad);
       expect(response.status).toBe(302);
-      expect(new URL(response.headers.get("location") ?? "").pathname).toBe("/register");
-      expect(new URL(response.headers.get("location") ?? "").search).toBe("");
+      expect(response.headers.get("location")).toBe("/register");
       expect(response.cookies.get("wasfa_ref")).toBeUndefined();
     }
   });

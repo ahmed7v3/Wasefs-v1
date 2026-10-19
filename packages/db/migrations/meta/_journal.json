@@ -141,6 +141,13 @@
       "when": 1792364442944,
       "tag": "0019_plan_sale_window",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792390492576,
+      "tag": "0020_alert_kind_test",
+      "breakpoints": true
     }
   ]
 }

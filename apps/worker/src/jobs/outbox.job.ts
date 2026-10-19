@@ -68,14 +68,19 @@ export function outboxHandlers(
       const [alert] = await tx.select().from(adminAlerts).where(eq(adminAlerts.id, alertId));
       if (!alert) return;
       const needed = ALERT_KIND_PERMISSION[alert.kind];
-      const recipients = await adminRecipients(tx, needed);
+      // A test alert goes to the admin who asked for it (`refId`), and only if they still may receive alerts.
+      const isTest = alert.kind === "system.test";
+      const recipients = (await adminRecipients(tx, needed)).filter(
+        (user) => !isTest || user.id === alert.refId,
+      );
       const postCommit = [];
       for (const user of recipients) {
         const [prefs] = await tx
           .select()
           .from(adminAlertPrefs)
           .where(eq(adminAlertPrefs.userId, user.id));
-        if (alert.severity !== "critical" && prefs?.mutedKinds.includes(alert.kind)) continue;
+        if (alert.severity !== "critical" && !isTest && prefs?.mutedKinds.includes(alert.kind))
+          continue;
         const channels = {
           in_app: prefs?.inAppEnabled ?? true,
           email: prefs?.emailEnabled ?? true,
@@ -97,8 +102,9 @@ export function outboxHandlers(
             .returning({ id: alertDeliveries.id });
           if (delivery && channel !== "in_app") {
             const now = new Date();
+            // Critical alerts and tests are never held back for the 10-minute digest.
             const activeWindow =
-              alert.severity === "critical"
+              alert.severity === "critical" || isTest
                 ? undefined
                 : (
                     await tx

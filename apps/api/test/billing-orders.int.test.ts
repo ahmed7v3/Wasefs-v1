@@ -502,6 +502,35 @@ describe("manual payment HTTP flow", () => {
     expect((await ctx.harness.call("GET", "/admin/alerts/health")).statusCode).toBe(401);
   });
 
+  it("sends a test alert addressed to the caller only, through the outbox", async () => {
+    const admin = await ctx.admin("super_admin");
+    const res = await ctx.harness.call("POST", "/admin/alerts/test", { jar: admin.jar, body: {} });
+    expect(res.statusCode, res.body).toBe(201);
+    const { alertId } = res.json<{ alertId: string }>();
+    const [alert] = await ctx.owner.db.select().from(adminAlerts).where(eq(adminAlerts.id, alertId));
+    expect(alert).toMatchObject({
+      kind: "system.test",
+      severity: "info",
+      refType: "user",
+      refId: admin.userId,
+      link: "/admin/notifications",
+    });
+    const [queued] = await ctx.owner.db
+      .select({ topic: outbox.topic })
+      .from(outbox)
+      .where(eq(outbox.idempotencyKey, `alert:${alertId}`));
+    expect(queued?.topic).toBe("alerts.fan_out");
+
+    const customer = await ctx.harness.signedInUser();
+    expect(
+      (await ctx.harness.call("POST", "/admin/alerts/test", { jar: customer.jar, body: {} }))
+        .statusCode,
+    ).toBe(403);
+    expect((await ctx.harness.call("POST", "/admin/alerts/test", { body: {} })).statusCode).toBe(
+      401,
+    );
+  });
+
   it("returns only the current admin's in-app alerts and validates alert preferences", async () => {
     const first = await ctx.admin("super_admin");
     const second = await ctx.admin("super_admin");

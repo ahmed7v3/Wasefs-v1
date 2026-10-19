@@ -3,6 +3,7 @@ import { ANONYMIZED_USER_NAME } from "@wasfa/shared/identity";
 
 import { CreditsCard } from "../../../../components/dashboard/credits-card";
 import { MyInvites } from "../../../../components/dashboard/my-invites";
+import { PlanEndingBanner } from "../../../../components/dashboard/plan-ending-banner";
 import { QuickCapture } from "../../../../components/dashboard/quick-capture";
 import { RecentAnalyses } from "../../../../components/dashboard/recent-analyses";
 import { RecentChats } from "../../../../components/dashboard/recent-chats";
@@ -37,6 +38,7 @@ export default async function DashboardPage() {
         <p className="text-base text-text-muted sm:text-lg">{t("dashboard.lead")}</p>
       </header>
       {me.canUseTools ? null : <VerificationBanner me={me} nonce={nonce} />}
+      {settings ? <PlanEndingBanner /> : null}
       <MyInvites />
       {settings ? (
         <>

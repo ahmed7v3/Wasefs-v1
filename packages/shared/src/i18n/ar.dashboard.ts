@@ -8,6 +8,9 @@ export const arDashboard = {
   "dashboard.capture.lead": "أفلت صورة الروشتة أو الصقها هنا وننتقل بك إلى التحليل مباشرة.",
   "dashboard.capture.going": "تم رفع الصور، ننقلك إلى تحليل الروشتة…",
 
+  "dashboard.planEnding": "باقة {plan} تنتهي خلال {days} يوم ({date}).",
+  "dashboard.planEnding.renew": "جدّد الآن",
+  "dashboard.planEnding.choose": "اختر باقة",
   "dashboard.credits.title": "رصيدك",
   "dashboard.credits.balance": "{balance} كريدت",
   "dashboard.credits.balanceLabel": "الرصيد الحالي",

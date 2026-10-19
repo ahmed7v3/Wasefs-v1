@@ -94,6 +94,22 @@ export class AdminAlertService {
     return id;
   }
 
+  /**
+   * A test alert for the caller alone (the fan-out sends `system.test` only to `refId`). It goes
+   * through the real pipeline, so /admin/notifications then shows what happened on each channel.
+   */
+  async sendTest(userId: string) {
+    const id = await this.notify({
+      kind: "system.test",
+      severity: "info",
+      refType: "user",
+      refId: userId,
+      summary: "تنبيه تجريبي: إذا وصلك هذا فقناة التنبيهات تعمل.",
+      link: "/admin/notifications",
+    });
+    return { alertId: id };
+  }
+
   list(userId: string, limit: number, cursor?: string) {
     return this.repo.list(userId, limit, cursor);
   }

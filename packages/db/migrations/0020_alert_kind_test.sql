@@ -1,0 +1,2 @@
+ALTER TABLE "admin_alerts" DROP CONSTRAINT "admin_alerts_kind_check";--> statement-breakpoint
+ALTER TABLE "admin_alerts" ADD CONSTRAINT "admin_alerts_kind_check" CHECK ("admin_alerts"."kind" in ('payment.review_needed', 'payment.review_overdue', 'payment.amount_mismatch', 'payment.failure_spike', 'withdrawal.requested', 'withdrawal.overdue', 'reward.fraud_flag', 'credits.reconcile_drift', 'points.reconcile_drift', 'refund.requested', 'payment_method.account_change_requested', 'payment_method.account_change_canceled', 'payment_method.account_change_applied', 'system.test'));

@@ -277,6 +277,7 @@ export const ALERT_KIND_PERMISSION = {
   "credits.reconcile_drift": "billing.read",
   "points.reconcile_drift": "billing.read",
   "reward.fraud_flag": "alerts.receive",
+  "system.test": "alerts.receive",
 } as const satisfies Record<import("./billing.js").AlertKind, Permission>;
 
 export const PERMISSION_KEYS = Object.keys(PERMISSIONS) as Permission[];

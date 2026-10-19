@@ -224,6 +224,8 @@ The record appears in "الاستردادات" with its state ("مطلوب", "م
 - **Default plan:** the star. The default plan is what everyone without a paid plan has; there is always exactly one.
 - **Delete:** the bin. Refused ("لا يمكن حذف هذه الباقة…") for the default plan and for any plan that has, or ever had, a subscription, a hand-given assignment or an order: history keeps pointing at it. Hide such a plan instead.
 
+**If /pricing shows no paid plan:** the banner at the top of "الباقات والأسعار" says what the page shows right now. A plan is on /pricing only when all three hold: it is "معروضة للبيع", its start date has passed (or is empty), and it has at least one published price. The seeded plans start **hidden**, so nothing shows until you do this. When a visitor's currency (their country, or a currency they picked) has no prices, the pricing page shows the default currency's prices instead of an empty page. The page can take up to a minute to catch up after a change.
+
 ---
 
 ## 5. Create a promotion or coupons
@@ -437,6 +439,8 @@ Note: the real Kashier webhook body and signature header have not yet been check
 **Why WhatsApp alerts are off by default:** the WhatsApp number is an unofficial client. Sending many messages risks a ban, and a ban would also break phone verification for customers. So alerts to admins on WhatsApp ship **off** (setting `alerts.whatsapp.enabled = false` and `WA_ALERTS_ENABLED=false`). If the owner turns both on: only admins who messaged `تنبيهات` or `ALERTS ON` to the bridge from their **verified** phone are linked, at most 20 messages per day in total, and there are no links in the text. Prefer email and Telegram. The safer official route (WhatsApp Cloud API) is an open question for the owner.
 
 **Customer WhatsApp messages** (receipts, reminders) are a different thing: they are controlled in `/admin/whatsapp` ("ربط واتساب") in the card "Customer messages" and also ship off.
+
+**Test your channels:** on "التنبيهات" (`/admin/alerts`) press "أرسل لي تنبيهًا تجريبيًا". It goes to you only, on every channel you switched on, ignores mutes and the 10-minute digest. If it does not arrive within a minute, see the next paragraph. The same page lets you filter alerts (all, unread, unresolved), mark one read (for you), close it with "تم الحل" (for the whole team, once the cause is handled), and load older ones.
 
 **If you stop receiving alerts:** open "إعدادات الإشعارات" (`/admin/notifications`). The top panel "هل تصل التنبيهات؟" shows, per channel, what happened in the last 7 days (arrived, waiting, not sent, failed), the recorded reason with what to do (for example "بوت تيليجرام غير مضبوط على الخادم" or "لم يرسل كلمة «تنبيهات»"), and a checklist of what is still missing for you. Also check your spam folder and whether you still have the permission.
 

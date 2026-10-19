@@ -36,14 +36,21 @@ export class CatalogController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ) {
+    const currencies = await this.settings.get("currency");
     const market = resolveMarket(
       query,
       request.headers,
-      await this.settings.get("currency"),
+      currencies,
       this.env.NODE_ENV === "production",
     );
     reply.header("cache-control", "public, max-age=60, stale-while-revalidate=300");
     reply.header("vary", "CF-IPCountry");
-    return this.catalog.catalog(market);
+    const catalog = await this.catalog.catalog(market);
+    // An enabled currency that no plan is priced in yet (or a remembered one) would show an empty
+    // pricing page; the default currency's prices are shown instead and the answer says which.
+    if (catalog.plans.length === 0 && market.currency !== currencies.default) {
+      return this.catalog.catalog({ ...market, currency: currencies.default });
+    }
+    return catalog;
   }
 }

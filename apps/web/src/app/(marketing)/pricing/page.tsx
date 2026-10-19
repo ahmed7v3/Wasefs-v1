@@ -120,6 +120,9 @@ export default async function PricingPage({
             trialAvailable={billing.trialAvailable}
             orgId={orgId}
           />
+          {plans.length === 0 ? (
+            <Notice tone="info">{t("billing.pricing.noPlans")}</Notice>
+          ) : null}
           {tax.mode !== "none" ? (
             <p className="text-sm text-text-muted">
               {tax.mode === "inclusive" ? t("billing.tax.inclusive") : t("billing.tax.added")}
