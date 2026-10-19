@@ -214,6 +214,25 @@ describe("GET /catalog", () => {
     );
   });
 
+  it("offers a public plan only inside its sale window", async () => {
+    const { db } = ctx.owner;
+    const hour = 60 * 60 * 1000;
+    const window = async (availableFrom: Date | null, availableUntil: Date | null) => {
+      await db.update(plans).set({ availableFrom, availableUntil }).where(eq(plans.key, "plus"));
+    };
+    try {
+      // Each check uses a country of its own: the catalog is cached per country.
+      await window(new Date(Date.now() + hour), null);
+      expect(keys((await getCatalog("/catalog?country=KW")).body)).toEqual(["pro"]);
+      await window(new Date(Date.now() - 2 * hour), new Date(Date.now() - hour));
+      expect(keys((await getCatalog("/catalog?country=QA")).body)).toEqual(["pro"]);
+      await window(new Date(Date.now() - hour), new Date(Date.now() + hour));
+      expect(keys((await getCatalog("/catalog?country=BH")).body)).toEqual(["plus", "pro"]);
+    } finally {
+      await window(null, null);
+    }
+  });
+
   it("drops its cache when the catalog topic is published", async () => {
     const { db } = ctx.owner;
     const [pro] = await db.select({ id: plans.id }).from(plans).where(eq(plans.key, "pro"));

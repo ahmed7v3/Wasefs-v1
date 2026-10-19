@@ -7,6 +7,7 @@ import {
   orders,
   paymentMethods,
   personalOffers,
+  planOnSale,
   planPrices,
   plans,
   promotions,
@@ -158,12 +159,12 @@ export class QuoteInputsRepo {
     return new Map(rows.map((row) => [row.id, row.key]));
   }
 
-  /** A public plan by key (hidden and archived plans are not for sale). */
-  async publicPlan(key: string): Promise<Plan | undefined> {
+  /** A plan for sale by key: public and inside its sale window (`planOnSale`). */
+  async publicPlan(key: string, now = new Date()): Promise<Plan | undefined> {
     const [row] = await this.handle.db
       .select()
       .from(plans)
-      .where(and(eq(plans.key, key), eq(plans.visibility, "public")));
+      .where(and(eq(plans.key, key), planOnSale(now)));
     return row;
   }
 

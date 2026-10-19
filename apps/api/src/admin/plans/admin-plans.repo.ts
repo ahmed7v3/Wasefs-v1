@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
+  isForeignKeyViolation,
   isUniqueViolation,
   organizations,
   planAssignments,
@@ -57,7 +58,9 @@ type PatchableField =
   | "pinRecommended"
   | "maxMembers"
   | "fairUseNoteAr"
-  | "fairUseNoteEn";
+  | "fairUseNoteEn"
+  | "availableFrom"
+  | "availableUntil";
 
 /** The fields of a plan an admin may change; `undefined` = leave as is. */
 export type PlanPatch = { [K in PatchableField]?: NewPlan[K] | undefined };
@@ -65,7 +68,8 @@ export type PlanPatch = { [K in PatchableField]?: NewPlan[K] | undefined };
 export type UpdateOutcome =
   | { kind: "updated"; before: Plan; after: Plan }
   | { kind: "not_found" }
-  | { kind: "default_required" };
+  | { kind: "default_required" }
+  | { kind: "invalid_window" };
 
 export type RemoveOutcome =
   | { kind: "deleted"; plan: Plan }
@@ -138,6 +142,11 @@ export class AdminPlansRepo {
       // The default plan is replaced by making another one default, never by switching it off.
       if (patch.isDefault === false && before.isDefault)
         return { kind: "default_required" } as const;
+      // The sale window is checked against the stored bound the patch leaves unchanged.
+      const from = patch.availableFrom === undefined ? before.availableFrom : patch.availableFrom;
+      const until =
+        patch.availableUntil === undefined ? before.availableUntil : patch.availableUntil;
+      if (from && until && from >= until) return { kind: "invalid_window" } as const;
 
       if (patch.isDefault === true && !before.isDefault) {
         await tx
@@ -196,8 +205,21 @@ export class AdminPlansRepo {
     });
   }
 
-  /** Refuses the default plan and any plan that has (or had) assignments: history keeps its plan. */
-  remove(id: string): Promise<RemoveOutcome> {
+  /**
+   * Refuses the default plan and any plan that has (or had) assignments: history keeps its plan.
+   * Orders and subscriptions also hold their plan (`on delete restrict`): that refusal is the same
+   * "in use" answer instead of a server error.
+   */
+  async remove(id: string): Promise<RemoveOutcome> {
+    try {
+      return await this.removeUnused(id);
+    } catch (error) {
+      if (isForeignKeyViolation(error)) return { kind: "in_use" } as const;
+      throw error;
+    }
+  }
+
+  private removeUnused(id: string): Promise<RemoveOutcome> {
     return this.handle.db.transaction(async (tx) => {
       const [plan] = await tx.select().from(plans).where(eq(plans.id, id)).for("update");
       if (!plan) return { kind: "not_found" } as const;

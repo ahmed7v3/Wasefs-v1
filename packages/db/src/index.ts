@@ -10,6 +10,7 @@ export * from "./migrations.js";
 export * from "./notification-prefs.js";
 export * from "./outbox.js";
 export * from "./payments.js";
+export * from "./plan-sale.js";
 export * from "./pg-errors.js";
 export * from "./points-ledger.js";
 export * from "./referrals.js";

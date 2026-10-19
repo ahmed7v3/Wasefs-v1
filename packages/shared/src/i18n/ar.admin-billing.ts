@@ -138,7 +138,8 @@ export const arAdminBilling = {
   "admin.plans.error.cap": "أدخل عددًا صحيحًا من 0 إلى 1000000، أو اتركه فارغًا لغير محدود.",
   "admin.plans.error.pages": "أدخل عددًا صحيحًا من 1 إلى {max}.",
   "admin.plans.reason.plan_key_exists": "يوجد باقة بهذا المفتاح بالفعل.",
-  "admin.plans.reason.plan_in_use": "الباقة مستخدمة في تعيينات أو اشتراكات، فلا يمكن حذفها.",
+  "admin.plans.reason.plan_in_use":
+    "لا يمكن حذف هذه الباقة: هي الافتراضية، أو لها اشتراكات أو تعيينات أو طلبات سابقة. أخفِها بدلًا من ذلك لتتوقف عن البيع.",
   "admin.plans.reason.default_plan_required":
     "يجب أن توجد باقة افتراضية. اجعل باقة أخرى افتراضية أولًا.",
   "admin.plans.reason.assignment_ended": "انتهى هذا التعيين بالفعل.",

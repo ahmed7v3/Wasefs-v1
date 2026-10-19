@@ -45,6 +45,12 @@ export class AlertsController {
     return { read: true };
   }
 
+  @Get("health")
+  @RateLimit(30)
+  health(@CurrentUser() user: AuthenticatedUser) {
+    return this.alerts.health(user.id);
+  }
+
   @Get("prefs")
   @RateLimit(60)
   prefs(@CurrentUser() user: AuthenticatedUser) {

@@ -7,6 +7,7 @@ import {
   organizationMembers,
   personalOffers,
   planEntitlements,
+  planOnSale,
   plans,
   promotions,
   recordGrowthEvent,
@@ -104,8 +105,12 @@ export class GrowthRepo {
     const [row] = await this.db
       .select({
         dismissals: sql<number>`count(*) filter (where ${growthEvents.name} = 'prompt_dismissed')::int`,
-        lastDismissedAt: sql<string | null>`max(${growthEvents.occurredAt}) filter (where ${growthEvents.name} = 'prompt_dismissed')`,
-        lastShownAt: sql<string | null>`max(${growthEvents.occurredAt}) filter (where ${growthEvents.name} = 'prompt_shown')`,
+        lastDismissedAt: sql<
+          string | null
+        >`max(${growthEvents.occurredAt}) filter (where ${growthEvents.name} = 'prompt_dismissed')`,
+        lastShownAt: sql<
+          string | null
+        >`max(${growthEvents.occurredAt}) filter (where ${growthEvents.name} = 'prompt_shown')`,
       })
       .from(growthEvents)
       .where(
@@ -241,14 +246,16 @@ export class GrowthRepo {
    * The cheapest public plan that sells Deep reading: a taste is routed through its model and its
    * name is the calm "available in …" line afterwards.
    */
-  async deepPlan(): Promise<{ id: string; key: string; nameAr: string; nameEn: string } | undefined> {
+  async deepPlan(): Promise<
+    { id: string; key: string; nameAr: string; nameEn: string } | undefined
+  > {
     const [row] = await this.db
       .select({ id: plans.id, key: plans.key, nameAr: plans.nameAr, nameEn: plans.nameEn })
       .from(plans)
       .innerJoin(planEntitlements, eq(planEntitlements.planId, plans.id))
       .where(
         and(
-          eq(plans.visibility, "public"),
+          planOnSale(new Date()),
           eq(plans.isDefault, false),
           eq(planEntitlements.task, "rx_extract"),
           eq(planEntitlements.allowed, true),

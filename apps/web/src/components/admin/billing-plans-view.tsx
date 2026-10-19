@@ -20,6 +20,7 @@ import {
   featuresValid,
   isDirty,
   patchFromDraft,
+  planSaleState,
   type PlanDraft,
 } from "../../lib/plan-draft";
 import { marginAssumptions } from "../../lib/plan-margin";
@@ -35,6 +36,7 @@ import { PlanMarginTab } from "./plan-margin-tab";
 import { PlanOverviewTab } from "./plan-overview-tab";
 import { PlanPreview } from "./plan-preview";
 import { PlanPricesTab } from "./plan-prices-tab";
+import { PlanRoster } from "./plan-roster";
 import { ResourceBoundary } from "./resource-boundary";
 
 import type { ApiRequestError } from "../../lib/api-error";
@@ -132,9 +134,16 @@ function Editor({
       <Card elevation="flat" className="flex min-w-0 flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-heading text-xl font-semibold">{plan.nameAr}</h2>
-          <Badge tone={plan.visibility === "public" ? "success" : "neutral"}>
-            {t(`admin.pricing.plan.visibility.${plan.visibility}`)}
-          </Badge>
+          {(() => {
+            const state = planSaleState(plan, new Date());
+            const tone = {
+              on_sale: "success",
+              scheduled: "info",
+              ended: "warning",
+              hidden: "neutral",
+            } as const;
+            return <Badge tone={tone[state]}>{t(`admin.pricing.plan.sale.${state}`)}</Badge>;
+          })()}
         </div>
         {error ? <ErrorNotice error={error} /> : null}
         <Tabs value={tab} onValueChange={setTab}>
@@ -286,26 +295,21 @@ function Loaded({
 
   return (
     <div className="flex flex-col gap-4">
-      <nav aria-label={t("admin.pricing.plans.list")}>
-        <ul className="flex flex-wrap gap-2">
-          {sorted.map((plan) => (
-            <li key={plan.id}>
-              <Button
-                variant={plan.id === selected.id ? "primary" : "secondary"}
-                aria-current={plan.id === selected.id ? "true" : undefined}
-                name={`plan-${plan.key}`}
-                onClick={() => {
-                  url.update({ plan: plan.key });
-                }}
-              >
-                {plan.nameAr}
-              </Button>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <PlanRoster
+        plans={sorted}
+        selectedId={selected.id}
+        canEdit={canEditPlan}
+        onSelect={(plan) => {
+          url.update({ plan: plan.key });
+        }}
+        onChanged={() => {
+          reload();
+          if (allowances.status === "ready") allowances.reload();
+        }}
+      />
       <Editor
-        key={`${selected.id}:${JSON.stringify(selected.prices)}:${selected.nameAr}:${selected.features.length}`}
+        // Any stored change the roster can make restarts the draft, so a save never undoes it.
+        key={`${selected.id}:${JSON.stringify(selected.prices)}:${selected.nameAr}:${selected.features.length}:${selected.visibility}:${selected.availableFrom ?? ""}:${selected.availableUntil ?? ""}`}
         plan={selected}
         plans={sorted}
         entitlementsPlan={entitlementsPlan}

@@ -15,10 +15,11 @@ export const arAdminAi = {
   "admin.nav.aiModels.description": "النماذج المتاحة وأسعارها ومعامل الكريدت.",
   "admin.nav.aiRoutes": "المسارات",
   "admin.nav.aiRoutes.description": "أي نموذج يخدم كل مهمة ووضع.",
-  "admin.nav.plans": "الباقات",
-  "admin.nav.plans.description": "الباقات وحدود استخدام كل منها.",
-  "admin.nav.credits": "الكريدت",
-  "admin.nav.credits.description": "الأرصدة وحركاتها والتعديل اليدوي.",
+  "admin.nav.plans": "تعيين الباقات يدويًا",
+  "admin.nav.plans.description":
+    "امنح مستخدمًا أو مؤسسة باقة دون دفع (هدية، تعويض، اتفاق خاص) أو أنهِ باقة ممنوحة.",
+  "admin.nav.credits": "أرصدة العملاء",
+  "admin.nav.credits.description": "رصيد الكريدت لكل عميل وحركاته، وإضافة رصيد أو خصمه يدويًا.",
 
   // Kinds, policies, capabilities (shared by providers and models)
   "admin.ai.kind.gemini": "Gemini",
@@ -286,7 +287,8 @@ export const arAdminAi = {
   "admin.ai.ov.forbidden": "مؤشرات الإنفاق تحتاج صلاحية عرض الاستخدام.",
 
   "admin.ai.pg.title": "تجربة النماذج",
-  "admin.ai.pg.lead": "كل تشغيل نداء حقيقي يُحتسب على حد الإنفاق اليومي ويُسجَّل في سجل الاستخدام. لا يُحفظ المدخل ولا الناتج في سجل التدقيق.",
+  "admin.ai.pg.lead":
+    "كل تشغيل نداء حقيقي يُحتسب على حد الإنفاق اليومي ويُسجَّل في سجل الاستخدام. لا يُحفظ المدخل ولا الناتج في سجل التدقيق.",
   "admin.ai.pg.task": "المهمة",
   "admin.ai.pg.input": "النص",
   "admin.ai.pg.inputHint": "حتى {max} حرف.",

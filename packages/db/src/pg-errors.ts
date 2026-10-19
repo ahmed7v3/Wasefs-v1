@@ -19,7 +19,11 @@ export function isUniqueViolation(error: unknown, constraint?: string): boolean 
   return hasSqlState(error, "23505", constraint);
 }
 
-/** True when `error` is a Postgres foreign-key violation (SQLSTATE 23503), optionally of one named constraint. */
+/**
+ * True when `error` is a Postgres foreign-key violation, optionally of one named constraint:
+ * SQLSTATE 23503, or 23001 for a row an `on delete restrict` key still points at (Postgres reports
+ * RESTRICT under its own code).
+ */
 export function isForeignKeyViolation(error: unknown, constraint?: string): boolean {
-  return hasSqlState(error, "23503", constraint);
+  return hasSqlState(error, "23503", constraint) || hasSqlState(error, "23001", constraint);
 }

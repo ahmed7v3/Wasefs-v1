@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { adminAlertPrefs, alertDeliveries, adminAlerts, raiseAdminAlert } from "@wasfa/db";
-import { and, desc, eq, isNull, lt, or } from "drizzle-orm";
+import { and, count, desc, eq, gte, isNull, lt, max, or } from "drizzle-orm";
 
 import { DB, type DbHandle } from "../common/database.js";
 
@@ -77,6 +77,21 @@ export class AlertsRepo {
           isNull(alertDeliveries.readAt),
         ),
       );
+  }
+
+  /** Deliveries created since `since`, counted by channel, status and recorded reason. */
+  deliveryStats(since: Date) {
+    return this.handle.db
+      .select({
+        channel: alertDeliveries.channel,
+        status: alertDeliveries.status,
+        reason: alertDeliveries.error,
+        count: count(),
+        lastSentAt: max(alertDeliveries.sentAt),
+      })
+      .from(alertDeliveries)
+      .where(gte(alertDeliveries.createdAt, since))
+      .groupBy(alertDeliveries.channel, alertDeliveries.status, alertDeliveries.error);
   }
 
   async prefs(userId: string) {
