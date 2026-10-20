@@ -5,6 +5,8 @@
  *   node scripts/check-live-html.mjs [baseUrl] [--strict]
  * Base URL: argument, else LIVE_BASE_URL, else https://wasfa.online. `--strict` also fails on
  * Cloudflare's JavaScript Detections injector (/cdn-cgi/challenge-platform/).
+ * LIVE_CHECK_TOKEN, when set, is sent as `x-wasfa-live-check`: a Cloudflare WAF rule matching it
+ * skips bot protection, which otherwise challenges requests from CI runners (datacenter IPs).
  */
 import { checkPage } from "./live-html-checks.mjs";
 
@@ -26,11 +28,23 @@ for (const path of PATHS) {
   try {
     const response = await fetch(url, {
       redirect: "follow",
-      headers: { "user-agent": "wasfa-live-html-check", "accept-language": "ar" },
+      headers: {
+        "user-agent": "wasfa-live-html-check",
+        "accept-language": "ar",
+        ...(process.env.LIVE_CHECK_TOKEN
+          ? { "x-wasfa-live-check": process.env.LIVE_CHECK_TOKEN }
+          : {}),
+      },
       signal: AbortSignal.timeout(20_000),
     });
     if (!response.ok) {
-      errors.push(`${url}: HTTP ${response.status}`);
+      // A Cloudflare challenge is the edge refusing this client, not the site failing.
+      const mitigated = response.headers.get("cf-mitigated");
+      errors.push(
+        mitigated
+          ? `${url}: blocked by Cloudflare bot protection (cf-mitigated: ${mitigated}); add the WAF skip rule for x-wasfa-live-check and the LIVE_CHECK_TOKEN secret`
+          : `${url}: HTTP ${response.status}`,
+      );
       continue;
     }
     const result = checkPage(
