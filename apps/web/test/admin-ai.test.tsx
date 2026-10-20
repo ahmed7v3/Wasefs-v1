@@ -158,14 +158,16 @@ describe("ModelForm (add)", () => {
   it("accepts a free-text id when discovery fails, and sends exact micros", async () => {
     const { onSaved } = setup(() => json({ code: "UPSTREAM_UNAVAILABLE", message: "x" }, 503));
     expect(await screen.findByText(t("admin.ai.models.discover.failed"))).toBeTruthy();
+    // No timer between keystrokes: ~45 typed characters on a CPU-starved CI runner overran 20 s.
+    const user = userEvent.setup({ delay: null });
 
-    await userEvent.type(control("modelId"), "vendor/custom-model:free");
-    await userEvent.type(control("displayName"), "Custom");
-    await userEvent.type(control("priceInput"), "0.75");
-    await userEvent.type(control("priceOutput"), "3.75");
-    await userEvent.clear(control("multiplier"));
-    await userEvent.type(control("multiplier"), "1.5");
-    await userEvent.click(screen.getByRole("button", { name: t("common.save") }));
+    await user.type(control("modelId"), "vendor/custom-model:free");
+    await user.type(control("displayName"), "Custom");
+    await user.type(control("priceInput"), "0.75");
+    await user.type(control("priceOutput"), "3.75");
+    await user.clear(control("multiplier"));
+    await user.type(control("multiplier"), "1.5");
+    await user.click(screen.getByRole("button", { name: t("common.save") }));
 
     await waitFor(() => {
       expect(onSaved).toHaveBeenCalled();
