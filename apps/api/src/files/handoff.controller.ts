@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Headers, HttpCode, Param, Post, Req, Res } from "@nestjs/common";
+import {
+  Body,
+  type BeforeApplicationShutdown,
+  Controller,
+  Get,
+  Headers,
+  HttpCode,
+  Param,
+  Post,
+  Req,
+  Res,
+} from "@nestjs/common";
 import {
   captureSessionParamSchema,
   createHandoffSchema,
@@ -34,8 +45,15 @@ const HEARTBEAT_MS = 20_000;
  * every call. Limits per IP are here; the per-token and per-user limits live in the service.
  */
 @Controller("handoff")
-export class HandoffController {
+export class HandoffController implements BeforeApplicationShutdown {
+  /** Open feeds. A response that never ends would keep `app.close()` waiting for up to 15 minutes. */
+  private readonly open = new Set<() => void>();
+
   constructor(private readonly handoff: HandoffService) {}
+
+  beforeApplicationShutdown(): void {
+    for (const close of [...this.open]) close();
+  }
 
   @Post()
   @RequireVerified()
@@ -64,6 +82,7 @@ export class HandoffController {
     const close = (): void => {
       if (closed) return;
       closed = true;
+      this.open.delete(close);
       clearInterval(heartbeat);
       clearTimeout(lifetime);
       stop?.();
@@ -74,6 +93,7 @@ export class HandoffController {
     }, HEARTBEAT_MS);
     const lifetime = setTimeout(close, STREAM_MAX_MS);
     request.raw.on("close", close);
+    this.open.add(close);
 
     // Nothing is written before this resolves, so a refusal is an ordinary JSON error.
     try {
@@ -82,6 +102,7 @@ export class HandoffController {
       });
     } catch (error) {
       closed = true;
+      this.open.delete(close);
       clearInterval(heartbeat);
       clearTimeout(lifetime);
       throw error;

@@ -29,6 +29,8 @@ let app: NestFastifyApplication;
 let owner: ReturnType<typeof createDb>;
 let redis: Redis;
 let baseUrl: string;
+/** Every live feed the suite opened, so teardown can end them whatever a test did. */
+const feeds = new Set<AbortController>();
 const harness = new AuthHarness(
   () => app,
   () => owner.db,
@@ -50,6 +52,8 @@ beforeAll(async () => {
 }, 240_000);
 
 afterAll(async () => {
+  // Open feeds first: a response that never ends would keep the app from closing.
+  for (const controller of feeds) controller.abort();
   network.close();
   await redis?.quit();
   await app?.close();
@@ -133,6 +137,21 @@ function cookieHeader(jar: Jar): string {
   return [...jar].map(([name, value]) => `${name}=${value}`).join("; ");
 }
 
+/** Rejects with the step's name when `work` does not settle in `ms`. */
+async function within<T>(step: string, ms: number, work: Promise<T>): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${step} did not finish in ${ms} ms`)), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Reads the live feed until `count` events arrived (or the wait ran out). */
 async function readEvents(
   captureSessionId: string,
@@ -142,36 +161,46 @@ async function readEvents(
   waitMs = 15_000,
 ): Promise<string[]> {
   const controller = new AbortController();
-  const res = await fetch(`${baseUrl}/handoff/${captureSessionId}/events`, {
-    headers: { cookie: cookieHeader(jar), origin: WEB },
-    signal: controller.signal,
-  });
-  expect(res.status).toBe(200);
-  expect(res.headers.get("content-type")).toContain("text/event-stream");
-  expect(res.headers.get("access-control-allow-origin")).toBe(WEB);
-  const reader = res.body?.getReader();
-  if (!reader) throw new Error("no body");
-  const decoder = new TextDecoder();
-  let buffer = "";
-  const events: string[] = [];
+  feeds.add(controller);
+  // Armed before the first await, so no step below can outlive the wait.
   const timer = setTimeout(() => controller.abort(), waitMs);
-  // The stream sends its greeting before this resolves, so the subscription is already live.
-  await trigger();
   try {
+    const res = await fetch(`${baseUrl}/handoff/${captureSessionId}/events`, {
+      headers: { cookie: cookieHeader(jar), origin: WEB },
+      signal: controller.signal,
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/event-stream");
+    expect(res.headers.get("access-control-allow-origin")).toBe(WEB);
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error("no body");
+    const decoder = new TextDecoder();
+    let buffer = "";
+    const events: string[] = [];
+    // The stream sends its greeting before the fetch resolves, so the subscription is already live.
+    await within("the uploads", waitMs, trigger());
     while (events.length < count) {
       const { value, done } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
-      for (const line of buffer.split("\n")) {
+      // Only whole lines count: a chunk may end in the middle of one.
+      const end = buffer.lastIndexOf("\n");
+      for (const line of buffer.slice(0, end + 1).split("\n")) {
         if (line.startsWith("data: ")) events.push(line.slice("data: ".length));
       }
-      buffer = buffer.slice(buffer.lastIndexOf("\n") + 1);
+      buffer = buffer.slice(end + 1);
     }
+    return events;
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error(`the live feed gave no answer within ${waitMs} ms`, { cause: error });
+    }
+    throw error;
   } finally {
     clearTimeout(timer);
     controller.abort();
+    feeds.delete(controller);
   }
-  return events;
 }
 
 async function row(fileId: string) {
