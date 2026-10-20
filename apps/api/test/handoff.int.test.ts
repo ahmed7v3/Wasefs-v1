@@ -117,19 +117,26 @@ interface Created {
 }
 
 /** What the phone does for one page: ask, PUT to storage, complete. */
+/** The step `uploadPage` is in, so a feed that times out can say where the phone stopped. */
+let uploadStep = "not started";
+
 async function uploadPage(token: string, fill: number): Promise<Created> {
   const bytes = jpegLike(fill);
+  uploadStep = `page ${fill}: upload request`;
   const created = await phoneUpload(token, declare(bytes));
   expect(created.statusCode, created.body).toBe(201);
   const body = created.json<Created>();
+  uploadStep = `page ${fill}: PUT to storage`;
   const put = await fetch(body.url, {
     method: "PUT",
     headers: body.headers,
     body: new Uint8Array(bytes),
   });
   expect(put.status).toBe(200);
+  uploadStep = `page ${fill}: complete`;
   const done = await phoneComplete(token, body.fileId);
   expect(done.statusCode, done.body).toBe(200);
+  uploadStep = `page ${fill}: done`;
   return body;
 }
 
@@ -138,13 +145,13 @@ function cookieHeader(jar: Jar): string {
 }
 
 /** Rejects with the step's name when `work` does not settle in `ms`. */
-async function within<T>(step: string, ms: number, work: Promise<T>): Promise<T> {
+async function within<T>(step: () => string, ms: number, work: Promise<T>): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
   try {
     return await Promise.race([
       work,
       new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error(`${step} did not finish in ${ms} ms`)), ms);
+        timer = setTimeout(() => reject(new Error(`${step()} did not finish in ${ms} ms`)), ms);
       }),
     ]);
   } finally {
@@ -163,6 +170,8 @@ async function readEvents(
   const controller = new AbortController();
   feeds.add(controller);
   // Armed before the first await, so no step below can outlive the wait.
+  const started = Date.now();
+  const events: string[] = [];
   const timer = setTimeout(() => controller.abort(), waitMs);
   try {
     const res = await fetch(`${baseUrl}/handoff/${captureSessionId}/events`, {
@@ -176,9 +185,9 @@ async function readEvents(
     if (!reader) throw new Error("no body");
     const decoder = new TextDecoder();
     let buffer = "";
-    const events: string[] = [];
     // The stream sends its greeting before the fetch resolves, so the subscription is already live.
-    await within("the uploads", waitMs, trigger());
+    const left = Math.max(1, waitMs - (Date.now() - started));
+    await within(() => `the uploads (at ${uploadStep})`, left, trigger());
     while (events.length < count) {
       const { value, done } = await reader.read();
       if (done) break;
@@ -193,7 +202,10 @@ async function readEvents(
     return events;
   } catch (error) {
     if (controller.signal.aborted) {
-      throw new Error(`the live feed gave no answer within ${waitMs} ms`, { cause: error });
+      throw new Error(
+        `the live feed gave no answer within ${waitMs} ms (${events.length} of ${count} events; uploads at ${uploadStep})`,
+        { cause: error },
+      );
     }
     throw error;
   } finally {
