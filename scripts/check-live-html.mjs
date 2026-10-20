@@ -22,6 +22,7 @@ const base = (
 
 const errors = [];
 const warnings = [];
+let checked = 0;
 
 for (const path of PATHS) {
   const url = `${base}${path}`;
@@ -38,15 +39,20 @@ for (const path of PATHS) {
       signal: AbortSignal.timeout(20_000),
     });
     if (!response.ok) {
-      // A Cloudflare challenge is the edge refusing this client, not the site failing.
+      // A Cloudflare challenge is the edge refusing this client, not the site failing. Without a
+      // token it only means the page could not be checked; with one, the WAF skip rule is wrong.
       const mitigated = response.headers.get("cf-mitigated");
-      errors.push(
-        mitigated
-          ? `${url}: blocked by Cloudflare bot protection (cf-mitigated: ${mitigated}); add the WAF skip rule for x-wasfa-live-check and the LIVE_CHECK_TOKEN secret`
-          : `${url}: HTTP ${response.status}`,
-      );
+      if (mitigated) {
+        (process.env.LIVE_CHECK_TOKEN ? errors : warnings).push(
+          `${url}: not checked, Cloudflare bot protection answered (cf-mitigated: ${mitigated}); ` +
+            "add the WAF skip rule for x-wasfa-live-check and the LIVE_CHECK_TOKEN secret",
+        );
+      } else {
+        errors.push(`${url}: HTTP ${response.status}`);
+      }
       continue;
     }
+    checked += 1;
     const result = checkPage(
       { url, html: await response.text(), headers: response.headers },
       { strict },
@@ -61,4 +67,4 @@ for (const path of PATHS) {
 for (const line of warnings) process.stdout.write(`WARN ${line}\n`);
 for (const line of errors) process.stdout.write(`FAIL ${line}\n`);
 if (errors.length > 0) process.exit(1);
-process.stdout.write(`OK ${PATHS.length} pages clean on ${base}\n`);
+process.stdout.write(`OK ${checked} of ${PATHS.length} pages checked and clean on ${base}\n`);
