@@ -395,10 +395,16 @@ describe("GET /handoff/:captureSessionId/events", () => {
   });
 
   it("tells the desktop about every page the phone finishes, and only that desktop", async () => {
+    // Timings per phase: this test stalled on CI with no step named; the log shows where.
+    const t0 = Date.now();
+    const mark = (phase: string) =>
+      process.stderr.write(`[handoff-sse] ${phase} +${Date.now() - t0} ms\n`);
     const [alice, mallory] = [await user(), await user()];
+    mark("users");
     const { captureSessionId, handoff } = await startHandoff(alice);
     // Mallory has a session of her own; Alice's pages must not reach it.
     const { captureSessionId: malloryTab } = await startHandoff(mallory);
+    mark("handoffs");
 
     const seen: string[] = [];
     const bystander = readEvents(malloryTab, mallory.jar, 1, async () => undefined, 4_000).catch(
@@ -407,9 +413,13 @@ describe("GET /handoff/:captureSessionId/events", () => {
     const events = await readEvents(captureSessionId, alice.jar, 2, async () => {
       seen.push((await uploadPage(handoff.token, 1)).fileId);
       seen.push((await uploadPage(handoff.token, 2)).fileId);
+      mark("uploads");
     });
+    mark("events");
 
     expect(events.map((line) => (JSON.parse(line) as { fileId: string }).fileId)).toEqual(seen);
     expect(await bystander).toEqual([]);
-  });
+    mark("bystander");
+    // Above the feed's own 15 s deadline, so a stall fails with the step's name, not vitest's.
+  }, 60_000);
 });
