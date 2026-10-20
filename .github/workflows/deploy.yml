@@ -102,3 +102,5 @@ jobs:
     name: Live HTML check
     needs: deploy
     uses: ./.github/workflows/live-html.yml
+    secrets:
+      LIVE_CHECK_TOKEN: ${{ secrets.LIVE_CHECK_TOKEN }}

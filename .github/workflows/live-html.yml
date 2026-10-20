@@ -7,6 +7,9 @@ on:
     - cron: "17 5 * * *"
   workflow_dispatch:
   workflow_call:
+    secrets:
+      LIVE_CHECK_TOKEN:
+        required: false
 
 permissions:
   contents: read
@@ -25,4 +28,7 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      # The token lets the request past Cloudflare bot protection (a WAF skip rule matches it).
       - run: node scripts/check-live-html.mjs https://wasfa.online
+        env:
+          LIVE_CHECK_TOKEN: ${{ secrets.LIVE_CHECK_TOKEN }}
