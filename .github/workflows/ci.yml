@@ -44,7 +44,9 @@ jobs:
       # Integration tests start Postgres 18 and Redis 8 with Testcontainers (Docker is preinstalled
       # on the runner). Each suite gets its own containers, so suites that run in parallel cannot
       # see each other's data or Redis keys, which shared `services:` containers could not guarantee.
-      - run: pnpm test
+      # At most 3 packages at once: turbo's default (10) on a 4-vCPU runner, each vitest with its own
+      # workers and containers, starved jsdom tests until random ones overran their timeouts.
+      - run: pnpm test --concurrency=3
 
       - run: pnpm build
 
