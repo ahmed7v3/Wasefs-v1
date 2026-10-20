@@ -1,6 +1,7 @@
 import { t } from "@wasfa/shared/i18n";
 import { Container } from "@wasfa/ui";
 
+import { AppsBand } from "../../components/marketing/apps-band";
 import { Audiences } from "../../components/marketing/audiences";
 import { FaqSection } from "../../components/marketing/faq-section";
 import { FinalCta } from "../../components/marketing/final-cta";
@@ -66,6 +67,7 @@ export default async function HomePage({
       <Audiences />
       <TrustSection />
       <FaqSection />
+      <AppsBand settings={settings} />
       <FinalCta />
     </>
   );

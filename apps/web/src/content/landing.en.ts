@@ -2,8 +2,9 @@ import type { landing } from "./landing";
 
 /*
  * Landing page copy (English), mirroring `landing.ts` key for key. Same voice rules: the product
- * assists and never diagnoses; the analyzer is not live yet, so every call to action is "create a
- * free account" or "get early access"; no invented numbers, ratings, testimonials or certifications.
+ * assists and never diagnoses; the web app is live, so calls to action say "create a free account",
+ * and only the Android and iOS apps are still "coming soon"; no invented numbers, ratings,
+ * testimonials or certifications.
  */
 
 export const landingEn: typeof landing = {
@@ -46,42 +47,42 @@ export const landingEn: typeof landing = {
         tone: "navy",
         title: "Prescription reading",
         body: "Turns a prescription photo, handwritten or printed, into an organised Arabic card.",
-        soon: true,
+        soon: false,
       },
       {
         mascot: "hexagon",
         tone: "coral",
         title: "Drug interactions",
         body: "Points out medicines that may clash with each other so you can ask your pharmacist.",
-        soon: true,
+        soon: false,
       },
       {
         mascot: "droplet",
         tone: "teal",
         title: "Doses and instructions",
         body: "The dose, how often, for how long, and how to take it, in one clear line.",
-        soon: true,
+        soon: false,
       },
       {
         mascot: "tablet",
         tone: "amber",
         title: "Medicine explained to the patient",
         body: "Ask in Arabic about any medicine and get a simple explanation in plain words.",
-        soon: true,
+        soon: false,
       },
       {
         mascot: "blob",
         tone: "olive",
         title: "Pharmacy assistant",
-        body: "An organised workflow for pharmacists: reviewing prescriptions and preparing an explanation for each patient.",
-        soon: true,
+        body: "Start with the lines that need review, then copy, share or print the explanation for the patient.",
+        soon: false,
       },
       {
         mascot: "clover",
         tone: "indigo",
         title: "Scans and lab tests (educational)",
         body: "A simplified educational reading of lab and imaging reports. It does not replace your doctor.",
-        soon: true,
+        soon: false,
       },
     ],
   },
@@ -158,7 +159,7 @@ export const landingEn: typeof landing = {
           "A clear card with medicine names and doses",
           "Ask about any medicine and get a simple explanation",
         ],
-        soon: true,
+        soon: false,
       },
       {
         icon: "pharmacist",
@@ -167,9 +168,9 @@ export const landingEn: typeof landing = {
         body: "Read difficult handwriting quickly, and start with what needs attention.",
         points: [
           "Low-confidence lines are highlighted so you review them first",
-          "A ready explanation to share with the patient",
+          "An explanation you can copy, share or print for the patient",
         ],
-        soon: true,
+        soon: false,
       },
       {
         icon: "doctor",
@@ -180,14 +181,17 @@ export const landingEn: typeof landing = {
           "Medicines and doses in one tidy card",
           "It assists, and never replaces your clinical judgement",
         ],
-        soon: true,
+        soon: false,
       },
       {
         icon: "organization",
         tone: "amber",
         title: "For pharmacies and clinics",
-        body: "Create your organisation and invite your team with clear roles and permissions.",
-        points: ["Roles and permissions for every team member", "Run all the work from one place"],
+        body: "Create your organisation, invite your team with clear roles and permissions, and follow usage from one dashboard.",
+        points: [
+          "Roles and permissions for every team member",
+          "One dashboard for members and usage",
+        ],
         soon: false,
       },
     ],
@@ -227,6 +231,7 @@ export const landingEn: typeof landing = {
     eyebrow: "Frequently asked questions",
     title: "We answer before you ask",
     lead: "Quick answers to what people ask us most.",
+    exclusive: true,
     moreTitle: "Did not find your answer?",
     moreLink: "Contact us",
     items: [
@@ -253,17 +258,17 @@ export const landingEn: typeof landing = {
       {
         question: "Is the service free?",
         answer:
-          "Creating an account is free. A free monthly allowance of analyses will be available when the analyzer launches, paid plans are announced before they are switched on, and we will never charge you without your consent.",
+          "Creating an account is free and includes a free monthly allowance of prescription analyses. If you need more, the paid plans and their prices are on the pricing page, and we will never charge you without your consent.",
       },
       {
-        question: "When does prescription analysis start?",
+        question: "How do I start analysing my prescription?",
         answer:
-          "The feature is being prepared and will become available gradually in the coming period. If you create your account now, it will be ready as soon as the feature is available.",
+          "Create your free account, then upload a photo of the prescription or a PDF from the analysis page, and the structured result appears within moments for you to review.",
       },
       {
         question: "Is it suitable for pharmacies and clinics?",
         answer:
-          "Yes. You can create an organisation and invite your team with different roles and permissions, and we will add team tools as the product grows.",
+          "Yes. You can create an organisation and invite your team with different roles and permissions, and follow members and usage from the organisation dashboard.",
       },
       {
         question: "How do I delete my account and data?",
@@ -275,15 +280,61 @@ export const landingEn: typeof landing = {
 
   cta: {
     title: "Start understanding your prescription with confidence",
-    body: "Create your free account now and be among the first to try Wasfa AI as soon as it is available.",
-    primary: "Get early access",
+    body: "Create your free account now, then upload your first prescription or ask about a medicine in Arabic.",
+    primary: "Create your free account",
     secondary: "Contact us",
+  },
+
+  apps: {
+    title: "Wasfa AI for Android and iOS — coming soon",
+    lead: "We are building two phone apps that put the prescription card in your pocket. The website works on your phone today.",
+    phoneLabel:
+      "Illustration of a phone screen showing a prescription analysis result card (illustrative example)",
+    soon: "Coming soon",
+    android: "Android",
+    ios: "iOS",
+    googlePlay: "Google Play",
+    appStore: "App Store",
+    waitlist: {
+      title: "Notify me at launch",
+      lead: "Leave your email and we will write to you once, when the app is available.",
+      email: "Email",
+      platform: "Platform",
+      platforms: { android: "Android", ios: "iOS", both: "Android and iOS" },
+      consent: "I agree that Wasfa AI emails me when the app launches.",
+      consentRequired: "To continue, agree to receive the launch email.",
+      submit: "Notify me at launch",
+      successTitle: "You are on the list",
+      successBody: "We will email you when the app launches. You can unsubscribe from that email.",
+      disabled: "Joining the waiting list is not available right now.",
+    },
   },
 
   footer: {
     tagline:
       "An Arabic medical assistant that reads prescriptions fast and checks itself carefully.",
+    appsSoon: "Apps coming soon",
+    columnsLabel: "Site links",
     product: "Product",
+    company: "Company",
+    legal: "Legal",
+    links: {
+      prescriptionReader: "Prescription reader",
+      handwrittenPrescriptions: "Handwritten prescriptions",
+      medicineExplainer: "Medicine explainer",
+      aiAssistant: "AI assistant",
+      pricing: "Pricing",
+      pharmacists: "For pharmacists",
+      clinics: "For clinics",
+      about: "About Wasfa AI",
+      editorialPolicy: "Editorial policy",
+      medicalReview: "Medical review",
+      sources: "Sources",
+      contact: "Contact us",
+      privacy: "Privacy policy",
+      terms: "Terms of use",
+      disclaimer: "Medical disclaimer",
+    },
   },
 
   notices: {

@@ -378,3 +378,80 @@
     padding: 0;
   }
 }
+
+/* ------------------------------------------------------------------------------------------------
+ * Header / footer / FAQ / apps band (BRAND-AND-HOMEPAGE §3.4-§3.7). Everything here is progressive:
+ * without the feature (or under reduced motion) the plain static markup is the whole experience.
+ * ------------------------------------------------------------------------------------------------ */
+
+/* Header condense: shadow and tighter padding over the first 64 px of page scroll, no JS. */
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    /* The wrapper keeps its full height so the page below never shifts while the bar shrinks. */
+    .site-header {
+      block-size: 4.0625rem;
+    }
+
+    .site-header-bar {
+      animation: header-bar-condense linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0 64px;
+    }
+
+    .site-header-bar > * {
+      animation: header-pad-condense linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0 64px;
+    }
+  }
+}
+
+@keyframes header-bar-condense {
+  to {
+    box-shadow: 0 6px 18px -8px rgb(11 18 32 / 0.18);
+  }
+}
+
+@keyframes header-pad-condense {
+  to {
+    padding-block: 0.25rem;
+  }
+}
+
+/*
+ * FAQ: the answer box animates its block-size from 0 to its content (`interpolate-size`), the text
+ * slides 6 px in and fades from 0.4. `::details-content` is Chromium-only so far; elsewhere the
+ * item opens instantly, which is still correct.
+ */
+@supports selector(::details-content) {
+  @media (prefers-reduced-motion: no-preference) {
+    .faq-list {
+      interpolate-size: allow-keywords;
+    }
+
+    .faq-item::details-content {
+      block-size: 0;
+      overflow: clip;
+      transition:
+        block-size 240ms var(--ease-standard),
+        content-visibility 240ms var(--ease-standard) allow-discrete;
+    }
+
+    .faq-item[open]::details-content {
+      block-size: auto;
+    }
+
+    .faq-item .faq-answer {
+      opacity: 0.4;
+      translate: 0 6px;
+      transition:
+        opacity 240ms var(--ease-standard),
+        translate 240ms var(--ease-standard);
+    }
+
+    .faq-item[open] .faq-answer {
+      opacity: 1;
+      translate: 0 0;
+    }
+  }
+}

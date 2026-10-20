@@ -10,6 +10,8 @@ import { Mascot } from "./mascot";
 /**
  * Native disclosure widgets: keyboard and screen-reader support for free, and no client JavaScript.
  * The same `faq.items` feed the `FAQPage` JSON-LD, so the markup and the structured data cannot differ.
+ * With `faq.exclusive` the items share a `name`, so the browser keeps one open at a time; the smooth
+ * open/close is CSS only (`.faq-*` in globals.css) and falls back to an instant toggle.
  */
 export function FaqSection({ locale = "ar" }: { locale?: Locale }) {
   const { faq } = landingFor(locale);
@@ -41,11 +43,12 @@ export function FaqSection({ locale = "ar" }: { locale?: Locale }) {
             </div>
           </div>
         </div>
-        <div className="flex flex-col gap-3">
+        <div className="faq-list flex flex-col gap-3">
           {faq.items.map((item) => (
             <details
               key={item.question}
-              className="group rounded-2xl border border-border bg-surface shadow-card open:shadow-raised"
+              {...(faq.exclusive ? { name: "faq" } : {})}
+              className="faq-item group rounded-2xl border border-border bg-surface shadow-card open:shadow-raised"
             >
               <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 rounded-2xl px-5 py-3 text-lg font-bold text-text focus-visible:outline-none focus-visible:shadow-focus [&::-webkit-details-marker]:hidden">
                 {item.question}
@@ -53,11 +56,11 @@ export function FaqSection({ locale = "ar" }: { locale?: Locale }) {
                 <span className="grid size-8 shrink-0 place-items-center rounded-full bg-primary-soft text-primary">
                   <ChevronDown
                     aria-hidden="true"
-                    className="size-5 transition-transform duration-200 ease-standard group-open:rotate-180"
+                    className="size-5 transition-transform duration-200 ease-standard group-open:rotate-180 motion-reduce:transition-none"
                   />
                 </span>
               </summary>
-              <p className="px-5 pb-5 text-base text-text-muted">{item.answer}</p>
+              <p className="faq-answer px-5 pb-5 text-base text-text-muted">{item.answer}</p>
             </details>
           ))}
         </div>
