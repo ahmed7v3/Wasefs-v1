@@ -43,7 +43,19 @@ export class HandoffHub implements OnApplicationShutdown {
       this.listeners.set(channel, set);
     }
     set.add(listener);
-    if (isNew) await this.subscribe(channel);
+    if (isNew) {
+      try {
+        await this.subscriber.subscribe(channel);
+      } catch (error) {
+        // A stream whose subscription failed would stay open and never hear anything; refuse it
+        // so the browser reconnects instead of waiting on a dead feed. Streams that joined the
+        // channel meanwhile are kept: the `ready` handler subscribes it again on reconnect.
+        set.delete(listener);
+        if (set.size === 0) this.listeners.delete(channel);
+        this.logger.warn({ reason: (error as Error).message }, "Handoff subscribe failed");
+        throw error;
+      }
+    }
     return () => {
       const current = this.listeners.get(channel);
       if (!current) return;

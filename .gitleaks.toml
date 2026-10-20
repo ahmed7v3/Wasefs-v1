@@ -21,4 +21,7 @@ regexes = [
   # Fake verification token in the worker email tests (apps/worker/test/email.int.test.ts); the
   # test proves this exact string never reaches Redis or the logs, so it must look like a token.
   '''tok_9f8e7d6c5b4a39281706''',
+  # Fake IndexNow key of the worker sender tests in commit 959edbe (since replaced by a
+  # low-entropy value); IndexNow keys are public by protocol anyway (served at /indexnow.txt).
+  '''abcdef0123456789''',
 ]

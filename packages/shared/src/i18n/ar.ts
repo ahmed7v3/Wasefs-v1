@@ -8,6 +8,7 @@ import { arAdminEvals } from "./ar.admin-evals.js";
 import { arAdminGateways } from "./ar.admin-gateways.js";
 import { arAdminGrowth } from "./ar.admin-growth.js";
 import { arAdminRevenue } from "./ar.admin-revenue.js";
+import { arAdminSeo } from "./ar.admin-seo.js";
 import { arAdminSettings } from "./ar.admin-settings.js";
 import { arAdmin } from "./ar.admin.js";
 import { arBilling } from "./ar.billing.js";
@@ -577,6 +578,9 @@ export const ar = {
   "contact.success.body": "شكرًا لتواصلك. سنرد عليك على وسيلة التواصل التي تركتها في أقرب وقت.",
   "contact.success.again": "إرسال رسالة أخرى",
   "contact.channels.title": "قنوات أخرى للتواصل",
+  "marketing.langSwitch.label": "اللغة",
+  "marketing.langSwitch.ar": "العربية",
+  "marketing.langSwitch.en": "English",
   "upload.error.heicUnsupported":
     "صيغة HEIC غير مدعومة على الخادم. حوّل الصورة إلى JPEG أو PNG ثم أعد المحاولة.",
   ...arAdmin,
@@ -587,6 +591,7 @@ export const ar = {
   ...arAdminConsole,
   ...arAdminRevenue,
   ...arAdminSettings,
+  ...arAdminSeo,
   ...arAdminDrugs,
   ...arAdminEvals,
   ...arRx,

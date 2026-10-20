@@ -1,7 +1,12 @@
 import { isIP } from "node:net";
 
 import { parseEnv } from "@wasfa/shared/env";
-import { refineUploadsEnv, uploadsEnvShape } from "@wasfa/shared/storage";
+import {
+  mediaEnvShape,
+  refineMediaEnv,
+  refineUploadsEnv,
+  uploadsEnvShape,
+} from "@wasfa/shared/storage";
 import { z } from "zod";
 
 const csv = (value: string) =>
@@ -95,12 +100,15 @@ export const apiEnvSchema = z
 
     // --- Uploads (presigned PUT to R2; MinIO locally, Task 2.5). All four keys or none. ---
     ...uploadsEnvShape,
+    // Public media bucket (Phase 4 WP2): same account as uploads, another (public) bucket.
+    ...mediaEnvShape,
   })
   .superRefine((env, ctx) => {
     const issue = (key: keyof typeof env, message: string) =>
       ctx.addIssue({ code: "custom", path: [key], message });
 
     refineUploadsEnv(env, ctx);
+    refineMediaEnv(env, ctx);
 
     for (const [id, secret] of [
       ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],

@@ -247,6 +247,44 @@ export const SETTING_LAYOUTS: Partial<Record<SettingKey, readonly SettingSection
       paths: ["experiments"],
     },
   ],
+  seo: [
+    {
+      id: "snippets",
+      title: "admin.settings.section.seo.snippets",
+      description: "admin.settings.section.seo.snippets.description",
+      paths: ["titleTemplate", "defaultDescription", "defaultOgImage"],
+    },
+    {
+      id: "verification",
+      title: "admin.settings.section.seo.verification",
+      description: "admin.settings.section.seo.verification.description",
+      paths: ["verification"],
+    },
+    {
+      id: "aiCrawlers",
+      title: "admin.settings.section.seo.aiCrawlers",
+      description: "admin.settings.section.seo.aiCrawlers.description",
+      paths: ["aiCrawlers"],
+    },
+    {
+      id: "indexNow",
+      title: "admin.settings.section.seo.indexNow",
+      description: "admin.settings.section.seo.indexNow.description",
+      paths: ["indexNow"],
+    },
+    {
+      id: "llms",
+      title: "admin.settings.section.seo.llms",
+      description: "admin.settings.section.seo.llms.description",
+      paths: ["llmsTxt"],
+    },
+    {
+      id: "reports",
+      title: "admin.settings.section.seo.reports",
+      description: "admin.settings.section.seo.reports.description",
+      paths: ["brandRegex", "aiReferrerHosts"],
+    },
+  ],
   alerts: [
     {
       id: "whatsapp",
@@ -301,5 +339,11 @@ export const GENERAL_SETTINGS_GROUPS: readonly SettingsPageGroup[] = [
     title: "admin.settings.group.analysis",
     description: "admin.settings.group.analysis.description",
     keys: ["free_tier", "rx", "uploads"],
+  },
+  {
+    id: "seo",
+    title: "admin.settings.group.seo",
+    description: "admin.settings.group.seo.description",
+    keys: ["seo"],
   },
 ];

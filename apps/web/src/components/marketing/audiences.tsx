@@ -1,11 +1,13 @@
-import { ComingSoonBadge, Container } from "@wasfa/ui";
+import { t } from "@wasfa/shared/i18n";
+import { Badge, Container } from "@wasfa/ui";
 import { Building2, Check, Pill, Stethoscope, UserRound } from "lucide-react";
 
-import { landing, type AudienceIcon, type Tone } from "../../content/landing";
+import { type AudienceIcon, type Tone } from "../../content/landing";
+import { landingFor } from "../../content/landing-locale";
 
 import { SectionHeading } from "./section-heading";
 
-const { audiences } = landing;
+import type { Locale } from "../../lib/locale";
 
 const ICONS = {
   patient: UserRound,
@@ -25,7 +27,8 @@ const ACCENT: Record<Tone, { bar: string; wash: string }> = {
 };
 
 /** Who it is for: patients, pharmacists, doctors, and pharmacies and clinics (organizations). */
-export function Audiences() {
+export function Audiences({ locale = "ar" }: { locale?: Locale }) {
+  const { audiences } = landingFor(locale);
   return (
     <section
       id={audiences.id}
@@ -54,7 +57,9 @@ export function Audiences() {
                     >
                       <Icon aria-hidden="true" className="size-6" />
                     </span>
-                    {item.soon ? <ComingSoonBadge /> : null}
+                    {item.soon ? (
+                      <Badge tone="info">{t("ui.comingSoon", undefined, locale)}</Badge>
+                    ) : null}
                   </div>
                   <h3 className="mt-4 text-xl font-bold text-text">{item.title}</h3>
                   <p className="mt-2 text-base text-text-muted">{item.body}</p>

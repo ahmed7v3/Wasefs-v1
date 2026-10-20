@@ -23,6 +23,7 @@ const defaults: PublicSettings = {
   access: settingDefault("access"),
   free_tier: settingDefault("free_tier"),
   rx: settingDefault("rx"),
+  seo: settingDefault("seo"),
 };
 
 describe("faqJsonLd", () => {

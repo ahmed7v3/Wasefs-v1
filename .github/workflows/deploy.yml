@@ -95,3 +95,10 @@ jobs:
           # them on the client side is safe.
           # shellcheck disable=SC2029
           printf '%s\n' "$GHCR_TOKEN" | ssh production "/opt/wasfa/deploy.sh $SHA $GHCR_USER"
+
+  # After a healthy deploy: the live HTML must be clean (no Cloudflare rewrites, nonces, headers).
+  # Not a rollback trigger: deploy.sh already did its own health check; this reports drift.
+  live-html:
+    name: Live HTML check
+    needs: deploy
+    uses: ./.github/workflows/live-html.yml

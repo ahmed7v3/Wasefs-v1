@@ -8,6 +8,7 @@ import { enAdminEvals } from "./en.admin-evals.js";
 import { enAdminGateways } from "./en.admin-gateways.js";
 import { enAdminGrowth } from "./en.admin-growth.js";
 import { enAdminRevenue } from "./en.admin-revenue.js";
+import { enAdminSeo } from "./en.admin-seo.js";
 import { enAdmin } from "./en.admin.js";
 import { enBilling } from "./en.billing.js";
 import { enCapture } from "./en.capture.js";
@@ -569,9 +570,35 @@ export const en: Partial<Record<MessageKey, string>> = {
   "contact.topic.other": "Other",
   "contact.submit": "Send message",
   "contact.success.title": "We received your message",
+  "contact.success.body":
+    "Thank you for getting in touch. We will reply through the contact method you left as soon as we can.",
+  "contact.success.again": "Send another message",
+  "contact.channels.title": "Other ways to reach us",
+  "contact.form.label": "Contact form",
+  "contact.reach": "Leave your email or your phone number, at least one of them, so we can reply.",
+  "contact.counter": "{count} of {max} characters",
+  "contact.error.needOne": "Enter your email or your phone number.",
+  "meta.title": "Wasfa AI | Your smart medical assistant for reading prescriptions",
+  "meta.description":
+    "Wasfa AI is an Arabic-first smart medical assistant: upload a handwritten or printed prescription and get a clear breakdown of medicine names, doses and warnings.",
+  "home.disclaimer": "Wasfa AI is an assistive tool and does not replace a doctor or pharmacist.",
+  "marketing.nav.label": "Site navigation",
+  "marketing.footer.legal": "Legal",
+  "marketing.footer.contact": "Contact us",
+  "marketing.footer.social": "Follow us",
+  "marketing.footer.rights": "© {year} {brand}. All rights reserved.",
+  "marketing.social.facebook": "Facebook",
+  "marketing.social.instagram": "Instagram",
+  "marketing.social.tiktok": "TikTok",
+  "marketing.social.x": "X",
+  "marketing.social.youtube": "YouTube",
+  "marketing.langSwitch.label": "Language",
+  "marketing.langSwitch.ar": "العربية",
+  "marketing.langSwitch.en": "English",
   "upload.error.heicUnsupported":
     "HEIC is not supported on the server. Convert the picture to JPEG or PNG and try again.",
   ...enAdmin,
+  ...enAdminSeo,
   ...enAdminAi,
   ...enAdminBilling,
   ...enAdminGateways,

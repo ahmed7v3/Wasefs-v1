@@ -138,3 +138,190 @@ export function productJsonLd(
     })),
   };
 }
+
+// ---------------------------------------------------------------------------------------------
+// Content-platform builders (SEO-GEO §8). Inputs carry absolute URLs; optional fields that are
+// absent are omitted so the output only describes what the page shows.
+// ---------------------------------------------------------------------------------------------
+
+const SCHEMA_CONTEXT = "https://schema.org";
+
+function defined<T extends Record<string, unknown>>(fields: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(fields).filter(
+      ([, value]) => value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0),
+    ),
+  ) as Partial<T>;
+}
+
+export interface BreadcrumbItem {
+  name: string;
+  /** Absolute URL. */
+  url: string;
+}
+
+export function breadcrumbList(items: readonly BreadcrumbItem[]): JsonLd {
+  return {
+    "@context": SCHEMA_CONTEXT,
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.name,
+      item: item.url,
+    })),
+  };
+}
+
+export interface PersonRef {
+  name: string;
+  url?: string;
+}
+
+function person(ref: PersonRef): JsonLd {
+  return { "@type": "Person", name: ref.name, ...defined({ url: ref.url }) };
+}
+
+export interface ArticleInput {
+  headline: string;
+  description?: string;
+  url: string;
+  /** Absolute image URLs (Google recommends three ratios). */
+  images?: readonly string[];
+  author: PersonRef;
+  datePublished: string;
+  dateModified: string;
+  inLanguage: "ar" | "en";
+  publisher: { name: string; logoUrl: string };
+}
+
+export function article(input: ArticleInput): JsonLd {
+  return {
+    "@context": SCHEMA_CONTEXT,
+    "@type": "Article",
+    headline: input.headline,
+    ...defined({ description: input.description, image: input.images }),
+    mainEntityOfPage: input.url,
+    author: person(input.author),
+    datePublished: input.datePublished,
+    dateModified: input.dateModified,
+    inLanguage: input.inLanguage,
+    publisher: {
+      "@type": "Organization",
+      name: input.publisher.name,
+      logo: { "@type": "ImageObject", url: input.publisher.logoUrl },
+    },
+  };
+}
+
+export interface MedicalWebPageInput {
+  name: string;
+  url: string;
+  description?: string;
+  inLanguage: "ar" | "en";
+  reviewedBy?: PersonRef;
+  lastReviewed?: string;
+  /** What the page is about, e.g. a condition or drug name. */
+  about?: string;
+  /** Source URLs. */
+  citations?: readonly string[];
+}
+
+export function medicalWebPage(input: MedicalWebPageInput): JsonLd {
+  return {
+    "@context": SCHEMA_CONTEXT,
+    "@type": "MedicalWebPage",
+    name: input.name,
+    url: input.url,
+    inLanguage: input.inLanguage,
+    ...defined({
+      description: input.description,
+      reviewedBy: input.reviewedBy ? person(input.reviewedBy) : undefined,
+      lastReviewed: input.lastReviewed,
+      about: input.about ? { "@type": "Thing", name: input.about } : undefined,
+      citation: input.citations,
+    }),
+  };
+}
+
+export interface DrugInput {
+  name: string;
+  /** International nonproprietary name. */
+  nonProprietaryName?: string;
+  activeIngredient?: string;
+  drugClass?: string;
+  prescriptionStatus?: "PrescriptionOnly" | "OTC";
+  dosageForm?: string;
+  manufacturer?: string;
+  url?: string;
+}
+
+export function drug(input: DrugInput): JsonLd {
+  return {
+    "@context": SCHEMA_CONTEXT,
+    "@type": "Drug",
+    name: input.name,
+    ...defined({
+      url: input.url,
+      nonProprietaryName: input.nonProprietaryName,
+      activeIngredient: input.activeIngredient,
+      drugClass: input.drugClass ? { "@type": "DrugClass", name: input.drugClass } : undefined,
+      prescriptionStatus: input.prescriptionStatus
+        ? `https://schema.org/${input.prescriptionStatus === "OTC" ? "OTC" : "PrescriptionOnly"}`
+        : undefined,
+      dosageForm: input.dosageForm,
+      manufacturer: input.manufacturer
+        ? { "@type": "Organization", name: input.manufacturer }
+        : undefined,
+    }),
+  };
+}
+
+export interface ProfilePageInput {
+  url: string;
+  name: string;
+  jobTitle?: string;
+  credentials?: readonly string[];
+  sameAs?: readonly string[];
+  knowsAbout?: readonly string[];
+}
+
+export function profilePage(input: ProfilePageInput): JsonLd {
+  return {
+    "@context": SCHEMA_CONTEXT,
+    "@type": "ProfilePage",
+    url: input.url,
+    mainEntity: {
+      "@type": "Person",
+      name: input.name,
+      ...defined({
+        jobTitle: input.jobTitle,
+        hasCredential: input.credentials?.map((credential) => ({
+          "@type": "EducationalOccupationalCredential",
+          name: credential,
+        })),
+        sameAs: input.sameAs,
+        knowsAbout: input.knowsAbout,
+      }),
+    },
+  };
+}
+
+export interface DefinedTermInput {
+  term: string;
+  definition: string;
+  url: string;
+  /** The glossary the term belongs to. */
+  termSet: { name: string; url: string };
+}
+
+export function definedTerm(input: DefinedTermInput): JsonLd {
+  return {
+    "@context": SCHEMA_CONTEXT,
+    "@type": "DefinedTerm",
+    name: input.term,
+    description: input.definition,
+    url: input.url,
+    inDefinedTermSet: { "@type": "DefinedTermSet", name: input.termSet.name, url: input.termSet.url },
+  };
+}

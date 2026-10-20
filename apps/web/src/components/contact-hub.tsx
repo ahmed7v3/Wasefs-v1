@@ -1,28 +1,28 @@
 "use client";
 
 import { t } from "@wasfa/shared/i18n";
-import { Headset, MessageCircle, Phone, Send } from "lucide-react";
+import { Headset } from "lucide-react";
+import dynamic from "next/dynamic";
 
-import { contactLinks, type ContactLink, type ContactSettings } from "../lib/contact-links";
+import { contactLinks, type ContactSettings } from "../lib/contact-links";
+import { type Locale } from "../lib/locale";
 
 import { PopoverMenu } from "./popover-menu";
 
-import type { LucideIcon } from "lucide-react";
-
-const CHANNELS: Record<
-  ContactLink["channel"],
-  { icon: LucideIcon; label: "contactHub.whatsapp" | "contactHub.telegram" | "contactHub.phone" }
-> = {
-  whatsapp: { icon: MessageCircle, label: "contactHub.whatsapp" },
-  telegram: { icon: Send, label: "contactHub.telegram" },
-  phone: { icon: Phone, label: "contactHub.phone" },
-};
+// The menu items (and their icons) are fetched on the first open, not with every public page.
+const ContactHubPanel = dynamic(() => import("./contact-hub-panel"), { ssr: false });
 
 /**
  * Floating contact button at the inline-end bottom corner (DESIGN-SYSTEM §5.3). Opens a small
  * menu of the channels the admin configured; renders nothing at all when there are none.
  */
-export function ContactHub({ contact }: { contact: ContactSettings }) {
+export function ContactHub({
+  contact,
+  locale = "ar",
+}: {
+  contact: ContactSettings;
+  locale?: Locale;
+}) {
   const links = contactLinks(contact);
   if (links.length === 0) return null;
 
@@ -30,38 +30,12 @@ export function ContactHub({ contact }: { contact: ContactSettings }) {
     // Above the layout (z-20), below drawers and dialogs (z-30); clear of the iOS home indicator.
     <div className="fixed end-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-20 print:hidden">
       <PopoverMenu
-        label={t("contactHub.open")}
+        label={t("contactHub.open", undefined, locale)}
         placement="above"
         triggerClassName="inline-flex size-14 items-center justify-center rounded-full bg-primary text-on-primary shadow-raised transition-colors duration-150 hover:bg-primary-hover focus-visible:outline-none focus-visible:shadow-focus"
         trigger={<Headset aria-hidden className="size-6" />}
       >
-        {(close) => (
-          <ul aria-label={t("contactHub.menu")} className="flex flex-col gap-1">
-            {links.map((link) => {
-              const { icon: Icon, label } = CHANNELS[link.channel];
-              return (
-                <li key={link.channel}>
-                  <a
-                    href={link.href}
-                    {...(link.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                    onClick={close}
-                    className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-base font-semibold text-text transition-colors duration-150 hover:bg-primary-soft hover:text-primary focus-visible:outline-none focus-visible:shadow-focus"
-                  >
-                    <Icon
-                      aria-hidden
-                      className={
-                        link.channel === "telegram"
-                          ? "size-5 text-neutral-600 rtl:-scale-x-100"
-                          : "size-5 text-neutral-600"
-                      }
-                    />
-                    {t(label)}
-                  </a>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        {(close) => <ContactHubPanel links={links} close={close} locale={locale} />}
       </PopoverMenu>
     </div>
   );

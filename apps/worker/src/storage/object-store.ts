@@ -5,7 +5,11 @@ import {
   S3Client,
   S3ServiceException,
 } from "@aws-sdk/client-s3";
-import { uploadsStorageConfig, type UploadsStorageConfig } from "@wasfa/shared/storage";
+import {
+  mediaStorageConfig,
+  uploadsStorageConfig,
+  type UploadsStorageConfig,
+} from "@wasfa/shared/storage";
 
 import type { WorkerEnv } from "../config/env.js";
 
@@ -48,9 +52,15 @@ export class ObjectStore {
     }
   }
 
-  async put(key: string, body: Buffer, contentType: string): Promise<void> {
+  async put(key: string, body: Buffer, contentType: string, cacheControl?: string): Promise<void> {
     await this.s3.send(
-      new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType }),
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+        ...(cacheControl === undefined ? {} : { CacheControl: cacheControl }),
+      }),
     );
   }
 
@@ -67,5 +77,14 @@ export class ObjectStore {
 /** The store for `R2_UPLOADS_*`, or `undefined` when they are not set (image jobs then fail loudly). */
 export function createObjectStore(env: WorkerEnv): ObjectStore | undefined {
   const config = uploadsStorageConfig(env);
+  return config === undefined ? undefined : new ObjectStore(config);
+}
+
+/**
+ * The store for the PUBLIC media bucket (`R2_MEDIA_BUCKET`), or `undefined` when it is not set.
+ * Never the uploads bucket: `mediaStorageConfig` refuses a media bucket equal to it.
+ */
+export function createMediaStore(env: WorkerEnv): ObjectStore | undefined {
+  const config = mediaStorageConfig(env);
   return config === undefined ? undefined : new ObjectStore(config);
 }

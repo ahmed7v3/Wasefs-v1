@@ -25,6 +25,7 @@ import { FilesModule } from "./files/files.module.js";
 import { FlagsModule } from "./flags/flags.module.js";
 import { GrowthModule } from "./growth/growth.module.js";
 import { HealthModule } from "./health/health.module.js";
+import { MediaModule } from "./media/media.module.js";
 import { NotificationsModule } from "./notifications/notifications.module.js";
 import { OnboardingModule } from "./onboarding/onboarding.module.js";
 import { OrgBillingModule } from "./orgs/org-billing.module.js";
@@ -72,6 +73,7 @@ export class AppModule {
         PhoneModule,
         ContactModule,
         BrandingModule,
+        MediaModule,
         OnboardingModule,
         UsersModule,
         CreditsModule,

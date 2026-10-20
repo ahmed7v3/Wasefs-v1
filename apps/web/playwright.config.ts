@@ -10,8 +10,35 @@ import { STACK_PORTS, originOf } from "./e2e/support/config";
  * WhatsApp heartbeat are shared Redis state, and a phone-verification test changes what every
  * other onboarding sees. Determinism matters more than speed here.
  */
-export default defineConfig({
+const PROD_SMOKE_BASE_URL = process.env["PROD_SMOKE_BASE_URL"];
+
+/*
+ * `prod-smoke` (Phase 4 WP1 §1): read-only checks of the live site. With PROD_SMOKE_BASE_URL set
+ * the config is ONLY this project: no stack, no global setup, no auth. Without it the project does
+ * not exist and the default projects ignore the spec.
+ */
+const prodSmokeConfig = defineConfig({
   testDir: "./e2e",
+  testMatch: /prod-smoke\.spec\.ts/,
+  fullyParallel: false,
+  workers: 1,
+  forbidOnly: Boolean(process.env["CI"]),
+  retries: 0,
+  timeout: 60_000,
+  reporter: [["list"]],
+  outputDir: "test-results",
+  use: { locale: "ar", trace: "retain-on-failure" },
+  projects: [
+    {
+      name: "prod-smoke",
+      use: { ...devices["Desktop Chrome"], baseURL: PROD_SMOKE_BASE_URL ?? "" },
+    },
+  ],
+});
+
+const stackConfig = defineConfig({
+  testDir: "./e2e",
+  testIgnore: /prod-smoke\.spec\.ts/,
   globalSetup: "./e2e/global-setup.ts",
   fullyParallel: false,
   workers: 1,
@@ -30,7 +57,7 @@ export default defineConfig({
   projects: [
     {
       name: "desktop",
-      testIgnore: /turnstile\.spec\.ts/,
+      testIgnore: [/turnstile\.spec\.ts/, /prod-smoke\.spec\.ts/],
       use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } },
     },
     {
@@ -50,3 +77,5 @@ export default defineConfig({
     },
   ],
 });
+
+export default PROD_SMOKE_BASE_URL ? prodSmokeConfig : stackConfig;

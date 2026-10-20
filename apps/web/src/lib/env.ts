@@ -8,6 +8,8 @@ const publicEnvSchema = z.object({
   NEXT_PUBLIC_API_URL: z.url().default("https://api.wasfa.online"),
   /** Cloudflare Turnstile site key (public by design). Unset = no widget; the API then runs without Turnstile too. */
   NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string().min(1).optional(),
+  /** Origin (a path is allowed, MinIO serves `<origin>/<bucket>`) that serves published media; unset = `<ContentImage>` renders nothing. */
+  NEXT_PUBLIC_MEDIA_ORIGIN: z.url().optional(),
 });
 
 export type PublicEnv = z.output<typeof publicEnvSchema>;
@@ -23,6 +25,7 @@ function readPublicEnv(): PublicEnv {
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
+    NEXT_PUBLIC_MEDIA_ORIGIN: process.env.NEXT_PUBLIC_MEDIA_ORIGIN,
   };
   const cleaned = Object.fromEntries(Object.entries(source).filter(([, value]) => value));
   const result = validateEnv(publicEnvSchema, cleaned);

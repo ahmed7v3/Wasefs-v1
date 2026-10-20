@@ -3,6 +3,7 @@ import { Mail, MessageCircle, Phone, Send } from "lucide-react";
 
 import { contactLinks, type ContactLink, type ContactSettings } from "../../lib/contact-links";
 
+import type { Locale } from "../../lib/locale";
 import type { LucideIcon } from "lucide-react";
 
 const ICONS: Record<ContactLink["channel"], LucideIcon> = {
@@ -23,8 +24,10 @@ const row =
 /** The channels the admin configured; renders nothing when there are none. */
 export function ContactChannels({
   contact,
+  locale = "ar",
 }: {
   contact: ContactSettings & { email: string | null };
+  locale?: Locale;
 }) {
   const links = contactLinks(contact);
   if (links.length === 0 && !contact.email) return null;
@@ -32,7 +35,7 @@ export function ContactChannels({
   return (
     <section aria-labelledby="channels-title" className="mt-8">
       <h2 id="channels-title" className="font-heading text-xl font-semibold text-text">
-        {t("contact.channels.title")}
+        {t("contact.channels.title", undefined, locale)}
       </h2>
       <ul className="mt-3 grid gap-1 sm:grid-cols-2">
         {links.map((link) => {
@@ -53,7 +56,7 @@ export function ContactChannels({
                       : "size-5 text-neutral-600"
                   }
                 />
-                {t(LABELS[link.channel])}
+                {t(LABELS[link.channel], undefined, locale)}
               </a>
             </li>
           );

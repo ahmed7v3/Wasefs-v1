@@ -40,7 +40,8 @@ describe("ContactHub", () => {
 
     await userEvent.click(button);
     expect(button.getAttribute("aria-expanded")).toBe("true");
-    const whatsapp = screen.getByRole("link", { name: t("contactHub.whatsapp") });
+    // The panel is loaded on first open.
+    const whatsapp = await screen.findByRole("link", { name: t("contactHub.whatsapp") });
     expect(whatsapp.getAttribute("href")).toBe("https://wa.me/201012345678");
     expect(whatsapp.getAttribute("target")).toBe("_blank");
     expect(screen.getByRole("link", { name: t("contactHub.phone") }).getAttribute("href")).toBe(

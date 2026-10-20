@@ -1,11 +1,13 @@
-import { ComingSoonBadge, Container } from "@wasfa/ui";
+import { t } from "@wasfa/shared/i18n";
+import { Badge, Container } from "@wasfa/ui";
 
-import { landing, type Tone } from "../../content/landing";
+import { type Tone } from "../../content/landing";
+import { landingFor } from "../../content/landing-locale";
 
 import { Mascot } from "./mascot";
 import { SectionHeading } from "./section-heading";
 
-const { skills } = landing;
+import type { Locale } from "../../lib/locale";
 
 /** Tinted disc behind each mascot; full class names so Tailwind can see them. */
 const WASH: Record<Tone, string> = {
@@ -18,7 +20,8 @@ const WASH: Record<Tone, string> = {
 };
 
 /** "Wasfa skills": six cards, each with its own mascot, like the team of agents in the reference. */
-export function SkillsGrid() {
+export function SkillsGrid({ locale = "ar" }: { locale?: Locale }) {
+  const { skills } = landingFor(locale);
   return (
     <section
       id={skills.id}
@@ -37,7 +40,11 @@ export function SkillsGrid() {
             <li key={item.title}>
               <article className="group flex h-full items-center justify-between gap-4 rounded-2xl border border-border bg-surface p-5 transition-[transform,box-shadow] duration-200 ease-standard hover:-translate-y-1 hover:shadow-raised sm:p-6">
                 <div className="min-w-0">
-                  {item.soon ? <ComingSoonBadge className="mb-2" /> : null}
+                  {item.soon ? (
+                    <Badge tone="info" className="mb-2">
+                      {t("ui.comingSoon", undefined, locale)}
+                    </Badge>
+                  ) : null}
                   <h3 className="text-xl font-bold text-text">{item.title}</h3>
                   <p className="mt-1.5 text-base text-text-muted">{item.body}</p>
                 </div>

@@ -2,28 +2,38 @@ import { t, type MessageKey } from "@wasfa/shared/i18n";
 import { Container } from "@wasfa/ui";
 import Link from "next/link";
 
-import { landing } from "../../content/landing";
+import { landingFor } from "../../content/landing-locale";
 import { contactLinks } from "../../lib/contact-links";
+import { localizedPath, type Locale } from "../../lib/locale";
+import { pagePath } from "../../lib/seo";
 import { BrandMark } from "../brand-mark";
+
+import { LanguageSwitch } from "./language-switch";
 
 import type { PublicSettings } from "@wasfa/shared/settings";
 
-/** Product links: the landing sections and the two account entries. */
-const PRODUCT = [
-  { href: "/#how-it-works", label: "marketing.nav.how" },
-  { href: "/#features", label: "marketing.nav.features" },
-  { href: "/pricing", label: "billing.nav.pricing" },
-  { href: "/#faq", label: "marketing.nav.faq" },
-  { href: "/login", label: "marketing.nav.signIn" },
-  { href: "/register", label: "marketing.nav.register" },
-] as const;
+/** Product links: the landing sections and the two account entries (the app itself is Arabic). */
+function productLinks(locale: Locale) {
+  const home = localizedPath("/", locale);
+  return [
+    { href: `${home}#how-it-works`, label: "marketing.nav.how" },
+    { href: `${home}#features`, label: "marketing.nav.features" },
+    { href: pagePath("pricing", locale), label: "billing.nav.pricing" },
+    { href: `${home}#faq`, label: "marketing.nav.faq" },
+    { href: "/login", label: "marketing.nav.signIn" },
+    { href: "/register", label: "marketing.nav.register" },
+  ] as const;
+}
 
-const LEGAL = [
-  { href: "/privacy", label: "marketing.link.privacy" },
-  { href: "/terms", label: "marketing.link.terms" },
-  { href: "/disclaimer", label: "marketing.link.disclaimer" },
-  { href: "/contact", label: "marketing.link.contact" },
-] as const;
+/** The legal pages exist in Arabic only, so English visitors get the Arabic originals. */
+function legalLinks(locale: Locale) {
+  return [
+    { href: "/privacy", label: "marketing.link.privacy" },
+    { href: "/terms", label: "marketing.link.terms" },
+    { href: "/disclaimer", label: "marketing.link.disclaimer" },
+    { href: pagePath("contact", locale), label: "marketing.link.contact" },
+  ] as const;
+}
 
 const SOCIAL_LABELS: Record<keyof PublicSettings["socials"], MessageKey> = {
   facebook: "marketing.social.facebook",
@@ -46,10 +56,15 @@ const headingClass = "text-base font-bold text-text";
 
 export interface SiteFooterProps {
   settings: PublicSettings;
+  locale?: Locale;
+  /** The request path, for the language switch. */
+  path?: string;
 }
 
 /** Legal links, the contact channels and social profiles the admin set (each hidden when empty), and the disclaimer line. */
-export function SiteFooter({ settings }: SiteFooterProps) {
+export function SiteFooter({ settings, locale = "ar", path = "/" }: SiteFooterProps) {
+  const { footer } = landingFor(locale);
+  const tr = (key: MessageKey, params?: Record<string, string | number>) => t(key, params, locale);
   const channels = contactLinks(settings.contact);
   const email = settings.contact.email;
   const socials = (Object.keys(SOCIAL_LABELS) as (keyof typeof SOCIAL_LABELS)[]).flatMap((key) => {
@@ -62,19 +77,19 @@ export function SiteFooter({ settings }: SiteFooterProps) {
       <Container className="py-12">
         <div className="grid grid-cols-2 gap-x-6 gap-y-8 lg:grid-cols-[1.6fr_1fr_1fr_1fr_1fr]">
           <div className="col-span-2 lg:col-span-1">
-            <BrandMark />
-            <p className="mt-3 max-w-xs text-base text-text-muted">{landing.footer.tagline}</p>
+            <BrandMark locale={locale} />
+            <p className="mt-3 max-w-xs text-base text-text-muted">{footer.tagline}</p>
           </div>
 
           <nav aria-labelledby="footer-product">
             <h2 id="footer-product" className={headingClass}>
-              {landing.footer.product}
+              {footer.product}
             </h2>
             <ul className="mt-2">
-              {PRODUCT.map((item) => (
+              {productLinks(locale).map((item) => (
                 <li key={item.href}>
                   <Link href={item.href} className={footerLink}>
-                    {t(item.label)}
+                    {tr(item.label)}
                   </Link>
                 </li>
               ))}
@@ -83,13 +98,13 @@ export function SiteFooter({ settings }: SiteFooterProps) {
 
           <nav aria-labelledby="footer-legal">
             <h2 id="footer-legal" className={headingClass}>
-              {t("marketing.footer.legal")}
+              {tr("marketing.footer.legal")}
             </h2>
             <ul className="mt-2">
-              {LEGAL.map((item) => (
+              {legalLinks(locale).map((item) => (
                 <li key={item.href}>
                   <Link href={item.href} className={footerLink}>
-                    {t(item.label)}
+                    {tr(item.label)}
                   </Link>
                 </li>
               ))}
@@ -99,7 +114,7 @@ export function SiteFooter({ settings }: SiteFooterProps) {
           {channels.length > 0 || email ? (
             <section aria-labelledby="footer-contact">
               <h2 id="footer-contact" className={headingClass}>
-                {t("marketing.footer.contact")}
+                {tr("marketing.footer.contact")}
               </h2>
               <ul className="mt-2">
                 {channels.map((link) => (
@@ -109,7 +124,7 @@ export function SiteFooter({ settings }: SiteFooterProps) {
                       {...(link.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
                       className={footerLink}
                     >
-                      {t(CHANNEL_LABELS[link.channel])}
+                      {tr(CHANNEL_LABELS[link.channel])}
                     </a>
                   </li>
                 ))}
@@ -127,7 +142,7 @@ export function SiteFooter({ settings }: SiteFooterProps) {
           {socials.length > 0 ? (
             <section aria-labelledby="footer-social">
               <h2 id="footer-social" className={headingClass}>
-                {t("marketing.footer.social")}
+                {tr("marketing.footer.social")}
               </h2>
               <ul className="mt-2">
                 {socials.map(({ key, url }) => (
@@ -138,7 +153,7 @@ export function SiteFooter({ settings }: SiteFooterProps) {
                       rel="noopener noreferrer me"
                       className={footerLink}
                     >
-                      {t(SOCIAL_LABELS[key])}
+                      {tr(SOCIAL_LABELS[key])}
                     </a>
                   </li>
                 ))}
@@ -148,13 +163,14 @@ export function SiteFooter({ settings }: SiteFooterProps) {
         </div>
 
         <div className="mt-10 border-t border-border pt-6 text-sm text-text-muted">
-          <p>{t("home.disclaimer")}</p>
+          <p>{tr("home.disclaimer")}</p>
           <p className="mt-2">
-            {t("marketing.footer.rights", {
+            {tr("marketing.footer.rights", {
               year: new Date().getFullYear(),
-              brand: t("brand.name"),
+              brand: tr("brand.name"),
             })}
           </p>
+          <LanguageSwitch path={path} locale={locale} />
         </div>
       </Container>
     </footer>

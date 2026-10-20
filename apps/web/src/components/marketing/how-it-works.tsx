@@ -1,17 +1,18 @@
 import { Container } from "@wasfa/ui";
 import { ClipboardCheck, ScanText, Upload } from "lucide-react";
 
-import { landing } from "../../content/landing";
+import { landingFor } from "../../content/landing-locale";
 
 import { SectionHeading } from "./section-heading";
 
-const { how } = landing;
+import type { Locale } from "../../lib/locale";
 
 /** One icon per step, in the order of `how.steps` (the copy has no icon of its own). */
 const STEP_ICONS = [Upload, ScanText, ClipboardCheck] as const;
 
 /** Three numbered steps joined by a dashed line (horizontal from `md`, vertical on a phone). */
-export function HowItWorks() {
+export function HowItWorks({ locale = "ar" }: { locale?: Locale }) {
+  const { how } = landingFor(locale);
   return (
     <section id={how.id} aria-labelledby="how-title" className="py-16 sm:py-24">
       <Container>

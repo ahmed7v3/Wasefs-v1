@@ -4,8 +4,10 @@ import { REFERRAL_COOKIE, normalizeReferralCode, referralCookie } from "./lib/at
 import { SECURITY_HEADERS, buildCsp, generateNonce, parseSources } from "./lib/csp";
 import { isProduction, publicEnv } from "./lib/env";
 import { hasSessionCookie, isProtectedPath, loginPath } from "./lib/route-guard";
+import { isNoindexPath } from "./lib/seo-robots";
 
-function withSecurityHeaders(response: NextResponse, csp: string): NextResponse {
+function withSecurityHeaders(response: NextResponse, csp: string, noindex = false): NextResponse {
+  if (noindex) response.headers.set("X-Robots-Tag", "noindex, nofollow");
   response.headers.set("Content-Security-Policy", csp);
   for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
     response.headers.set(name, value);
@@ -39,13 +41,15 @@ export function proxy(request: NextRequest): NextResponse {
   });
 
   const { pathname, search } = request.nextUrl;
+  // App, admin, API and auth pages stay out of search results even if a link to them leaks.
+  const noindex = isNoindexPath(pathname);
   if (
     isProtectedPath(pathname) &&
     !hasSessionCookie(request.cookies.getAll().map((cookie) => cookie.name))
   ) {
     // Resolved against the request URL, so the redirect keeps the host the visitor used.
     const target = new URL(loginPath(`${pathname}${search}`), request.nextUrl);
-    return withSecurityHeaders(NextResponse.redirect(target, 307), csp);
+    return withSecurityHeaders(NextResponse.redirect(target, 307), csp, noindex);
   }
 
   const requestHeaders = new Headers(request.headers);
@@ -57,6 +61,7 @@ export function proxy(request: NextRequest): NextResponse {
   const response = withSecurityHeaders(
     NextResponse.next({ request: { headers: requestHeaders } }),
     csp,
+    noindex,
   );
   // `?ref=<code>` on any public page: first touch wins, so an existing cookie is never replaced.
   const ref = normalizeReferralCode(request.nextUrl.searchParams.get("ref"));
@@ -70,7 +75,7 @@ export const config = {
   matcher: [
     {
       // Skip static assets and prefetches: they carry no document that a CSP would protect.
-      source: "/((?!_next/static|_next/image|favicon.ico|icon.svg|robots.txt|sitemap.xml).*)",
+      source: "/((?!_next/static|_next/image|favicon.ico|icon.svg|robots.txt|sitemap.xml|sitemap-|llms.txt|indexnow.txt).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

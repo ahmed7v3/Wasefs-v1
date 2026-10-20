@@ -1,5 +1,10 @@
 import { parseEnv } from "@wasfa/shared/env";
-import { refineUploadsEnv, uploadsEnvShape } from "@wasfa/shared/storage";
+import {
+  mediaEnvShape,
+  refineMediaEnv,
+  refineUploadsEnv,
+  uploadsEnvShape,
+} from "@wasfa/shared/storage";
 import { z } from "zod";
 
 import type { QueueName } from "@wasfa/shared/queues";
@@ -44,6 +49,8 @@ export const workerEnvSchema = z
     WORKER_CONCURRENCY_EVALS: concurrency,
     /** ... and on the `payments` queue (reconciliation, order expiry, outbox; one at a time keeps them ordered). */
     WORKER_CONCURRENCY_PAYMENTS: concurrency,
+    /** ... and on the `seo` queue (IndexNow pings: one small HTTP call per job). */
+    WORKER_CONCURRENCY_SEO: concurrency,
     /** The web app origin (first entry of the api's `WEB_ORIGIN` list): links in receipts point there. */
     WEB_ORIGIN: z
       .string()
@@ -68,9 +75,11 @@ export const workerEnvSchema = z
 
     // Uploaded images (Task 2.5): the same bucket and keys as the api. All four keys or none.
     ...uploadsEnvShape,
+    ...mediaEnvShape,
   })
   .superRefine((env, ctx) => {
     refineUploadsEnv(env, ctx);
+    refineMediaEnv(env, ctx);
     if (env.NODE_ENV === "production") {
       for (const key of ["SMTP_HOST", "SMTP_USER", "SMTP_PASS"] as const) {
         if (env[key] === undefined) {
@@ -109,5 +118,6 @@ export function queueConcurrency(env: WorkerEnv): Record<QueueName, number> {
     rx: env.WORKER_CONCURRENCY_RX,
     evals: env.WORKER_CONCURRENCY_EVALS,
     payments: env.WORKER_CONCURRENCY_PAYMENTS,
+    seo: env.WORKER_CONCURRENCY_SEO,
   };
 }

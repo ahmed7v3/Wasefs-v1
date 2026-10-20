@@ -1,8 +1,7 @@
-import { landing } from "../../content/landing";
+import { landingFor } from "../../content/landing-locale";
+import { localeDir, type Locale } from "../../lib/locale";
 
 import { Mascot } from "./mascot";
-
-const { visual } = landing;
 
 /*
  * The hero illustration: a prescription sheet on an isometric platform. A light curtain sweeps over
@@ -326,9 +325,10 @@ function SceneSvg() {
 /**
  * The scene, a soft glow behind it, three small mascots and the two floating chips (HTML, so the
  * Arabic is real text). The wrapper is `ltr` because the drawing is in absolute screen coordinates;
- * the chips switch back to `rtl`.
+ * the chips switch back to the page direction.
  */
-export function IsoScene() {
+export function IsoScene({ locale = "ar" }: { locale?: Locale }) {
+  const { visual } = landingFor(locale);
   return (
     <div dir="ltr" role="img" aria-label={visual.alt} className="relative mx-auto w-full max-w-2xl">
       <div
@@ -347,7 +347,7 @@ export function IsoScene() {
       </span>
       <span className="float-slow absolute start-[6%] top-[24%]">
         <span
-          dir="rtl"
+          dir={localeDir(locale)}
           className="block rounded-full border border-success/25 bg-surface px-3 py-1 text-sm font-semibold text-success shadow-card"
         >
           {visual.confidenceHigh}
@@ -355,7 +355,7 @@ export function IsoScene() {
       </span>
       <span className="float-slow absolute start-[17%] top-[76%] [animation-delay:1.2s]">
         <span
-          dir="rtl"
+          dir={localeDir(locale)}
           className="block rounded-full border border-warning/30 bg-warning-soft px-3 py-1 text-sm font-semibold text-warning shadow-card"
         >
           {visual.review}

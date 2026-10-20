@@ -1,4 +1,5 @@
 import { t } from "@wasfa/shared/i18n";
+import { ToastProvider } from "@wasfa/ui";
 
 import { AdminAccessState } from "../../components/admin/access-state";
 import { AdminShell } from "../../components/admin/admin-shell";
@@ -34,14 +35,16 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const { branding } = await getPublicSettings();
 
   return (
-    <ReauthProvider>
-      <AdminShell
-        user={{ name: me.name, image: me.image }}
-        permissions={me.permissions}
-        branding={branding}
-      >
-        {children}
-      </AdminShell>
-    </ReauthProvider>
+    <ToastProvider>
+      <ReauthProvider>
+        <AdminShell
+          user={{ name: me.name, image: me.image }}
+          permissions={me.permissions}
+          branding={branding}
+        >
+          {children}
+        </AdminShell>
+      </ReauthProvider>
+    </ToastProvider>
   );
 }

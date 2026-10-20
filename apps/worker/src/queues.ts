@@ -38,8 +38,10 @@ import {
 import { promotionsStatusJob } from "./jobs/promotions.job.js";
 import { reconcileRewardsJob, releaseRewardsJob } from "./jobs/rewards.job.js";
 import { rxAnalyzeJob } from "./jobs/rx.job.js";
+import { indexNowJob } from "./jobs/seo.indexnow.job.js";
 import { subscriptionsBackfillJob, subscriptionsLifecycleJob } from "./jobs/subscriptions.job.js";
 import { withdrawalsOverdueJob, withdrawalsReconcileJob } from "./jobs/withdrawals.job.js";
+import { mediaProcessJob } from "./media/media.job.js";
 import { customerNotifyJob, customerWhatsappCheckJob } from "./notifications/customer.job.js";
 import { emailSendJob, type EmailRuntime } from "./notifications/email.js";
 
@@ -57,6 +59,8 @@ export interface JobContext {
   email: EmailRuntime;
   /** The uploads bucket; unset when `R2_UPLOADS_*` are not configured (image jobs then fail loudly). */
   storage?: ObjectStore | undefined;
+  /** The PUBLIC media bucket (`R2_MEDIA_BUCKET`); unset when media is not configured (media jobs then fail loudly). */
+  media?: ObjectStore | undefined;
   /** The AI router (providers, breaker, spend guard); the `rx` queue needs it. */
   ai?: AiRuntime | undefined;
   /** Provider adapters, hooks and mail for the `payments` queue. */
@@ -98,9 +102,13 @@ export const HANDLERS: Handlers = {
   images: {
     "image.process": imageProcessJob,
     "files.retention": filesRetentionJob,
+    "media.process": mediaProcessJob,
   },
   rx: {
     "rx.analyze": rxAnalyzeJob,
+  },
+  seo: {
+    "seo.indexnow": indexNowJob,
   },
   evals: {
     "evals.run": evalRunJob,

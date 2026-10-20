@@ -3,6 +3,7 @@ import { Pill } from "lucide-react";
 import Link from "next/link";
 
 import { publicEnv } from "../lib/env";
+import { localizedPath, type Locale } from "../lib/locale";
 
 import type { SettingValue } from "@wasfa/shared/settings";
 
@@ -16,6 +17,8 @@ export interface BrandMarkProps {
   branding?:
     | Pick<Branding, "nameAr" | "logoUrl" | "logoWidth" | "logoHeight" | "showNameWithLogo">
     | undefined;
+  /** English shows the English brand name (the admin's name is Arabic) and links to `/en`. */
+  locale?: Locale;
 }
 
 /**
@@ -36,8 +39,9 @@ export function brandLogoSrc(url: string | null): string | null {
  * the wordmark) unless the admin ticked "show the name next to the logo". The stored pixel size gives
  * the image its aspect ratio before it loads, so the header does not shift.
  */
-export function BrandMark({ branding }: BrandMarkProps) {
-  const name = branding?.nameAr ?? t("brand.name");
+export function BrandMark({ branding, locale = "ar" }: BrandMarkProps) {
+  const name =
+    locale === "en" ? t("brand.name", undefined, "en") : (branding?.nameAr ?? t("brand.name"));
   const logoUrl = brandLogoSrc(branding?.logoUrl ?? null);
   const withName = logoUrl === null || branding?.showNameWithLogo === true;
 
@@ -49,7 +53,7 @@ export function BrandMark({ branding }: BrandMarkProps) {
 
   return (
     <Link
-      href="/"
+      href={localizedPath("/", locale)}
       className="inline-flex min-h-11 items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:shadow-focus"
     >
       {logoUrl === null ? (
