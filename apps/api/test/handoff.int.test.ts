@@ -172,7 +172,20 @@ async function readEvents(
   // Armed before the first await, so no step below can outlive the wait.
   const started = Date.now();
   const events: string[] = [];
-  const timer = setTimeout(() => controller.abort(), waitMs);
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  let timedOut = false;
+  // Aborting the request does not always settle a `read()` already waiting on the body (seen on
+  // CI: a silent feed hung until the test timeout); cancelling the reader always does.
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+    void reader?.cancel().catch(() => undefined);
+  }, waitMs);
+  const noAnswer = (cause?: unknown) =>
+    new Error(
+      `the live feed gave no answer within ${waitMs} ms (${events.length} of ${count} events; uploads at ${uploadStep})`,
+      { cause },
+    );
   try {
     const res = await fetch(`${baseUrl}/handoff/${captureSessionId}/events`, {
       headers: { cookie: cookieHeader(jar), origin: WEB },
@@ -181,7 +194,7 @@ async function readEvents(
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/event-stream");
     expect(res.headers.get("access-control-allow-origin")).toBe(WEB);
-    const reader = res.body?.getReader();
+    reader = res.body?.getReader();
     if (!reader) throw new Error("no body");
     const decoder = new TextDecoder();
     let buffer = "";
@@ -199,14 +212,10 @@ async function readEvents(
       }
       buffer = buffer.slice(end + 1);
     }
+    if (timedOut && events.length < count) throw noAnswer();
     return events;
   } catch (error) {
-    if (controller.signal.aborted) {
-      throw new Error(
-        `the live feed gave no answer within ${waitMs} ms (${events.length} of ${count} events; uploads at ${uploadStep})`,
-        { cause: error },
-      );
-    }
+    if (timedOut) throw noAnswer(error);
     throw error;
   } finally {
     clearTimeout(timer);

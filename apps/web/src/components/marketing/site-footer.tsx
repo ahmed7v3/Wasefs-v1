@@ -7,6 +7,7 @@ import { contactLinks } from "../../lib/contact-links";
 import { localizedPath, type Locale } from "../../lib/locale";
 import { pagePath } from "../../lib/seo";
 import { BrandMark } from "../brand-mark";
+import { EmailOff } from "../email-off";
 
 import { LanguageSwitch } from "./language-switch";
 
@@ -130,9 +131,11 @@ export function SiteFooter({ settings, locale = "ar", path = "/" }: SiteFooterPr
                 ))}
                 {email ? (
                   <li>
-                    <a href={`mailto:${email}`} dir="ltr" className={footerLink}>
-                      {email}
-                    </a>
+                    <EmailOff>
+                      <a href={`mailto:${email}`} dir="ltr" className={footerLink}>
+                        {email}
+                      </a>
+                    </EmailOff>
                   </li>
                 ) : null}
               </ul>

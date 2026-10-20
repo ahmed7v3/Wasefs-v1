@@ -2,6 +2,7 @@ import { t } from "@wasfa/shared/i18n";
 import { Mail, MessageCircle, Phone, Send } from "lucide-react";
 
 import { contactLinks, type ContactLink, type ContactSettings } from "../../lib/contact-links";
+import { EmailOff } from "../email-off";
 
 import type { Locale } from "../../lib/locale";
 import type { LucideIcon } from "lucide-react";
@@ -63,10 +64,12 @@ export function ContactChannels({
         })}
         {contact.email ? (
           <li>
-            <a href={`mailto:${contact.email}`} className={row}>
-              <Mail aria-hidden="true" className="size-5 text-neutral-600" />
-              <span dir="ltr">{contact.email}</span>
-            </a>
+            <EmailOff>
+              <a href={`mailto:${contact.email}`} className={row}>
+                <Mail aria-hidden="true" className="size-5 text-neutral-600" />
+                <span dir="ltr">{contact.email}</span>
+              </a>
+            </EmailOff>
           </li>
         ) : null}
       </ul>
