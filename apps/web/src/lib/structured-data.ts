@@ -1,5 +1,7 @@
 import { fromMinor } from "@wasfa/shared/money";
 
+import { localizedPath, type Locale } from "./locale";
+
 import type { PublicSettings } from "@wasfa/shared/settings";
 
 /*
@@ -120,21 +122,31 @@ export interface ProductOffer {
 export function productJsonLd(
   settings: PublicSettings,
   siteUrl: string,
-  input: { name: string; description: string; offers: readonly ProductOffer[] },
+  input: {
+    name: string;
+    description: string;
+    offers: readonly ProductOffer[];
+    /** The page language: picks the brand name and the offer URL (`/en/pricing`). */
+    locale?: Locale;
+  },
 ): JsonLd {
+  const locale = input.locale ?? "ar";
   return {
     "@context": "https://schema.org",
     "@type": "Product",
     name: input.name,
     description: input.description,
-    brand: { "@type": "Brand", name: settings.branding.nameAr },
+    brand: {
+      "@type": "Brand",
+      name: locale === "en" ? settings.branding.nameEn : settings.branding.nameAr,
+    },
     offers: input.offers.map((offer) => ({
       "@type": "Offer",
       name: offer.name,
       price: fromMinor(offer.amountMinor, offer.currency),
       priceCurrency: offer.currency,
       availability: "https://schema.org/InStock",
-      url: absolute("/pricing", siteUrl),
+      url: absolute(localizedPath("/pricing", locale), siteUrl),
     })),
   };
 }
@@ -149,7 +161,8 @@ const SCHEMA_CONTEXT = "https://schema.org";
 function defined<T extends Record<string, unknown>>(fields: T): Partial<T> {
   return Object.fromEntries(
     Object.entries(fields).filter(
-      ([, value]) => value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0),
+      ([, value]) =>
+        value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0),
     ),
   ) as Partial<T>;
 }
@@ -322,6 +335,10 @@ export function definedTerm(input: DefinedTermInput): JsonLd {
     name: input.term,
     description: input.definition,
     url: input.url,
-    inDefinedTermSet: { "@type": "DefinedTermSet", name: input.termSet.name, url: input.termSet.url },
+    inDefinedTermSet: {
+      "@type": "DefinedTermSet",
+      name: input.termSet.name,
+      url: input.termSet.url,
+    },
   };
 }

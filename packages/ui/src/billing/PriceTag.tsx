@@ -1,4 +1,4 @@
-import { t } from "@wasfa/shared/i18n";
+import { t, type Locale } from "@wasfa/shared/i18n";
 
 import { cn } from "../cn";
 
@@ -12,6 +12,8 @@ export interface PriceTagProps {
   /** Text after the amount: "/ شهريًا", "لكل شهر". */
   suffix?: string | undefined;
   size?: "md" | "lg" | "xl" | undefined;
+  /** Language of the screen-reader text and of the number format; Arabic unless the page is English. */
+  locale?: Locale | undefined;
   className?: string | undefined;
 }
 
@@ -28,6 +30,7 @@ export function PriceTag({
   struckMinor,
   suffix,
   size = "lg",
+  locale = "ar",
   className,
 }: PriceTagProps) {
   const struck = struckMinor !== null && struckMinor !== undefined && struckMinor > amountMinor;
@@ -35,13 +38,15 @@ export function PriceTag({
     <span className={cn("inline-flex flex-wrap items-baseline gap-x-2 gap-y-0.5", className)}>
       {struck ? (
         <s className="text-base tabular-nums text-text-muted">
-          <span className="sr-only">{t("billing.price.was")} </span>
-          <bdi>{moneyText(struckMinor, currency)}</bdi>
+          <span className="sr-only">{t("billing.price.was", undefined, locale)} </span>
+          <bdi>{moneyText(struckMinor, currency, locale)}</bdi>
         </s>
       ) : null}
       <span className={cn("font-heading font-bold tabular-nums text-text", SIZES[size])}>
-        {struck ? <span className="sr-only">{t("billing.price.now")} </span> : null}
-        <bdi>{moneyText(amountMinor, currency)}</bdi>
+        {struck ? (
+          <span className="sr-only">{t("billing.price.now", undefined, locale)} </span>
+        ) : null}
+        <bdi>{moneyText(amountMinor, currency, locale)}</bdi>
       </span>
       {suffix ? <span className="text-base text-text-muted">{suffix}</span> : null}
     </span>

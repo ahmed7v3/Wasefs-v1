@@ -5,11 +5,14 @@ import { pageSitemapUrls } from "../src/lib/sitemap-xml";
 
 describe("sitemap-pages", () => {
   it("lists every public page, plus the English counterparts, with absolute URLs", () => {
-    const urls = pageSitemapUrls("https://wasfa.online").map((entry) => new URL(entry.url).pathname);
+    const urls = pageSitemapUrls("https://wasfa.online").map(
+      (entry) => new URL(entry.url).pathname,
+    );
     expect(urls).toEqual([
       "/",
       "/en",
       "/pricing",
+      "/en/pricing",
       "/contact",
       "/en/contact",
       "/privacy",

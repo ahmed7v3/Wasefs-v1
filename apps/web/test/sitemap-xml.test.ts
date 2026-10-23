@@ -42,7 +42,7 @@ describe("sitemap xml", () => {
     expect(urls.find((u) => u.url === `${SITE}/privacy`)?.alternates).toBeUndefined();
     const xml = buildUrlset(urls);
     expect(xml).toContain('<xhtml:link rel="alternate" hreflang="en" href="https://wasfa.online/en/contact"/>');
-    expect(xml).not.toContain("/en/pricing");
+    expect(xml).toContain("https://wasfa.online/en/pricing");
     expect(xml).not.toContain("/en/privacy");
   });
 
