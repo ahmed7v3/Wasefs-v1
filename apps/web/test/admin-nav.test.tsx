@@ -84,6 +84,7 @@ describe("visibleNavGroups", () => {
       "/admin/drugs/imports",
       "/admin/settings",
       "/admin/branding",
+      "/admin/site-health",
       "/admin/flags",
       "/admin/roles",
       "/admin/audit",

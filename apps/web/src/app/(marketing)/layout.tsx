@@ -3,8 +3,11 @@ import { headers } from "next/headers";
 import { ContactHub } from "../../components/contact-hub";
 import { SiteFooter } from "../../components/marketing/site-footer";
 import { SiteHeader } from "../../components/marketing/site-header";
+import { VitalsBeacon } from "../../components/vitals-beacon";
+import { publicEnv } from "../../lib/env";
 import { localeFromPath } from "../../lib/locale";
 import { getPublicSettings } from "../../lib/public-settings";
+import { vitalsRoute } from "../../lib/route-template";
 
 import type { ReactNode } from "react";
 
@@ -27,6 +30,10 @@ export default async function MarketingLayout({ children }: { children: ReactNod
       </main>
       <SiteFooter settings={settings} locale={locale} path={path} />
       <ContactHub contact={settings.contact} locale={locale} />
+      <VitalsBeacon
+        route={vitalsRoute(path)}
+        endpoint={`${publicEnv.NEXT_PUBLIC_API_URL}/public/vitals`}
+      />
     </div>
   );
 }

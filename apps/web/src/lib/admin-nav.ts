@@ -1,4 +1,5 @@
 import {
+  Activity,
   Banknote,
   Bell,
   BellRing,
@@ -400,6 +401,13 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
         label: "admin.nav.branding",
         description: "admin.nav.branding.description",
         icon: Palette,
+        permission: "settings.read",
+      },
+      {
+        href: "/admin/site-health",
+        label: "admin.nav.siteHealth",
+        description: "admin.nav.siteHealth.description",
+        icon: Activity,
         permission: "settings.read",
       },
       {

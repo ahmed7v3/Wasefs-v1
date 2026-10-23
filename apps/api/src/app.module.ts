@@ -37,6 +37,7 @@ import { ReferralsModule } from "./referrals/referrals.module.js";
 import { RewardsModule } from "./rewards/rewards.module.js";
 import { RxModule } from "./rx/rx.module.js";
 import { SettingsModule } from "./settings/settings.module.js";
+import { SiteHealthModule } from "./site-health/site-health.module.js";
 import { SubscriptionsModule } from "./subscriptions/subscriptions.module.js";
 import { UsersModule } from "./users/users.module.js";
 import { WithdrawalsModule } from "./withdrawals/withdrawals.module.js";
@@ -72,6 +73,7 @@ export class AppModule {
         AccessModule,
         PhoneModule,
         ContactModule,
+        SiteHealthModule,
         BrandingModule,
         MediaModule,
         OnboardingModule,
