@@ -20,5 +20,6 @@ export * from "./schema/index.js";
 export * from "./seed-ai.js";
 export * from "./seed-billing.js";
 export * from "./seed-data.js";
+export * from "./site-assets-write.js";
 export * from "./subscriptions.js";
 export * from "./withdrawals.js";

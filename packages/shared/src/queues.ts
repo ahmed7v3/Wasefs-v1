@@ -6,6 +6,7 @@ import {
 } from "./customer-messages.js";
 import { emailSendPayloadSchema } from "./email.js";
 import { evalImportPayloadSchema, evalRunPayloadSchema } from "./schemas/admin-evals.js";
+import { brandingIconsPayloadSchema } from "./schemas/branding.js";
 import { imageProcessPayloadSchema } from "./schemas/files.js";
 import { rxAnalyzePayloadSchema } from "./schemas/rx.js";
 
@@ -104,6 +105,8 @@ export const QUEUE_REGISTRY = {
     "files.retention": filesRetentionPayloadSchema,
     // Public media library (Phase 4): one asset per job. ":" is not allowed in BullMQ names, so `media.process`.
     "media.process": z.object({ assetId: z.uuid() }),
+    // Brand icon set rendered from the admin-uploaded symbol; the job id is `branding-icons-<sha256>`.
+    "branding.icons": brandingIconsPayloadSchema,
   },
   drugs: {
     "drugs.import": drugImportPayloadSchema,

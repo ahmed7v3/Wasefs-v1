@@ -39,6 +39,7 @@ import { RxModule } from "./rx/rx.module.js";
 import { SettingsModule } from "./settings/settings.module.js";
 import { SubscriptionsModule } from "./subscriptions/subscriptions.module.js";
 import { UsersModule } from "./users/users.module.js";
+import { WaitlistModule } from "./waitlist/waitlist.module.js";
 import { WithdrawalsModule } from "./withdrawals/withdrawals.module.js";
 
 import type { ApiEnv } from "./config/env.js";
@@ -72,6 +73,7 @@ export class AppModule {
         AccessModule,
         PhoneModule,
         ContactModule,
+        WaitlistModule,
         BrandingModule,
         MediaModule,
         OnboardingModule,

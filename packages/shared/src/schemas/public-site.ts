@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { LOCALES } from "../i18n/index.js";
 
+import { cursorQuerySchema } from "./admin.js";
 import { emailSchema } from "./auth.js";
 
 /*
@@ -118,3 +119,29 @@ export const siteHealthSchema = z.object({
   bots: z.array(z.object({ bot: z.enum(BOT_CLASSES), route: z.string(), hits: z.number().int() })),
 });
 export type SiteHealth = z.infer<typeof siteHealthSchema>;
+
+// ---------------------------------------------------------------------------------------------
+// Admin: `GET /admin/app-waitlist` (paged, newest first) and `GET /admin/app-waitlist.csv`.
+
+export const adminAppWaitlistQuerySchema = cursorQuerySchema.extend({
+  platform: z.enum(APP_PLATFORMS).optional(),
+});
+export type AdminAppWaitlistQuery = z.output<typeof adminAppWaitlistQuerySchema>;
+
+export const adminAppWaitlistResponseSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.uuid(),
+      email: z.string(),
+      platform: z.enum(APP_PLATFORMS),
+      locale: z.enum(LOCALES),
+      consentAt: z.string(),
+      notifiedAt: z.string().nullable(),
+      createdAt: z.string(),
+    }),
+  ),
+  nextCursor: z.string().nullable(),
+  /** Everyone on the list (not only this page). */
+  total: z.number().int().min(0),
+});
+export type AdminAppWaitlistResponse = z.infer<typeof adminAppWaitlistResponseSchema>;

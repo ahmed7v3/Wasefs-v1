@@ -1,5 +1,6 @@
 export * from "./ai.js";
 export * from "./alerts.js";
+export * from "./app-waitlist.js";
 export * from "./audit-logs.js";
 export * from "./auth.js";
 export * from "./billing.js";

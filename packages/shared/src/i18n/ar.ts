@@ -2,6 +2,7 @@ import { ERROR_CODES, ERROR_INFO, type ErrorCode } from "../errors/codes.js";
 
 import { arAdminAi } from "./ar.admin-ai.js";
 import { arAdminBilling } from "./ar.admin-billing.js";
+import { arAdminBrand } from "./ar.admin-brand.js";
 import { arAdminConsole } from "./ar.admin-console.js";
 import { arAdminDrugs } from "./ar.admin-drugs.js";
 import { arAdminEvals } from "./ar.admin-evals.js";
@@ -592,6 +593,7 @@ export const ar = {
   ...arAdminRevenue,
   ...arAdminSettings,
   ...arAdminSeo,
+  ...arAdminBrand,
   ...arAdminDrugs,
   ...arAdminEvals,
   ...arRx,

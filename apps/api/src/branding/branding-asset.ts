@@ -2,9 +2,18 @@ import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import {
   BRANDING_ASSET_MAX_BYTES,
   BRANDING_ASSET_TYPES,
+  BRANDING_ICON_MAX_BYTES,
+  BRANDING_ICON_SIZES,
+  BRANDING_SYMBOL_MIN_SIDE,
+  BRANDING_SYMBOL_SVG_MAX_BYTES,
   type BrandingAssetKey,
   type BrandingAssetType,
+  type BrandingGeneratedKey,
+  BRANDING_WARNINGS,
 } from "@wasfa/shared/schemas/branding";
+
+import { SvgRejected, sanitizeSvg, svgGeometry } from "./svg-sanitize.js";
+import { isLowContrast, pngDominantColour, svgDominantColour } from "./symbol-contrast.js";
 
 /*
  * Checks of an uploaded brand image, before a single byte is stored. The declared type must match
@@ -14,6 +23,11 @@ import {
  * executable or external. The denylist is deliberately blunt (no sanitising, no allowlist of
  * elements): an admin whose logo trips it exports a plain SVG instead. The public route serves SVG
  * under `default-src 'none'; sandbox` as well, so this is the second layer, not the only one.
+ *
+ * The one exception is the brand `symbol` (the source of the generated icon set): its SVG goes
+ * through the allow-list sanitiser (`svg-sanitize.ts`), which rebuilds the file instead of judging
+ * it, and the stored bytes are the sanitised ones. Icon keys (`icon_*`, `apple_touch_icon`) accept
+ * PNG of their exact size only.
  */
 
 export type RejectReason =
@@ -22,7 +36,10 @@ export type RejectReason =
   | "type_mismatch"
   | "too_large"
   | "invalid_svg"
-  | "unsafe_svg";
+  | "unsafe_svg"
+  | "not_square"
+  | "too_small"
+  | "wrong_size";
 
 function reject(reason: RejectReason): AppError {
   return new AppError(ErrorCode.VALIDATION_FAILED, { details: { fields: ["dataUrl"], reason } });
@@ -33,6 +50,7 @@ export interface InspectedAsset {
   data: Buffer;
   width: number | null;
   height: number | null;
+  warnings: (typeof BRANDING_WARNINGS)[number][];
 }
 
 /** Largest side a stored dimension may have (matches the `branding` setting's schema). */
@@ -255,36 +273,127 @@ function inspectSvg(data: Buffer): [number | null, number | null] {
 
 // --- Entry point ------------------------------------------------------------------------------
 
+const RASTER = ["image/png", "image/webp"] as const;
+const VECTOR_OR_RASTER = ["image/png", "image/webp", "image/svg+xml"] as const;
+
+/** What each key accepts. ICO only where a browser asks for one; PNG only where a platform does (iOS, manifests, e-mail). */
+const ALLOWED_TYPES: Record<BrandingAssetKey, readonly BrandingAssetType[]> = {
+  logo: VECTOR_OR_RASTER,
+  logo_dark: VECTOR_OR_RASTER,
+  favicon: BRANDING_ASSET_TYPES,
+  symbol: VECTOR_OR_RASTER,
+  favicon_ico: ["image/x-icon"],
+  icon_48: ["image/png"],
+  icon_96: ["image/png"],
+  icon_192: ["image/png"],
+  icon_512: ["image/png"],
+  icon_maskable_512: ["image/png"],
+  apple_touch_icon: ["image/png"],
+  og_default: RASTER,
+  logo_en: VECTOR_OR_RASTER,
+  logo_mono: VECTOR_OR_RASTER,
+  email_logo: ["image/png"],
+};
+
+function isGeneratedKey(key: BrandingAssetKey): key is BrandingGeneratedKey {
+  return Object.hasOwn(BRANDING_ICON_SIZES, key);
+}
+
+/** Square, and for the icon keys exactly the size their name promises; the 20 KB icon budget too. */
+function checkIconKey(key: BrandingGeneratedKey, asset: InspectedAsset): void {
+  if (asset.contentType === "image/x-icon") return;
+  if (asset.data.length > BRANDING_ICON_MAX_BYTES) throw reject("too_large");
+  if (asset.width === null || asset.height === null) throw reject("invalid_data");
+  if (asset.width !== asset.height) throw reject("not_square");
+  const sizes: readonly number[] = BRANDING_ICON_SIZES[key];
+  if (!sizes.includes(asset.width)) throw reject("wrong_size");
+}
+
+/** A square symbol, at least 512 px (raster) or at most 10 KB once sanitised (SVG); warns when too pale for a white page. */
+function inspectSymbol(declared: BrandingAssetType, data: Buffer): InspectedAsset {
+  if (declared === "image/svg+xml") {
+    let text: string;
+    try {
+      text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(data);
+    } catch {
+      throw reject("type_mismatch");
+    }
+    let sanitized: string;
+    try {
+      sanitized = sanitizeSvg(text);
+    } catch (error) {
+      if (error instanceof SvgRejected) throw reject(error.reason);
+      throw error;
+    }
+    const bytes = Buffer.from(sanitized, "utf8");
+    if (bytes.length > BRANDING_SYMBOL_SVG_MAX_BYTES) throw reject("too_large");
+    const { width, height } = svgGeometry(sanitized);
+    if (width === null || height === null) throw reject("invalid_svg");
+    if (Math.abs(width - height) > Math.max(width, height) * 0.01) throw reject("not_square");
+    return {
+      contentType: "image/svg+xml",
+      data: bytes,
+      width: side(width),
+      height: side(height),
+      warnings: isLowContrast(svgDominantColour(sanitized)) ? ["low_contrast"] : [],
+    };
+  }
+  if (declared === "image/png" ? !startsWith(data, PNG_SIGNATURE) : !isWebp(data)) {
+    throw reject("type_mismatch");
+  }
+  const [width, height] = declared === "image/png" ? pngSize(data) : webpSize(data);
+  if (width === null || height === null) throw reject("invalid_data");
+  if (width !== height) throw reject("not_square");
+  if (width < BRANDING_SYMBOL_MIN_SIDE) throw reject("too_small");
+  const colour = declared === "image/png" ? pngDominantColour(data) : undefined;
+  return {
+    contentType: declared,
+    data,
+    width,
+    height,
+    warnings: colour !== undefined && isLowContrast(colour) ? ["low_contrast"] : [],
+  };
+}
+
 /**
- * Decodes and verifies an upload for `key`: allowed type (ICO only for the favicon), size, magic
- * bytes of that type, and for SVG the denylist. Throws `VALIDATION_FAILED` with
- * `details = { fields: ["dataUrl"], reason }`; the submitted bytes are never echoed.
+ * Decodes and verifies an upload for `key`: allowed type for that key, size, magic bytes of that
+ * type, and for SVG the denylist (the `symbol` goes through the allow-list sanitiser instead).
+ * Throws `VALIDATION_FAILED` with `details = { fields: ["dataUrl"], reason }`; the submitted bytes
+ * are never echoed.
  */
 export function inspectAssetUpload(key: BrandingAssetKey, dataUrl: string): InspectedAsset {
   const { declared, data } = decodeDataUrl(dataUrl);
-  if (!isAllowedType(declared) || (declared === "image/x-icon" && key !== "favicon")) {
+  if (!isAllowedType(declared) || !ALLOWED_TYPES[key].includes(declared)) {
     throw reject("unsupported_type");
   }
   if (data.length === 0 || data.length > BRANDING_ASSET_MAX_BYTES) throw reject("too_large");
+  if (key === "symbol") return inspectSymbol(declared, data);
 
+  let asset: InspectedAsset;
   switch (declared) {
     case "image/png": {
       if (!startsWith(data, PNG_SIGNATURE)) throw reject("type_mismatch");
       const [width, height] = pngSize(data);
-      return { contentType: declared, data, width, height };
+      asset = { contentType: declared, data, width, height, warnings: [] };
+      break;
     }
     case "image/webp": {
       if (!isWebp(data)) throw reject("type_mismatch");
       const [width, height] = webpSize(data);
-      return { contentType: declared, data, width, height };
+      asset = { contentType: declared, data, width, height, warnings: [] };
+      break;
     }
     case "image/x-icon": {
       if (!startsWith(data, ICO_SIGNATURE)) throw reject("type_mismatch");
-      return { contentType: declared, data, width: null, height: null };
+      asset = { contentType: declared, data, width: null, height: null, warnings: [] };
+      break;
     }
     case "image/svg+xml": {
       const [width, height] = inspectSvg(data);
-      return { contentType: declared, data, width, height };
+      asset = { contentType: declared, data, width, height, warnings: [] };
+      break;
     }
   }
+  if (isGeneratedKey(key)) checkIconKey(key, asset);
+  return asset;
 }

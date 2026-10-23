@@ -285,6 +285,20 @@ export const SETTING_LAYOUTS: Partial<Record<SettingKey, readonly SettingSection
       paths: ["brandRegex", "aiReferrerHosts"],
     },
   ],
+  landing: [
+    {
+      id: "proof",
+      title: "admin.settings.section.landing.proof",
+      description: "admin.settings.section.landing.proof.description",
+      paths: ["proof"],
+    },
+    {
+      id: "apps",
+      title: "admin.settings.section.landing.apps",
+      description: "admin.settings.section.landing.apps.description",
+      paths: ["apps"],
+    },
+  ],
   alerts: [
     {
       id: "whatsapp",
@@ -339,6 +353,12 @@ export const GENERAL_SETTINGS_GROUPS: readonly SettingsPageGroup[] = [
     title: "admin.settings.group.analysis",
     description: "admin.settings.group.analysis.description",
     keys: ["free_tier", "rx", "uploads"],
+  },
+  {
+    id: "homepage",
+    title: "admin.settings.group.homepage",
+    description: "admin.settings.group.homepage.description",
+    keys: ["landing"],
   },
   {
     id: "seo",
