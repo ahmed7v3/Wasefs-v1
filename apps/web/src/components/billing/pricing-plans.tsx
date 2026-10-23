@@ -1,6 +1,7 @@
 "use client";
 
-import { t as translate, type Locale, type MessageKey } from "@wasfa/shared/i18n";
+import type { Locale } from "@wasfa/shared/i18n";
+import { t as translate, type MessageKey } from "@wasfa/shared/i18n/public";
 import {
   Badge,
   Countdown,

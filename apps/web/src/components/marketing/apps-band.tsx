@@ -3,7 +3,7 @@ import { Apple, Bot, ShieldCheck } from "lucide-react";
 
 import { landingFor } from "../../content/landing-locale";
 
-import { AppWaitlistForm } from "./app-waitlist-form";
+import { AppWaitlistFormLazy } from "./app-waitlist-lazy";
 
 import type { Locale } from "../../lib/locale";
 import type { PublicSettings } from "@wasfa/shared/settings";
@@ -135,7 +135,7 @@ export function AppsBand({
             </div>
             {waitlistEnabled ? (
               <div className="mt-8 max-w-md">
-                <AppWaitlistForm locale={locale} copy={apps.waitlist} />
+                <AppWaitlistFormLazy locale={locale} copy={apps.waitlist} />
               </div>
             ) : null}
           </div>

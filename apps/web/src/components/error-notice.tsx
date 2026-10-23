@@ -1,5 +1,5 @@
 import { isErrorCode } from "@wasfa/shared/errors";
-import { t, type MessageKey } from "@wasfa/shared/i18n";
+import { t, type MessageKey } from "@wasfa/shared/i18n/public";
 import { Button, buttonStyles, cn } from "@wasfa/ui";
 import { RotateCcw, TriangleAlert } from "lucide-react";
 import Link from "next/link";

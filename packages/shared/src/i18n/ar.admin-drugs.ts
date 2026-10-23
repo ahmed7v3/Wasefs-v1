@@ -212,17 +212,4 @@ export const arAdminDrugs = {
   "admin.drugs.imports.noWrite": "ليست لديك صلاحية تعديل قاعدة الأدوية: يمكنك المعاينة فقط.",
 
   // API reasons
-  "admin.drugs.reason.alias_exists": "هذا الاسم مسجَّل لهذا الدواء من قبل.",
-  "admin.drugs.reason.name_empty": "الاسم لا يحتوي حروفًا أو أرقامًا.",
-  "admin.drugs.reason.dry_run_required": "يجب إجراء فحص تجريبي ناجح قبل الحفظ.",
-  "admin.drugs.reason.file_expired": "انتهت صلاحية الملف المرفوع. ارفعه من جديد.",
-  "admin.drugs.reason.not_committed": "لا يمكن التراجع إلا عن دفعة تم حفظها.",
-  "admin.drugs.reason.already_committed": "تم حفظ هذه الدفعة من قبل.",
-  "admin.drugs.reason.already_rolled_back": "تم التراجع عن هذه الدفعة من قبل.",
-  "admin.drugs.reason.file_required": "اختر ملفًا غير فارغ.",
-  "admin.drugs.reason.file_too_large": "الملف أكبر من 20 ميجابايت.",
-  "admin.drugs.reason.unsupported_file": "نوع الملف غير مدعوم. ارفع XLSX أو JSON.",
-  "admin.drugs.reason.bad_upload": "تعذّر استلام الملف. أعد المحاولة.",
-  "admin.drugs.reason.not_multipart": "طلب الرفع غير صالح.",
-  "admin.drugs.reason.one_file_only": "ارفع ملفًا واحدًا فقط.",
 } as const;

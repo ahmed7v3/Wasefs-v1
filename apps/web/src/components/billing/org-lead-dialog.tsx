@@ -1,6 +1,7 @@
 "use client";
 
-import { t as translate, type Locale, type MessageKey } from "@wasfa/shared/i18n";
+import type { Locale } from "@wasfa/shared/i18n";
+import { t as translate, type MessageKey } from "@wasfa/shared/i18n/public";
 import { Button, Dialog } from "@wasfa/ui";
 import dynamic from "next/dynamic";
 import { useState } from "react";

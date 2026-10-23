@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { accessSettingsSchema, authSettingsSchema } from "./auth-settings.js";
-import { LOCALES } from "./i18n/index.js";
+import { LOCALES } from "./i18n/locales.js";
 import { emailSchema, phoneNumberSchema } from "./schemas/auth.js";
 
 import type { AiTask } from "./ai.js";

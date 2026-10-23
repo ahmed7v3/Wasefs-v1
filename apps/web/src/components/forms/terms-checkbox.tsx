@@ -1,6 +1,6 @@
 "use client";
 
-import { t } from "@wasfa/shared/i18n";
+import { t } from "@wasfa/shared/i18n/public";
 import { Checkbox } from "@wasfa/ui";
 import { CircleAlert } from "lucide-react";
 import Link from "next/link";

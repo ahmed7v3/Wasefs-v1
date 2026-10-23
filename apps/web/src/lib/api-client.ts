@@ -1,5 +1,5 @@
 import { isErrorCode } from "@wasfa/shared/errors";
-import { t } from "@wasfa/shared/i18n";
+import { t } from "@wasfa/shared/i18n/public";
 import { z } from "zod";
 
 import { ApiRequestError } from "./api-error";

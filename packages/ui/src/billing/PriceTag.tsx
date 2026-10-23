@@ -1,4 +1,5 @@
-import { t, type Locale } from "@wasfa/shared/i18n";
+import type { Locale } from "@wasfa/shared/i18n";
+import { t } from "@wasfa/shared/i18n/public";
 
 import { cn } from "../cn";
 

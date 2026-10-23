@@ -121,16 +121,4 @@ export const enReferralsWeb: Partial<Record<keyof typeof arReferralsWeb, string>
     "We may review a reward before adding it if it looks unusual, such as repeated accounts from the same device.",
   "rewardsPage.how.notMoney":
     "Points are a reward, not money: they cannot be transferred or bought.",
-
-  "rewardsPage.reason.vanity_used":
-    "You already customized your code once; it cannot be changed again.",
-  "rewardsPage.reason.code_taken": "This code is taken, choose another.",
-  "rewardsPage.reason.reserved_code": "This code cannot be used, choose another.",
-  "rewardsPage.reason.insufficient_points":
-    "Your available points are fewer than the amount asked.",
-  "rewardsPage.reason.below_minimum": "This amount is too small to give a whole credit.",
-  "rewardsPage.reason.open_reward_debt":
-    "You cannot convert now because refunded rewards are taken from your points first.",
-  "rewardsPage.reason.idempotency_key_reused":
-    "We could not confirm this request, please try again.",
 };

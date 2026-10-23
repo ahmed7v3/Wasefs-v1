@@ -38,24 +38,6 @@ export const enAdminAi: Partial<Record<keyof typeof arAdminAi, string>> = {
   "admin.ai.error.usd": "Enter an amount in US dollars like 0.75 (up to 6 decimals).",
 
   // Friendly messages for the API's `details.reason`
-  "admin.ai.reason.missing_key":
-    "An enabled provider needs a key. Add a key or disable the provider first.",
-  "admin.ai.reason.key_taken": "That provider id is already used. Choose another.",
-  "admin.ai.reason.provider_in_use":
-    "A provider with models cannot be deleted. Delete its models first, or disable it instead.",
-  "admin.ai.reason.fake_in_production": "The fake provider is not available in production.",
-  "admin.ai.reason.insecure_base_url": "The base URL is not safe. Use a public https address.",
-  "admin.ai.reason.missing_base_url": "An OpenAI-compatible provider needs a base URL.",
-  "admin.ai.reason.model_exists": "This model is already added to this provider.",
-  "admin.ai.reason.model_in_use":
-    "A model used by a route cannot be deleted. Remove it from the routes first, or disable it.",
-  "admin.ai.reason.model_is_primary":
-    "This model is the primary of a route. Change the route first, then disable it.",
-  "admin.ai.reason.no_price_source":
-    "No enabled OpenRouter provider with a key is available to fetch prices from.",
-  "admin.ai.reason.sync_expired": "The preview expired. Fetch the prices again.",
-  "admin.ai.reason.killswitch_permission":
-    "Changing the kill switch needs a permission your account does not have.",
 
   // AI settings
   "admin.ai.settings.lead": "The daily spend cap, the credit value and the emergency kill switch.",
@@ -291,7 +273,8 @@ export const enAdminAi: Partial<Record<keyof typeof arAdminAi, string>> = {
   "admin.ai.ov.forbidden": "Spend figures need the permission to view usage.",
 
   "admin.ai.pg.title": "Model playground",
-  "admin.ai.pg.lead": "Each run is a real call: it counts toward the daily spend cap and is logged in the usage log. The input and the output are not stored in the audit trail.",
+  "admin.ai.pg.lead":
+    "Each run is a real call: it counts toward the daily spend cap and is logged in the usage log. The input and the output are not stored in the audit trail.",
   "admin.ai.pg.task": "Task",
   "admin.ai.pg.input": "Text",
   "admin.ai.pg.inputHint": "Up to {max} characters.",
@@ -347,7 +330,8 @@ export const enAdminAi: Partial<Record<keyof typeof arAdminAi, string>> = {
   "admin.ai.usage.noContent": "This log never shows text or pictures, only numbers and ids.",
 
   "admin.ai.skills.title": "Skills",
-  "admin.ai.skills.lead": "Choose the plans that include each skill. A skill without a restriction is on for every plan.",
+  "admin.ai.skills.lead":
+    "Choose the plans that include each skill. A skill without a restriction is on for every plan.",
   "admin.ai.skills.version": "Version",
   "admin.ai.skills.tasks": "Tasks",
   "admin.ai.skills.all": "All plans",

@@ -1,6 +1,7 @@
 "use client";
 
-import { t as translate, type Locale, type MessageKey } from "@wasfa/shared/i18n";
+import type { Locale } from "@wasfa/shared/i18n";
+import { t as translate, type MessageKey } from "@wasfa/shared/i18n/public";
 import { institutionLeadSchema } from "@wasfa/shared/schemas/org";
 import { Button, Field, Input, Textarea } from "@wasfa/ui";
 import { CircleCheck } from "lucide-react";

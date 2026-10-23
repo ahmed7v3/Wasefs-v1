@@ -32,9 +32,6 @@ export const arAdmin = {
   "admin.nav.whatsapp": "ربط واتساب",
   "admin.nav.whatsapp.description":
     "ربط رقم واتساب المنصة ومراقبته: يُستخدم للتحقق من الهاتف ولرسائل العملاء وتنبيهات المسؤولين.",
-  "admin.reason.whatsapp_already_linked": "يوجد رقم مرتبط بالفعل. فُكّ ربطه أولًا لربط رقم آخر.",
-  "admin.reason.bridge_down": "جسر واتساب لا يستجيب الآن. تأكد من تشغيله ثم حاول مرة أخرى.",
-  "admin.reason.queue_unavailable": "تعذّر إرسال الأمر إلى الجسر. حاول مرة أخرى بعد قليل.",
   "admin.settings.whatsapp.title": "رقم واتساب للتحقق",
   "admin.settings.whatsapp.description":
     "الرقم الذي يراسله المستخدمون للتحقق. يُضبط من صفحة «رقم واتساب».",
@@ -139,12 +136,8 @@ export const arAdmin = {
 
   // Access states
   "admin.access.twoFactorRequired.title": "فعّل التحقق بخطوتين أولًا",
-  "admin.access.twoFactorRequired.body":
-    "الدخول إلى لوحة الإدارة يتطلب تفعيل التحقق بخطوتين على حسابك. فعّله من صفحة الأمان ثم عد إلى هنا.",
   "admin.access.twoFactorAction": "فتح صفحة الأمان",
   "admin.access.twoFactorSession.title": "سجّل دخولك مرة أخرى بالرمز",
-  "admin.access.twoFactorSession.body":
-    "جلستك الحالية بدأت دون رمز التحقق بخطوتين. سجّل الخروج ثم ادخل مجددًا وأدخل الرمز.",
   "admin.access.sessionAction": "تسجيل الخروج والدخول بالرمز",
   "admin.forbidden.title": "ليست لديك صلاحية",
   "admin.forbidden.body":
@@ -178,15 +171,6 @@ export const arAdmin = {
   // Reason dialog and API reasons
   "admin.reason.label": "السبب",
   "admin.reason.hint": "اكتب سببًا واضحًا (5 أحرف على الأقل). يُحفظ في سجل التدقيق.",
-  "admin.reason.self_action": "لا يمكنك تنفيذ هذا الإجراء على حسابك أنت.",
-  "admin.reason.super_admin_only": "هذا الإجراء متاح للمدير الأعلى فقط.",
-  "admin.reason.not_enough_permissions": "لا يمكنك منح دور يحمل صلاحيات لا تملكها أنت.",
-  "admin.reason.last_super_admin": "لا يمكن سحب هذا الدور: هذا آخر مدير أعلى في النظام.",
-  "admin.reason.role_in_use": "لا يمكن حذف الدور لأن مستخدمين ما زالوا يحملونه. اسحبه منهم أولًا.",
-  "admin.reason.role_read_only": "دور المدير الأعلى للقراءة فقط ولا يمكن تعديله.",
-  "admin.reason.system_role": "أدوار النظام لا تُحذف.",
-  "admin.reason.invalid_status": "لا يمكن تنفيذ هذا الإجراء على الحساب في حالته الحالية.",
-  "admin.reason.role_exists": "يوجد دور بهذا المفتاح بالفعل.",
 
   // Users
   "admin.user.status.active": "نشط",
@@ -282,14 +266,6 @@ export const arAdmin = {
   "admin.branding.error.type": "نوع الملف غير مدعوم.",
   "admin.branding.error.size": "حجم الملف أكبر من 512 كيلوبايت.",
   "admin.branding.error.read": "تعذّرت قراءة الملف. جرّب ملفًا آخر.",
-  "admin.branding.reason.unsupported_type": "نوع الملف غير مدعوم.",
-  "admin.branding.reason.type_mismatch":
-    "محتوى الملف لا يطابق نوعه. تأكد أنه صورة حقيقية بالامتداد الصحيح.",
-  "admin.branding.reason.too_large": "حجم الملف أكبر من 512 كيلوبايت.",
-  "admin.branding.reason.invalid_data": "تعذّرت قراءة الملف. جرّب رفعه مرة أخرى.",
-  "admin.branding.reason.invalid_svg": "ملف SVG غير صالح. صدّره من أداة التصميم كملف SVG عادي.",
-  "admin.branding.reason.unsafe_svg":
-    "ملف SVG يحتوي على عناصر غير مسموحة (نصوص برمجية أو روابط خارجية). صدّره كملف SVG عادي بدونها.",
   "admin.branding.names.title": "اسم المنصة",
   "admin.branding.names.description":
     "يظهر في الموقع ونتائج البحث. إذا كان الشعار رمزًا بلا اسم، فعّل إظهار الاسم بجانبه.",
@@ -357,6 +333,7 @@ export const arAdmin = {
   "admin.settings.contact.title": "قنوات التواصل",
   "admin.settings.contact.description": "تظهر في مركز التواصل العائم. القناة الفارغة تُخفى.",
   "admin.settings.socials.title": "حسابات التواصل الاجتماعي",
+  "admin.settings.landing.title": "الصفحة الرئيسية",
   "admin.settings.socials.description": "روابط https لحسابات المنصة.",
   "admin.settings.locale.title": "اللغة والأرقام",
   "admin.settings.alerts.title": "تنبيهات الإدارة",

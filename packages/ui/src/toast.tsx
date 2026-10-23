@@ -1,6 +1,6 @@
 "use client";
 
-import { t } from "@wasfa/shared/i18n";
+import { t } from "@wasfa/shared/i18n/public";
 import { CircleAlert, CircleCheck, Info, X } from "lucide-react";
 import {
   createContext,

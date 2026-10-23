@@ -1,0 +1,103 @@
+/*
+ * Strings that public pages share with the app: the reason texts of API errors (`ErrorNotice`) and the
+ * institution lead form. They live apart from the admin, org and chat namespaces so the public
+ * catalogue (`public.ts`) can include them without pulling those in.
+ */
+export const arPublic = {
+  "admin.ai.reason.missing_key":
+    "المزوّد المفعّل يحتاج مفتاحًا. أضف مفتاحًا أو عطّل المزوّد أولًا.",
+  "admin.ai.reason.key_taken": "معرّف المزوّد مستخدم بالفعل. اختر معرّفًا آخر.",
+  "admin.ai.reason.provider_in_use":
+    "لا يمكن حذف مزوّد له نماذج. احذف نماذجه أولًا، أو عطّله بدلًا من حذفه.",
+  "admin.ai.reason.fake_in_production": "المزوّد التجريبي غير متاح في بيئة الإنتاج.",
+  "admin.ai.reason.insecure_base_url": "عنوان الواجهة غير آمن. استخدم عنوان https عامًا.",
+  "admin.ai.reason.missing_base_url": "المزوّد المتوافق مع OpenAI يحتاج عنوان واجهة.",
+  "admin.ai.reason.model_exists": "هذا النموذج مضاف بالفعل لهذا المزوّد.",
+  "admin.ai.reason.model_in_use":
+    "لا يمكن حذف نموذج يُستخدم في مسار. أزِله من المسارات أولًا، أو عطّله.",
+  "admin.ai.reason.model_is_primary": "هذا النموذج هو الأساسي في مسار. غيّر المسار أولًا ثم عطّله.",
+  "admin.ai.reason.no_price_source": "لا يوجد مزوّد OpenRouter مفعّل بمفتاح لجلب الأسعار منه.",
+  "admin.ai.reason.sync_expired": "انتهت صلاحية المعاينة. اجلب الأسعار من جديد.",
+  "admin.ai.reason.killswitch_permission":
+    "تغيير الإيقاف الطارئ يحتاج صلاحية خاصة غير متوفرة لحسابك.",
+  "admin.routes.reason.stale_version": "عدّل شخص آخر هذا المسار قبلك. حُمّلت آخر نسخة.",
+  "admin.routes.reason.default_route": "المسار الافتراضي يُعدَّل ولا يُحذف.",
+  "admin.plans.reason.plan_key_exists": "يوجد باقة بهذا المفتاح بالفعل.",
+  "admin.plans.reason.plan_in_use":
+    "لا يمكن حذف هذه الباقة: هي الافتراضية، أو لها اشتراكات أو تعيينات أو طلبات سابقة. أخفِها بدلًا من ذلك لتتوقف عن البيع.",
+  "admin.plans.reason.default_plan_required":
+    "يجب أن توجد باقة افتراضية. اجعل باقة أخرى افتراضية أولًا.",
+  "admin.plans.reason.assignment_ended": "انتهى هذا التعيين بالفعل.",
+  "admin.credits.reason.insufficient_balance": "الرصيد لا يكفي لهذا الخصم.",
+  "admin.drugs.reason.alias_exists": "هذا الاسم مسجَّل لهذا الدواء من قبل.",
+  "admin.drugs.reason.name_empty": "الاسم لا يحتوي حروفًا أو أرقامًا.",
+  "admin.drugs.reason.dry_run_required": "يجب إجراء فحص تجريبي ناجح قبل الحفظ.",
+  "admin.drugs.reason.file_expired": "انتهت صلاحية الملف المرفوع. ارفعه من جديد.",
+  "admin.drugs.reason.not_committed": "لا يمكن التراجع إلا عن دفعة تم حفظها.",
+  "admin.drugs.reason.already_committed": "تم حفظ هذه الدفعة من قبل.",
+  "admin.drugs.reason.already_rolled_back": "تم التراجع عن هذه الدفعة من قبل.",
+  "admin.drugs.reason.file_required": "اختر ملفًا غير فارغ.",
+  "admin.drugs.reason.file_too_large": "الملف أكبر من 20 ميجابايت.",
+  "admin.drugs.reason.unsupported_file": "نوع الملف غير مدعوم. ارفع XLSX أو JSON.",
+  "admin.drugs.reason.bad_upload": "تعذّر استلام الملف. أعد المحاولة.",
+  "admin.drugs.reason.not_multipart": "طلب الرفع غير صالح.",
+  "admin.drugs.reason.one_file_only": "ارفع ملفًا واحدًا فقط.",
+  "admin.revenue.review.reason.own_payment":
+    "هذه الدفعة من حسابك أو من مؤسستك، ولا يجوز لك مراجعتها. اطلب من مسؤول آخر مراجعتها.",
+  "admin.reason.invalid_window": "موعد نهاية التوفر يجب أن يكون بعد موعد البداية.",
+  "admin.reason.self_action": "لا يمكنك تنفيذ هذا الإجراء على حسابك أنت.",
+  "admin.reason.super_admin_only": "هذا الإجراء متاح للمدير الأعلى فقط.",
+  "admin.reason.not_enough_permissions": "لا يمكنك منح دور يحمل صلاحيات لا تملكها أنت.",
+  "admin.reason.last_super_admin": "لا يمكن سحب هذا الدور: هذا آخر مدير أعلى في النظام.",
+  "admin.reason.role_in_use": "لا يمكن حذف الدور لأن مستخدمين ما زالوا يحملونه. اسحبه منهم أولًا.",
+  "admin.reason.role_read_only": "دور المدير الأعلى للقراءة فقط ولا يمكن تعديله.",
+  "admin.reason.system_role": "أدوار النظام لا تُحذف.",
+  "admin.reason.invalid_status": "لا يمكن تنفيذ هذا الإجراء على الحساب في حالته الحالية.",
+  "admin.reason.role_exists": "يوجد دور بهذا المفتاح بالفعل.",
+  "admin.reason.whatsapp_already_linked": "يوجد رقم مرتبط بالفعل. فُكّ ربطه أولًا لربط رقم آخر.",
+  "admin.reason.bridge_down": "جسر واتساب لا يستجيب الآن. تأكد من تشغيله ثم حاول مرة أخرى.",
+  "admin.reason.queue_unavailable": "تعذّر إرسال الأمر إلى الجسر. حاول مرة أخرى بعد قليل.",
+  "admin.access.twoFactorRequired.body":
+    "الدخول إلى لوحة الإدارة يتطلب تفعيل التحقق بخطوتين على حسابك. فعّله من صفحة الأمان ثم عد إلى هنا.",
+  "admin.access.twoFactorSession.body":
+    "جلستك الحالية بدأت دون رمز التحقق بخطوتين. سجّل الخروج ثم ادخل مجددًا وأدخل الرمز.",
+  "admin.branding.reason.unsupported_type": "نوع الملف غير مدعوم.",
+  "admin.branding.reason.type_mismatch":
+    "محتوى الملف لا يطابق نوعه. تأكد أنه صورة حقيقية بالامتداد الصحيح.",
+  "admin.branding.reason.too_large": "حجم الملف أكبر من 512 كيلوبايت.",
+  "admin.branding.reason.invalid_data": "تعذّرت قراءة الملف. جرّب رفعه مرة أخرى.",
+  "admin.branding.reason.invalid_svg": "ملف SVG غير صالح. صدّره من أداة التصميم كملف SVG عادي.",
+  "admin.branding.reason.unsafe_svg":
+    "ملف SVG يحتوي على عناصر غير مسموحة (نصوص برمجية أو روابط خارجية). صدّره كملف SVG عادي بدونها.",
+  "ai.reason.content_blocked":
+    "لا أستطيع الإجابة عن هذا الطلب. جرّب صياغة مختلفة، أو اسأل الطبيب أو الصيدلي.",
+  "ai.reason.provider_error": "تعذّر الحصول على إجابة الآن. حاول مرة أخرى بعد قليل.",
+  "ai.reason.no_model": "المساعد غير متاح حاليًا. حاول لاحقًا.",
+  "ai.reason.no_route": "المساعد غير متاح حاليًا. حاول لاحقًا.",
+  "ai.reason.file_not_ready": "الصورة ما زالت قيد المعالجة. انتظر لحظة ثم أعد المحاولة.",
+  "ai.reason.not_last_message": "يمكن إعادة توليد آخر إجابة فقط.",
+  "billing.lead.title": "اطلب عرضًا خاصًا لمؤسستك",
+  "billing.lead.lead": "أخبرنا بحجم فريقك وسنتواصل معك بعرض مناسب.",
+  "billing.lead.orgName": "اسم المؤسسة",
+  "billing.lead.contactName": "اسم المسؤول عن التواصل",
+  "billing.lead.seats": "عدد الأعضاء المتوقع",
+  "billing.lead.message": "رسالتك",
+  "billing.lead.seatsHint": "يكفي رقم تقريبي.",
+  "billing.lead.submit": "إرسال الطلب",
+  "billing.lead.success.title": "وصلنا طلبك",
+  "billing.lead.success.body": "سنتواصل معك على الرقم أو البريد الذي كتبته.",
+  "billing.lead.success.close": "إغلاق",
+  "org.reason.upgrade": "ترقية الباقة أو إضافة مقاعد",
+  "org.reason.seat_limit": "وصلت المؤسسة إلى الحد الأقصى من المقاعد في باقتها الحالية.",
+  "org.reason.slug_taken": "هذا الاسم مستخدم لرابط آخر، اختر اسمًا مختلفًا.",
+  "join.pending.both": "وثّق بريدك الإلكتروني ورقم هاتفك، وسنكمل انضمامك تلقائيًا.",
+  "org.reason.member_cap_reached": "وصلت إلى سقفك الشهري في رصيد المؤسسة. تواصل مع مسؤول المؤسسة.",
+  "org.reason.org_credits_exhausted": "نفد رصيد المؤسسة. تواصل مع مسؤول المؤسسة لشحنه.",
+  "rewardsPage.reason.vanity_used": "سبق أن خصّصت كودك مرة، ولا يمكن تغييره ثانية.",
+  "rewardsPage.reason.code_taken": "هذا الكود مستخدم، اختر غيره.",
+  "rewardsPage.reason.reserved_code": "لا يمكن استخدام هذا الكود، اختر غيره.",
+  "rewardsPage.reason.insufficient_points": "نقاطك المتاحة أقل من العدد المطلوب.",
+  "rewardsPage.reason.below_minimum": "هذا العدد صغير جدًا ولا يعطي رصيدًا كاملًا.",
+  "rewardsPage.reason.open_reward_debt": "لا يمكن التحويل الآن لأن عليك مكافآت مستردة تُخصم أولًا.",
+  "rewardsPage.reason.idempotency_key_reused": "تعذر تأكيد هذا الطلب، أعد المحاولة.",
+} as const;

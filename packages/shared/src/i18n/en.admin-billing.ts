@@ -85,9 +85,6 @@ export const enAdminBilling: Partial<Record<keyof typeof arAdminBilling, string>
     "This model's provider is on a free tier, which is not allowed for medical tasks because it may train on the data.",
   "admin.routes.reason.preview_not_allowed":
     "This is a preview model, and preview models are not allowed in the AI settings.",
-  "admin.routes.reason.stale_version":
-    "Someone else changed this route before you. The latest version was loaded.",
-  "admin.routes.reason.default_route": "The default route is edited, not removed.",
   "admin.routes.stale":
     "Someone else changed this route before you, so the latest version was loaded. Review it and save again.",
   "admin.routes.saved": "Route saved.",
@@ -137,12 +134,6 @@ export const enAdminBilling: Partial<Record<keyof typeof arAdminBilling, string>
   "admin.plans.error.needMode": "Pick at least one mode for an allowed task.",
   "admin.plans.error.cap": "Enter a whole number from 0 to 1000000, or leave empty for unlimited.",
   "admin.plans.error.pages": "Enter a whole number from 1 to {max}.",
-  "admin.plans.reason.plan_key_exists": "A plan with this key already exists.",
-  "admin.plans.reason.plan_in_use":
-    "The plan has assignments or subscriptions, so it cannot be deleted.",
-  "admin.plans.reason.default_plan_required":
-    "There must be a default plan. Make another plan the default first.",
-  "admin.plans.reason.assignment_ended": "This assignment has already ended.",
   "admin.plans.edit": "Edit plan",
   "admin.plans.entitlements": "Entitlements",
   "admin.plans.openEntitlements": "Entitlements of {name}",
@@ -267,5 +258,4 @@ export const enAdminBilling: Partial<Record<keyof typeof arAdminBilling, string>
     "The current balance is unknown; the server checks it when applying.",
   "admin.credits.adjust.submit": "Apply adjustment",
   "admin.credits.adjust.done": "Adjusted. The balance is now {balance}.",
-  "admin.credits.reason.insufficient_balance": "The balance is not enough for this deduction.",
 };

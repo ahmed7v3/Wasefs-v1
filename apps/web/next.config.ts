@@ -17,6 +17,8 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // @wasfa/ui ships TypeScript source.
   transpilePackages: ["@wasfa/ui"],
+  // `experimental.inlineCss` measured 2026-10-23 (Lighthouse mobile, median of 3, production build):
+  // LCP +150 ms on `/` and +146 ms on `/pricing`, +48 KB of uncacheable HTML per page. Rejected.
 };
 
 export default nextConfig;

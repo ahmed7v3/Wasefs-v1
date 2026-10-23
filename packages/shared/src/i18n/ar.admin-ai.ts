@@ -42,22 +42,6 @@ export const arAdminAi = {
   "admin.ai.error.usd": "اكتب مبلغًا بالدولار مثل 0.75 (حتى 6 منازل عشرية).",
 
   // Friendly messages for the API's `details.reason`
-  "admin.ai.reason.missing_key":
-    "المزوّد المفعّل يحتاج مفتاحًا. أضف مفتاحًا أو عطّل المزوّد أولًا.",
-  "admin.ai.reason.key_taken": "معرّف المزوّد مستخدم بالفعل. اختر معرّفًا آخر.",
-  "admin.ai.reason.provider_in_use":
-    "لا يمكن حذف مزوّد له نماذج. احذف نماذجه أولًا، أو عطّله بدلًا من حذفه.",
-  "admin.ai.reason.fake_in_production": "المزوّد التجريبي غير متاح في بيئة الإنتاج.",
-  "admin.ai.reason.insecure_base_url": "عنوان الواجهة غير آمن. استخدم عنوان https عامًا.",
-  "admin.ai.reason.missing_base_url": "المزوّد المتوافق مع OpenAI يحتاج عنوان واجهة.",
-  "admin.ai.reason.model_exists": "هذا النموذج مضاف بالفعل لهذا المزوّد.",
-  "admin.ai.reason.model_in_use":
-    "لا يمكن حذف نموذج يُستخدم في مسار. أزِله من المسارات أولًا، أو عطّله.",
-  "admin.ai.reason.model_is_primary": "هذا النموذج هو الأساسي في مسار. غيّر المسار أولًا ثم عطّله.",
-  "admin.ai.reason.no_price_source": "لا يوجد مزوّد OpenRouter مفعّل بمفتاح لجلب الأسعار منه.",
-  "admin.ai.reason.sync_expired": "انتهت صلاحية المعاينة. اجلب الأسعار من جديد.",
-  "admin.ai.reason.killswitch_permission":
-    "تغيير الإيقاف الطارئ يحتاج صلاحية خاصة غير متوفرة لحسابك.",
 
   // AI settings
   "admin.ai.settings.lead": "حد الإنفاق اليومي على المزوّدين، وقيمة الكريدت، والإيقاف الطارئ.",

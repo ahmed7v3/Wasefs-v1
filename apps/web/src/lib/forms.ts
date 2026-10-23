@@ -1,6 +1,6 @@
 "use client";
 
-import { ar, t, type MessageKey } from "@wasfa/shared/i18n";
+import { hasMessage, t, type MessageKey } from "@wasfa/shared/i18n/public";
 import { useCallback, useRef, useState } from "react";
 
 import { ApiRequestError, errorReason, fieldPaths } from "./api-error";
@@ -33,7 +33,7 @@ function isBlank(input: unknown): boolean {
 }
 
 function isFormKey(value: string): value is MessageKey {
-  return value.startsWith("form.") && Object.hasOwn(ar, value);
+  return value.startsWith("form.") && hasMessage(value);
 }
 
 /**

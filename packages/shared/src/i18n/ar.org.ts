@@ -113,12 +113,6 @@ export const arOrg = {
   "org.orders.title": "طلبات المؤسسة وإيصالاتها",
   "org.receipt.back": "العودة إلى المؤسسة",
 
-  "org.reason.seat_limit": "وصلت المؤسسة إلى الحد الأقصى من المقاعد في باقتها الحالية.",
-  "org.reason.slug_taken": "هذا الاسم مستخدم لرابط آخر، اختر اسمًا مختلفًا.",
-  "org.reason.member_cap_reached": "وصلت إلى سقفك الشهري في رصيد المؤسسة. تواصل مع مسؤول المؤسسة.",
-  "org.reason.org_credits_exhausted": "نفد رصيد المؤسسة. تواصل مع مسؤول المؤسسة لشحنه.",
-  "org.reason.upgrade": "ترقية الباقة أو إضافة مقاعد",
-
   // --- Public join page and the step after verification ----------------------------------------------
   "join.title": "الانضمام إلى مؤسسة",
   "join.heading": "انضم إلى {org}",
@@ -137,23 +131,11 @@ export const arOrg = {
   "join.accepted.pending": "طلبك للانضمام إلى {org} قيد موافقة المسؤول",
   "join.accepted.already": "أنت عضو في {org} بالفعل",
   "join.pending.title": "أكمل توثيق حسابك لتنضم إلى المؤسسة",
-  "join.pending.both": "وثّق بريدك الإلكتروني ورقم هاتفك، وسنكمل انضمامك تلقائيًا.",
   "join.pending.email": "وثّق بريدك الإلكتروني، وسنكمل انضمامك تلقائيًا.",
   "join.pending.phone": "وثّق رقم هاتفك، وسنكمل انضمامك تلقائيًا.",
   "join.failed": "تعذر إكمال الانضمام",
 
   // --- «اطلب عرضًا خاصًا» on /pricing ----------------------------------------------------------------
-  "billing.lead.title": "اطلب عرضًا خاصًا لمؤسستك",
-  "billing.lead.lead": "أخبرنا بحجم فريقك وسنتواصل معك بعرض مناسب.",
-  "billing.lead.orgName": "اسم المؤسسة",
-  "billing.lead.contactName": "اسم المسؤول عن التواصل",
-  "billing.lead.seats": "عدد الأعضاء المتوقع",
-  "billing.lead.seatsHint": "يكفي رقم تقريبي.",
-  "billing.lead.message": "رسالتك",
-  "billing.lead.submit": "إرسال الطلب",
-  "billing.lead.success.title": "وصلنا طلبك",
-  "billing.lead.success.body": "سنتواصل معك على الرقم أو البريد الذي كتبته.",
-  "billing.lead.success.close": "إغلاق",
 
   // --- Invite code on the register form ---------------------------------------------------------------
   "auth.field.referral": "كود الدعوة",
