@@ -37,7 +37,7 @@ export function SkillsGrid({ locale = "ar" }: { locale?: Locale }) {
         />
         <ul className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {skills.items.map((item) => (
-            <li key={item.title}>
+            <li key={item.title} className="motion-settle">
               <article className="group flex h-full items-center justify-between gap-4 rounded-2xl border border-border bg-surface p-5 transition-[transform,box-shadow] duration-200 ease-standard hover:-translate-y-1 hover:shadow-raised sm:p-6">
                 <div className="min-w-0">
                   {item.soon ? (
