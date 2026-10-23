@@ -75,7 +75,7 @@ export const config = {
   matcher: [
     {
       // Skip static assets and prefetches: they carry no document that a CSP would protect.
-      source: "/((?!_next/static|_next/image|favicon.ico|icon.svg|robots.txt|sitemap.xml|sitemap-|llms.txt|indexnow.txt).*)",
+      source: "/((?!_next/static|_next/image|favicon.ico|icon.svg|icon-|apple-touch-icon.png|manifest.webmanifest|robots.txt|sitemap.xml|sitemap-|llms.txt|indexnow.txt).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

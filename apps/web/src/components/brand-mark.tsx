@@ -1,5 +1,4 @@
 import { t } from "@wasfa/shared/i18n";
-import { Pill } from "lucide-react";
 import Link from "next/link";
 
 import { publicEnv } from "../lib/env";
@@ -13,12 +12,25 @@ export type Branding = SettingValue<"branding">;
 const LOGO_HEIGHT = 44;
 
 export interface BrandMarkProps {
-  /** The `branding` public setting. Omitted (or no logo uploaded): the built-in chip and the name. */
+  /** The `branding` public setting. Omitted (or no logo uploaded): the built-in symbol and the name. */
   branding?:
     | Pick<Branding, "nameAr" | "logoUrl" | "logoWidth" | "logoHeight" | "showNameWithLogo">
     | undefined;
   /** English shows the English brand name (the admin's name is Arabic) and links to `/en`. */
   locale?: Locale;
+}
+
+/** The built-in symbol (brand/symbol.svg: a و whose tail becomes a check, on the navy tile). */
+function BrandSymbol({ name }: { name: string }) {
+  return (
+    <svg viewBox="0 0 24 24" role="img" aria-label={name} className="size-11 shrink-0">
+      <rect width="24" height="24" rx="5.5" fill="#1e3a8a" />
+      <g fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="8.6" cy="8.8" r="3.3" />
+        <path d="M11.9 8.8C12.7 11.6 12.5 14.8 11.6 17.4L19.4 7.4" />
+      </g>
+    </svg>
+  );
 }
 
 /**
@@ -57,9 +69,7 @@ export function BrandMark({ branding, locale = "ar" }: BrandMarkProps) {
       className="inline-flex min-h-11 items-center gap-3 rounded-lg focus-visible:outline-none focus-visible:shadow-focus"
     >
       {logoUrl === null ? (
-        <span className="grid size-11 place-items-center rounded-lg bg-primary text-on-primary shadow-card">
-          <Pill className="size-6" aria-hidden="true" />
-        </span>
+        <BrandSymbol name={name} />
       ) : (
         <img
           src={logoUrl}
@@ -71,7 +81,11 @@ export function BrandMark({ branding, locale = "ar" }: BrandMarkProps) {
         />
       )}
       {withName ? (
-        <span className="whitespace-nowrap font-heading text-2xl font-bold text-primary">
+        // The built-in symbol already carries the name for screen readers; the text would repeat it.
+        <span
+          {...(logoUrl === null ? { "aria-hidden": true } : {})}
+          className="whitespace-nowrap font-heading text-2xl font-bold text-primary"
+        >
           {name}
         </span>
       ) : null}

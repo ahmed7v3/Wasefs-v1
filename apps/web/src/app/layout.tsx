@@ -49,6 +49,16 @@ function baseMetadata(locale: Locale, seo: PublicSettings["seo"]): Metadata {
     },
     description,
     applicationName: brand,
+    // Stable URLs served by route handlers: the admin's upload when there is one, the bundled default otherwise.
+    icons: {
+      icon: [
+        { url: "/favicon.ico", sizes: "any" },
+        { url: "/icon.svg", type: "image/svg+xml" },
+        { url: "/icon-96.png", sizes: "96x96", type: "image/png" },
+      ],
+      apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    },
+    manifest: "/manifest.webmanifest",
     // `alternates.canonical` is set per page: a layout-level value would canonicalise every route to it.
     openGraph: {
       type: "website",
@@ -64,22 +74,20 @@ function baseMetadata(locale: Locale, seo: PublicSettings["seo"]): Metadata {
   };
 }
 
-/**
- * The favicon uploaded in the admin panel replaces the bundled `icon.svg`: an explicit `icons`
- * entry wins over the file convention. Without an upload (or with the API down) nothing changes.
- */
 export async function generateMetadata(): Promise<Metadata> {
-  const [{ branding, seo }, locale] = await Promise.all([getPublicSettings(), requestLocale()]);
-  const base = baseMetadata(locale, seo);
-  return branding.faviconUrl === null ? base : { ...base, icons: { icon: branding.faviconUrl } };
+  const [{ seo }, locale] = await Promise.all([getPublicSettings(), requestLocale()]);
+  return baseMetadata(locale, seo);
 }
 
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  themeColor: "#F6F6F4",
-  colorScheme: "light",
-};
+export async function generateViewport(): Promise<Viewport> {
+  const { branding } = await getPublicSettings();
+  return {
+    width: "device-width",
+    initialScale: 1,
+    themeColor: branding.themeColor,
+    colorScheme: "light",
+  };
+}
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   // The CSP nonce is generated per request in proxy.ts, so pages must render per request.
