@@ -1,4 +1,7 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { render, screen } from "@testing-library/react";
 import { t } from "@wasfa/shared/i18n";
 import { settingDefault } from "@wasfa/shared/settings";
@@ -10,17 +13,27 @@ const defaults = settingDefault("branding");
 const LOGO = "https://api.wasfa.online/assets/logo?v=0123456789ab";
 
 describe("BrandMark", () => {
-  it("draws the built-in chip and the name when nothing is uploaded", () => {
+  it("draws the built-in symbol and the name when nothing is uploaded", () => {
     const { container } = render(<BrandMark branding={defaults} />);
     expect(screen.getByRole("link", { name: t("brand.name") }).getAttribute("href")).toBe("/");
     expect(container.querySelector("img")).toBeNull();
     expect(container.querySelector("svg")).not.toBeNull();
   });
 
-  it("falls back to the same chip when no settings are passed (API down, tests)", () => {
+  it("falls back to the same symbol when no settings are passed (API down, tests)", () => {
     const { container } = render(<BrandMark />);
     expect(screen.getByText(t("brand.name"))).toBeTruthy();
     expect(container.querySelector("img")).toBeNull();
+  });
+
+  it("renders the fallback symbol with an accessible name, and the pill placeholder is gone", () => {
+    render(<BrandMark branding={defaults} />);
+    expect(screen.getByRole("img", { name: t("brand.name") }).tagName.toLowerCase()).toBe("svg");
+    for (const file of ["brand-mark.tsx", "site-brand-mark.tsx"]) {
+      // vitest runs with the web app as the working directory
+      const source = readFileSync(resolve(process.cwd(), "src/components", file), "utf8");
+      expect(source).not.toMatch(/\bPill\b/);
+    }
   });
 
   it("uses the name from the settings, not the built-in one", () => {
@@ -39,7 +52,7 @@ describe("BrandMark", () => {
     expect(image.getAttribute("height")).toBe("44");
     expect(image.getAttribute("width")).toBe("132");
     expect(screen.getByRole("link", { name: defaults.nameAr })).toBeTruthy();
-    // no chip, no second copy of the name
+    // no built-in symbol, no second copy of the name
     expect(container.querySelector("svg")).toBeNull();
     expect(container.textContent).toBe("");
   });
