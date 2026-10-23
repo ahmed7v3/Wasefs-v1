@@ -60,6 +60,8 @@ www.{$SITE_DOMAIN:wasfa.online} {
 	request_body {
 		max_size 1MB
 	}
+	# Internal endpoints (crawler hit counting) are reachable only from the Docker network.
+	respond /internal/* 404
 	reverse_proxy api:4000 {
 		import proxy_headers
 		# Stream server-sent events (AI answers) as they are produced instead of buffering them.

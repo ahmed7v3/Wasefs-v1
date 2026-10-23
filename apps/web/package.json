@@ -27,6 +27,7 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "server-only": "^0.0.1",
+    "web-vitals": "^6.2.3",
     "zod": "^4.6.5"
   },
   "devDependencies": {
