@@ -260,6 +260,11 @@
       "import": "./dist/schemas/public-site.js",
       "default": "./dist/schemas/public-site.js"
     },
+    "./schemas/og": {
+      "types": "./dist/schemas/og.d.ts",
+      "import": "./dist/schemas/og.js",
+      "default": "./dist/schemas/og.js"
+    },
     "./schemas/media": {
       "types": "./dist/schemas/media.d.ts",
       "import": "./dist/schemas/media.js",
