@@ -1,6 +1,6 @@
 "use client";
 
-import { t } from "@wasfa/shared/i18n";
+import { t } from "@wasfa/shared/i18n/public";
 import { institutionLeadSchema } from "@wasfa/shared/schemas/org";
 import { Button, Field, Input, Textarea } from "@wasfa/ui";
 import { CircleCheck } from "lucide-react";

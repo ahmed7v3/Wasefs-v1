@@ -118,11 +118,12 @@ describe("AppsBand", () => {
     expect(screen.getAllByText(`· ${landing.apps.soon}`)).toHaveLength(1);
   });
 
-  it("renders the waitlist form only while the setting is on, in the page language", () => {
+  it("renders the waitlist form only while the setting is on, in the page language", async () => {
+    // The form is a lazy island (fetched after the page), so it appears a moment after the first render.
     const { rerender } = render(<AppsBand settings={settings({ waitlistEnabled: true })} />);
-    expect(screen.getByRole("form", { name: landing.apps.waitlist.title })).toBeTruthy();
+    expect(await screen.findByRole("form", { name: landing.apps.waitlist.title })).toBeTruthy();
     rerender(<AppsBand settings={settings({ waitlistEnabled: true })} locale="en" />);
-    const form = screen.getByRole("form", { name: landingEn.apps.waitlist.title });
+    const form = await screen.findByRole("form", { name: landingEn.apps.waitlist.title });
     expect(within(form).getByLabelText(new RegExp(landingEn.apps.waitlist.email))).toBeTruthy();
     expect(screen.getByRole("heading", { name: landingEn.apps.title })).toBeTruthy();
   });

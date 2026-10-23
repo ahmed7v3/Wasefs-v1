@@ -75,6 +75,11 @@
       "import": "./dist/i18n/index.js",
       "default": "./dist/i18n/index.js"
     },
+    "./i18n/public": {
+      "types": "./dist/i18n/public.d.ts",
+      "import": "./dist/i18n/public.js",
+      "default": "./dist/i18n/public.js"
+    },
     "./identity": {
       "types": "./dist/identity.d.ts",
       "import": "./dist/identity.js",

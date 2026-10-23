@@ -1,6 +1,6 @@
 "use client";
 
-import { t } from "@wasfa/shared/i18n";
+import { t } from "@wasfa/shared/i18n/public";
 import { MessageCircle, Phone, Send } from "lucide-react";
 import { useEffect, useRef } from "react";
 

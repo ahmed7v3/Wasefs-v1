@@ -1,6 +1,6 @@
 "use client";
 
-import { t } from "@wasfa/shared/i18n";
+import { t } from "@wasfa/shared/i18n/public";
 import { Button, Dialog } from "@wasfa/ui";
 import dynamic from "next/dynamic";
 import { useState } from "react";

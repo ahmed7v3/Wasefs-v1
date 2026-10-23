@@ -1,6 +1,6 @@
 "use client";
 
-import { t, type MessageKey } from "@wasfa/shared/i18n";
+import { t, type MessageKey } from "@wasfa/shared/i18n/public";
 import { submitPaymentProofSchema } from "@wasfa/shared/schemas/manual-payment";
 import { Button, CopyField, Field, Input, ProofUploader, buttonStyles, moneyText } from "@wasfa/ui";
 import { Check, Circle, Clock, MessageCircle, TriangleAlert } from "lucide-react";

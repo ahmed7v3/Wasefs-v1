@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { LOCALES } from "../i18n/index.js";
+import { LOCALES } from "../i18n/locales.js";
 import {
   ACCOUNT_TYPES,
   ONBOARDING_STEPS,

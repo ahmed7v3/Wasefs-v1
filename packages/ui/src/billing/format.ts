@@ -1,4 +1,4 @@
-import { ar, t, type MessageKey } from "@wasfa/shared/i18n";
+import { hasMessage, t, type MessageKey } from "@wasfa/shared/i18n/public";
 import { formatMoney } from "@wasfa/shared/money";
 
 /*
@@ -20,7 +20,7 @@ export function periodLabel(months: number): string {
 }
 
 function isMessageKey(key: string): key is MessageKey {
-  return Object.hasOwn(ar, key);
+  return hasMessage(key);
 }
 
 /**

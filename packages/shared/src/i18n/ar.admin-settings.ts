@@ -440,7 +440,6 @@ export const arAdminSettings = {
   "admin.pricing.page.open": "افتح صفحة الأسعار",
   "admin.pricing.page.unpriced":
     "معروضة للبيع لكنها لا تظهر لأنها بلا سعر منشور: {plans}. انشر سعرًا من تبويب «الأسعار».",
-  "admin.reason.invalid_window": "موعد نهاية التوفر يجب أن يكون بعد موعد البداية.",
 
   // Notification health (/admin/notifications).
   "admin.notify.title": "هل تصل التنبيهات؟",

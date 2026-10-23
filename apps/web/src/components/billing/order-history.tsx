@@ -1,6 +1,6 @@
 "use client";
 
-import { t, type MessageKey } from "@wasfa/shared/i18n";
+import { t, type MessageKey } from "@wasfa/shared/i18n/public";
 import {
   Badge,
   Button,

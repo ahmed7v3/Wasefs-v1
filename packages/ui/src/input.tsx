@@ -1,6 +1,6 @@
 "use client";
 
-import { t } from "@wasfa/shared/i18n";
+import { t } from "@wasfa/shared/i18n/public";
 import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 

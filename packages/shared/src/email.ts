@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { GROWTH_MAIL_KINDS } from "./growth.js";
-import { LOCALES } from "./i18n/index.js";
+import { LOCALES } from "./i18n/locales.js";
 import { SUBSCRIPTION_REMINDER_SLOTS } from "./subscriptions.js";
 
 /*

@@ -1,6 +1,6 @@
 "use client";
 
-import { t } from "@wasfa/shared/i18n";
+import { t } from "@wasfa/shared/i18n/public";
 import { Button } from "@wasfa/ui";
 
 export default function GlobalErrorView({ reset }: { reset: () => void }) {

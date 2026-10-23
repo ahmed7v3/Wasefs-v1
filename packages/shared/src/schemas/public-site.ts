@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { LOCALES } from "../i18n/index.js";
+import { LOCALES } from "../i18n/locales.js";
 
 import { emailSchema } from "./auth.js";
 

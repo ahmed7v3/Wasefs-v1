@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { PHONE_VERIFICATION_MODES } from "../auth-settings.js";
-import { LOCALES } from "../i18n/index.js";
+import { LOCALES } from "../i18n/locales.js";
 import { ACCOUNT_TYPES, ORG_MEMBER_ROLES, ORG_TYPES, USER_STATUSES } from "../identity.js";
 import {
   PERMISSION_KEYS,

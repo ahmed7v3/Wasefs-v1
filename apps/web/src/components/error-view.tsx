@@ -1,6 +1,6 @@
 "use client";
 
-import { t } from "@wasfa/shared/i18n";
+import { t } from "@wasfa/shared/i18n/public";
 import { Button, Card, Container } from "@wasfa/ui";
 import { RotateCcw, TriangleAlert } from "lucide-react";
 

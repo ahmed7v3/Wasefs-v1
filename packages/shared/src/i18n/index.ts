@@ -1,13 +1,11 @@
 import { ar, type MessageKey } from "./ar.js";
 import { en } from "./en.js";
+import { DEFAULT_LOCALE, LOCALES, type Locale } from "./locales.js";
 
-export const LOCALES = ["ar", "en"] as const;
-export type Locale = (typeof LOCALES)[number];
+export { DEFAULT_LOCALE, LOCALES, type Locale };
 export type { MessageKey } from "./ar.js";
 export { ar } from "./ar.js";
 export { en } from "./en.js";
-
-export const DEFAULT_LOCALE: Locale = "ar";
 
 const dictionaries: Record<Locale, Partial<Record<MessageKey, string>>> = { ar, en };
 

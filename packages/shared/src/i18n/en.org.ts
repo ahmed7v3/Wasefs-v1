@@ -115,14 +115,6 @@ export const enOrg: Partial<Record<keyof typeof arOrg, string>> = {
   "org.orders.title": "Organization orders and receipts",
   "org.receipt.back": "Back to the organization",
 
-  "org.reason.seat_limit": "The organization reached the seat limit of its plan.",
-  "org.reason.slug_taken": "This name is used by another link, choose a different one.",
-  "org.reason.member_cap_reached":
-    "You reached your monthly cap on the organization credits. Contact the organization admin.",
-  "org.reason.org_credits_exhausted":
-    "The organization credits ran out. Contact the organization admin to top them up.",
-  "org.reason.upgrade": "Upgrade the plan or add seats",
-
   "join.title": "Join an organization",
   "join.heading": "Join {org}",
   "join.lead": "This organization invited you to use Wasfa AI with them.",
@@ -141,24 +133,9 @@ export const enOrg: Partial<Record<keyof typeof arOrg, string>> = {
   "join.accepted.pending": "Your request to join {org} is waiting for the admin's approval",
   "join.accepted.already": "You are already a member of {org}",
   "join.pending.title": "Finish verifying your account to join the organization",
-  "join.pending.both":
-    "Verify your email and phone number and we will complete your joining automatically.",
   "join.pending.email": "Verify your email and we will complete your joining automatically.",
   "join.pending.phone": "Verify your phone number and we will complete your joining automatically.",
   "join.failed": "Could not complete joining",
-
-  "billing.lead.title": "Ask for a special offer for your organization",
-  "billing.lead.lead":
-    "Tell us how big your team is and we will get back to you with a fitting offer.",
-  "billing.lead.orgName": "Organization name",
-  "billing.lead.contactName": "Contact person",
-  "billing.lead.seats": "Expected number of members",
-  "billing.lead.seatsHint": "A rough number is enough.",
-  "billing.lead.message": "Your message",
-  "billing.lead.submit": "Send request",
-  "billing.lead.success.title": "We got your request",
-  "billing.lead.success.body": "We will contact you on the phone or email you entered.",
-  "billing.lead.success.close": "Close",
 
   "auth.field.referral": "Invite code",
   "auth.field.referralHint":
