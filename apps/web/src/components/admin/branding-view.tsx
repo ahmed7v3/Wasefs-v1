@@ -12,6 +12,7 @@ import { useResource } from "../../lib/use-admin-data";
 import { ErrorNotice } from "../error-notice";
 
 import { BrandAssetCard } from "./brand-asset-card";
+import { BrandSymbolSection } from "./brand-symbol-section";
 
 import type { Branding } from "../brand-mark";
 
@@ -20,6 +21,9 @@ const namesSchema = brandingSettingsSchema.pick({
   nameAr: true,
   nameEn: true,
   showNameWithLogo: true,
+  themeColor: true,
+  manifestName: true,
+  manifestShortName: true,
 });
 
 function NamesCard({
@@ -39,6 +43,9 @@ function NamesCard({
       nameAr: branding.nameAr,
       nameEn: branding.nameEn,
       showNameWithLogo: branding.showNameWithLogo,
+      themeColor: branding.themeColor,
+      manifestName: branding.manifestName,
+      manifestShortName: branding.manifestShortName,
     },
     submit: async (values) => {
       // The endpoint replaces the whole `branding` value: send the stored image fields along.
@@ -85,6 +92,50 @@ function NamesCard({
               {...control}
               {...form.bind("nameEn")}
               ltr
+              autoComplete="off"
+              disabled={!canWrite}
+            />
+          )}
+        </Field>
+        <Field
+          label={t("admin.settings.field.branding.themeColor")}
+          hint={t("admin.settings.help.branding.themeColor")}
+          error={form.errors["themeColor"]}
+          announceError={form.submitCount > 0}
+        >
+          {(control) => (
+            <Input
+              {...control}
+              {...form.bind("themeColor")}
+              ltr
+              autoComplete="off"
+              disabled={!canWrite}
+            />
+          )}
+        </Field>
+        <Field
+          label={t("admin.settings.field.branding.manifestName")}
+          error={form.errors["manifestName"]}
+          announceError={form.submitCount > 0}
+        >
+          {(control) => (
+            <Input
+              {...control}
+              {...form.bind("manifestName")}
+              autoComplete="off"
+              disabled={!canWrite}
+            />
+          )}
+        </Field>
+        <Field
+          label={t("admin.settings.field.branding.manifestShortName")}
+          error={form.errors["manifestShortName"]}
+          announceError={form.submitCount > 0}
+        >
+          {(control) => (
+            <Input
+              {...control}
+              {...form.bind("manifestShortName")}
               autoComplete="off"
               disabled={!canWrite}
             />
@@ -157,6 +208,7 @@ export function BrandingView({ canWrite }: BrandingViewProps) {
         canWrite={canWrite}
         onChanged={resource.reload}
       />
+      <BrandSymbolSection canWrite={canWrite} logoUrl={branding.logoUrl} />
       <NamesCard branding={branding} canWrite={canWrite} onSaved={resource.reload} />
     </div>
   );

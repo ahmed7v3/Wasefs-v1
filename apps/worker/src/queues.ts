@@ -12,6 +12,7 @@ import { DelayedError, Queue, UnrecoverableError, Worker, type Job } from "bullm
 import { alertDeliveryJob } from "./alerts/alert-delivery.job.js";
 import { alertDigestJob } from "./alerts/alert-digest.job.js";
 import { pendingDeliverySweepJob } from "./alerts/pending-delivery-sweep.job.js";
+import { brandingIconsJob } from "./branding/branding.job.js";
 import { DeferJob } from "./defer.js";
 import { anonymizeDueJob, purgeExpiredJob } from "./jobs/accounts.job.js";
 import { spendRollupJob } from "./jobs/ai.spend-rollup.job.js";
@@ -105,6 +106,7 @@ export const HANDLERS: Handlers = {
     "files.retention": filesRetentionJob,
     "media.process": mediaProcessJob,
     "og.render": ogRenderJob,
+    "branding.icons": brandingIconsJob,
   },
   rx: {
     "rx.analyze": rxAnalyzeJob,

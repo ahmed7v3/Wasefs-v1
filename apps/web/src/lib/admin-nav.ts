@@ -35,6 +35,7 @@ import {
   Settings,
   SlidersHorizontal,
   ShieldCheck,
+  Smartphone,
   Tags,
   Ticket,
   TriangleAlert,
@@ -265,6 +266,13 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
         description: "admin.nav.experiments.description",
         icon: Split,
         permission: "referrals.read",
+      },
+      {
+        href: "/admin/growth/waitlist",
+        label: "admin.nav.waitlist",
+        description: "admin.nav.waitlist.description",
+        icon: Smartphone,
+        permission: "users.read",
       },
       {
         href: "/admin/growth/settings",

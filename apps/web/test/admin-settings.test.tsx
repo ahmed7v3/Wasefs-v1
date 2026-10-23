@@ -86,6 +86,38 @@ describe("SettingForm", () => {
     expect(onSave.mock.calls[0]?.[0]).toEqual(settingDefault(key));
   });
 
+  it("edits the homepage figures and app links, with the measured-only helper text", async () => {
+    const onSave = renderForm("landing");
+    expect(
+      screen.getByText(t("admin.settings.help.landing.proof.avgAnalysisSeconds")).textContent,
+    ).toContain("اعرض الرقم فقط عندما يكون مقيسًا");
+    await userEvent.type(
+      screen.getByLabelText(t("admin.settings.field.landing.proof.avgAnalysisSeconds")),
+      "12.5",
+    );
+    await userEvent.type(
+      screen.getByLabelText(t("admin.settings.field.landing.apps.androidUrl")),
+      "https://play.google.com/store/apps/details?id=online.wasfa",
+    );
+    await userEvent.click(
+      screen.getByRole("checkbox", {
+        name: t("admin.settings.field.landing.apps.waitlistEnabled"),
+      }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: t("common.save") }));
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledTimes(1);
+    });
+    expect(onSave.mock.calls[0]?.[0]).toEqual({
+      proof: { avgAnalysisSeconds: 12.5, accuracyPercent: null },
+      apps: {
+        androidUrl: "https://play.google.com/store/apps/details?id=online.wasfa",
+        iosUrl: null,
+        waitlistEnabled: true,
+      },
+    });
+  });
+
   it("shows the currency rule when the default is not enabled, and does not save", async () => {
     const onSave = renderForm("currency");
     const enabled = screen.getByLabelText(t("admin.settings.field.currency.enabled"));

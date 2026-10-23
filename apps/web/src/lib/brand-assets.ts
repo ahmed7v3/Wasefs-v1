@@ -21,14 +21,27 @@ const EXTENSION_TYPES: Record<string, BrandingAssetType> = {
   ico: "image/x-icon",
 };
 
-export function allowedTypes(key: EditableAssetKey): readonly BrandingAssetType[] {
-  return key === "favicon"
-    ? BRANDING_ASSET_TYPES
-    : BRANDING_ASSET_TYPES.filter((type) => type !== "image/x-icon");
+/** Mirrors the api's per-key rules (the api decides; this only saves a round trip). */
+const PNG_ONLY: readonly BrandingAssetType[] = ["image/png"];
+const KEY_TYPES: Partial<Record<BrandingAssetKey, readonly BrandingAssetType[]>> = {
+  favicon: BRANDING_ASSET_TYPES,
+  favicon_ico: ["image/x-icon"],
+  icon_48: PNG_ONLY,
+  icon_96: PNG_ONLY,
+  icon_192: PNG_ONLY,
+  icon_512: PNG_ONLY,
+  icon_maskable_512: PNG_ONLY,
+  apple_touch_icon: PNG_ONLY,
+  email_logo: PNG_ONLY,
+  og_default: ["image/png", "image/webp"],
+};
+
+export function allowedTypes(key: BrandingAssetKey): readonly BrandingAssetType[] {
+  return KEY_TYPES[key] ?? BRANDING_ASSET_TYPES.filter((type) => type !== "image/x-icon");
 }
 
 /** The value of the file input's `accept` attribute. */
-export function acceptAttribute(key: EditableAssetKey): string {
+export function acceptAttribute(key: BrandingAssetKey): string {
   const extensions = Object.entries(EXTENSION_TYPES)
     .filter(([, type]) => allowedTypes(key).includes(type))
     .map(([extension]) => `.${extension}`);
@@ -46,7 +59,7 @@ function typeOf(file: File): BrandingAssetType | undefined {
 export type AssetFileCheck =
   { ok: true; type: BrandingAssetType } | { ok: false; reason: "type" | "size" };
 
-export function checkAssetFile(key: EditableAssetKey, file: File): AssetFileCheck {
+export function checkAssetFile(key: BrandingAssetKey, file: File): AssetFileCheck {
   const type = typeOf(file);
   if (type === undefined || file.size === 0 || !allowedTypes(key).includes(type)) {
     return { ok: false, reason: "type" };
