@@ -122,7 +122,15 @@ for (const path of PATHS) {
     await page.waitForLoadState("load");
     await page.waitForTimeout(2_000);
 
-    problems.push(...(await csp.violations()).map((violation) => `csp: ${violation}`));
+    // `next dev` mounts its devtools overlay with inline styles that the nonce CSP blocks; that is
+    // dev-only tooling, not our pages (the production build is checked by `csp.spec.ts`).
+    const devTooling = (violation: string) =>
+      violation.includes("next-devtools") || violation.startsWith("Applying inline style");
+    problems.push(
+      ...(await csp.violations())
+        .filter((violation) => !devTooling(violation))
+        .map((violation) => `csp: ${violation}`),
+    );
     expect(problems).toEqual([]);
   });
 }
