@@ -1,11 +1,12 @@
 "use client";
 
-import type { Locale } from "@wasfa/shared/i18n";
 import { t } from "@wasfa/shared/i18n/public";
 import { Clock } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { cn } from "../cn";
+
+import type { Locale } from "@wasfa/shared/i18n";
 
 export interface CountdownProps {
   /**

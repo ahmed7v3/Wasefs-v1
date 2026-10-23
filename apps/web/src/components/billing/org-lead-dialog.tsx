@@ -1,10 +1,11 @@
 "use client";
 
-import type { Locale } from "@wasfa/shared/i18n";
 import { t as translate, type MessageKey } from "@wasfa/shared/i18n/public";
 import { Button, Dialog } from "@wasfa/ui";
 import dynamic from "next/dynamic";
 import { useState } from "react";
+
+import type { Locale } from "@wasfa/shared/i18n";
 
 // The form (schema, Turnstile, phone input) is fetched when the dialog first opens, not with the page.
 const LeadForm = dynamic(() => import("./org-lead-form").then((module) => module.LeadForm), {

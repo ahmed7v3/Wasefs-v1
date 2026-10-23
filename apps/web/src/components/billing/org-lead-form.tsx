@@ -1,6 +1,5 @@
 "use client";
 
-import type { Locale } from "@wasfa/shared/i18n";
 import { t as translate, type MessageKey } from "@wasfa/shared/i18n/public";
 import { institutionLeadSchema } from "@wasfa/shared/schemas/org";
 import { Button, Field, Input, Textarea } from "@wasfa/ui";
@@ -13,6 +12,8 @@ import { ErrorNotice } from "../error-notice";
 import { ErrorSummary } from "../forms/error-summary";
 import { PhoneInput } from "../forms/phone-input";
 import { Turnstile, useTurnstile } from "../turnstile";
+
+import type { Locale } from "@wasfa/shared/i18n";
 
 /** The seats box holds text; the API body gets the number. */
 const formSchema = institutionLeadSchema.extend({

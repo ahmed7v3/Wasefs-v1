@@ -1,7 +1,7 @@
-import type { Locale } from "@wasfa/shared/i18n";
 import { t } from "@wasfa/shared/i18n/public";
 import { periodLabel } from "@wasfa/ui";
 
+import type { Locale } from "@wasfa/shared/i18n";
 import type { CatalogResponse } from "@wasfa/shared/schemas/billing";
 
 /*

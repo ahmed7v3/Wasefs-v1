@@ -1,8 +1,9 @@
-import type { Locale } from "@wasfa/shared/i18n";
 import { t } from "@wasfa/shared/i18n/public";
 import { Check, Minus } from "lucide-react";
 
 import { cn } from "../cn";
+
+import type { Locale } from "@wasfa/shared/i18n";
 
 /** A cell: text, a plain yes/no, or nothing known (a dash). */
 export type ComparisonCell = string | boolean | null;

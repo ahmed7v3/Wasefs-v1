@@ -1,6 +1,7 @@
-import type { Locale } from "@wasfa/shared/i18n";
 import { hasMessage, t, type MessageKey } from "@wasfa/shared/i18n/public";
 import { formatMoney } from "@wasfa/shared/money";
+
+import type { Locale } from "@wasfa/shared/i18n";
 
 /*
  * Small formatting helpers shared by the billing components and the pages that use them. Money is

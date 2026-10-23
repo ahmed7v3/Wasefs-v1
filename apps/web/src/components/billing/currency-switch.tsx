@@ -1,12 +1,13 @@
 "use client";
 
-import type { Locale } from "@wasfa/shared/i18n";
 import { t } from "@wasfa/shared/i18n/public";
 import { Select } from "@wasfa/ui";
 import { useRouter } from "next/navigation";
 
 import { rememberCurrency } from "../../lib/billing-cookie";
 import { localizedPath } from "../../lib/locale";
+
+import type { Locale } from "@wasfa/shared/i18n";
 
 export interface CurrencySwitchProps {
   current: string;

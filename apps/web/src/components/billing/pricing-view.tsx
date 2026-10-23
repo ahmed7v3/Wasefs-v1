@@ -10,12 +10,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-import { JsonLd } from "../marketing/json-ld";
-import { Notice } from "../notice";
 
-import { CurrencySwitch } from "./currency-switch";
-import { OrgLeadDialog } from "./org-lead-dialog";
-import { PricingPlans } from "./pricing-plans";
 import { getCatalog, requestedCurrency } from "../../lib/billing-server";
 import { checkoutHref, orgFromParams } from "../../lib/checkout-target";
 import { contactLinks } from "../../lib/contact-links";
@@ -24,6 +19,12 @@ import { getNonce } from "../../lib/nonce";
 import { comparisonModel } from "../../lib/pricing-compare";
 import { getPublicSettings } from "../../lib/public-settings";
 import { faqJsonLd, productJsonLd } from "../../lib/structured-data";
+import { JsonLd } from "../marketing/json-ld";
+import { Notice } from "../notice";
+
+import { CurrencySwitch } from "./currency-switch";
+import { OrgLeadDialog } from "./org-lead-dialog";
+import { PricingPlans } from "./pricing-plans";
 
 const FAQ = [
   { question: "billing.faq.price.q", answer: "billing.faq.price.a" },

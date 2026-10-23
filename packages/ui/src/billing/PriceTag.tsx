@@ -1,9 +1,10 @@
-import type { Locale } from "@wasfa/shared/i18n";
 import { t } from "@wasfa/shared/i18n/public";
 
 import { cn } from "../cn";
 
 import { moneyText } from "./format";
+
+import type { Locale } from "@wasfa/shared/i18n";
 
 export interface PriceTagProps {
   amountMinor: number;

@@ -729,9 +729,10 @@
   }
 }
 
+/* Movement only: text that starts faded fails contrast for anyone (and any audit) that sees it
+   before it enters the view. */
 @keyframes motion-settle {
   from {
-    opacity: 0.6;
     transform: scale(0.97) translateY(12px);
   }
 }

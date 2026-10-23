@@ -33,7 +33,9 @@ const TABLE = SEO_SOURCE.slice(
   SEO_SOURCE.indexOf("export const PUBLIC_PAGES"),
   SEO_SOURCE.indexOf("as const satisfies"),
 );
-const PATHS = [...new Set([...TABLE.matchAll(/\bpath(?:En)?: "(\/[^"]*)"/g)].map((m) => m[1]!))];
+const PATHS = [
+  ...new Set([...TABLE.matchAll(/\bpath(?:En)?: "(\/[^"]*)"/g)].map((match) => match[1] ?? "/")),
+];
 
 let devServer: ChildProcess | undefined;
 

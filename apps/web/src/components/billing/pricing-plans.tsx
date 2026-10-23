@@ -1,6 +1,5 @@
 "use client";
 
-import type { Locale } from "@wasfa/shared/i18n";
 import { t as translate, type MessageKey } from "@wasfa/shared/i18n/public";
 import {
   Badge,
@@ -30,6 +29,7 @@ import {
   planOffer,
 } from "../../lib/pricing-durations";
 
+import type { Locale } from "@wasfa/shared/i18n";
 import type {
   CatalogFreePlan,
   CatalogResponse,
