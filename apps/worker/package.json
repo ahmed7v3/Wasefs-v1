@@ -13,6 +13,7 @@
     "start": "node dist/main.js",
     "bridge": "node --env-file-if-exists=../../.env --import @swc-node/register/esm-register src/wa-bridge/main.ts",
     "eval:template": "node --import @swc-node/register/esm-register src/eval/make-template.ts",
+    "og:static": "node --import @swc-node/register/esm-register scripts/og-static.ts",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"

@@ -44,6 +44,7 @@ import { withdrawalsOverdueJob, withdrawalsReconcileJob } from "./jobs/withdrawa
 import { mediaProcessJob } from "./media/media.job.js";
 import { customerNotifyJob, customerWhatsappCheckJob } from "./notifications/customer.job.js";
 import { emailSendJob, type EmailRuntime } from "./notifications/email.js";
+import { ogRenderJob } from "./og/og.job.js";
 
 import type { AiRuntime } from "./ai/runtime.js";
 import type { PaymentsRuntime } from "./payments/runtime.js";
@@ -103,6 +104,7 @@ export const HANDLERS: Handlers = {
     "image.process": imageProcessJob,
     "files.retention": filesRetentionJob,
     "media.process": mediaProcessJob,
+    "og.render": ogRenderJob,
   },
   rx: {
     "rx.analyze": rxAnalyzeJob,

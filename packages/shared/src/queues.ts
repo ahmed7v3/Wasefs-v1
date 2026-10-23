@@ -7,6 +7,7 @@ import {
 import { emailSendPayloadSchema } from "./email.js";
 import { evalImportPayloadSchema, evalRunPayloadSchema } from "./schemas/admin-evals.js";
 import { imageProcessPayloadSchema } from "./schemas/files.js";
+import { ogRenderPayloadSchema } from "./schemas/og.js";
 import { rxAnalyzePayloadSchema } from "./schemas/rx.js";
 
 /**
@@ -104,6 +105,8 @@ export const QUEUE_REGISTRY = {
     "files.retention": filesRetentionPayloadSchema,
     // Public media library (Phase 4): one asset per job. ":" is not allowed in BullMQ names, so `media.process`.
     "media.process": z.object({ assetId: z.uuid() }),
+    // Generated Open Graph / X card (Phase 4 WP2): content-addressed, so a repeat is a no-op.
+    "og.render": ogRenderPayloadSchema,
   },
   drugs: {
     "drugs.import": drugImportPayloadSchema,
