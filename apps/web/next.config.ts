@@ -10,6 +10,9 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // Trace files from the monorepo root so workspace packages end up in the standalone output.
   outputFileTracingRoot: fileURLToPath(new URL("../../", import.meta.url)),
+  // The icon route handlers read their bundled defaults through a computed path, which tracing
+  // cannot follow (`src/lib/brand-asset.ts`).
+  outputFileTracingIncludes: { "/*": ["./src/brand-defaults/**"] },
   poweredByHeader: false,
   reactStrictMode: true,
   // @wasfa/ui ships TypeScript source.
