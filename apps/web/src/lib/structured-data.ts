@@ -325,3 +325,39 @@ export function definedTerm(input: DefinedTermInput): JsonLd {
     inDefinedTermSet: { "@type": "DefinedTermSet", name: input.termSet.name, url: input.termSet.url },
   };
 }
+
+export interface WebPageInput {
+  name: string;
+  url: string;
+  description: string;
+  inLanguage: "ar" | "en";
+  /** ISO date of the last real content change. */
+  dateModified: string;
+  /** Absolute URL of the site, so the page points back at the `WebSite` described on the home page. */
+  siteUrl: string;
+  /** What the page is about (a feature or an audience); omitted on trust pages. */
+  about?: string;
+}
+
+function webPageOfType(type: "WebPage" | "AboutPage", input: WebPageInput): JsonLd {
+  return {
+    "@context": SCHEMA_CONTEXT,
+    "@type": type,
+    name: input.name,
+    url: input.url,
+    description: input.description,
+    inLanguage: input.inLanguage,
+    dateModified: input.dateModified,
+    isPartOf: { "@type": "WebSite", url: input.siteUrl },
+    ...defined({ about: input.about ? { "@type": "Thing", name: input.about } : undefined }),
+  };
+}
+
+/** A plain page. Medical pages use `medicalWebPage` (reviewer and date); this one claims no review. */
+export function webPage(input: WebPageInput): JsonLd {
+  return webPageOfType("WebPage", input);
+}
+
+export function aboutPage(input: WebPageInput): JsonLd {
+  return webPageOfType("AboutPage", input);
+}

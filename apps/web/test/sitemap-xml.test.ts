@@ -19,7 +19,7 @@ describe("sitemap xml", () => {
   it("lists the index children with lastmod", () => {
     const xml = sitemapIndexFor(SITE);
     expect(xml).toContain("<sitemapindex");
-    expect(xml).toContain("<loc>https://wasfa.online/sitemap-pages.xml</loc><lastmod>2026-10-17</lastmod>");
+    expect(xml).toContain("<loc>https://wasfa.online/sitemap-pages.xml</loc><lastmod>2026-10-20</lastmod>");
   });
 
   it("escapes locations in the index", () => {

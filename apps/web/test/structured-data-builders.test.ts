@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  aboutPage,
   article,
   breadcrumbList,
   definedTerm,
   drug,
   medicalWebPage,
   profilePage,
+  webPage,
 } from "../src/lib/structured-data";
 
 describe("content-platform JSON-LD builders", () => {
@@ -214,5 +216,38 @@ describe("content-platform JSON-LD builders", () => {
         "url": "https://wasfa.online/glossary/dose",
       }
     `);
+  });
+  it("webPage and aboutPage describe the page without any review claim", () => {
+    const input = {
+      name: "Prescription reader",
+      url: "https://wasfa.online/en/features/prescription-reader",
+      description: "Reads prescriptions.",
+      inLanguage: "en",
+      dateModified: "2026-10-20",
+      siteUrl: "https://wasfa.online",
+      about: "AI prescription reader",
+    } as const;
+    expect(webPage(input)).toEqual({
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      name: input.name,
+      url: input.url,
+      description: input.description,
+      inLanguage: "en",
+      dateModified: "2026-10-20",
+      isPartOf: { "@type": "WebSite", url: "https://wasfa.online" },
+      about: { "@type": "Thing", name: "AI prescription reader" },
+    });
+    const withoutAbout = {
+      name: input.name,
+      url: input.url,
+      description: input.description,
+      inLanguage: input.inLanguage,
+      dateModified: input.dateModified,
+      siteUrl: input.siteUrl,
+    };
+    expect(aboutPage(withoutAbout)).toMatchObject({ "@type": "AboutPage" });
+    expect(aboutPage(withoutAbout)).not.toHaveProperty("about");
+    expect(aboutPage(withoutAbout)).not.toHaveProperty("reviewedBy");
   });
 });
