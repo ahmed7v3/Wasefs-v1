@@ -149,7 +149,8 @@ const SCHEMA_CONTEXT = "https://schema.org";
 function defined<T extends Record<string, unknown>>(fields: T): Partial<T> {
   return Object.fromEntries(
     Object.entries(fields).filter(
-      ([, value]) => value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0),
+      ([, value]) =>
+        value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0),
     ),
   ) as Partial<T>;
 }
@@ -322,7 +323,11 @@ export function definedTerm(input: DefinedTermInput): JsonLd {
     name: input.term,
     description: input.definition,
     url: input.url,
-    inDefinedTermSet: { "@type": "DefinedTermSet", name: input.termSet.name, url: input.termSet.url },
+    inDefinedTermSet: {
+      "@type": "DefinedTermSet",
+      name: input.termSet.name,
+      url: input.termSet.url,
+    },
   };
 }
 

@@ -19,13 +19,15 @@ describe("sitemap xml", () => {
   it("lists the index children with lastmod", () => {
     const xml = sitemapIndexFor(SITE);
     expect(xml).toContain("<sitemapindex");
-    expect(xml).toContain("<loc>https://wasfa.online/sitemap-pages.xml</loc><lastmod>2026-10-20</lastmod>");
+    expect(xml).toContain(
+      "<loc>https://wasfa.online/sitemap-pages.xml</loc><lastmod>2026-10-20</lastmod>",
+    );
   });
 
   it("escapes locations in the index", () => {
-    expect(buildSitemapIndex([{ loc: "https://x.test/a?b=1&c=2", lastModified: "2026-01-01" }])).toContain(
-      "a?b=1&amp;c=2",
-    );
+    expect(
+      buildSitemapIndex([{ loc: "https://x.test/a?b=1&c=2", lastModified: "2026-01-01" }]),
+    ).toContain("a?b=1&amp;c=2");
   });
 
   it("lists both language URLs with reciprocal hreflang and one-language pages without", () => {
@@ -41,7 +43,9 @@ describe("sitemap xml", () => {
     }
     expect(urls.find((u) => u.url === `${SITE}/privacy`)?.alternates).toBeUndefined();
     const xml = buildUrlset(urls);
-    expect(xml).toContain('<xhtml:link rel="alternate" hreflang="en" href="https://wasfa.online/en/contact"/>');
+    expect(xml).toContain(
+      '<xhtml:link rel="alternate" hreflang="en" href="https://wasfa.online/en/contact"/>',
+    );
     expect(xml).not.toContain("/en/pricing");
     expect(xml).not.toContain("/en/privacy");
   });

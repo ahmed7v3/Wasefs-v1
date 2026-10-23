@@ -82,9 +82,8 @@ describe("content-platform JSON-LD builders", () => {
   });
 
   it("medicalWebPage omits absent fields", () => {
-    expect(
-      medicalWebPage({ name: "Statins", url: "https://wasfa.online/s", inLanguage: "en" }),
-    ).toMatchInlineSnapshot(`
+    expect(medicalWebPage({ name: "Statins", url: "https://wasfa.online/s", inLanguage: "en" }))
+      .toMatchInlineSnapshot(`
       {
         "@context": "https://schema.org",
         "@type": "MedicalWebPage",
