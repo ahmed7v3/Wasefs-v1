@@ -4,6 +4,8 @@
  *  - Fails if a chunk contains an app-only library (pdf.js, heic2any, qrcode, chat code).
  *  - Prints first-load JS (gzip) per route. Budgets: `/` 80 KB, other public routes 100 KB. Over
  *    budget is a warning (exit 0) unless `--strict`.
+ * Next's `polyfillFiles` chunk (~113 KB core-js, `nomodule`) is not in `firstLoadChunkPaths`, so it is
+ * not counted: modern browsers never download it.
  * Reads `.next/diagnostics/route-bundle-stats.json` (Next 16 / Turbopack). Run from apps/web.
  */
 import { readFileSync } from "node:fs";

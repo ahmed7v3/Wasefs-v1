@@ -1,22 +1,20 @@
 "use client";
 
-import { t } from "@wasfa/shared/i18n";
-import { Button } from "@wasfa/ui";
+import { lazy, Suspense } from "react";
 
 import "../styles/globals.css";
+
+// Lazy for the same reason as error.tsx: keep the message catalogue out of every first load.
+const GlobalErrorView = lazy(() => import("../components/global-error-view"));
 
 /** Last resort when the root layout itself fails: it replaces the layout, so it renders <html>. */
 export default function GlobalError({ reset }: { error: Error; reset: () => void }) {
   return (
     <html lang="ar" dir="rtl">
       <body className="grid min-h-dvh place-items-center bg-bg p-6 text-center text-text">
-        <main>
-          <h1 className="text-3xl font-bold text-primary">{t("errorPage.title")}</h1>
-          <p className="mt-3 text-text-muted">{t("errorPage.body")}</p>
-          <Button className="mt-8" onClick={reset}>
-            {t("common.retry")}
-          </Button>
-        </main>
+        <Suspense fallback={null}>
+          <GlobalErrorView reset={reset} />
+        </Suspense>
       </body>
     </html>
   );
