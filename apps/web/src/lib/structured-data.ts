@@ -15,7 +15,7 @@ export interface FaqEntry {
   answer: string;
 }
 
-/** Path of the raster logo (Google ignores SVG logos); rendered by `scripts/og-images.mjs`. */
+/** Path of the raster logo (Google ignores SVG logos); the 512 px brand symbol from `brand/scripts/build-icons.mjs`. */
 export const LOGO_PATH = "/logo.png";
 
 function absolute(path: string, siteUrl: string): string {

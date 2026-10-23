@@ -29,7 +29,6 @@ export const PUBLIC_PAGES = {
     lastModified: "2026-10-17",
     changeFrequency: "weekly",
     priority: 0.9,
-    // A copy of the home card until `pnpm og:images` renders the pricing one (it is in the script).
     ogImage: "/og/pricing.png",
   },
   contact: {
@@ -78,7 +77,7 @@ export const PUBLIC_PAGES = {
 
 export type PublicPageKey = keyof typeof PUBLIC_PAGES;
 
-/** Size of every Open Graph image (`apps/web/scripts/og-images.mjs` renders them at this size). */
+/** Size of every Open Graph image (the worker's OG renderer draws them at this size: `pnpm --filter @wasfa/worker og:static`). */
 export const OG_IMAGE_SIZE = { width: 1200, height: 630 } as const;
 
 export interface PageMetadataInput {
