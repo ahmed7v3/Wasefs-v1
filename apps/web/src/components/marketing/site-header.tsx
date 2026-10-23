@@ -54,7 +54,10 @@ export function SiteHeader({ locale = "ar", path = "/" }: { locale?: Locale; pat
                 </li>
               ))}
             </ul>
-            <LanguageSwitch path={path} locale={locale} />
+            {/* Below `sm` the bar has no room for it (360 px overflowed); the footer carries one. */}
+            <span className="max-sm:hidden">
+              <LanguageSwitch path={path} locale={locale} />
+            </span>
             <Link
               href="/login"
               // `max-sm:hidden`, not `hidden sm:inline-flex`: a variant is emitted after the plain
