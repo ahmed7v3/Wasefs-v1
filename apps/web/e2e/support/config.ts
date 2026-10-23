@@ -6,6 +6,9 @@
 const BASE = Number(process.env["E2E_PORT_BASE"] ?? 3210);
 const API_OFFSET = 1000;
 
+/** `next dev` of the hydration project (e2e/hydration.spec.ts): beside the default web, same API. */
+export const HYDRATION_DEV_PORT = BASE + 50;
+
 export type StackName = "default" | "turnstile";
 
 export interface StackPorts {

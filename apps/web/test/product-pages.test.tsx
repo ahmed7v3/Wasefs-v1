@@ -142,7 +142,8 @@ describe("internal linking", () => {
       arabicOnly: false,
     });
     expect(pageLink("/contact", "en")).toEqual({ href: "/en/contact", arabicOnly: false });
-    expect(pageLink("/pricing", "en")).toEqual({ href: "/pricing", arabicOnly: true });
+    expect(pageLink("/pricing", "en")).toEqual({ href: "/en/pricing", arabicOnly: false });
+    expect(pageLink("/disclaimer", "en")).toEqual({ href: "/disclaimer", arabicOnly: true });
     expect(pageLink("/register", "en")).toEqual({ href: "/register", arabicOnly: false });
     expect(pageLink("/for/patients", "ar").href).toBe("/for/patients");
   });

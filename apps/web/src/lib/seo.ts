@@ -23,9 +23,7 @@ export const PUBLIC_PAGES = {
   },
   pricing: {
     path: "/pricing",
-    // English pricing waits for the localized plan cards (PricingPlans, the @wasfa/ui price parts):
-    // set this to "/en/pricing" together with the route, and hreflang and the switch follow.
-    pathEn: null,
+    pathEn: "/en/pricing",
     lastModified: "2026-10-17",
     changeFrequency: "weekly",
     priority: 0.9,

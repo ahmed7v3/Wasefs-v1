@@ -15,6 +15,7 @@ describe("sitemap-pages", () => {
       "/",
       "/en",
       "/pricing",
+      "/en/pricing",
       "/contact",
       "/en/contact",
       "/privacy",

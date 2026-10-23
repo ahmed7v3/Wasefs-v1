@@ -1,6 +1,6 @@
 "use client";
 
-import { t } from "@wasfa/shared/i18n";
+import { t as translate, type Locale, type MessageKey } from "@wasfa/shared/i18n";
 import { Button, Dialog } from "@wasfa/ui";
 import dynamic from "next/dynamic";
 import { useState } from "react";
@@ -13,8 +13,21 @@ const Sent = dynamic(() => import("./org-lead-form").then((module) => module.Sen
   ssr: false,
 });
 
+/** `t` bound to the page language (the dialog is shared by the Arabic and the English page). */
+function useT(locale: Locale) {
+  return (key: MessageKey, params?: Record<string, string | number>) =>
+    translate(key, params, locale);
+}
+
 /** «اطلب عرضًا خاصًا»: opens the institution lead form (Turnstile-protected, like the contact form). */
-export function OrgLeadDialog({ nonce }: { nonce?: string | undefined }) {
+export function OrgLeadDialog({
+  nonce,
+  locale = "ar",
+}: {
+  nonce?: string | undefined;
+  locale?: Locale | undefined;
+}) {
+  const t = useT(locale);
   const [open, setOpen] = useState(false);
   const [sent, setSent] = useState(false);
   const close = () => {
@@ -44,10 +57,11 @@ export function OrgLeadDialog({ nonce }: { nonce?: string | undefined }) {
         {/* Mounted only while open: every request starts with an empty form and a fresh Turnstile. */}
         {open ? (
           sent ? (
-            <Sent onClose={close} />
+            <Sent onClose={close} locale={locale} />
           ) : (
             <LeadForm
               nonce={nonce}
+              locale={locale}
               onSent={() => {
                 setSent(true);
               }}

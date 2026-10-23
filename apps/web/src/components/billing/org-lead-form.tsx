@@ -1,6 +1,6 @@
 "use client";
 
-import { t } from "@wasfa/shared/i18n";
+import { t as translate, type Locale, type MessageKey } from "@wasfa/shared/i18n";
 import { institutionLeadSchema } from "@wasfa/shared/schemas/org";
 import { Button, Field, Input, Textarea } from "@wasfa/ui";
 import { CircleCheck } from "lucide-react";
@@ -23,7 +23,14 @@ const formSchema = institutionLeadSchema.extend({
 
 const MESSAGE_MAX = 2_000;
 
-function OptionalLabel({ children }: { children: string }) {
+/** `t` bound to the page language (the dialog is shared by the Arabic and the English page). */
+function useT(locale: Locale) {
+  return (key: MessageKey, params?: Record<string, string | number>) =>
+    translate(key, params, locale);
+}
+
+function OptionalLabel({ children, locale }: { children: string; locale: Locale }) {
+  const t = useT(locale);
   return (
     <>
       {children} <span className="text-sm font-normal text-text-muted">{t("ui.optional")}</span>
@@ -31,7 +38,16 @@ function OptionalLabel({ children }: { children: string }) {
   );
 }
 
-export function LeadForm({ nonce, onSent }: { nonce: string | undefined; onSent: () => void }) {
+export function LeadForm({
+  nonce,
+  onSent,
+  locale,
+}: {
+  nonce: string | undefined;
+  onSent: () => void;
+  locale: Locale;
+}) {
+  const t = useT(locale);
   const ts = useTurnstile();
   const form = useApiForm({
     schema: formSchema,
@@ -133,7 +149,7 @@ export function LeadForm({ nonce, onSent }: { nonce: string | undefined; onSent:
         {(control) => <Input {...control} {...form.bind("seats")} inputMode="numeric" ltr />}
       </Field>
       <Field
-        label={<OptionalLabel>{t("billing.lead.message")}</OptionalLabel>}
+        label={<OptionalLabel locale={locale}>{t("billing.lead.message")}</OptionalLabel>}
         hint={t("contact.counter", { count: message.length, max: MESSAGE_MAX })}
         error={form.errors["message"]}
         announceError={form.submitCount > 0}
@@ -163,7 +179,8 @@ export function LeadForm({ nonce, onSent }: { nonce: string | undefined; onSent:
   );
 }
 
-export function Sent({ onClose }: { onClose: () => void }) {
+export function Sent({ onClose, locale }: { onClose: () => void; locale: Locale }) {
+  const t = useT(locale);
   return (
     <div role="status" className="flex flex-col items-center gap-4 text-center">
       <span

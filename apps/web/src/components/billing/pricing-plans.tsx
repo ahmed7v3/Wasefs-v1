@@ -1,6 +1,6 @@
 "use client";
 
-import { t } from "@wasfa/shared/i18n";
+import { t as translate, type Locale, type MessageKey } from "@wasfa/shared/i18n";
 import {
   Badge,
   Countdown,
@@ -24,6 +24,7 @@ import {
   bestSavingsPercent,
   defaultDuration,
   durationLabel,
+  featureText,
   offeredDurations,
   planOffer,
 } from "../../lib/pricing-durations";
@@ -36,6 +37,12 @@ import type {
 
 type Plan = CatalogResponse["plans"][number];
 type Promotion = CatalogResponse["promotions"][number];
+
+/** `t` bound to the page language (Arabic by default, English on `/en/pricing`). */
+function boundT(locale: Locale) {
+  return (key: MessageKey, params?: Record<string, string | number>) =>
+    translate(key, params, locale);
+}
 
 export interface PricingPlansProps {
   currency: string;
@@ -50,6 +57,8 @@ export interface PricingPlansProps {
   initialMonths?: number | undefined;
   /** Buying for this organization (`/pricing?org=`): checkout links carry it. */
   orgId?: string | undefined;
+  /** Page language: copy, plan names, number format. Checkout itself stays Arabic. */
+  locale?: Locale | undefined;
 }
 
 /** Included features only: what is missing is in the comparison table, not on the card. */
@@ -57,7 +66,9 @@ function includedFeatures(
   monthlyCredits: number,
   maxMembers: number | null,
   features: Plan["features"],
+  locale: Locale,
 ): PlanCardFeature[] {
+  const t = boundT(locale);
   return [
     {
       text: t("billing.plan.monthlyCredits", { count: monthlyCredits }),
@@ -75,7 +86,11 @@ function includedFeatures(
       : []),
     ...features
       .filter((feature) => feature.included)
-      .map((feature) => ({ text: feature.textAr, included: true, highlight: feature.highlight })),
+      .map((feature) => ({
+        text: featureText(feature, locale),
+        included: true,
+        highlight: feature.highlight,
+      })),
   ];
 }
 
@@ -84,11 +99,14 @@ function Recommendation({
   recommendation,
   plans,
   currency,
+  locale,
 }: {
   recommendation: RecommendationResponse;
   plans: readonly Plan[];
   currency: string;
+  locale: Locale;
 }) {
+  const t = boundT(locale);
   const recommended = recommendation.recommended;
   const plan = recommended
     ? plans.find((candidate) => candidate.key === recommended.planKey)
@@ -106,11 +124,11 @@ function Recommendation({
           : null}
         {cheaperThanPacks && recommendation.packPerCreditMinor !== null
           ? t("billing.recommend.plan", {
-              plan: plan.names.ar,
-              perCredit: moneyText(recommended.perCreditMinor, currency),
-              pack: moneyText(recommendation.packPerCreditMinor, currency),
+              plan: plan.names[locale],
+              perCredit: moneyText(recommended.perCreditMinor, currency, locale),
+              pack: moneyText(recommendation.packPerCreditMinor, currency, locale),
             })
-          : t("billing.recommend.planSimple", { plan: plan.names.ar })}
+          : t("billing.recommend.planSimple", { plan: plan.names[locale] })}
       </span>
     </p>
   );
@@ -122,12 +140,15 @@ function DurationSwitch({
   value,
   plans,
   onChange,
+  locale,
 }: {
   durations: readonly number[];
   value: number;
   plans: readonly Plan[];
   onChange: (months: number) => void;
+  locale: Locale;
 }) {
+  const t = boundT(locale);
   const groupName = useId();
   if (durations.length < 2) return null;
   return (
@@ -157,7 +178,7 @@ function DurationSwitch({
                 }}
                 className="sr-only"
               />
-              {durationLabel(months)}
+              {durationLabel(months, locale)}
               {saving > 0 ? (
                 <span className="rounded-full bg-success-soft px-2 py-0.5 text-xs font-bold text-success">
                   {t("billing.pricing.savePercent", { percent: saving })}
@@ -185,7 +206,9 @@ export function PricingPlans({
   initialMonths,
   currencySwitch,
   orgId,
+  locale = "ar",
 }: PricingPlansProps) {
+  const t = boundT(locale);
   const durations = offeredDurations(plans);
   const [months, setMonths] = useState<number>(() =>
     initialMonths !== undefined && durations.includes(initialMonths)
@@ -224,21 +247,32 @@ export function PricingPlans({
               key={promotion.id}
               className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-full border border-success/30 bg-success-soft px-4 py-2 text-center"
             >
-              {promotion.badge ? <PromoBadge>{promotion.badge.ar}</PromoBadge> : null}
-              <span className="text-base font-semibold text-text">{promotion.title.ar}</span>
-              <Countdown endsAt={promotion.endsAt} />
+              {promotion.badge ? <PromoBadge>{promotion.badge[locale]}</PromoBadge> : null}
+              <span className="text-base font-semibold text-text">{promotion.title[locale]}</span>
+              <Countdown endsAt={promotion.endsAt} locale={locale} />
             </li>
           ))}
         </ul>
       ) : null}
 
       <div className="flex flex-col items-center gap-3">
-        <DurationSwitch durations={durations} value={months} plans={plans} onChange={setMonths} />
+        <DurationSwitch
+          durations={durations}
+          value={months}
+          plans={plans}
+          onChange={setMonths}
+          locale={locale}
+        />
         {currencySwitch}
       </div>
 
       {recommendation ? (
-        <Recommendation recommendation={recommendation} plans={plans} currency={currency} />
+        <Recommendation
+          recommendation={recommendation}
+          plans={plans}
+          currency={currency}
+          locale={locale}
+        />
       ) : null}
 
       <ul
@@ -256,11 +290,12 @@ export function PricingPlans({
         {freePlan ? (
           <li>
             <PlanCard
-              name={freePlan.names.ar}
-              tagline={freePlan.tagline?.ar ?? t("billing.plan.free.tagline")}
+              name={freePlan.names[locale]}
+              locale={locale}
+              tagline={freePlan.tagline?.[locale] ?? t("billing.plan.free.tagline")}
               badges={
                 <>
-                  {freePlan.badge ? <Badge tone="neutral">{freePlan.badge.ar}</Badge> : null}
+                  {freePlan.badge ? <Badge tone="neutral">{freePlan.badge[locale]}</Badge> : null}
                   {currentKey === freePlan.key ? (
                     <Badge tone="info">{t("billing.plan.current")}</Badge>
                   ) : null}
@@ -273,7 +308,7 @@ export function PricingPlans({
               }
               priceNote={t("billing.plan.free.note")}
               featuresTitle={t("billing.plan.includes")}
-              features={includedFeatures(freePlan.monthlyCredits, null, freePlan.features)}
+              features={includedFeatures(freePlan.monthlyCredits, null, freePlan.features, locale)}
               cta={
                 currentKey === freePlan.key ? (
                   <Link
@@ -310,8 +345,9 @@ export function PricingPlans({
           return (
             <li key={plan.key}>
               <PlanCard
-                name={plan.names.ar}
-                tagline={plan.tagline?.ar}
+                name={plan.names[locale]}
+                locale={locale}
+                tagline={plan.tagline?.[locale]}
                 highlighted={highlighted}
                 ribbon={
                   recommendedKey === plan.key
@@ -322,8 +358,8 @@ export function PricingPlans({
                 }
                 badges={
                   <>
-                    {promotion?.badge ? <PromoBadge>{promotion.badge.ar}</PromoBadge> : null}
-                    {plan.badge ? <Badge tone="neutral">{plan.badge.ar}</Badge> : null}
+                    {promotion?.badge ? <PromoBadge>{promotion.badge[locale]}</PromoBadge> : null}
+                    {plan.badge ? <Badge tone="neutral">{plan.badge[locale]}</Badge> : null}
                     {current ? <Badge tone="info">{t("billing.plan.current")}</Badge> : null}
                   </>
                 }
@@ -332,6 +368,7 @@ export function PricingPlans({
                     amountMinor={price.display.perMonthMinor}
                     currency={currency}
                     struckMinor={struckPerMonth}
+                    locale={locale}
                     suffix={t("billing.pricing.perMonthSuffix")}
                     size="xl"
                   />
@@ -342,8 +379,8 @@ export function PricingPlans({
                       {price.months === 1
                         ? t("billing.pricing.billedMonthly")
                         : t("billing.pricing.billedUpfront", {
-                            amount: moneyText(price.display.headlineMinor, currency),
-                            period: periodLabel(price.months),
+                            amount: moneyText(price.display.headlineMinor, currency, locale),
+                            period: periodLabel(price.months, locale),
                           })}
                     </span>
                     {offer.savingsPercent > 0 ? (
@@ -353,13 +390,20 @@ export function PricingPlans({
                     ) : null}
                     {!offer.exact ? (
                       <span>
-                        {t("billing.pricing.onlyPeriod", { period: periodLabel(price.months) })}
+                        {t("billing.pricing.onlyPeriod", {
+                          period: periodLabel(price.months, locale),
+                        })}
                       </span>
                     ) : null}
                   </span>
                 }
                 featuresTitle={t("billing.plan.includes")}
-                features={includedFeatures(plan.monthlyCredits, plan.maxMembers, plan.features)}
+                features={includedFeatures(
+                  plan.monthlyCredits,
+                  plan.maxMembers,
+                  plan.features,
+                  locale,
+                )}
                 cta={
                   current ? (
                     <Link
@@ -388,7 +432,7 @@ export function PricingPlans({
                         );
                       }}
                     >
-                      {t("billing.plan.choose", { name: plan.names.ar })}
+                      {t("billing.plan.choose", { name: plan.names[locale] })}
                     </Link>
                   )
                 }
@@ -397,7 +441,7 @@ export function PricingPlans({
                     ? t("billing.plan.trial", { days: plan.trialDays })
                     : undefined
                 }
-                finePrint={plan.fairUseNote?.ar}
+                finePrint={plan.fairUseNote?.[locale]}
               />
             </li>
           );

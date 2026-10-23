@@ -1,4 +1,4 @@
-import { t } from "@wasfa/shared/i18n";
+import { t, type Locale } from "@wasfa/shared/i18n";
 import { Check, Minus } from "lucide-react";
 import { useId, type ReactNode } from "react";
 
@@ -32,6 +32,8 @@ export interface PlanCardProps {
   footnote?: ReactNode;
   /** A muted line at the very end (the fair-use note). */
   finePrint?: ReactNode;
+  /** Language of the screen-reader text. */
+  locale?: Locale | undefined;
   headingAs?: "h2" | "h3" | undefined;
   className?: string | undefined;
 }
@@ -54,6 +56,7 @@ export function PlanCard({
   cta,
   footnote,
   finePrint,
+  locale = "ar",
   headingAs: Heading = "h3",
   className,
 }: PlanCardProps) {
@@ -125,7 +128,10 @@ export function PlanCard({
                 >
                   {feature.text}
                   {feature.included ? null : (
-                    <span className="sr-only"> ({t("billing.feature.notIncluded")})</span>
+                    <span className="sr-only">
+                      {" "}
+                      ({t("billing.feature.notIncluded", undefined, locale)})
+                    </span>
                   )}
                 </span>
               </li>
