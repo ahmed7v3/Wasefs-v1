@@ -9,7 +9,7 @@ import { HowItWorks } from "../../components/marketing/how-it-works";
 import { JsonLd } from "../../components/marketing/json-ld";
 import { LandingHero } from "../../components/marketing/landing-hero";
 import { MascotSprite } from "../../components/marketing/mascot";
-import { PrecisionDemo } from "../../components/marketing/precision-demo";
+import { PrecisionWalkthrough } from "../../components/marketing/precision-walkthrough";
 import { SkillsGrid } from "../../components/marketing/skills-grid";
 import { TrustSection } from "../../components/marketing/trust-section";
 import { Notice } from "../../components/notice";
@@ -62,7 +62,10 @@ export default async function HomePage({
       <MascotSprite />
       <LandingHero />
       <SkillsGrid />
-      <PrecisionDemo />
+      <PrecisionWalkthrough
+        proof={settings.landing.proof}
+        westernDigits={settings.locale.westernDigits}
+      />
       <HowItWorks />
       <Audiences />
       <TrustSection />

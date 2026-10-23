@@ -18,14 +18,42 @@ export function HowItWorks({ locale = "ar" }: { locale?: Locale }) {
       <Container>
         <SectionHeading id="how-title" eyebrow={how.eyebrow} title={how.title} lead={how.lead} />
         <ol className="relative mt-12 grid gap-8 md:grid-cols-3 md:gap-6">
-          <span
+          <svg
+            viewBox="0 0 2 100"
+            preserveAspectRatio="none"
+            className="motion-draw absolute inset-y-8 start-[27px] w-0.5 md:hidden"
+            fill="none"
             aria-hidden="true"
-            className="absolute inset-y-8 start-7 border-s-2 border-dashed border-primary/30 md:hidden"
-          />
-          <span
+            focusable="false"
+          >
+            <path
+              d="M1 0V100"
+              className="stroke-primary/30"
+              strokeWidth="2"
+              strokeDasharray="4 5"
+              strokeDashoffset="0"
+              vectorEffect="non-scaling-stroke"
+            />
+            <path d="M1 0V100" pathLength="1" className="stroke-primary" strokeWidth="2" />
+          </svg>
+          <svg
+            viewBox="0 0 100 2"
+            preserveAspectRatio="none"
+            className="motion-draw absolute inset-x-[16.6%] top-[27px] hidden h-0.5 md:block rtl:-scale-x-100"
+            fill="none"
             aria-hidden="true"
-            className="absolute inset-x-[16.6%] top-7 hidden border-t-2 border-dashed border-primary/30 md:block"
-          />
+            focusable="false"
+          >
+            <path
+              d="M0 1H100"
+              className="stroke-primary/30"
+              strokeWidth="2"
+              strokeDasharray="4 5"
+              strokeDashoffset="0"
+              vectorEffect="non-scaling-stroke"
+            />
+            <path d="M0 1H100" pathLength="1" className="stroke-primary" strokeWidth="2" />
+          </svg>
           {how.steps.map((step, index) => {
             const Icon = STEP_ICONS[index] ?? Upload;
             return (

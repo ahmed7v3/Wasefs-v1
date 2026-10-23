@@ -1,366 +1,362 @@
 import { landingFor } from "../../content/landing-locale";
-import { localeDir, type Locale } from "../../lib/locale";
 
-import { Mascot } from "./mascot";
+import type { Locale } from "../../lib/locale";
 
 /*
- * The hero illustration: a prescription sheet on an isometric platform. A light curtain sweeps over
- * the sheet and the handwriting turns into three structured result bars (two confirmed, one flagged
- * for review) while small data blocks flow between them; the star mascot watches from the middle.
+ * The hero illustration (BRAND-AND-HOMEPAGE §3.1): a handwritten prescription card, a scan beam,
+ * and a structured result card with three rows (two confident, one flagged for the pharmacist).
+ * The cards carry a thin slab edge on one 30-degree axis, which is the only "isometric" cue, so the
+ * text on them stays flat and crisp. Pure inline SVG (no request, well under 25 KB); the words are
+ * real SVG text in the page language, and the whole picture is one `role="img"` with the alt text.
  *
- * Pure SVG, no raster image and no JavaScript. The geometry is computed here from plan coordinates
- * (x, y on the platform, z up) with a 2:1 isometric projection, so the whole scene is a handful of
- * polygons. Animation lives in globals.css (`.iso-scan`, `.iso-packet`, `.mascot-*`), switches off
- * under reduced motion and leaves a complete still picture.
+ * Coordinates are absolute screen coordinates in a 520 x 340 box, so the wrapper is `ltr`; Arabic
+ * mirrors the layout by computing mirrored x positions (`px`) and text anchors, never by flipping
+ * the drawing, so no glyph is ever mirrored. Motion lives in globals.css (`.hero-*`): an intro of
+ * about 2.4 s, then still, with an occasional shimmer while the hero is in view; all of it is off
+ * under reduced motion, which leaves the finished picture.
  *
- * Plan axes on screen: x runs down to the right, y runs down to the left, so the sheet (low y) sits
- * at the upper right and the results (high y) at the lower left, which reads right to left.
+ * Three stacked layers move at different rates on scroll (`motion-parallax`): glow, cards, icons.
  */
 
-/** Screen pixels per plan unit, and the origin of the projection. */
-const U = 18;
-const OX = 328;
-const OY = 140;
+const W = 520;
+const H = 340;
 
-type Point = readonly [number, number];
+/** Plan of the scene in left-to-right coordinates; `px` mirrors them for Arabic. */
+const PRESCRIPTION = { x: 12, y: 64, w: 140, h: 200 } as const;
+const RESULT = { x: 196, y: 28, w: 312, h: 284 } as const;
+const SLAB = { dx: 9, dy: 5 } as const;
+const BEAM_W = 20;
+const ROW = { top: 54, pitch: 70, h: 60, inset: 14 } as const;
 
-function project(x: number, y: number, z: number): Point {
-  return [OX + (x - y) * U, OY + ((x + y) * U) / 2 - z];
-}
+const NAVY = "#1e3a8a";
+const BLUE = "#3b82f6";
+const INK = "#0b1220";
+const MUTED = "#4a5670";
+const EDGE = "#c4cddd";
+const SLAB_FILL = "#dfe4ee";
+const SUCCESS = "#15803d";
+const WARN = "#b45309";
+const WARN_EDGE = "#d4902e";
 
-function points(list: readonly (readonly [number, number, number])[]): string {
-  return list.map(([x, y, z]) => project(x, y, z).join(",")).join(" ");
-}
+function Scene({ locale }: { locale: Locale }) {
+  const { visual } = landingFor(locale);
+  const rtl = locale === "ar";
+  /** Left edge of a box of width `w` that sits at `x` in the left-to-right plan. */
+  const px = (x: number, w: number): number => (rtl ? W - x - w : x);
+  /** Text anchored at the start side of a box: its start edge, mirrored for Arabic. */
+  const startOf = (x: number, w: number, pad: number): number =>
+    rtl ? px(x, w) + w - pad : px(x, w) + pad;
+  // SVG `start` follows the text direction: with `direction="rtl"` it is the right edge.
+  const anchor = "start";
+  const dir = rtl ? "rtl" : "ltr";
 
-/** `transform` that maps a flat drawing in plan coordinates onto the plane at height `z`. */
-function plane(z: number): string {
-  return `matrix(${U} ${U / 2} ${-U} ${U / 2} ${OX} ${OY - z})`;
-}
+  const card = PRESCRIPTION;
+  const cardX = px(card.x, card.w);
+  const result = RESULT;
+  const resultX = px(result.x, result.w);
+  const dxSlab = rtl ? -SLAB.dx : SLAB.dx;
 
-interface BoxColors {
-  top: string;
-  left: string;
-  right: string;
-  stroke: string;
-}
+  /** A handwriting-like line: `waves` small humps starting at `x` and running to the page's end side. */
+  const squiggle = (x: number, y: number, waves: number): string => {
+    const s = rtl ? -1 : 1;
+    return `M${x} ${y}q${5 * s} -5 ${10 * s} 0${`t${10 * s} 0`.repeat(waves - 1)}`;
+  };
+  const inkStart = rtl ? cardX + card.w - 14 : cardX + 14;
 
-/** A box seen from the front corner: top face, the face towards +y (left) and the one towards +x (right). */
-function Box({
-  x0,
-  y0,
-  x1,
-  y1,
-  z0,
-  z1,
-  colors,
-}: {
-  x0: number;
-  y0: number;
-  x1: number;
-  y1: number;
-  z0: number;
-  z1: number;
-  colors: BoxColors;
-}) {
-  return (
-    <g stroke={colors.stroke} strokeWidth="1" strokeLinejoin="round">
-      <polygon
-        points={points([
-          [x0, y1, z1],
-          [x1, y1, z1],
-          [x1, y1, z0],
-          [x0, y1, z0],
-        ])}
-        fill={colors.left}
-      />
-      <polygon
-        points={points([
-          [x1, y0, z1],
-          [x1, y1, z1],
-          [x1, y1, z0],
-          [x1, y0, z0],
-        ])}
-        fill={colors.right}
-      />
-      <polygon
-        points={points([
-          [x0, y0, z1],
-          [x1, y0, z1],
-          [x1, y1, z1],
-          [x0, y1, z1],
-        ])}
-        fill={colors.top}
-      />
-    </g>
-  );
-}
+  const chipW = Math.round(visual.sampleBadge.length * 7.4 + 28);
+  const chipX = px(result.x + result.w - chipW - 14, chipW);
+  const badgeW = (text: string): number => Math.round(text.length * 6.8 + 22);
 
-const PLATFORM: BoxColors = {
-  top: "#fcfcfb",
-  left: "#eceef3",
-  right: "#dfe3eb",
-  stroke: "#d3d9e5",
-};
-const SHEET: BoxColors = { top: "#ffffff", left: "#e6e9f0", right: "#d9dee8", stroke: "#c4cddd" };
-const CONFIRMED: BoxColors = {
-  top: "#ffffff",
-  left: "#c3d3f6",
-  right: "#a6baee",
-  stroke: "#8ea6e6",
-};
-const FLAGGED: BoxColors = { top: "#fff8ea", left: "#f6dcaa", right: "#eac684", stroke: "#d4902e" };
-const BLOCK_BLUE: BoxColors = {
-  top: "#60a5fa",
-  left: "#3b82f6",
-  right: "#2563eb",
-  stroke: "#2563eb",
-};
-const BLOCK_NAVY: BoxColors = {
-  top: "#3b5bb5",
-  left: "#1e3a8a",
-  right: "#172e6e",
-  stroke: "#172e6e",
-};
-const BLOCK_PALE: BoxColors = {
-  top: "#ffffff",
-  left: "#e6e9f0",
-  right: "#d9dee8",
-  stroke: "#cdd4e2",
-};
-
-/** A handwriting-like line along plan x: a chain of small waves. */
-function squiggle(x: number, y: number, length: number): string {
-  const waves = Math.max(2, Math.floor(length / 0.7));
-  return `M${x} ${y}q0.35 -0.3 0.7 0${"t0.7 0".repeat(waves - 1)}`;
-}
-
-/** Sheet rows: length of the handwriting in plan units. */
-const ROWS = [4.6, 3.9, 5, 3.2, 4.2] as const;
-/** Result bars along plan y, the last one is the flagged line. */
-const BARS = [
-  { y: 9.8, colors: CONFIRMED },
-  { y: 11.9, colors: CONFIRMED },
-  { y: 14, colors: FLAGGED },
-] as const;
-/** Low blocks on the platform between the sheet and the bars, like the keys of the reference. */
-const BLOCKS = [
-  { x: 4.4, y: 7.1, h: 3, colors: BLOCK_PALE },
-  { x: 5.4, y: 7.1, h: 6, colors: BLOCK_BLUE },
-  { x: 6.4, y: 7.1, h: 2.5, colors: BLOCK_PALE },
-  { x: 4.4, y: 8.1, h: 5, colors: BLOCK_PALE },
-  { x: 5.4, y: 8.1, h: 2.5, colors: BLOCK_PALE },
-  { x: 6.4, y: 8.1, h: 5.5, colors: BLOCK_NAVY },
-] as const;
-/** Data blocks that fly from the sheet towards the bars (see `.iso-packet`). */
-const PACKETS = [
-  { x: 5, delay: "[animation-delay:0s]", colors: BLOCK_BLUE },
-  { x: 6, delay: "[animation-delay:1.2s]", colors: BLOCK_NAVY },
-  { x: 7, delay: "[animation-delay:2.4s]", colors: BLOCK_BLUE },
-] as const;
-
-const SLAB_TOP = 10;
-const SHEET_TOP = 12;
-const BAR_TOP = 18;
-
-function SceneSvg() {
-  const [mx, my] = project(2.4, 8.2, SLAB_TOP);
   return (
     <svg
-      viewBox="28 112 456 268"
-      className="relative h-auto w-full"
+      viewBox={`0 0 ${W} ${H}`}
+      className="absolute inset-0 size-full"
       fill="none"
       aria-hidden="true"
       focusable="false"
     >
       <defs>
-        <linearGradient id="iso-beam-fill" x1="0" y1="1" x2="0" y2="0">
-          <stop offset="0" stopColor="#60a5fa" stopOpacity="0.55" />
-          <stop offset="1" stopColor="#60a5fa" stopOpacity="0" />
+        <linearGradient id="hero-beam-fill" x1={rtl ? 1 : 0} y1="0" x2={rtl ? 0 : 1} y2="0">
+          <stop offset="0" stopColor={BLUE} stopOpacity="0" />
+          <stop offset="1" stopColor={BLUE} stopOpacity="0.5" />
         </linearGradient>
       </defs>
 
-      {/* Soft contact shadow of the platform. */}
-      <polygon
-        points={points([
-          [0, 0, 0],
-          [8, 0, 0],
-          [8, 16, 0],
-          [0, 16, 0],
-        ])}
-        transform="translate(0 14)"
-        fill="#1e3a8a"
-        fillOpacity="0.1"
-      />
+      {/* Contact shadow under both cards. */}
+      <ellipse cx={W / 2} cy="326" rx="214" ry="9" fill={NAVY} fillOpacity="0.08" />
 
-      <Box x0={0} y0={0} x1={8} y1={16} z0={0} z1={SLAB_TOP} colors={PLATFORM} />
-
-      {/* Fine grid on the platform. */}
-      <g transform={plane(SLAB_TOP)} stroke="#e5e8ef" strokeWidth="1">
-        {Array.from({ length: 7 }, (_, index) => (
-          <path key={`gx-${index}`} d={`M${index + 1} 0V16`} vectorEffect="non-scaling-stroke" />
-        ))}
-        {Array.from({ length: 15 }, (_, index) => (
-          <path key={`gy-${index}`} d={`M0 ${index + 1}H8`} vectorEffect="non-scaling-stroke" />
-        ))}
-      </g>
-
-      {/* The prescription sheet with its handwriting. */}
-      <Box x0={1} y0={0.6} x1={7} y1={6.8} z0={SLAB_TOP} z1={SHEET_TOP} colors={SHEET} />
-      <g transform={plane(SHEET_TOP)}>
-        <rect x="1.5" y="1.2" width="1.9" height="0.4" rx="0.1" fill="#1e3a8a" />
-        <circle cx="6.1" cy="1.4" r="0.38" fill="#60a5fa" />
-        <g strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
-          {ROWS.map((length, index) => (
-            <path
-              key={`row-${index}`}
-              d={squiggle(1.5, 2.5 + index * 0.9, length)}
-              stroke={index === ROWS.length - 1 ? "#b45309" : "#64708a"}
-              strokeOpacity={index === ROWS.length - 1 ? 0.9 : 0.7}
-              vectorEffect="non-scaling-stroke"
-            />
-          ))}
+      {/* Prescription card: it settles into place first. */}
+      <g className="hero-paper">
+        <rect
+          x={cardX + dxSlab}
+          y={card.y + SLAB.dy}
+          width={card.w}
+          height={card.h}
+          rx="10"
+          fill={SLAB_FILL}
+          stroke={EDGE}
+        />
+        <rect
+          x={cardX}
+          y={card.y}
+          width={card.w}
+          height={card.h}
+          rx="10"
+          fill="#ffffff"
+          stroke={EDGE}
+        />
+        <text
+          x={startOf(card.x, card.w, 14)}
+          y={card.y + 34}
+          fontSize="22"
+          fontWeight="700"
+          fill={NAVY}
+          textAnchor={rtl ? "end" : "start"}
+          direction="ltr"
+        >
+          Rx
+        </text>
+        <circle cx={rtl ? cardX + 22 : cardX + card.w - 22} cy={card.y + 26} r="7" fill="#60a5fa" />
+        <g strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5">
+          <path d={squiggle(inkStart, card.y + 66, 8)} stroke="#64708a" strokeOpacity="0.8" />
+          <path d={squiggle(inkStart, card.y + 96, 7)} stroke="#64708a" strokeOpacity="0.8" />
+          <path d={squiggle(inkStart, card.y + 126, 8)} stroke="#64708a" strokeOpacity="0.8" />
+          <path
+            d={squiggle(inkStart, card.y + 156, 6)}
+            stroke={WARN}
+            strokeOpacity="0.9"
+            strokeDasharray="3 6"
+          />
         </g>
       </g>
 
-      {/* Keys between the sheet and the results. */}
-      {BLOCKS.map((block) => (
-        <Box
-          key={`${block.x}-${block.y}`}
-          x0={block.x}
-          y0={block.y}
-          x1={block.x + 0.75}
-          y1={block.y + 0.75}
-          z0={SLAB_TOP}
-          z1={SLAB_TOP + block.h}
-          colors={block.colors}
-        />
-      ))}
+      {/* A chevron in the gap: the line goes from the card to the result. */}
+      <path
+        d={rtl ? "M345 163l-7 7 7 7" : "M175 163l7 7-7 7"}
+        stroke={BLUE}
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
 
-      {/* Mascot: ground shadow, then the body (it floats gently). */}
-      <ellipse cx={mx} cy={my} rx="32" ry="11" fill="#1e3a8a" fillOpacity="0.16" />
-      <g className="mascot-bob">
-        <use href="#mascot-star" x={mx - 50} y={my - 92} width="100" height="100" />
+      {/* Result card with its attached sample chip. */}
+      <g>
+        <rect
+          x={resultX + dxSlab}
+          y={result.y + SLAB.dy}
+          width={result.w}
+          height={result.h}
+          rx="14"
+          fill={SLAB_FILL}
+          stroke={EDGE}
+        />
+        <rect
+          x={resultX}
+          y={result.y}
+          width={result.w}
+          height={result.h}
+          rx="14"
+          fill="#ffffff"
+          stroke={EDGE}
+        />
+        <text
+          x={startOf(result.x, result.w, 20)}
+          y={result.y + 36}
+          fontSize="18"
+          fontWeight="700"
+          fill={INK}
+          textAnchor={anchor}
+          direction={dir}
+        >
+          {visual.resultTitle}
+        </text>
+        <rect
+          x={chipX}
+          y={result.y - 14}
+          width={chipW}
+          height="28"
+          rx="14"
+          fill="#e3eafb"
+          stroke={NAVY}
+          strokeOpacity="0.35"
+        />
+        <text
+          x={chipX + chipW / 2}
+          y={result.y + 5}
+          fontSize="13"
+          fontWeight="700"
+          fill={NAVY}
+          textAnchor="middle"
+          direction={dir}
+        >
+          {visual.sampleBadge}
+        </text>
+
+        {visual.items.map((item, index) => {
+          const flagged = item.flag === "review";
+          const rowY = result.y + ROW.top + index * ROW.pitch;
+          const rowX = px(result.x + ROW.inset, result.w - ROW.inset * 2);
+          const rowW = result.w - ROW.inset * 2;
+          const label = flagged ? visual.review : visual.confidenceHigh;
+          const labelW = badgeW(label);
+          const textStart = startOf(result.x + ROW.inset, rowW, 50);
+          const badgeX = rtl ? textStart - labelW : textStart;
+          return (
+            <g key={item.name} className={`hero-row hero-row-${index + 1}`}>
+              <rect
+                x={rowX}
+                y={rowY}
+                width={rowW}
+                height={ROW.h}
+                rx="10"
+                fill={flagged ? "#fef3c7" : "#f6f6f4"}
+                stroke={flagged ? WARN_EDGE : "#d3dae6"}
+                strokeWidth={flagged ? 1.5 : 1}
+                className={flagged ? "hero-flag" : undefined}
+              />
+              <circle
+                cx={startOf(result.x + ROW.inset, rowW, 24)}
+                cy={rowY + ROW.h / 2}
+                r="12"
+                fill={flagged ? WARN : SUCCESS}
+              />
+              {flagged ? (
+                <path
+                  d={`M${startOf(result.x + ROW.inset, rowW, 24)} ${rowY + 24}v7m0 4v0.5`}
+                  stroke="#ffffff"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                />
+              ) : (
+                <path
+                  d={`M${startOf(result.x + ROW.inset, rowW, 24) - 5} ${rowY + 31}l4 4 7-8`}
+                  stroke="#ffffff"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              )}
+              <text
+                x={textStart}
+                y={rowY + 26}
+                fontSize="16"
+                fontWeight="700"
+                fill={INK}
+                textAnchor={anchor}
+                direction={dir}
+              >
+                {item.name}
+              </text>
+              <rect
+                x={badgeX}
+                y={rowY + 34}
+                width={labelW}
+                height="20"
+                rx="10"
+                fill={flagged ? "#ffffff" : "#dcfce7"}
+                stroke={flagged ? WARN_EDGE : SUCCESS}
+                strokeOpacity="0.5"
+              />
+              <text
+                x={badgeX + labelW / 2}
+                y={rowY + 48}
+                fontSize="12"
+                fontWeight="700"
+                fill={flagged ? WARN : SUCCESS}
+                textAnchor="middle"
+                direction={dir}
+              >
+                {label}
+              </text>
+            </g>
+          );
+        })}
+        <text
+          x={startOf(result.x, result.w, 20)}
+          y={result.y + result.h - 8}
+          fontSize="12"
+          fill={MUTED}
+          textAnchor={anchor}
+          direction={dir}
+        >
+          {visual.note}
+        </text>
       </g>
 
-      {/* Result bars: confirmed lines and the one flagged for review. */}
-      {BARS.map((bar, index) => {
-        const flagged = bar.colors === FLAGGED;
-        return (
-          <g key={bar.y}>
-            <Box
-              x0={0.9}
-              y0={bar.y}
-              x1={7.1}
-              y1={bar.y + 1.4}
-              z0={SLAB_TOP}
-              z1={BAR_TOP}
-              colors={bar.colors}
-            />
-            <g transform={plane(BAR_TOP)} strokeLinecap="round">
-              <circle cx="1.55" cy={bar.y + 0.7} r="0.34" fill={flagged ? "#d4902e" : "#3b82f6"} />
-              <path
-                d={`M2.3 ${bar.y + 0.48}H${index === 1 ? 5.1 : 5.5}`}
-                stroke="#0b1220"
-                strokeOpacity="0.8"
-                strokeWidth="3"
-                vectorEffect="non-scaling-stroke"
-              />
-              <path
-                d={`M2.3 ${bar.y + 0.98}H${index === 1 ? 4.2 : 4.6}`}
-                stroke="#8792a8"
-                strokeWidth="2"
-                vectorEffect="non-scaling-stroke"
-              />
-              <rect
-                x="6"
-                y={bar.y + 0.35}
-                width="0.85"
-                height="0.7"
-                rx="0.2"
-                fill={flagged ? "#d4902e" : "#3b82f6"}
-                fillOpacity={flagged ? 0.9 : 0.85}
-              />
-            </g>
-          </g>
-        );
-      })}
-
-      {/* The light curtain: starts at the back edge of the sheet and sweeps towards the front. */}
-      <g className="iso-scan">
-        <polygon
-          points={points([
-            [0.8, 0.8, SHEET_TOP],
-            [7.2, 0.8, SHEET_TOP],
-            [7.2, 0.8, SHEET_TOP + 34],
-            [0.8, 0.8, SHEET_TOP + 34],
-          ])}
-          fill="url(#iso-beam-fill)"
+      {/* Scan beam: a soft band with a bright leading edge that sweeps once over the prescription. */}
+      <g className={`hero-beam ${rtl ? "[--beam-dx:-120px]" : "[--beam-dx:120px]"}`}>
+        <rect
+          x={rtl ? cardX + card.w - BEAM_W : cardX}
+          y={card.y - 8}
+          width={BEAM_W}
+          height={card.h + 16}
+          fill="url(#hero-beam-fill)"
         />
         <path
-          d={`M${project(0.8, 0.8, SHEET_TOP).join(" ")}L${project(7.2, 0.8, SHEET_TOP).join(" ")}`}
-          stroke="#2563eb"
+          d={`M${rtl ? cardX + card.w - BEAM_W : cardX + BEAM_W} ${card.y - 8}v${card.h + 16}`}
+          stroke={BLUE}
           strokeWidth="3"
           strokeLinecap="round"
         />
       </g>
+    </svg>
+  );
+}
 
-      {/* Data blocks on their way from the sheet to the results. */}
-      {PACKETS.map((packet) => (
-        <g key={packet.x} className={`iso-packet ${packet.delay}`}>
-          <Box
-            x0={packet.x}
-            y0={3.4}
-            x1={packet.x + 0.6}
-            y1={4}
-            z0={SHEET_TOP + 16}
-            z1={SHEET_TOP + 21}
-            colors={packet.colors}
-          />
-        </g>
-      ))}
+/** Three decorative icons on an 8 px grid, each with its own slow motion; clear of all text. */
+function Icons({ locale }: { locale: Locale }) {
+  const rtl = locale === "ar";
+  const place = (x: number, size: number): number => (rtl ? W - x - size : x);
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="absolute inset-0 size-full"
+      fill="none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <g className="float-slow [animation-duration:7s] [animation-delay:0.4s]">
+        <use href="#mascot-capsule" x={place(8, 56)} y="0" width="56" height="56" />
+      </g>
+      <g className="float-slow [animation-duration:9s] [animation-delay:1.6s]">
+        <use href="#mascot-tablet" x={place(112, 48)} y="8" width="48" height="48" />
+      </g>
+      <g className="float-slow [animation-duration:8s] [animation-delay:2.4s]">
+        <use href="#mascot-droplet" x={place(104, 48)} y="280" width="48" height="48" />
+      </g>
     </svg>
   );
 }
 
 /**
- * The scene, a soft glow behind it, three small mascots and the two floating chips (HTML, so the
- * Arabic is real text). The wrapper is `ltr` because the drawing is in absolute screen coordinates;
- * the chips switch back to the page direction.
+ * The scene in a reserved `aspect-ratio` box (no layout shift), capped at 52 svh tall on a phone.
+ * The wrapper is `ltr` because the drawing is in absolute coordinates; the text inside is set per
+ * language. `landing.visual.alt` describes the whole picture for assistive technology.
  */
 export function IsoScene({ locale = "ar" }: { locale?: Locale }) {
   const { visual } = landingFor(locale);
+  const rtl = locale === "ar";
   return (
-    <div dir="ltr" role="img" aria-label={visual.alt} className="relative mx-auto w-full max-w-2xl">
+    <div dir="ltr" role="img" aria-label={visual.alt} className="hero-scene relative">
       <div
         aria-hidden="true"
-        className="absolute inset-x-[8%] inset-y-[6%] rounded-full bg-[radial-gradient(closest-side,var(--color-accent-soft),transparent)]"
+        className="motion-parallax absolute inset-x-[8%] inset-y-[6%] rounded-full bg-[radial-gradient(closest-side,var(--color-accent-soft),transparent)] [--parallax-shift:6px]"
       />
-      <SceneSvg />
-      <span className="float-slow absolute start-[1%] top-[2%] [animation-delay:0.8s]">
-        <Mascot name="capsule" className="size-12 sm:size-16" />
-      </span>
-      <span className="float-slow absolute start-[88%] top-[66%] [animation-delay:2s]">
-        <Mascot name="droplet" className="size-12 sm:size-14" />
-      </span>
-      <span className="float-slow absolute start-[70%] top-[0%] [animation-delay:1.6s]">
-        <Mascot name="tablet" className="size-10 sm:size-12" />
-      </span>
-      <span className="float-slow absolute start-[6%] top-[24%]">
-        <span
-          dir={localeDir(locale)}
-          className="block rounded-full border border-success/25 bg-surface px-3 py-1 text-sm font-semibold text-success shadow-card"
-        >
-          {visual.confidenceHigh}
-        </span>
-      </span>
-      <span className="float-slow absolute start-[17%] top-[76%] [animation-delay:1.2s]">
-        <span
-          dir={localeDir(locale)}
-          className="block rounded-full border border-warning/30 bg-warning-soft px-3 py-1 text-sm font-semibold text-warning shadow-card"
-        >
-          {visual.review}
-        </span>
-      </span>
+      <div aria-hidden="true" className="motion-parallax absolute inset-0 [--parallax-shift:12px]">
+        <Scene locale={locale} />
+        <div className="hero-shimmer-gate pointer-events-none absolute inset-0">
+          <div
+            className={`absolute top-[8.24%] h-[83.53%] w-[60%] overflow-hidden rounded-[2.5%] ${
+              rtl ? "start-[2.31%]" : "start-[37.69%]"
+            }`}
+          >
+            <div className="hero-shimmer h-full w-1/4 bg-linear-to-r from-transparent via-white/45 to-transparent" />
+          </div>
+        </div>
+      </div>
+      <div aria-hidden="true" className="motion-parallax absolute inset-0 [--parallax-shift:24px]">
+        <Icons locale={locale} />
+      </div>
     </div>
   );
 }

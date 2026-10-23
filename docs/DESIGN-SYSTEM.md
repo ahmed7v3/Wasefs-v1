@@ -133,6 +133,8 @@ Layer order (z-index): sticky bars 10, dropdowns and popovers 20, drawers and di
 
 Rules: animate only `opacity` and `transform` (and colour); no layout-shifting animation. Motion never carries meaning on its own. **`prefers-reduced-motion: reduce`** is honoured globally in `globals.css` (animations and transitions collapse to ~0 ms), so components do not need their own checks; auto-playing or looping animation is not allowed outside the landing hero, and there it must also stop under reduced motion.
 
+**Scroll motion catalog (public landing only, `globals.css` "Scroll motion" block).** CSS scroll-driven animation (`animation-timeline: view()`/`scroll()`) is allowed for exactly these utilities, always inside `@supports (animation-timeline: view())` **and** `@media (prefers-reduced-motion: no-preference)`, with no JS scroll listeners and nothing hidden by default: `motion-parallax` (layer drift, `--parallax-shift` at most 24px), `motion-draw` (SVG `stroke-dashoffset` on `pathLength="1"` paths), `motion-settle` (cards from `scale(.97) translateY(12px)`, opacity never below 0.6), `motion-underline` (heading underline `scaleX`), and the precision sticky story (`motion-story*`, `precision-sticky`, `story-panel*`; `will-change` only on the sticky stage). Only `transform`, `opacity`, `clip-path` and `stroke-dashoffset` animate. Browsers without support get the still, fully visible page.
+
 ---
 
 ## 4. RTL rules
@@ -344,4 +346,4 @@ The pricing page, checkout and billing account are built from these (all strings
 - No layout shift: images via `next/image` with explicit sizes; fonts via `next/font` (done); skeletons keep their space.
 - No webfont beyond the two families; icons come from `lucide-react` only (AGENT.md §3), imported individually.
 - Backgrounds are CSS gradients, not images (`.page-backdrop`). The landing page targets Lighthouse mobile Performance ≥ 95, SEO 100, Best Practices 100, Accessibility ≥ 95 (Task 1.11).
-- Motion budget: nothing animates on scroll except the optional, reduced-motion-safe landing reveals.
+- Motion budget: nothing animates on scroll except the scroll-motion catalog of §3.7 (landing only, reduced-motion-safe, `transform`/`opacity`/`stroke-dashoffset`, no JS listeners, `will-change` only on the sticky stage).
