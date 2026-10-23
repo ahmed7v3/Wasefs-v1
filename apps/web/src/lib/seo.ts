@@ -63,6 +63,114 @@ export const PUBLIC_PAGES = {
     priority: 0.4,
     ogImage: "/og/disclaimer.png",
   },
+  featurePrescriptionReader: {
+    path: "/features/prescription-reader",
+    pathEn: "/en/features/prescription-reader",
+    lastModified: "2026-10-20",
+    changeFrequency: "monthly",
+    priority: 0.8,
+    // No per-page card yet: the home card until `pnpm og:images` renders one.
+    ogImage: "/og/home.png",
+  },
+  featureHandwrittenPrescriptions: {
+    path: "/features/handwritten-prescriptions",
+    pathEn: "/en/features/handwritten-prescriptions",
+    lastModified: "2026-10-20",
+    changeFrequency: "monthly",
+    priority: 0.8,
+    // No per-page card yet: the home card until `pnpm og:images` renders one.
+    ogImage: "/og/home.png",
+  },
+  featureMedicineExplainer: {
+    path: "/features/medicine-explainer",
+    pathEn: "/en/features/medicine-explainer",
+    lastModified: "2026-10-20",
+    changeFrequency: "monthly",
+    priority: 0.8,
+    // No per-page card yet: the home card until `pnpm og:images` renders one.
+    ogImage: "/og/home.png",
+  },
+  featureAiAssistant: {
+    path: "/features/ai-assistant",
+    pathEn: "/en/features/ai-assistant",
+    lastModified: "2026-10-20",
+    changeFrequency: "monthly",
+    priority: 0.8,
+    // No per-page card yet: the home card until `pnpm og:images` renders one.
+    ogImage: "/og/home.png",
+  },
+  forPharmacists: {
+    path: "/for/pharmacists",
+    pathEn: "/en/for/pharmacists",
+    lastModified: "2026-10-20",
+    changeFrequency: "monthly",
+    priority: 0.7,
+    // No per-page card yet: the home card until `pnpm og:images` renders one.
+    ogImage: "/og/home.png",
+  },
+  forClinics: {
+    path: "/for/clinics",
+    pathEn: "/en/for/clinics",
+    lastModified: "2026-10-20",
+    changeFrequency: "monthly",
+    priority: 0.7,
+    // No per-page card yet: the home card until `pnpm og:images` renders one.
+    ogImage: "/og/home.png",
+  },
+  forDoctors: {
+    path: "/for/doctors",
+    pathEn: "/en/for/doctors",
+    lastModified: "2026-10-20",
+    changeFrequency: "monthly",
+    priority: 0.7,
+    // No per-page card yet: the home card until `pnpm og:images` renders one.
+    ogImage: "/og/home.png",
+  },
+  forPatients: {
+    path: "/for/patients",
+    pathEn: "/en/for/patients",
+    lastModified: "2026-10-20",
+    changeFrequency: "monthly",
+    priority: 0.7,
+    // No per-page card yet: the home card until `pnpm og:images` renders one.
+    ogImage: "/og/home.png",
+  },
+  about: {
+    path: "/about",
+    pathEn: "/en/about",
+    lastModified: "2026-10-20",
+    changeFrequency: "yearly",
+    priority: 0.5,
+    // No per-page card yet: the home card until `pnpm og:images` renders one.
+    ogImage: "/og/home.png",
+  },
+  editorialPolicy: {
+    path: "/editorial-policy",
+    pathEn: "/en/editorial-policy",
+    lastModified: "2026-10-20",
+    changeFrequency: "yearly",
+    priority: 0.5,
+    // No per-page card yet: the home card until `pnpm og:images` renders one.
+    ogImage: "/og/home.png",
+  },
+  medicalReview: {
+    path: "/medical-review",
+    pathEn: "/en/medical-review",
+    lastModified: "2026-10-20",
+    changeFrequency: "yearly",
+    priority: 0.5,
+    // No per-page card yet: the home card until `pnpm og:images` renders one.
+    ogImage: "/og/home.png",
+  },
+  sources: {
+    path: "/sources",
+    pathEn: "/en/sources",
+    lastModified: "2026-10-20",
+    changeFrequency: "yearly",
+    priority: 0.5,
+    // No per-page card yet: the home card until `pnpm og:images` renders one.
+    ogImage: "/og/home.png",
+  },
 } as const satisfies Record<
   string,
   {
