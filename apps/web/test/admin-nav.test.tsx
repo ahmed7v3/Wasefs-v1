@@ -22,10 +22,17 @@ const hrefs = (permissions: readonly string[]) =>
 
 describe("visibleNavGroups", () => {
   it("shows only the pages the permissions allow, and drops empty groups", () => {
-    expect(hrefs(["users.read", "audit.read"])).toEqual(["/admin", "/admin/users", "/admin/audit"]);
+    // The apps waitlist holds personal e-mail addresses, so it follows `users.read`.
+    expect(hrefs(["users.read", "audit.read"])).toEqual([
+      "/admin",
+      "/admin/users",
+      "/admin/growth/waitlist",
+      "/admin/audit",
+    ]);
     expect(visibleNavGroups(["users.read", "audit.read"]).map((group) => group.id)).toEqual([
       "overview",
       "people",
+      "growth",
       "monitoring",
     ]);
   });
@@ -68,6 +75,7 @@ describe("visibleNavGroups", () => {
       "/admin/growth/withdrawals",
       "/admin/growth/deals",
       "/admin/growth/experiments",
+      "/admin/growth/waitlist",
       "/admin/growth/settings",
       "/admin/alerts",
       "/admin/notifications",
@@ -84,6 +92,7 @@ describe("visibleNavGroups", () => {
       "/admin/drugs/imports",
       "/admin/settings",
       "/admin/branding",
+      "/admin/site-health",
       "/admin/flags",
       "/admin/roles",
       "/admin/audit",
@@ -146,7 +155,8 @@ describe("AdminNav", () => {
     expect(screen.queryByRole("link", { name: t("admin.nav.roles") })).toBeNull();
     expect(screen.queryByRole("link", { name: t("admin.nav.settings") })).toBeNull();
     expect(screen.queryByRole("link", { name: t("admin.nav.flags") })).toBeNull();
-    expect(screen.getAllByRole("link")).toHaveLength(3);
+    expect(screen.getByRole("link", { name: t("admin.nav.waitlist") })).toBeTruthy();
+    expect(screen.getAllByRole("link")).toHaveLength(4);
   });
 });
 

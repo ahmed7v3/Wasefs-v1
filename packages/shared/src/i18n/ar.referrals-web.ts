@@ -125,11 +125,4 @@ export const arReferralsWeb = {
   "rewardsPage.how.notMoney": "النقاط مكافأة وليست مالًا: لا تُحوَّل لشخص آخر ولا تُشترى.",
 
   // --- Reasons ------------------------------------------------------------------------------------------
-  "rewardsPage.reason.vanity_used": "سبق أن خصّصت كودك مرة، ولا يمكن تغييره ثانية.",
-  "rewardsPage.reason.code_taken": "هذا الكود مستخدم، اختر غيره.",
-  "rewardsPage.reason.reserved_code": "لا يمكن استخدام هذا الكود، اختر غيره.",
-  "rewardsPage.reason.insufficient_points": "نقاطك المتاحة أقل من العدد المطلوب.",
-  "rewardsPage.reason.below_minimum": "هذا العدد صغير جدًا ولا يعطي رصيدًا كاملًا.",
-  "rewardsPage.reason.open_reward_debt": "لا يمكن التحويل الآن لأن عليك مكافآت مستردة تُخصم أولًا.",
-  "rewardsPage.reason.idempotency_key_reused": "تعذر تأكيد هذا الطلب، أعد المحاولة.",
 } as const;

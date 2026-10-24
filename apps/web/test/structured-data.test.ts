@@ -24,6 +24,7 @@ const defaults: PublicSettings = {
   free_tier: settingDefault("free_tier"),
   rx: settingDefault("rx"),
   seo: settingDefault("seo"),
+  landing: settingDefault("landing"),
 };
 
 describe("faqJsonLd", () => {

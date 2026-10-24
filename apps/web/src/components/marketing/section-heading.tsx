@@ -11,7 +11,10 @@ export interface SectionHeadingProps {
   className?: string | undefined;
 }
 
-/** H2, optional eyebrow and lead of a landing section, centred. The id is the heading's, so `aria-labelledby` can use it. */
+/**
+ * H2, optional eyebrow and lead of a landing section, centred. The id is the heading's, so
+ * `aria-labelledby` can use it. The short accent underline grows with scroll where supported.
+ */
 export function SectionHeading({
   id,
   title,
@@ -38,9 +41,9 @@ export function SectionHeading({
       <h2
         id={id}
         className={cn(
-          "text-2xl font-bold sm:text-4xl",
+          "motion-underline text-2xl font-bold sm:text-4xl",
           eyebrow ? "mt-4" : null,
-          inverse ? "text-white" : "text-text",
+          inverse ? "text-white [--heading-underline:var(--color-accent)]" : "text-text",
         )}
       >
         {title}

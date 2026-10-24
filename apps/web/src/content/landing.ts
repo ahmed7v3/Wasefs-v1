@@ -2,9 +2,11 @@
  * Landing page copy (Arabic). Components render this; they never contain their own text.
  *
  * Voice rules (AGENT.md §5.11 and the product phase): the product assists and never diagnoses; the
- * analyzer is not live yet, so every call to action is "create a free account" or "get early
- * access", never "try it now"; no invented numbers, ratings, testimonials or certifications.
- * "In seconds" is the product goal, not a measured figure, so it carries no number.
+ * web app is live (prescription analysis, the assistant skills, organizations), so calls to action
+ * say "create a free account" and a feature is marked "coming soon" only when its route does not
+ * ship; the Android and iOS apps are the one thing still "coming soon"; no invented numbers,
+ * ratings, testimonials or certifications. "In seconds" is the product goal, not a measured figure,
+ * so it carries no number.
  */
 
 /** The mascot family (components/marketing/mascot.tsx draws one symbol per name). */
@@ -69,14 +71,14 @@ export const landing = {
     lead: "وصفة AI مساعد عربي يقرأ صورة الروشتة المكتوبة بخط اليد أو المطبوعة، ويحوّلها إلى بطاقة واضحة بأسماء الأدوية والجرعات ومرات الاستخدام والتحذيرات. وما لا نتأكد منه نضعه أمامك لتراجعه مع طبيبك أو صيدلي.",
     primaryCta: "أنشئ حسابك المجاني",
     secondaryCta: "كيف تعمل؟",
-    reassurance: "قريبًا · إنشاء الحساب مجاني ولا يحتاج إلى بطاقة بنكية.",
+    reassurance: "إنشاء الحساب مجاني ولا يحتاج إلى بطاقة بنكية.",
     haveAccount: "لديك حساب بالفعل؟",
     signIn: "تسجيل الدخول",
   },
 
   /** The illustration beside the hero headline: a sample, not a real result. */
   visual: {
-    alt: "مثال توضيحي: روشتة مكتوبة بخط اليد يمسحها شعاع ضوئي فتتحول إلى بنود منظمة بأسماء الأدوية والجرعات، وبند غير واضح مُعلَّم للمراجعة.",
+    alt: "مثال توضيحي: روشتة مكتوبة بخط اليد يمسحها شعاع ضوئي فتتحول إلى بطاقة نتيجة منظمة بثلاثة بنود، بندان مؤكدان وبند غير واضح مُعلَّم «راجع الصيدلي»، والبطاقة موسومة «مثال توضيحي».",
     sampleBadge: "مثال توضيحي",
     paperTitle: "الروشتة",
     resultTitle: "النتيجة المنظمة",
@@ -102,80 +104,92 @@ export const landing = {
         tone: "navy",
         title: "قراءة الروشتة",
         body: "تحوّل صورة الروشتة، بخط اليد أو المطبوعة، إلى بطاقة عربية منظمة.",
-        soon: true,
+        soon: false,
       },
       {
         mascot: "hexagon",
         tone: "coral",
         title: "التداخلات الدوائية",
         body: "تنبّهك إلى الأدوية التي قد يتعارض بعضها مع بعض لتسأل عنها الصيدلي.",
-        soon: true,
+        soon: false,
       },
       {
         mascot: "droplet",
         tone: "teal",
         title: "الجرعات والتعليمات",
         body: "الجرعة وعدد المرات والمدة وتعليمات الاستخدام في سطر واحد واضح.",
-        soon: true,
+        soon: false,
       },
       {
         mascot: "tablet",
         tone: "amber",
         title: "شرح الدواء للمريض",
         body: "اسأل بالعربية عن أي دواء واحصل على شرح مبسّط بلغة قريبة منك.",
-        soon: true,
+        soon: false,
       },
       {
         mascot: "blob",
         tone: "olive",
         title: "مساعد الصيدلية",
-        body: "سير عمل منظم للصيدلي: مراجعة الروشتات وتجهيز الشرح لكل مريض.",
-        soon: true,
+        body: "ابدأ بالبنود التي تحتاج مراجعة، ثم انسخ الشرح أو شاركه أو اطبعه للمريض.",
+        soon: false,
       },
       {
         mascot: "clover",
         tone: "indigo",
         title: "الأشعة والتحاليل (تعليمي)",
         body: "قراءة تعليمية مبسّطة لتقارير التحاليل والأشعة، ولا تغني عن الطبيب.",
-        soon: true,
+        soon: false,
       },
     ] satisfies LandingSkill[],
   },
 
   precision: {
     id: "precision",
-    eyebrow: "السرعة والدقة معًا",
-    title: "تقرأ بسرعة، وتتحقق قبل أن تعرض",
-    lead: "في ثوانٍ تمر كل روشتة بأربع مراحل تحقق. وما لا تتأكد منه وصفة AI تضعه أمامك للمراجعة بدل أن تخمّن.",
+    eyebrow: "خطوة بخطوة",
+    title: "ماذا يحدث لكل سطر في روشتتك؟",
+    lead: "نتتبع سطرًا واحدًا من الخط المكتوب إلى نتيجة موثوقة. وما لا نتأكد منه نعلّمه بدل أن نخمّن.",
+    stepsLabel: "أربع مراحل لكل سطر",
     sampleBadge: "مثال توضيحي",
-    paperTitle: "الروشتة",
-    pipelineTitle: "أربع مراحل تحقق",
-    speedBadge: "في ثوانٍ",
-    resultTitle: "النتيجة",
     steps: [
       {
-        icon: "scan",
-        title: "مسح الصورة",
-        body: "نحسّن الصورة ونحدد أماكن النص المكتوب بخط اليد أو المطبوع.",
+        title: "نقرأ الخط",
+        body: "نقرأ السطر المكتوب بخط اليد كما هو، حرفًا بحرف، قبل أي تفسير.",
       },
       {
-        icon: "read",
-        title: "قراءة مرتين",
-        body: "قراءتان مستقلتان للنص، وأي اختلاف بينهما يُعلَّم ولا يُتجاهل.",
+        title: "نطابق مع قاعدة الأدوية",
+        body: "نقارن الاسم المقروء بأسماء قاعدة الأدوية ونختار الأقرب مع مادته الفعالة.",
       },
       {
-        icon: "database",
-        title: "مطابقة مع قاعدة الأدوية",
-        body: "نقارن كل اسم بقاعدة بيانات الأدوية لنتحقق من الاسم والتركيز.",
+        title: "نتحقق من الجرعة والتكرار",
+        body: "نوحّد الصيغ المختصرة مثل «1×3» إلى جرعة وعدد مرات واضحين.",
       },
       {
-        icon: "gauge",
-        title: "فحص الثقة",
-        body: "لكل بند درجة ثقة، وما ينخفض عن الحد نوجّهه إلى مراجعتك.",
+        title: "نعلّم ما لا نتأكد منه",
+        body: "السطر غير الواضح يبقى مُعلَّمًا بنصه الخام ليراجعه الصيدلي، ولا نخمّن اسمه.",
       },
-    ] satisfies LandingPipelineStep[],
-    reviewNote: "البند الثالث غير واضح، فعلّمناه للمراجعة بدل أن نخمّن.",
-    guarantee: "نفضّل أن نقول «راجع هذا البند» على أن نخطئ بثقة.",
+    ] satisfies LandingStep[],
+    sample: {
+      scribble: "Amoxil 500 1×3",
+      readLabel: "نص مقروء",
+      candidatesLabel: "أقرب الأسماء في قاعدة الأدوية",
+      candidates: ["Amoxil", "Amaryl", "Amoxapine"],
+      ingredientLabel: "المادة الفعالة",
+      ingredient: "أموكسيسيلين",
+      rawLabel: "كما كُتب",
+      raw: "1×3",
+      normalized: "500 mg · 3 مرات يوميًا",
+      flaggedRaw: "Am?x…l  ?×2",
+      flaggedBadge: "اسأل الصيدلي",
+      flaggedNote: "نعرض النص الخام كما قرأناه ولا نخمّن الاسم.",
+    },
+    proof: {
+      avgLabel: "متوسط وقت التحليل",
+      avgUnit: "ثانية",
+      accuracyLabel: "دقة قراءة الحقول في اختبارات التقييم",
+      note: "أرقام من اختبارات داخلية، وتتغير مع تحسين النظام.",
+    },
+    link: "اعرف أكثر عن قارئ الروشتات",
   },
 
   how: {
@@ -211,15 +225,15 @@ export const landing = {
         title: "للمرضى وأسرهم",
         body: "افهم أدويتك وجرعاتها بلغتك قبل أن تغادر الصيدلية.",
         points: ["بطاقة واضحة بأسماء الأدوية والجرعات", "اسأل عن أي دواء واحصل على شرح مبسّط"],
-        soon: true,
+        soon: false,
       },
       {
         icon: "pharmacist",
         tone: "navy",
         title: "للصيادلة",
         body: "اقرأ الخط الصعب بسرعة، وابدأ بمراجعة ما يحتاج إلى انتباه.",
-        points: ["البنود منخفضة الثقة مميزة لتراجعها أولًا", "شرح جاهز تشاركه مع المريض"],
-        soon: true,
+        points: ["البنود منخفضة الثقة مميزة لتراجعها أولًا", "شرح تنسخه أو تشاركه أو تطبعه للمريض"],
+        soon: false,
       },
       {
         icon: "doctor",
@@ -227,14 +241,14 @@ export const landing = {
         title: "للأطباء",
         body: "نسخة منظمة من الروشتات تسهّل مراجعة الأدوية مع المريض.",
         points: ["الأدوية والجرعات في بطاقة واحدة مرتبة", "تساعد ولا تحل محل حكمك الطبي"],
-        soon: true,
+        soon: false,
       },
       {
         icon: "organization",
         tone: "amber",
         title: "للصيدليات والعيادات",
-        body: "أنشئ مؤسستك وادعُ فريقك بأدوار وصلاحيات واضحة.",
-        points: ["أدوار وصلاحيات لكل عضو في الفريق", "إدارة العمل كله من مكان واحد"],
+        body: "أنشئ مؤسستك وادعُ فريقك بأدوار وصلاحيات واضحة، وتابع استخدامه من لوحة واحدة.",
+        points: ["أدوار وصلاحيات لكل عضو في الفريق", "لوحة واحدة للأعضاء والاستخدام"],
         soon: false,
       },
     ] satisfies LandingAudience[],
@@ -274,6 +288,8 @@ export const landing = {
     eyebrow: "أسئلة شائعة",
     title: "نجيبك قبل أن تسأل",
     lead: "إجابات سريعة عن أكثر ما يسألنا عنه الناس.",
+    /** One answer open at a time (the `name` attribute groups the `<details>`); `false` lets several stay open. */
+    exclusive: true,
     moreTitle: "لم تجد إجابتك؟",
     moreLink: "تواصل معنا",
     items: [
@@ -300,17 +316,17 @@ export const landing = {
       {
         question: "هل الخدمة مجانية؟",
         answer:
-          "إنشاء الحساب مجاني. ستتوفر حصة شهرية مجانية من التحليلات عند إتاحة المحلل، وتُعلن الخطط المدفوعة قبل تفعيلها، ولن نسحب منك شيئًا دون موافقتك.",
+          "إنشاء الحساب مجاني ويتضمن حصة شهرية مجانية من تحليلات الروشتات. وإن احتجت أكثر فتجد الباقات المدفوعة وأسعارها في صفحة الأسعار، ولن نسحب منك شيئًا دون موافقتك.",
       },
       {
-        question: "متى تبدأ ميزة تحليل الروشتات؟",
+        question: "كيف أبدأ بتحليل روشتتي؟",
         answer:
-          "الميزة قيد الإعداد وستُتاح تدريجيًا خلال الفترة القادمة. إن أنشأت حسابك الآن فسيكون جاهزًا ما إن تصبح متاحة.",
+          "أنشئ حسابك المجاني، ثم ارفع صورة الروشتة أو ملف PDF من صفحة التحليل، وستظهر لك النتيجة المنظمة خلال لحظات لتراجعها.",
       },
       {
         question: "هل تناسب الصيدليات والعيادات؟",
         answer:
-          "نعم. يمكنك إنشاء مؤسسة ودعوة فريقك بأدوار وصلاحيات مختلفة، وسنضيف أدوات العمل الجماعي مع تطور المنتج.",
+          "نعم. يمكنك إنشاء مؤسسة ودعوة فريقك بأدوار وصلاحيات مختلفة، ومتابعة الأعضاء والاستخدام من لوحة المؤسسة.",
       },
       {
         question: "كيف أحذف حسابي وبياناتي؟",
@@ -322,14 +338,60 @@ export const landing = {
 
   cta: {
     title: "ابدأ بفهم روشتتك بثقة",
-    body: "أنشئ حسابك المجاني الآن، وكن من أوائل من يجرّبون وصفة AI فور إتاحتها.",
-    primary: "احصل على وصول مبكر",
+    body: "أنشئ حسابك المجاني الآن، وارفع أول روشتة أو اسأل عن دواء بالعربية.",
+    primary: "أنشئ حسابك المجاني",
     secondary: "تواصل معنا",
+  },
+
+  /** Android and iOS band (before the final call to action); the form renders only while the setting allows. */
+  apps: {
+    title: "تطبيق وصفة AI على أندرويد و iOS — قريبًا",
+    lead: "نعمل على تطبيقين للهاتف يحملان بطاقة الروشتة إلى جيبك. الموقع يعمل على هاتفك من الآن.",
+    phoneLabel: "رسم توضيحي لشاشة هاتف تعرض بطاقة نتيجة تحليل روشتة (مثال توضيحي)",
+    soon: "قريبًا",
+    android: "أندرويد",
+    ios: "iOS",
+    googlePlay: "Google Play",
+    appStore: "App Store",
+    waitlist: {
+      title: "أبلغني عند الإطلاق",
+      lead: "اترك بريدك وسنراسلك مرة واحدة عند توفر التطبيق.",
+      email: "البريد الإلكتروني",
+      platform: "المنصة",
+      platforms: { android: "أندرويد", ios: "iOS", both: "أندرويد و iOS" },
+      consent: "أوافق على أن تراسلني وصفة AI بالبريد عند إطلاق التطبيق.",
+      consentRequired: "للمتابعة وافق على استلام رسالة الإطلاق.",
+      submit: "أبلغني عند الإطلاق",
+      successTitle: "تم تسجيلك",
+      successBody: "سنراسلك عند إطلاق التطبيق. يمكنك إلغاء الاشتراك من الرسالة نفسها.",
+      disabled: "التسجيل في قائمة الانتظار غير متاح الآن.",
+    },
   },
 
   footer: {
     tagline: "مساعد طبي عربي يقرأ الروشتة بسرعة، ويراجع نفسه بدقة.",
+    appsSoon: "التطبيقات قريبًا",
+    columnsLabel: "روابط الموقع",
     product: "المنتج",
+    company: "الشركة",
+    legal: "قانوني",
+    links: {
+      prescriptionReader: "قارئ الروشتات",
+      handwrittenPrescriptions: "الروشتات المكتوبة بخط اليد",
+      medicineExplainer: "شرح الأدوية",
+      aiAssistant: "المساعد الذكي",
+      pricing: "الأسعار",
+      pharmacists: "للصيادلة",
+      clinics: "للعيادات",
+      about: "عن وصفة AI",
+      editorialPolicy: "السياسة التحريرية",
+      medicalReview: "المراجعة الطبية",
+      sources: "المصادر",
+      contact: "تواصل معنا",
+      privacy: "سياسة الخصوصية",
+      terms: "شروط الاستخدام",
+      disclaimer: "إخلاء المسؤولية الطبية",
+    },
   },
 
   notices: {

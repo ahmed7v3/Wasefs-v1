@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { PUBLIC_PAGES, pageMetadata } from "../src/lib/seo";
@@ -5,16 +8,43 @@ import { pageSitemapUrls } from "../src/lib/sitemap-xml";
 
 describe("sitemap-pages", () => {
   it("lists every public page, plus the English counterparts, with absolute URLs", () => {
-    const urls = pageSitemapUrls("https://wasfa.online").map((entry) => new URL(entry.url).pathname);
+    const urls = pageSitemapUrls("https://wasfa.online").map(
+      (entry) => new URL(entry.url).pathname,
+    );
     expect(urls).toEqual([
       "/",
       "/en",
       "/pricing",
+      "/en/pricing",
       "/contact",
       "/en/contact",
       "/privacy",
       "/terms",
       "/disclaimer",
+      "/features/prescription-reader",
+      "/en/features/prescription-reader",
+      "/features/handwritten-prescriptions",
+      "/en/features/handwritten-prescriptions",
+      "/features/medicine-explainer",
+      "/en/features/medicine-explainer",
+      "/features/ai-assistant",
+      "/en/features/ai-assistant",
+      "/for/pharmacists",
+      "/en/for/pharmacists",
+      "/for/clinics",
+      "/en/for/clinics",
+      "/for/doctors",
+      "/en/for/doctors",
+      "/for/patients",
+      "/en/for/patients",
+      "/about",
+      "/en/about",
+      "/editorial-policy",
+      "/en/editorial-policy",
+      "/medical-review",
+      "/en/medical-review",
+      "/sources",
+      "/en/sources",
     ]);
   });
 
@@ -49,8 +79,13 @@ describe("pageMetadata", () => {
     expect(meta.alternates?.canonical).toBe("/");
   });
 
-  it("points every public page at its own image", () => {
+  it("points every public page at an existing image, its own unless it uses the shared home card", () => {
     const images = Object.values(PUBLIC_PAGES).map((page) => page.ogImage);
-    expect(new Set(images).size).toBe(images.length);
+    for (const image of images) {
+      expect(existsSync(join(__dirname, "../public", image)), image).toBe(true);
+    }
+    // The product and trust pages share the home card until `pnpm og:images` renders their own.
+    const own = images.filter((image) => image !== PUBLIC_PAGES.home.ogImage);
+    expect(new Set(own).size).toBe(own.length);
   });
 });

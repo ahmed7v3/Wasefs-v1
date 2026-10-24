@@ -4,7 +4,7 @@ import { BrandingModule } from "../../branding/branding.module.js";
 
 import { AdminBrandingController } from "./admin-branding.controller.js";
 
-/** Upload and removal of the logo and favicon (`/admin/branding/assets/:key`). */
+/** Listing, upload, removal and revert of the brand images (`/admin/branding/assets/:key`). */
 @Module({
   imports: [BrandingModule],
   controllers: [AdminBrandingController],

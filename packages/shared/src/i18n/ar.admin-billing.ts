@@ -88,8 +88,6 @@ export const arAdminBilling = {
     "مزوّد هذا النموذج بخطة مجانية، ولا يصلح للمهام الطبية لأنه قد يستخدم البيانات للتدريب.",
   "admin.routes.reason.preview_not_allowed":
     "هذا نموذج تجريبي، والنماذج التجريبية غير مسموحة في إعدادات الذكاء الاصطناعي.",
-  "admin.routes.reason.stale_version": "عدّل شخص آخر هذا المسار قبلك. حُمّلت آخر نسخة.",
-  "admin.routes.reason.default_route": "المسار الافتراضي يُعدَّل ولا يُحذف.",
   "admin.routes.stale": "عدّل شخص آخر هذا المسار قبلك، فحُمّلت آخر نسخة. راجعها ثم احفظ من جديد.",
   "admin.routes.saved": "حُفظ المسار.",
   "admin.routes.removeOverride": "إزالة التخصيص",
@@ -137,12 +135,6 @@ export const arAdminBilling = {
   "admin.plans.error.needMode": "اختر وضعًا واحدًا على الأقل للمهمة المسموحة.",
   "admin.plans.error.cap": "أدخل عددًا صحيحًا من 0 إلى 1000000، أو اتركه فارغًا لغير محدود.",
   "admin.plans.error.pages": "أدخل عددًا صحيحًا من 1 إلى {max}.",
-  "admin.plans.reason.plan_key_exists": "يوجد باقة بهذا المفتاح بالفعل.",
-  "admin.plans.reason.plan_in_use":
-    "لا يمكن حذف هذه الباقة: هي الافتراضية، أو لها اشتراكات أو تعيينات أو طلبات سابقة. أخفِها بدلًا من ذلك لتتوقف عن البيع.",
-  "admin.plans.reason.default_plan_required":
-    "يجب أن توجد باقة افتراضية. اجعل باقة أخرى افتراضية أولًا.",
-  "admin.plans.reason.assignment_ended": "انتهى هذا التعيين بالفعل.",
   "admin.plans.edit": "تعديل الباقة",
   "admin.plans.entitlements": "الاستحقاقات",
   "admin.plans.openEntitlements": "استحقاقات {name}",
@@ -262,5 +254,4 @@ export const arAdminBilling = {
   "admin.credits.adjust.balanceUnknown": "الرصيد الحالي غير معروف، وسيتحقق الخادم منه عند التطبيق.",
   "admin.credits.adjust.submit": "تطبيق التعديل",
   "admin.credits.adjust.done": "تم التعديل. الرصيد الآن {balance}.",
-  "admin.credits.reason.insufficient_balance": "الرصيد لا يكفي لهذا الخصم.",
 } as const;

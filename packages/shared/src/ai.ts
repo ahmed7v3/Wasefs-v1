@@ -3,7 +3,7 @@
  * uploads, chats, drugs and evals. Same rule as `identity.ts`: one tuple types the column, builds
  * the DB CHECK and drives the zod schemas and admin forms, so they cannot drift.
  */
-import { LOCALES } from "./i18n/index.js";
+import { LOCALES } from "./i18n/locales.js";
 
 /** What a model call is for. Routes, entitlements and usage rows are all keyed by task. */
 export const AI_TASKS = [

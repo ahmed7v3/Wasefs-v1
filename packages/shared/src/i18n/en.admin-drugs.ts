@@ -199,18 +199,4 @@ export const enAdminDrugs: Partial<Record<keyof typeof arAdminDrugs, string>> = 
   "admin.drugs.imports.started": "The file was uploaded and the dry run started.",
   "admin.drugs.imports.rerunStarted": "The dry run started again.",
   "admin.drugs.imports.noWrite": "You cannot edit the drug database: you can preview only.",
-
-  "admin.drugs.reason.alias_exists": "This drug already has that name.",
-  "admin.drugs.reason.name_empty": "The name has no letters or digits.",
-  "admin.drugs.reason.dry_run_required": "A successful dry run is required before saving.",
-  "admin.drugs.reason.file_expired": "The uploaded file expired. Upload it again.",
-  "admin.drugs.reason.not_committed": "Only a saved batch can be rolled back.",
-  "admin.drugs.reason.already_committed": "This batch was already saved.",
-  "admin.drugs.reason.already_rolled_back": "This batch was already rolled back.",
-  "admin.drugs.reason.file_required": "Choose a file that is not empty.",
-  "admin.drugs.reason.file_too_large": "The file is larger than 20 MB.",
-  "admin.drugs.reason.unsupported_file": "Unsupported file type. Upload XLSX or JSON.",
-  "admin.drugs.reason.bad_upload": "The file could not be received. Try again.",
-  "admin.drugs.reason.not_multipart": "The upload request is not valid.",
-  "admin.drugs.reason.one_file_only": "Upload one file only.",
 };

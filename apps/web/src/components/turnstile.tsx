@@ -1,6 +1,6 @@
 "use client";
 
-import { t } from "@wasfa/shared/i18n";
+import { t } from "@wasfa/shared/i18n/public";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiRequestError } from "../lib/api-error";

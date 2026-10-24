@@ -23,6 +23,7 @@ const settings: PublicSettings = {
   free_tier: settingDefault("free_tier"),
   rx: settingDefault("rx"),
   seo: settingDefault("seo"),
+  landing: settingDefault("landing"),
 };
 
 function plan(
@@ -95,6 +96,17 @@ describe("comparisonModel", () => {
     const support = model.rows.find((row) => row.key === "feature-دعم");
     expect(support?.cells).toEqual([true, true, false]);
     expect(model.rows.find((row) => row.key === "trial")?.cells).toEqual([null, false, "7 يومًا"]);
+  });
+
+  it("uses the English names, texts and labels for the English page", () => {
+    const model = comparisonModel(
+      [plan("plus", { features: [{ ...feature("دعم", true), textEn: "Support" }] })],
+      null,
+      "en",
+    );
+    expect(model.columns[0]?.name).toBe("plus");
+    expect(model.rows.find((row) => row.key === "feature-دعم")?.label).toBe("Support");
+    expect(model.rows.find((row) => row.key === "credits")?.cells[0]).toMatch(/^150 /);
   });
 
   it("leaves the free column out when the free plan is hidden, and the trial row when no plan has one", () => {

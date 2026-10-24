@@ -1,6 +1,7 @@
-import { t } from "@wasfa/shared/i18n";
+import { t } from "@wasfa/shared/i18n/public";
 import { periodLabel } from "@wasfa/ui";
 
+import type { Locale } from "@wasfa/shared/i18n";
 import type { CatalogResponse } from "@wasfa/shared/schemas/billing";
 
 /*
@@ -27,10 +28,15 @@ export function defaultDuration(durations: readonly number[]): number | null {
 }
 
 /** The switcher label of a period: "شهري", "سنوي", or its length ("3 أشهر", "سنتان"…). */
-export function durationLabel(months: number): string {
-  if (months === 1) return t("billing.pricing.monthly");
-  if (months === 12) return t("billing.pricing.annual");
-  return periodLabel(months);
+export function durationLabel(months: number, locale: Locale = "ar"): string {
+  if (months === 1) return t("billing.pricing.monthly", undefined, locale);
+  if (months === 12) return t("billing.pricing.annual", undefined, locale);
+  return periodLabel(months, locale);
+}
+
+/** A plan feature's text in the page language. */
+export function featureText(feature: Plan["features"][number], locale: Locale): string {
+  return locale === "en" ? feature.textEn : feature.textAr;
 }
 
 export interface PlanOffer {

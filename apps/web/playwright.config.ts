@@ -1,6 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
-import { STACK_PORTS, originOf } from "./e2e/support/config";
+import { HYDRATION_DEV_PORT, STACK_PORTS, originOf } from "./e2e/support/config";
 
 /*
  * End-to-end suite against the real stack (API, worker, web, Postgres, Redis). `pnpm build` first;
@@ -57,7 +57,7 @@ const stackConfig = defineConfig({
   projects: [
     {
       name: "desktop",
-      testIgnore: [/turnstile\.spec\.ts/, /prod-smoke\.spec\.ts/],
+      testIgnore: [/turnstile\.spec\.ts/, /prod-smoke\.spec\.ts/, /hydration\.spec\.ts/],
       use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } },
     },
     {
@@ -73,6 +73,18 @@ const stackConfig = defineConfig({
         ...devices["Desktop Chrome"],
         viewport: { width: 1440, height: 900 },
         baseURL: originOf(STACK_PORTS.turnstile.web),
+      },
+    },
+    {
+      // Phase 4 WP1 §1.4: every public template in a `next dev` build must hydrate cleanly. The
+      // spec starts its own dev server beside the stack; it runs with the rest in CI, or alone with
+      // `--project=hydration-dev`.
+      name: "hydration-dev",
+      testMatch: /hydration\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1440, height: 900 },
+        baseURL: originOf(HYDRATION_DEV_PORT),
       },
     },
   ],

@@ -1,4 +1,4 @@
-import { t } from "@wasfa/shared/i18n";
+import { t } from "@wasfa/shared/i18n/public";
 import { lineLabel, type SummaryFeeItem, type SummaryLine } from "@wasfa/ui";
 
 import type { QuoteResponse } from "@wasfa/shared/schemas/billing";

@@ -1,6 +1,6 @@
 "use client";
 
-import { t, type MessageKey } from "@wasfa/shared/i18n";
+import { t, type MessageKey } from "@wasfa/shared/i18n/public";
 import {
   CONTACT_MESSAGE_MAX_LENGTH,
   CONTACT_TOPICS,

@@ -1,0 +1,30 @@
+/* Admin > Site health: field web vitals and crawler visits (phase4 WP1 §2.6, §5.8). */
+export const enAdminSiteHealth = {
+  "admin.nav.siteHealth": "Site health",
+  "admin.nav.siteHealth.description": "Real-visitor page speed and crawler visits.",
+  "admin.siteHealth.range": "Range",
+  "admin.siteHealth.range.option": "Last {days} days",
+  "admin.siteHealth.vitals.title": "Page speed for real visitors",
+  "admin.siteHealth.vitals.lead":
+    "The 75th percentile of a sample of public page views, per page and metric.",
+  "admin.siteHealth.vitals.caption": "Page speed by page and metric",
+  "admin.siteHealth.vitals.empty": "No measurements in this range yet",
+  "admin.siteHealth.vitals.emptyHint": "Measurements appear once people visit the public pages.",
+  "admin.siteHealth.col.route": "Page",
+  "admin.siteHealth.col.metric": "Metric",
+  "admin.siteHealth.col.samples": "Samples",
+  "admin.siteHealth.col.p75": "75th percentile",
+  "admin.siteHealth.col.rating": "Rating",
+  "admin.siteHealth.col.bot": "Crawler",
+  "admin.siteHealth.col.hits": "Visits",
+  "admin.siteHealth.p75.over": "Above {value}",
+  "admin.siteHealth.rating.good": "Good",
+  "admin.siteHealth.rating.needsImprovement": "Needs improvement",
+  "admin.siteHealth.rating.poor": "Poor",
+  "admin.siteHealth.bots.title": "Crawler visits",
+  "admin.siteHealth.bots.lead":
+    "Requests from search engines and AI crawlers per page. No IP address and no full URL is stored.",
+  "admin.siteHealth.bots.caption": "Crawler visits by crawler and page",
+  "admin.siteHealth.bots.empty": "No crawler visits in this range",
+  "admin.siteHealth.bots.emptyHint": "Visits appear when a known crawler requests a public page.",
+} as const;

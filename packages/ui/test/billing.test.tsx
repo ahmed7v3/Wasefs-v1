@@ -42,6 +42,15 @@ describe("PriceTag", () => {
   });
 });
 
+describe("billing components in English", () => {
+  it("formats the period and the price with Latin digits in English", () => {
+    expect(periodLabel(3, "en")).toBe("3 months");
+    const { container } = render(<PriceTag amountMinor={28_310} currency="EGP" locale="en" />);
+    expect(container.textContent).toMatch(/283\.10/);
+    expect(container.textContent).not.toMatch(/[\u0660-\u0669]/);
+  });
+});
+
 describe("CheckoutSummary", () => {
   const base = {
     currency: "EGP",

@@ -1,4 +1,4 @@
-import { t } from "@wasfa/shared/i18n";
+import { t } from "@wasfa/shared/i18n/public";
 import { Gift, Info } from "lucide-react";
 
 import { cn } from "../cn";

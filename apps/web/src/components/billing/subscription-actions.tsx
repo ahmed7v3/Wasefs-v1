@@ -1,6 +1,6 @@
 "use client";
 
-import { t } from "@wasfa/shared/i18n";
+import { t } from "@wasfa/shared/i18n/public";
 import { Button, Dialog, buttonStyles } from "@wasfa/ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";

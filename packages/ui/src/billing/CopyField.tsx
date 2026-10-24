@@ -1,6 +1,6 @@
 "use client";
 
-import { t } from "@wasfa/shared/i18n";
+import { t } from "@wasfa/shared/i18n/public";
 import { Check, Copy } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 

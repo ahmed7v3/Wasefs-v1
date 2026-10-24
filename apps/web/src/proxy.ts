@@ -1,6 +1,7 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
 
 import { REFERRAL_COOKIE, normalizeReferralCode, referralCookie } from "./lib/attribution-cookies";
+import { botHitFor, reportBotHit } from "./lib/bot-report";
 import { SECURITY_HEADERS, buildCsp, generateNonce, parseSources } from "./lib/csp";
 import { isProduction, publicEnv } from "./lib/env";
 import { hasSessionCookie, isProtectedPath, loginPath } from "./lib/route-guard";
@@ -24,7 +25,7 @@ function withSecurityHeaders(response: NextResponse, csp: string, noindex = fals
  * pages verify the session with the API). `/login` and `/register` are left alone: the page itself
  * asks `/me` and forwards people who are already signed in.
  */
-export function proxy(request: NextRequest): NextResponse {
+export function proxy(request: NextRequest, event: NextFetchEvent): NextResponse {
   const nonce = generateNonce();
   const csp = buildCsp({
     nonce,
@@ -63,6 +64,9 @@ export function proxy(request: NextRequest): NextResponse {
     csp,
     noindex,
   );
+  // Crawler visits are counted after the response is on its way (class + route template only).
+  const botHit = botHitFor(request.method, pathname, request.headers.get("user-agent"));
+  if (botHit !== null) event.waitUntil(reportBotHit(botHit));
   // `?ref=<code>` on any public page: first touch wins, so an existing cookie is never replaced.
   const ref = normalizeReferralCode(request.nextUrl.searchParams.get("ref"));
   if (ref !== null && !request.cookies.has(REFERRAL_COOKIE)) {
@@ -75,7 +79,8 @@ export const config = {
   matcher: [
     {
       // Skip static assets and prefetches: they carry no document that a CSP would protect.
-      source: "/((?!_next/static|_next/image|favicon.ico|icon.svg|robots.txt|sitemap.xml|sitemap-|llms.txt|indexnow.txt).*)",
+      source:
+        "/((?!_next/static|_next/image|favicon.ico|icon.svg|icon-|apple-touch-icon.png|manifest.webmanifest|robots.txt|sitemap.xml|sitemap-|llms.txt|indexnow.txt).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

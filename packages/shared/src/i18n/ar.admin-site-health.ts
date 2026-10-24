@@ -1,0 +1,30 @@
+/* Admin > Site health: field web vitals and crawler visits (phase4 WP1 §2.6, §5.8). */
+export const arAdminSiteHealth = {
+  "admin.nav.siteHealth": "صحة الموقع",
+  "admin.nav.siteHealth.description": "سرعة الصفحات الفعلية وزيارات الزواحف.",
+  "admin.siteHealth.range": "المدة",
+  "admin.siteHealth.range.option": "آخر {days} يوم",
+  "admin.siteHealth.vitals.title": "سرعة الصفحات عند الزوار",
+  "admin.siteHealth.vitals.lead":
+    "القيمة عند النسبة المئوية 75 لعيّنة من زيارات الصفحات العامة، لكل صفحة ومقياس.",
+  "admin.siteHealth.vitals.caption": "سرعة الصفحات حسب الصفحة والمقياس",
+  "admin.siteHealth.vitals.empty": "لا توجد قياسات في هذه المدة بعد",
+  "admin.siteHealth.vitals.emptyHint": "تظهر القياسات بعد أن يزور الناس الصفحات العامة.",
+  "admin.siteHealth.col.route": "الصفحة",
+  "admin.siteHealth.col.metric": "المقياس",
+  "admin.siteHealth.col.samples": "العيّنات",
+  "admin.siteHealth.col.p75": "النسبة 75",
+  "admin.siteHealth.col.rating": "التقييم",
+  "admin.siteHealth.col.bot": "الزاحف",
+  "admin.siteHealth.col.hits": "الزيارات",
+  "admin.siteHealth.p75.over": "أعلى من {value}",
+  "admin.siteHealth.rating.good": "جيد",
+  "admin.siteHealth.rating.needsImprovement": "يحتاج تحسينًا",
+  "admin.siteHealth.rating.poor": "ضعيف",
+  "admin.siteHealth.bots.title": "زيارات الزواحف",
+  "admin.siteHealth.bots.lead":
+    "عدد طلبات محركات البحث وزواحف الذكاء الاصطناعي لكل صفحة. لا يُحفظ عنوان IP ولا الرابط الكامل.",
+  "admin.siteHealth.bots.caption": "زيارات الزواحف حسب الزاحف والصفحة",
+  "admin.siteHealth.bots.empty": "لا توجد زيارات زواحف في هذه المدة",
+  "admin.siteHealth.bots.emptyHint": "تظهر الزيارات عندما يطلب زاحف معروف صفحة عامة.",
+} as const;

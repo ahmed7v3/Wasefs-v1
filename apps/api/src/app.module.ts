@@ -37,8 +37,10 @@ import { ReferralsModule } from "./referrals/referrals.module.js";
 import { RewardsModule } from "./rewards/rewards.module.js";
 import { RxModule } from "./rx/rx.module.js";
 import { SettingsModule } from "./settings/settings.module.js";
+import { SiteHealthModule } from "./site-health/site-health.module.js";
 import { SubscriptionsModule } from "./subscriptions/subscriptions.module.js";
 import { UsersModule } from "./users/users.module.js";
+import { WaitlistModule } from "./waitlist/waitlist.module.js";
 import { WithdrawalsModule } from "./withdrawals/withdrawals.module.js";
 
 import type { ApiEnv } from "./config/env.js";
@@ -72,6 +74,8 @@ export class AppModule {
         AccessModule,
         PhoneModule,
         ContactModule,
+        SiteHealthModule,
+        WaitlistModule,
         BrandingModule,
         MediaModule,
         OnboardingModule,

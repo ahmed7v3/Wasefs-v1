@@ -15,6 +15,18 @@ const PAGE_LABELS: Record<PublicPageKey, string> = {
   privacy: "Privacy policy",
   terms: "Terms of use",
   disclaimer: "Medical disclaimer",
+  featurePrescriptionReader: "AI prescription reader",
+  featureHandwrittenPrescriptions: "Handwritten prescriptions",
+  featureMedicineExplainer: "Medicine explainer",
+  featureAiAssistant: "AI medical assistant",
+  forPharmacists: "For pharmacists",
+  forClinics: "For clinics",
+  forDoctors: "For doctors",
+  forPatients: "For patients",
+  about: "About Wasfa AI",
+  editorialPolicy: "Editorial policy",
+  medicalReview: "Medical review",
+  sources: "Sources",
 };
 
 const POLICY_KEYS: readonly PublicPageKey[] = ["privacy", "terms", "disclaimer"];

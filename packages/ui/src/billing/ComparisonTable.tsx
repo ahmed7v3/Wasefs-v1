@@ -1,7 +1,9 @@
-import { t } from "@wasfa/shared/i18n";
+import { t } from "@wasfa/shared/i18n/public";
 import { Check, Minus } from "lucide-react";
 
 import { cn } from "../cn";
+
+import type { Locale } from "@wasfa/shared/i18n";
 
 /** A cell: text, a plain yes/no, or nothing known (a dash). */
 export type ComparisonCell = string | boolean | null;
@@ -24,15 +26,16 @@ export interface ComparisonTableProps {
   caption: string;
   columns: readonly ComparisonColumn[];
   rows: readonly ComparisonRow[];
+  locale?: Locale | undefined;
   className?: string | undefined;
 }
 
-function Cell({ value }: { value: ComparisonCell }) {
+function Cell({ value, locale }: { value: ComparisonCell; locale: Locale }) {
   if (value === true) {
     return (
       <>
         <Check aria-hidden className="mx-auto size-5 text-success" />
-        <span className="sr-only">{t("billing.compare.yes")}</span>
+        <span className="sr-only">{t("billing.compare.yes", undefined, locale)}</span>
       </>
     );
   }
@@ -41,7 +44,9 @@ function Cell({ value }: { value: ComparisonCell }) {
       <>
         <Minus aria-hidden className="mx-auto size-5 text-neutral-500" />
         <span className="sr-only">
-          {value === false ? t("billing.compare.no") : t("billing.compare.unknown")}
+          {value === false
+            ? t("billing.compare.no", undefined, locale)
+            : t("billing.compare.unknown", undefined, locale)}
         </span>
       </>
     );
@@ -53,7 +58,13 @@ function Cell({ value }: { value: ComparisonCell }) {
  * The plans side by side. The wide table scrolls inside its own box (focusable, so the keyboard can
  * scroll it) and never makes the page scroll sideways at 360 px.
  */
-export function ComparisonTable({ caption, columns, rows, className }: ComparisonTableProps) {
+export function ComparisonTable({
+  caption,
+  columns,
+  rows,
+  locale = "ar",
+  className,
+}: ComparisonTableProps) {
   return (
     <div
       role="region"
@@ -69,7 +80,7 @@ export function ComparisonTable({ caption, columns, rows, className }: Compariso
         <thead>
           <tr className="border-b border-border/60 bg-neutral-50">
             <th scope="col" className="p-3 text-start font-semibold text-text-muted">
-              <span className="sr-only">{t("billing.compare.feature")}</span>
+              <span className="sr-only">{t("billing.compare.feature", undefined, locale)}</span>
             </th>
             {columns.map((column) => (
               <th
@@ -99,7 +110,7 @@ export function ComparisonTable({ caption, columns, rows, className }: Compariso
                     columns[index]?.highlighted && "bg-primary-soft/40",
                   )}
                 >
-                  <Cell value={cell} />
+                  <Cell value={cell} locale={locale} />
                 </td>
               ))}
             </tr>

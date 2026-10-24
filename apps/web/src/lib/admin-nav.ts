@@ -1,4 +1,5 @@
 import {
+  Activity,
   Banknote,
   Bell,
   BellRing,
@@ -34,6 +35,7 @@ import {
   Settings,
   SlidersHorizontal,
   ShieldCheck,
+  Smartphone,
   Tags,
   Ticket,
   TriangleAlert,
@@ -266,6 +268,13 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
         permission: "referrals.read",
       },
       {
+        href: "/admin/growth/waitlist",
+        label: "admin.nav.waitlist",
+        description: "admin.nav.waitlist.description",
+        icon: Smartphone,
+        permission: "users.read",
+      },
+      {
         href: "/admin/growth/settings",
         label: "admin.nav.growthSettings",
         description: "admin.nav.growthSettings.description",
@@ -400,6 +409,13 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
         label: "admin.nav.branding",
         description: "admin.nav.branding.description",
         icon: Palette,
+        permission: "settings.read",
+      },
+      {
+        href: "/admin/site-health",
+        label: "admin.nav.siteHealth",
+        description: "admin.nav.siteHealth.description",
+        icon: Activity,
         permission: "settings.read",
       },
       {

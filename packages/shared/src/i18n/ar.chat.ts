@@ -132,11 +132,4 @@ export const arChat = {
   "chat.delete.confirm": "حذف المحادثة",
 
   // Reasons the API answers with (details.reason)
-  "ai.reason.content_blocked":
-    "لا أستطيع الإجابة عن هذا الطلب. جرّب صياغة مختلفة، أو اسأل الطبيب أو الصيدلي.",
-  "ai.reason.provider_error": "تعذّر الحصول على إجابة الآن. حاول مرة أخرى بعد قليل.",
-  "ai.reason.no_model": "المساعد غير متاح حاليًا. حاول لاحقًا.",
-  "ai.reason.no_route": "المساعد غير متاح حاليًا. حاول لاحقًا.",
-  "ai.reason.file_not_ready": "الصورة ما زالت قيد المعالجة. انتظر لحظة ثم أعد المحاولة.",
-  "ai.reason.not_last_message": "يمكن إعادة توليد آخر إجابة فقط.",
 } as const;

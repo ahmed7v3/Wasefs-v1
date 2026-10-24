@@ -1,6 +1,6 @@
 // No "use client": Field only needs `useId`, and staying a server-compatible component lets a server
 // component pass the render-prop child (functions cannot cross the server/client boundary).
-import { t } from "@wasfa/shared/i18n";
+import { t } from "@wasfa/shared/i18n/public";
 import { CircleAlert } from "lucide-react";
 import { useId } from "react";
 

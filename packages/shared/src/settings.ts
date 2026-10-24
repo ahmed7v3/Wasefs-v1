@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { accessSettingsSchema, authSettingsSchema } from "./auth-settings.js";
-import { LOCALES } from "./i18n/index.js";
+import { LOCALES } from "./i18n/locales.js";
 import { emailSchema, phoneNumberSchema } from "./schemas/auth.js";
 
 import type { AiTask } from "./ai.js";
@@ -49,6 +49,36 @@ export const brandingSettingsSchema = z.object({
   faviconUrl: brandAssetUrl,
   /** The uploaded logo is assumed to carry the wordmark; set this when it is the symbol alone. */
   showNameWithLogo: z.boolean().default(false),
+  /** `theme_color` / `background_color` of the manifest and `<meta name="theme-color">`. */
+  themeColor: z
+    .string()
+    .regex(/^#[0-9a-f]{6}$/i)
+    .default("#1e3a8a"),
+  manifestName: z.string().trim().min(1).max(45).default("وصفة AI"),
+  manifestShortName: z.string().trim().min(1).max(12).default("وصفة"),
+});
+
+/**
+ * Homepage switches (BRAND-AND-HOMEPAGE §3.2, §3.6). `proof` figures are shown only while set, and
+ * an admin sets them only from measured data (never a made-up number). The app chips turn into
+ * store badges when a listing URL exists; the waitlist form shows only while `waitlistEnabled`.
+ */
+export const landingSettingsSchema = z.object({
+  proof: z
+    .object({
+      /** Average analysis time in seconds, e.g. 12.5. */
+      avgAnalysisSeconds: z.number().positive().max(600).nullable().default(null),
+      /** Field-level accuracy from the evaluation harness, 0–100. */
+      accuracyPercent: z.number().min(0).max(100).nullable().default(null),
+    })
+    .default({ avgAnalysisSeconds: null, accuracyPercent: null }),
+  apps: z
+    .object({
+      androidUrl: httpsUrl,
+      iosUrl: httpsUrl,
+      waitlistEnabled: z.boolean().default(false),
+    })
+    .default({ androidUrl: null, iosUrl: null, waitlistEnabled: false }),
 });
 
 /** Floating contact hub (DESIGN-SYSTEM §5.3): each channel is hidden while it is `null`. */
@@ -444,11 +474,12 @@ export const seoSettingsSchema = z.object({
   aiCrawlers: z
     .partialRecord(z.enum(AI_CRAWLERS), z.boolean())
     .default({})
-    .transform((map) =>
-      Object.fromEntries(AI_CRAWLERS.map((bot) => [bot, map[bot] ?? true])) as Record<
-        AiCrawler,
-        boolean
-      >,
+    .transform(
+      (map) =>
+        Object.fromEntries(AI_CRAWLERS.map((bot) => [bot, map[bot] ?? true])) as Record<
+          AiCrawler,
+          boolean
+        >,
     ),
   indexNow: z
     .object({
@@ -497,6 +528,7 @@ export const SETTINGS_REGISTRY = {
   /** Public: the price per page and the page limit are shown before a prescription is analysed. */
   rx: { schema: rxSettingsSchema, visibility: "public" },
   seo: { schema: seoSettingsSchema, visibility: "public" },
+  landing: { schema: landingSettingsSchema, visibility: "public" },
   /** Admin only: the retention job reads it; users are told the number on the analysis page. */
   uploads: { schema: uploadsSettingsSchema, visibility: "admin" },
   /** Admin only: per-plan enablement of assistant skills, edited on `/admin/ai/skills`. */
@@ -541,6 +573,7 @@ export const publicSettingsSchema = z.object({
   free_tier: freeTierSettingsSchema,
   rx: rxSettingsSchema,
   seo: seoSettingsSchema,
+  landing: landingSettingsSchema,
 }) satisfies z.ZodType<{ [K in PublicSettingKey]: SettingValue<K> }>;
 export type PublicSettings = z.output<typeof publicSettingsSchema>;
 

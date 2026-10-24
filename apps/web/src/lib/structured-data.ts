@@ -1,5 +1,7 @@
 import { fromMinor } from "@wasfa/shared/money";
 
+import { localizedPath, type Locale } from "./locale";
+
 import type { PublicSettings } from "@wasfa/shared/settings";
 
 /*
@@ -15,7 +17,7 @@ export interface FaqEntry {
   answer: string;
 }
 
-/** Path of the raster logo (Google ignores SVG logos); rendered by `scripts/og-images.mjs`. */
+/** Path of the raster logo (Google ignores SVG logos); the 512 px brand symbol from `brand/scripts/build-icons.mjs`. */
 export const LOGO_PATH = "/logo.png";
 
 function absolute(path: string, siteUrl: string): string {
@@ -120,21 +122,31 @@ export interface ProductOffer {
 export function productJsonLd(
   settings: PublicSettings,
   siteUrl: string,
-  input: { name: string; description: string; offers: readonly ProductOffer[] },
+  input: {
+    name: string;
+    description: string;
+    offers: readonly ProductOffer[];
+    /** The page language: picks the brand name and the offer URL (`/en/pricing`). */
+    locale?: Locale;
+  },
 ): JsonLd {
+  const locale = input.locale ?? "ar";
   return {
     "@context": "https://schema.org",
     "@type": "Product",
     name: input.name,
     description: input.description,
-    brand: { "@type": "Brand", name: settings.branding.nameAr },
+    brand: {
+      "@type": "Brand",
+      name: locale === "en" ? settings.branding.nameEn : settings.branding.nameAr,
+    },
     offers: input.offers.map((offer) => ({
       "@type": "Offer",
       name: offer.name,
       price: fromMinor(offer.amountMinor, offer.currency),
       priceCurrency: offer.currency,
       availability: "https://schema.org/InStock",
-      url: absolute("/pricing", siteUrl),
+      url: absolute(localizedPath("/pricing", locale), siteUrl),
     })),
   };
 }
@@ -149,7 +161,8 @@ const SCHEMA_CONTEXT = "https://schema.org";
 function defined<T extends Record<string, unknown>>(fields: T): Partial<T> {
   return Object.fromEntries(
     Object.entries(fields).filter(
-      ([, value]) => value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0),
+      ([, value]) =>
+        value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0),
     ),
   ) as Partial<T>;
 }
@@ -322,6 +335,46 @@ export function definedTerm(input: DefinedTermInput): JsonLd {
     name: input.term,
     description: input.definition,
     url: input.url,
-    inDefinedTermSet: { "@type": "DefinedTermSet", name: input.termSet.name, url: input.termSet.url },
+    inDefinedTermSet: {
+      "@type": "DefinedTermSet",
+      name: input.termSet.name,
+      url: input.termSet.url,
+    },
   };
+}
+
+export interface WebPageInput {
+  name: string;
+  url: string;
+  description: string;
+  inLanguage: "ar" | "en";
+  /** ISO date of the last real content change. */
+  dateModified: string;
+  /** Absolute URL of the site, so the page points back at the `WebSite` described on the home page. */
+  siteUrl: string;
+  /** What the page is about (a feature or an audience); omitted on trust pages. */
+  about?: string;
+}
+
+function webPageOfType(type: "WebPage" | "AboutPage", input: WebPageInput): JsonLd {
+  return {
+    "@context": SCHEMA_CONTEXT,
+    "@type": type,
+    name: input.name,
+    url: input.url,
+    description: input.description,
+    inLanguage: input.inLanguage,
+    dateModified: input.dateModified,
+    isPartOf: { "@type": "WebSite", url: input.siteUrl },
+    ...defined({ about: input.about ? { "@type": "Thing", name: input.about } : undefined }),
+  };
+}
+
+/** A plain page. Medical pages use `medicalWebPage` (reviewer and date); this one claims no review. */
+export function webPage(input: WebPageInput): JsonLd {
+  return webPageOfType("WebPage", input);
+}
+
+export function aboutPage(input: WebPageInput): JsonLd {
+  return webPageOfType("AboutPage", input);
 }

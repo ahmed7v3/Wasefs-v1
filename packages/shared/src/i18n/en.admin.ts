@@ -26,12 +26,6 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
   "admin.nav.flags.description": "Turn features on or off for chosen groups.",
   "admin.nav.whatsapp": "WhatsApp number",
   "admin.nav.whatsapp.description": "Link and monitor the phone-verification number.",
-  "admin.reason.whatsapp_already_linked":
-    "A number is already linked. Unlink it first to link another.",
-  "admin.reason.bridge_down":
-    "The WhatsApp bridge is not answering. Make sure it is running and try again.",
-  "admin.reason.queue_unavailable":
-    "The command could not be sent to the bridge. Try again shortly.",
   "admin.settings.whatsapp.title": "WhatsApp verification number",
   "admin.settings.whatsapp.description":
     "The number users message to verify. Managed from the WhatsApp number page.",
@@ -142,12 +136,8 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
   "admin.nav.issues.description": "Grouped errors and their status.",
 
   "admin.access.twoFactorRequired.title": "Turn on two-factor first",
-  "admin.access.twoFactorRequired.body":
-    "The admin area needs two-factor authentication on your account. Turn it on in the security page, then come back.",
   "admin.access.twoFactorAction": "Open the security page",
   "admin.access.twoFactorSession.title": "Sign in again with your code",
-  "admin.access.twoFactorSession.body":
-    "Your current session started without the two-factor code. Sign out, then sign in again and enter the code.",
   "admin.access.sessionAction": "Sign out and sign in with the code",
   "admin.forbidden.title": "You do not have permission",
   "admin.forbidden.body":
@@ -179,16 +169,6 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
 
   "admin.reason.label": "Reason",
   "admin.reason.hint": "Write a clear reason (at least 5 characters). It is kept in the audit log.",
-  "admin.reason.self_action": "You cannot do this to your own account.",
-  "admin.reason.super_admin_only": "Only a super admin can do this.",
-  "admin.reason.not_enough_permissions":
-    "You cannot grant a role with permissions you do not have.",
-  "admin.reason.last_super_admin": "This role cannot be removed: this is the last super admin.",
-  "admin.reason.role_in_use": "The role is still held by users. Remove it from them first.",
-  "admin.reason.role_read_only": "The super admin role is read-only and cannot be changed.",
-  "admin.reason.system_role": "System roles cannot be deleted.",
-  "admin.reason.invalid_status": "This cannot be done to the account in its current state.",
-  "admin.reason.role_exists": "A role with this key already exists.",
 
   "admin.user.status.active": "Active",
   "admin.user.status.suspended": "Suspended",
@@ -283,15 +263,6 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
   "admin.branding.error.type": "This file type is not supported.",
   "admin.branding.error.size": "The file is larger than 512 KB.",
   "admin.branding.error.read": "The file could not be read. Try another file.",
-  "admin.branding.reason.unsupported_type": "This file type is not supported.",
-  "admin.branding.reason.type_mismatch":
-    "The file's content does not match its type. Make sure it is a real image with the right extension.",
-  "admin.branding.reason.too_large": "The file is larger than 512 KB.",
-  "admin.branding.reason.invalid_data": "The file could not be read. Try uploading it again.",
-  "admin.branding.reason.invalid_svg":
-    "This SVG is not valid. Export it from your design tool as a plain SVG.",
-  "admin.branding.reason.unsafe_svg":
-    "This SVG contains elements that are not allowed (scripts or external links). Export it as a plain SVG without them.",
   "admin.branding.names.title": "Platform name",
   "admin.branding.names.description":
     "Shown on the site and in search results. If the logo is a symbol without a name, show the name next to it.",
@@ -359,6 +330,7 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
   "admin.settings.contact.description":
     "Shown in the floating contact hub. An empty channel is hidden.",
   "admin.settings.socials.title": "Social accounts",
+  "admin.settings.landing.title": "Home page",
   "admin.settings.socials.description": "https links to the platform's accounts.",
   "admin.settings.locale.title": "Language and numbers",
   "admin.settings.alerts.title": "Admin alerts",

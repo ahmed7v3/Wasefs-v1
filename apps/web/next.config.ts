@@ -10,10 +10,15 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // Trace files from the monorepo root so workspace packages end up in the standalone output.
   outputFileTracingRoot: fileURLToPath(new URL("../../", import.meta.url)),
+  // The icon route handlers read their bundled defaults through a computed path, which tracing
+  // cannot follow (`src/lib/brand-asset.ts`).
+  outputFileTracingIncludes: { "/*": ["./src/brand-defaults/**"] },
   poweredByHeader: false,
   reactStrictMode: true,
   // @wasfa/ui ships TypeScript source.
   transpilePackages: ["@wasfa/ui"],
+  // `experimental.inlineCss` measured 2026-10-23 (Lighthouse mobile, median of 3, production build):
+  // LCP +150 ms on `/` and +146 ms on `/pricing`, +48 KB of uncacheable HTML per page. Rejected.
 };
 
 export default nextConfig;

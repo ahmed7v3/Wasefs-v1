@@ -1,6 +1,6 @@
 "use client";
 
-import { t } from "@wasfa/shared/i18n";
+import { t } from "@wasfa/shared/i18n/public";
 import { Skeleton } from "@wasfa/ui";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 

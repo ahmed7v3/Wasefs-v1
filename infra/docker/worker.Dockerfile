@@ -23,6 +23,9 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 COPY --from=prune /repo/out/full/ .
 RUN pnpm --filter "@wasfa/worker..." run build
 RUN pnpm --filter @wasfa/worker deploy --legacy --prod /out \
+ && cp -r apps/worker/assets /out/assets \
+ && mkdir -p /out/src/og \
+ && cp -r apps/worker/src/og/assets /out/src/og/assets \
  && find /out -type f \( -name '*.map' -o -name '*.d.ts' -o -name '*.d.cts' -o -name '*.d.mts' -o -iname '*.md' \) -delete
 
 FROM ${NODE_IMAGE} AS node-slim
