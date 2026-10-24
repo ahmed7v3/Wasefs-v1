@@ -24,7 +24,7 @@
   "dependencies": {
     "@google/genai": "2.28.0",
     "@wasfa/shared": "workspace:*",
-    "zod": "^4.6.5"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
