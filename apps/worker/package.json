@@ -35,7 +35,7 @@
     "pdfjs-dist": "6.4.299",
     "pino": "^10.4.0",
     "sharp": "0.35.5",
-    "zod": "^4.6.5"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@swc-node/register": "^1.12.1",
