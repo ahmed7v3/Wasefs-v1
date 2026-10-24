@@ -85,6 +85,20 @@ if [[ "${DEPLOY_SKIP_PULL:-0}" != "1" ]]; then
   dc --profile tools pull
 fi
 
+# Caddy runs with `admin off`, so it reads its config only at start. The workflow has already copied
+# the new Caddyfile; when it changed since the last healthy release, validate it in the running
+# container (before anything is touched) and restart Caddy after `up`.
+caddy_config_sum() { cat Caddyfile caddy/* 2>/dev/null | sha256sum | cut -d' ' -f1; }
+CADDY_SUM="$(caddy_config_sum)"
+CADDY_RESTART=0
+if [[ "$CADDY_SUM" != "$(cat .caddy-config-sum 2>/dev/null || true)" ]]; then
+  if [[ -n "$(dc ps -q caddy 2>/dev/null)" ]]; then
+    dc exec -T caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 \
+      || die "the new Caddyfile is invalid; the running release was not touched"
+  fi
+  CADDY_RESTART=1
+fi
+
 log "running migrations"
 dc run --rm migrate || die "migration failed; the running release was not touched"
 
@@ -93,11 +107,16 @@ log "starting containers"
 # a failed release to roll back, not a reason to abort the script (set -e would skip the rollback).
 started=0
 dc up -d --remove-orphans || started=1
+if (( started == 0 && CADDY_RESTART == 1 )); then
+  log "Caddy config changed: restarting caddy"
+  dc restart caddy || started=1
+fi
 
 if (( started == 0 )); then
   log "waiting up to ${READY_TIMEOUT}s for /health/ready"
   if wait_ready; then
     printf '%s\n' "$SHA" > .deployed-sha
+    printf '%s\n' "$CADDY_SUM" > .caddy-config-sum
     # Keep images used in the last week so a manual rollback does not need a pull.
     docker image prune -af --filter "until=168h" >/dev/null 2>&1 || true
     log "release $SHA is healthy"

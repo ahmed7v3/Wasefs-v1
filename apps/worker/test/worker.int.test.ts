@@ -77,8 +77,9 @@ describe("system.heartbeat", () => {
     const first = await waitFor(() => connection.get(WORKER_HEARTBEAT_KEY));
     expect(workerStatus(first)).toBe("ok");
 
+    // Not read back from Redis: the startup heartbeat can still land between the write and the read.
+    expect(workerStatus("1")).toBe("stale");
     await connection.set(WORKER_HEARTBEAT_KEY, "1");
-    expect(workerStatus(await connection.get(WORKER_HEARTBEAT_KEY))).toBe("stale");
     await producer.add("system.heartbeat", { source: "manual" });
     const refreshed = await waitFor(async () => {
       const value = await connection.get(WORKER_HEARTBEAT_KEY);
