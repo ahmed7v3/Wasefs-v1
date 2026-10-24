@@ -7,24 +7,17 @@
 # must still run (and still alert) when the worker or the API is broken.
 ARG ALPINE_IMAGE=alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
 
-# The Alpine `rclone` package lags upstream and carries ~20 HIGH advisories in its Go dependencies
-# (ssh, grpc, x/net), so the official release binary is used instead, verified by SHA-256.
-# To update: pick a release, copy both hashes from
-# https://github.com/rclone/rclone/releases/download/<version>/SHA256SUMS
-FROM ${ALPINE_IMAGE} AS rclone
+# rclone is built from source with a patched Go toolchain: the Alpine package lags upstream (~20 HIGH
+# advisories in its Go dependencies), and the v1.75.2 release binary is built with Go 1.26.8, which
+# has the crypto/x509 man-in-the-middle flaw CVE-2026-111943, and rclone talks TLS to R2. The module
+# download is verified against go.sum and the Go checksum database. To update: bump RCLONE_VERSION;
+# go back to the release binary once one is built with Go >= 1.26.10.
+FROM golang:1.26.10-alpine3.24@sha256:27f2d3b83cfc5803c8078f8e730af0f7c431bf067afaec8f60a36fb763187cba AS rclone
 ARG RCLONE_VERSION=v1.75.2
-ARG RCLONE_SHA256_AMD64=349ac8fba6ff65d6247043f1750cdcb518ec5d500ef91463a10d37c0ccdf3702
-ARG RCLONE_SHA256_ARM64=7e1e8d69654941b7b7df84ee74c5f7fb09cce7d5496947fb7bf16b55ff427d10
-RUN apk add --no-cache curl unzip \
- && case "$(uname -m)" in \
-      x86_64)  arch=amd64; sha="$RCLONE_SHA256_AMD64" ;; \
-      aarch64) arch=arm64; sha="$RCLONE_SHA256_ARM64" ;; \
-      *) echo "unsupported architecture" >&2; exit 1 ;; \
-    esac \
- && curl -fsSL -o /tmp/rclone.zip "https://github.com/rclone/rclone/releases/download/${RCLONE_VERSION}/rclone-${RCLONE_VERSION}-linux-${arch}.zip" \
- && echo "${sha}  /tmp/rclone.zip" | sha256sum -c - \
- && unzip -j /tmp/rclone.zip '*/rclone' -d /out \
- && chmod 755 /out/rclone
+RUN CGO_ENABLED=0 GOBIN=/out go install -trimpath \
+      -ldflags "-s -w -X github.com/rclone/rclone/fs.Version=${RCLONE_VERSION}" \
+      "github.com/rclone/rclone@${RCLONE_VERSION}" \
+ && /out/rclone version | head -2
 
 FROM ${ALPINE_IMAGE}
 # postgresql18-client: pg_dump / pg_restore / psql 18   age: encryption   jq: parses rclone listings
