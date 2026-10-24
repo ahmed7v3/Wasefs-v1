@@ -28,6 +28,8 @@ ARG NEXT_PUBLIC_SITE_URL=https://wasfa.online
 ARG NEXT_PUBLIC_API_URL=https://api.wasfa.online
 # Public Turnstile site key (not a secret). Empty = no widget, which only works with an API that has no secret.
 ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY=
+# Public media library origin (the R2 media bucket's custom domain).
+ARG NEXT_PUBLIC_MEDIA_ORIGIN=https://media.wasfa.online
 ENV NEXT_PUBLIC_ENV=$NEXT_PUBLIC_ENV \
     NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
     NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \

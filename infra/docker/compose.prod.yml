@@ -116,6 +116,12 @@ services:
       R2_UPLOADS_ACCESS_KEY_ID: ${R2_UPLOADS_ACCESS_KEY_ID:-}
       R2_UPLOADS_SECRET_ACCESS_KEY: ${R2_UPLOADS_SECRET_ACCESS_KEY:-}
       R2_UPLOADS_REGION: ${R2_UPLOADS_REGION:-auto}
+      # Public media library: a different bucket, readable by anyone on MEDIA_PUBLIC_ORIGIN. Keys only
+      # when the uploads token is scoped to the uploads bucket (then both). Empty = media is off.
+      R2_MEDIA_BUCKET: ${R2_MEDIA_BUCKET:-}
+      R2_MEDIA_ACCESS_KEY_ID: ${R2_MEDIA_ACCESS_KEY_ID:-}
+      R2_MEDIA_SECRET_ACCESS_KEY: ${R2_MEDIA_SECRET_ACCESS_KEY:-}
+      MEDIA_PUBLIC_ORIGIN: ${MEDIA_PUBLIC_ORIGIN:-}
       # Authentication (Better Auth). The api container reaches Cloudflare (Turnstile), Google and
       # the breached-password service through the `edge` network.
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
@@ -168,6 +174,12 @@ services:
       R2_UPLOADS_ACCESS_KEY_ID: ${R2_UPLOADS_ACCESS_KEY_ID:-}
       R2_UPLOADS_SECRET_ACCESS_KEY: ${R2_UPLOADS_SECRET_ACCESS_KEY:-}
       R2_UPLOADS_REGION: ${R2_UPLOADS_REGION:-auto}
+      # Public media library: a different bucket, readable by anyone on MEDIA_PUBLIC_ORIGIN. Keys only
+      # when the uploads token is scoped to the uploads bucket (then both). Empty = media is off.
+      R2_MEDIA_BUCKET: ${R2_MEDIA_BUCKET:-}
+      R2_MEDIA_ACCESS_KEY_ID: ${R2_MEDIA_ACCESS_KEY_ID:-}
+      R2_MEDIA_SECRET_ACCESS_KEY: ${R2_MEDIA_SECRET_ACCESS_KEY:-}
+      MEDIA_PUBLIC_ORIGIN: ${MEDIA_PUBLIC_ORIGIN:-}
       # Outgoing mail through Brevo's SMTP relay. Another provider is an env change only.
       SMTP_HOST: ${SMTP_HOST:-smtp-relay.brevo.com}
       SMTP_PORT: ${SMTP_PORT:-587}

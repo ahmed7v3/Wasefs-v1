@@ -132,6 +132,7 @@ jobs:
             NEXT_PUBLIC_SITE_URL=https://wasfa.online
             NEXT_PUBLIC_API_URL=https://api.wasfa.online
             NEXT_PUBLIC_TURNSTILE_SITE_KEY=${{ vars.TURNSTILE_SITE_KEY }}
+            NEXT_PUBLIC_MEDIA_ORIGIN=https://media.wasfa.online
 
       # 2) Scan before publishing: a HIGH/CRITICAL finding that has a fix blocks the push, so a
       #    vulnerable image never gets the `latest` tag or reaches the server.
@@ -162,6 +163,7 @@ jobs:
             NEXT_PUBLIC_SITE_URL=https://wasfa.online
             NEXT_PUBLIC_API_URL=https://api.wasfa.online
             NEXT_PUBLIC_TURNSTILE_SITE_KEY=${{ vars.TURNSTILE_SITE_KEY }}
+            NEXT_PUBLIC_MEDIA_ORIGIN=https://media.wasfa.online
 
   # Browser tests of Phase 1's web flows against the real stack (API, worker, web, Postgres 18,
   # Redis 8 started by Testcontainers), with axe accessibility checks at 360 px and 1440 px and a
