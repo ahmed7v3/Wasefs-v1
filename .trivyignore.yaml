@@ -24,3 +24,9 @@ vulnerabilities:
       - "usr/bin/age-*"
     expired_at: 2026-12-01
     statement: Go crypto/tls issue in age, which makes no TLS connections.
+  - id: CVE-2026-111943
+    paths:
+      - "usr/bin/age"
+      - "usr/bin/age-*"
+    expired_at: 2026-12-01
+    statement: Go crypto/x509 certificate verification issue in age, which never verifies certificates (offline encryption only).
