@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import {
+  auditLogs,
   contentCategories,
   contentItems,
   contentPeople,
@@ -27,6 +28,7 @@ let reviewerAccount: Admin; // read + review, linked to a reviewer profile
 let selfReviewer: Admin; // write + review + profile: may not approve what they wrote
 let manager: Admin; // admin: all content permissions
 let readOnly: Admin;
+let owner: Admin; // super_admin: no reviewer profile, no review, gates advise
 let categoryId: string;
 let authorId: string;
 let mediaId: string;
@@ -40,6 +42,7 @@ beforeAll(async () => {
     await ctx.customRole(["content.read", "content.write", "content.review"]),
   );
   readOnly = await ctx.admin(await ctx.customRole(["content.read"]));
+  owner = await ctx.admin("super_admin");
 
   const db = ctx.owner.db;
   const [category] = await db
@@ -380,6 +383,47 @@ describe("review workflow", () => {
     expect(res.statusCode, res.body).toBe(422);
     expect(res.json()).toMatchObject({ code: "CONTENT_GATES_BLOCK" });
     expect(JSON.stringify(res.json())).toContain("forbidden_claims");
+  });
+
+  it("lets the owner publish an unreviewed article past failing gates, and audits the override", async () => {
+    const created = await call(owner, "POST", "items", {
+      type: "article",
+      locale: "ar",
+      payload: { title: "owner thin", bodyMd: "short" },
+      meta: { seo: { description: "owner thin description" } },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const draft = contentItemDetailSchema.parse(created.json());
+    // An article with no category needs review and fails min_words, author, image...
+    expect(draft.gates.some((gate) => gate.level === "block" && !gate.ok)).toBe(true);
+    expect(draft.allowedActions).toEqual(expect.arrayContaining(["publish", "schedule"]));
+
+    // A team member with every content permission is still stopped by the gates.
+    const stopped = await act(manager, draft, "publish");
+    expect(stopped.statusCode).toBe(409);
+
+    const res = await act(owner, draft, "publish");
+    expect(res.statusCode, res.body).toBe(200);
+    const live = contentItemDetailSchema.parse(res.json());
+    expect(live).toMatchObject({ status: "published", live: true });
+    // Publishing is the owner's approval of exactly this revision.
+    expect(live.reviewedRevisionId).toBe(live.currentRevision.id);
+
+    const [row] = await ctx.owner.db
+      .select()
+      .from(auditLogs)
+      .where(and(eq(auditLogs.action, "content.item.published"), eq(auditLogs.targetId, draft.id)));
+    expect((row?.after as { ownerOverride?: string[] }).ownerOverride).toEqual(
+      expect.arrayContaining(["min_words"]),
+    );
+  });
+
+  it("lets the owner approve what they submitted themselves", async () => {
+    const item = await createItem();
+    await act(owner, item, "submit");
+    const res = await act(owner, item, "approve");
+    expect(res.statusCode, res.body).toBe(200);
+    expect(contentItemDetailSchema.parse(res.json()).status).toBe("approved");
   });
 
   it("refuses a schedule in the past", async () => {

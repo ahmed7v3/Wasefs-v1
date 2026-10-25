@@ -564,6 +564,10 @@ export function ContentEditorView({ itemId, newItem, permissions }: ContentEdito
           setDialog(null);
         }}
         gates={detail?.gates ?? []}
+        advisory={
+          (detail?.allowedActions ?? []).includes("publish") &&
+          (detail?.gates ?? []).some((gate) => gate.level === "block" && !gate.ok)
+        }
         live={detail?.live ?? false}
         path={detail?.publicPath ?? null}
         busy={editor.actionBusy === "publish"}

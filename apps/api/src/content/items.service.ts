@@ -280,6 +280,7 @@ export class ContentItemsService {
       name: user.name,
       permissions: new Set<string>(user.isSuperAdmin ? PERMISSION_KEYS : user.permissions),
       isActiveReviewer: await this.repo.isActiveReviewer(user.id),
+      isOwner: user.isSuperAdmin,
     };
   }
 

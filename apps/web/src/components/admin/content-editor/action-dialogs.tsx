@@ -124,6 +124,8 @@ export interface PublishDialogProps {
   path: string | null;
   busy: boolean;
   error: string | null;
+  /** The server offers publishing despite failing gates (the owner): they are advice, not a stop. */
+  advisory?: boolean;
   onConfirm: () => Promise<ActionResult>;
 }
 
@@ -136,10 +138,13 @@ export function PublishDialog({
   path,
   busy,
   error,
+  advisory = false,
   onConfirm,
 }: PublishDialogProps) {
-  const blocking = gates.filter((gate) => gate.level === "block" && !gate.ok);
-  const warnings = gates.filter((gate) => gate.level !== "block" && !gate.ok);
+  const failing = gates.filter((gate) => gate.level === "block" && !gate.ok);
+  // Advisory gates are shown with the warnings and never hide the confirm button.
+  const blocking = advisory ? [] : failing;
+  const warnings = advisory ? gates.filter((gate) => !gate.ok) : gates.filter((gate) => gate.level !== "block" && !gate.ok);
   return (
     <Dialog
       open={open}
@@ -169,7 +174,7 @@ export function PublishDialog({
               className="flex flex-col gap-2"
             >
               <h3 className="text-base font-semibold text-text">
-                {t("admin.editor.publish.warnings")}
+                {t(advisory ? "admin.editor.publish.advisory" : "admin.editor.publish.warnings")}
               </h3>
               <GateList gates={warnings} />
             </section>
