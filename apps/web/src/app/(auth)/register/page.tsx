@@ -6,11 +6,21 @@ import { AuthFooter, AuthHeading } from "../../../components/auth/auth-heading";
 import { RegisterForm } from "../../../components/auth/register-form";
 import { JoinCookie } from "../../../components/join/join-cookie";
 import { normalizeJoinSlug, normalizeReferralCode } from "../../../lib/attribution-cookies";
+import { providersResponseSchema, type ProviderStates } from "../../../lib/auth-api";
 import { getNonce } from "../../../lib/nonce";
 import { safeNext } from "../../../lib/safe-next";
-import { getMe } from "../../../lib/session";
+import { getMe, serverApi } from "../../../lib/session";
 
 import type { Metadata } from "next";
+
+/** A broken provider list must not take the sign-up form down with it: no list, no social buttons. */
+async function loadProviders(): Promise<ProviderStates> {
+  try {
+    return await serverApi("/auth/providers", { schema: providersResponseSchema });
+  } catch {
+    return [];
+  }
+}
 
 export const metadata: Metadata = {
   title: t("auth.register.title"),
@@ -29,7 +39,7 @@ export default async function RegisterPage({
 
   if (await getMe().catch(() => null)) redirect(target);
 
-  const nonce = await getNonce();
+  const [providers, nonce] = await Promise.all([loadProviders(), getNonce()]);
   const loginParams = new URLSearchParams();
   if (target !== "/dashboard") loginParams.set("next", target);
   if (joinSlug) loginParams.set("join", joinSlug);
@@ -39,7 +49,12 @@ export default async function RegisterPage({
     <>
       <AuthHeading title={t("auth.register.title")} lead={t("auth.register.lead")} />
       {joinSlug ? <JoinCookie slug={joinSlug} /> : null}
-      <RegisterForm nonce={nonce} initialReferralCode={referralCode ?? ""} />
+      <RegisterForm
+        nonce={nonce}
+        initialReferralCode={referralCode ?? ""}
+        providers={providers}
+        next={target}
+      />
       <AuthFooter>
         {t("auth.register.haveAccount")}{" "}
         <Link

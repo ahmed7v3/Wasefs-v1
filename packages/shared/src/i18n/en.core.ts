@@ -127,6 +127,9 @@ export const enCore: Partial<Record<MessageKey, string>> = {
   "auth.social.or": "or",
   "auth.social.google": "Continue with Google",
   "auth.social.facebook": "Continue with Facebook",
+  "auth.social.googleSignUp": "Sign up with Google",
+  "auth.social.googleNote":
+    "You will then need to link and verify your phone number before using the app.",
   "auth.register.title": "Create an account",
   "auth.register.lead": "Create your account and start using Wasfa AI in minutes.",
   "auth.register.methodLabel": "Sign-up method",
@@ -237,6 +240,8 @@ export const enCore: Partial<Record<MessageKey, string>> = {
   "phone.verify.start": "Start verification",
   "phone.waiting.instructions":
     "Press the button to open WhatsApp, then send the ready message as it is from your number. Do not change the code.",
+  "phone.sameNumber":
+    "Important: send the verification code from the same phone number you entered ({phone}). Messages from any other number won't be accepted.",
   "phone.waiting.openWhatsapp": "Open WhatsApp",
   "phone.waiting.codeLabel": "Verification code (sent as text)",
   "phone.waiting.toNumber": "to the number",

@@ -155,6 +155,21 @@ function StartForm({
   );
 }
 
+/** The proof is the sender of the message, so the notice names the number it must come from. */
+function SameNumberNotice({ phone }: { phone: string }) {
+  const marker = "\u0001";
+  const [before = "", after = ""] = t("phone.sameNumber", { phone: marker }).split(marker);
+  return (
+    <Notice tone="warning" className="font-semibold">
+      <p>
+        {before}
+        <bdi dir="ltr">{phone}</bdi>
+        {after}
+      </p>
+    </Notice>
+  );
+}
+
 function Waiting({
   details,
   onRestart,
@@ -165,6 +180,7 @@ function Waiting({
   const qr = useQrCode(details.waLink);
   return (
     <div className="flex flex-col gap-5">
+      {details.phone ? <SameNumberNotice phone={details.phone} /> : null}
       {details.waLink && details.code ? (
         <>
           <p className="text-base text-text">{t("phone.waiting.instructions")}</p>

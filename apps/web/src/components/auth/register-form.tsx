@@ -19,7 +19,7 @@ import { z } from "zod";
 
 import { api } from "../../lib/api-client";
 import { REFERRAL_COOKIE, normalizeReferralCode } from "../../lib/attribution-cookies";
-import { PENDING_EMAIL_KEY, VERIFIED_CALLBACK } from "../../lib/auth-api";
+import { PENDING_EMAIL_KEY, VERIFIED_CALLBACK, type ProviderStates } from "../../lib/auth-api";
 import { readBrowserCookie } from "../../lib/browser-cookies";
 import { useApiForm, type ApiForm } from "../../lib/forms";
 import { ErrorNotice } from "../error-notice";
@@ -27,6 +27,8 @@ import { ErrorSummary } from "../forms/error-summary";
 import { PhoneInput } from "../forms/phone-input";
 import { TermsCheckbox } from "../forms/terms-checkbox";
 import { Turnstile, useTurnstile } from "../turnstile";
+
+import { SocialButtons } from "./social-buttons";
 
 /** The terms box exists only in the browser; its message is a `form.*` key (see `zodIssueMessage`). */
 const terms = z.boolean().refine((accepted) => accepted, { message: "form.termsRequired" });
@@ -36,6 +38,10 @@ const phoneRegistration = signUpPhoneSchema.extend({ terms });
 
 export interface RegisterFormProps {
   nonce?: string | undefined;
+  /** From `GET /auth/providers`; Google (when offered) leads the form. */
+  providers?: ProviderStates | undefined;
+  /** Already vetted by `safeNext`; where the provider sends the user back. */
+  next?: string | undefined;
   /** The invite code from `?ref=` (already normalised), or the cookie's once the page is in the browser. */
   initialReferralCode?: string | undefined;
 }
@@ -302,7 +308,12 @@ function PhoneRegistration({ nonce, initialReferralCode = "" }: RegisterFormProp
   );
 }
 
-export function RegisterForm({ nonce, initialReferralCode = "" }: RegisterFormProps) {
+export function RegisterForm({
+  nonce,
+  initialReferralCode = "",
+  providers = [],
+  next = "/dashboard",
+}: RegisterFormProps) {
   // The invite link `/r/<code>` also left the code in a cookie: pick it up once in the browser. Changing
   // the key remounts the two forms with it before anything was typed.
   const [referral, setReferral] = useState(initialReferralCode);
@@ -313,17 +324,20 @@ export function RegisterForm({ nonce, initialReferralCode = "" }: RegisterFormPr
   }, [initialReferralCode]);
 
   return (
-    <Tabs defaultValue="email">
-      <TabList aria-label={t("auth.register.methodLabel")}>
-        <Tab value="email">{t("auth.tab.email")}</Tab>
-        <Tab value="phone">{t("auth.tab.phone")}</Tab>
-      </TabList>
-      <TabPanel value="email">
-        <EmailRegistration key={referral} nonce={nonce} initialReferralCode={referral} />
-      </TabPanel>
-      <TabPanel value="phone">
-        <PhoneRegistration key={referral} nonce={nonce} initialReferralCode={referral} />
-      </TabPanel>
-    </Tabs>
+    <div className="flex flex-col gap-6">
+      <SocialButtons providers={providers} next={next} mode="signup" />
+      <Tabs defaultValue="email">
+        <TabList aria-label={t("auth.register.methodLabel")}>
+          <Tab value="email">{t("auth.tab.email")}</Tab>
+          <Tab value="phone">{t("auth.tab.phone")}</Tab>
+        </TabList>
+        <TabPanel value="email">
+          <EmailRegistration key={referral} nonce={nonce} initialReferralCode={referral} />
+        </TabPanel>
+        <TabPanel value="phone">
+          <PhoneRegistration key={referral} nonce={nonce} initialReferralCode={referral} />
+        </TabPanel>
+      </Tabs>
+    </div>
   );
 }
