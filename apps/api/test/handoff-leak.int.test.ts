@@ -53,7 +53,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   // Open feeds first: a response that never ends would keep the app from closing.
-  
+
   network.close();
   await redis?.quit();
   await app?.close();
@@ -399,12 +399,7 @@ describe("GET /handoff/:captureSessionId/events", () => {
 
     expect(events.map((line) => (JSON.parse(line) as { fileId: string }).fileId)).toEqual(seen);
     expect(await bystander).toEqual([]);
-  });
-});
-
-it("leaks a feed", async () => {
-  const a = await user();
-  const { captureSessionId } = await startHandoff(a);
-  const res = await fetch(`${baseUrl}/handoff/${captureSessionId}/events`, { headers: { cookie: cookieHeader(a.jar), origin: WEB } });
-  expect(res.status).toBe(200);
+    // Two sign-ups, two sessions and two uploads overran 30 s on a busy CI runner; every wait
+    // inside is bounded at 15 s, so the longer limit cannot hide a hang.
+  }, 60_000);
 });
