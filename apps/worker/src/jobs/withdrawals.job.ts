@@ -88,11 +88,7 @@ export function withdrawalOutboxHandlers(
         const reasonKey = request.rejectReason;
         const reason =
           payload.event === "rejected"
-            ? t(
-                `rewards.withdrawal.reject.${reasonKey ?? "other"}` as MessageKey,
-                {},
-                user.locale,
-              )
+            ? t(`rewards.withdrawal.reject.${reasonKey ?? "other"}` as MessageKey, {}, user.locale)
             : undefined;
         message = {
           params: {

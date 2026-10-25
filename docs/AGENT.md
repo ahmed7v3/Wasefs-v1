@@ -30,14 +30,19 @@ Around it: an AI medical assistant (`/ai`) with skills (lab tests, drug info, X-
 | `docs/SECURITY.md` | Threat model, mandatory per-endpoint checklist, anti-ban rules, carry-overs. |
 | `docs/DATABASE.md` | Conventions, table index with owner columns, indexes, anonymization. Update it in every task that touches the schema. |
 | `docs/DESIGN-SYSTEM.md` | Tokens, typography, RTL rules, forms, states, component specs, visual targets. |
-| `docs/SEO-GEO.md` | Keyword strategy, structured data, blog API, GEO *(to be written)*. |
+| `docs/SEO-GEO.md` | SEO and GEO strategy: URL map, keyword clusters and ownership (`docs/seo/keyword-map.csv`), technical SEO, medicine pages, structured data, E-E-A-T, AI search, measurement. |
+| `docs/CONTENT-PLATFORM.md` | Blog, guides, glossary and monographs: data model, review workflow, editor, media pipeline, quality gates, public templates. |
+| `docs/PUBLISHING-API.md` | The Publishing API contract for AI agents and automation. |
+| `docs/TRACKING.md` | Campaign links, attribution, consent, pixels, server-side conversions, privacy rules. |
+| `docs/ADS.md` | Advertising inventory: page classes, placements, booking, measurement, creative review. |
+| `docs/BRAND-AND-HOMEPAGE.md` | Logo and favicon system, OG templates, visual content rules, homepage refresh and motion system. |
 | `docs/DOCKER-GUIDE.md` | Beginner-friendly Docker + deployment guide. |
 | `docs/BILLING.md` | Plans, price engine, orders, payments (gateway + manual), subscriptions, organisations, admin alerts. |
 | `docs/REFERRALS-REWARDS.md` | Referrals, points, conversion, withdrawals, deals, anti-fraud. |
 | `docs/GROWTH-STRATEGY.md` | Conversion mechanisms, guardrails (no dark patterns), lifecycle, experiments. |
 | `docs/ADMIN-CONSOLE-SPEC.md` | Billing/growth admin screens and the user 360 view. |
 | `docs/REUSE-INDEX.md` | Registry of every shared function/component with its path. **Update it whenever you add one.** |
-| `docs/ROADMAP.md` | The five phases (0–4) with scope and order. Read before starting a phase. |
+| `docs/ROADMAP.md` | The six phases (0–5) with scope and order. Read before starting a phase. |
 | `docs/phases/phaseN.md` | Executable phase plans with acceptance criteria. |
 
 Work **one phase at a time**, in order. Do not start phase N+1 until phase N's acceptance criteria all pass, except items that depend on external accounts or the live server: those move to the next phase's carry-over task with a written reason.

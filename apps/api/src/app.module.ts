@@ -19,6 +19,9 @@ import { RedisModule } from "./common/redis.js";
 import { ZodValidationPipe } from "./common/validation.js";
 import { ConfigModule } from "./config/config.module.js";
 import { ContactModule } from "./contact/contact.module.js";
+import { ContentModule } from "./content/content.module.js";
+import { PublicContentModule } from "./content/public/public-content.module.js";
+import { TaxonomyModule } from "./content/taxonomy/taxonomy.module.js";
 import { CouponsModule } from "./coupons/coupons.module.js";
 import { CreditsModule } from "./credits/credits.module.js";
 import { FilesModule } from "./files/files.module.js";
@@ -78,6 +81,9 @@ export class AppModule {
         WaitlistModule,
         BrandingModule,
         MediaModule,
+        ContentModule,
+        PublicContentModule,
+        TaxonomyModule,
         OnboardingModule,
         UsersModule,
         CreditsModule,

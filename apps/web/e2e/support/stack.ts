@@ -4,7 +4,7 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync } from "node:f
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
-import { CreateBucketCommand, S3Client } from "@aws-sdk/client-s3";
+import { CreateBucketCommand, PutBucketPolicyCommand, S3Client } from "@aws-sdk/client-s3";
 import { MinioContainer, type StartedMinioContainer } from "@testcontainers/minio";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { RedisContainer, type StartedRedisContainer } from "@testcontainers/redis";
@@ -40,6 +40,8 @@ const API_DB_PASSWORD = "e2e-api-role-password";
 const MINIO_IMAGE =
   "cgr.dev/chainguard/minio@sha256:dc455cdd4db6e390b1b26514f15ff37681a777bf8dab41aac445a0259f751e56";
 const UPLOADS_BUCKET = "wasfa-e2e-uploads";
+/** The PUBLIC media bucket of the content platform: without it media uploads answer 503. */
+const MEDIA_BUCKET = "wasfa-e2e-media";
 
 export interface RuntimeInfo {
   redisUrl: string;
@@ -102,6 +104,24 @@ async function startInfra(): Promise<Infra> {
     forcePathStyle: true,
   });
   await s3.send(new CreateBucketCommand({ Bucket: UPLOADS_BUCKET }));
+  await s3.send(new CreateBucketCommand({ Bucket: MEDIA_BUCKET }));
+  // Published media is readable by anyone (the browser loads it without credentials).
+  await s3.send(
+    new PutBucketPolicyCommand({
+      Bucket: MEDIA_BUCKET,
+      Policy: JSON.stringify({
+        Version: "2012-10-17",
+        Statement: [
+          {
+            Effect: "Allow",
+            Principal: "*",
+            Action: ["s3:GetObject"],
+            Resource: [`arn:aws:s3:::${MEDIA_BUCKET}/*`],
+          },
+        ],
+      }),
+    }),
+  );
   s3.destroy();
   const ownerDatabaseUrl = postgres.getConnectionUri();
   const apiUrl = new URL(ownerDatabaseUrl);
@@ -118,6 +138,8 @@ async function startInfra(): Promise<Infra> {
       R2_UPLOADS_BUCKET: UPLOADS_BUCKET,
       R2_UPLOADS_ACCESS_KEY_ID: minio.getUsername(),
       R2_UPLOADS_SECRET_ACCESS_KEY: minio.getPassword(),
+      R2_MEDIA_BUCKET: MEDIA_BUCKET,
+      MEDIA_PUBLIC_ORIGIN: `${storageOrigin}/${MEDIA_BUCKET}`,
     },
     stop: async () => {
       await Promise.all([postgres.stop(), redis.stop(), minio.stop()]);

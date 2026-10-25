@@ -34,7 +34,8 @@ export type PermissionGroup =
   | "alerts"
   | "referrals"
   | "rewards"
-  | "deals";
+  | "deals"
+  | "content";
 
 export interface Label {
   ar: string;
@@ -70,6 +71,7 @@ export const PERMISSION_GROUPS: Record<PermissionGroup, Label> = {
   referrals: { ar: "الإحالات", en: "Referrals" },
   rewards: { ar: "المكافآت والنقاط", en: "Rewards and points" },
   deals: { ar: "الاتفاقات الخاصة", en: "Deals" },
+  content: { ar: "المحتوى", en: "Content" },
 };
 
 export const PERMISSIONS = {
@@ -257,6 +259,35 @@ export const PERMISSIONS = {
   "deals.write": {
     group: "deals",
     label: { ar: "إنشاء الاتفاقات الخاصة وروابط الانضمام", en: "Create deals and join links" },
+  },
+  "content.read": {
+    group: "content",
+    label: { ar: "عرض المحتوى والمسودات ومعاينتها", en: "View content, drafts and previews" },
+  },
+  "content.write": {
+    group: "content",
+    label: {
+      ar: "كتابة المقالات وتعديل المسودات ورفع الوسائط",
+      en: "Write articles, edit drafts and upload media",
+    },
+  },
+  "content.publish": {
+    group: "content",
+    label: { ar: "جدولة المحتوى ونشره وإلغاء نشره", en: "Schedule, publish and unpublish content" },
+  },
+  "content.review": {
+    group: "content",
+    label: {
+      ar: "المراجعة الطبية: اعتماد المحتوى أو طلب تعديلات",
+      en: "Medical review: approve content or request changes",
+    },
+  },
+  "content.manage": {
+    group: "content",
+    label: {
+      ar: "إدارة التصنيفات والوسوم والكتّاب والتحويلات وأرشفة المحتوى",
+      en: "Manage categories, tags, people, redirects and archive content",
+    },
   },
 } as const satisfies Record<string, PermissionInfo>;
 

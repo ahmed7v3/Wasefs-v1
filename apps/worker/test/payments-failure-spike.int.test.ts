@@ -92,10 +92,7 @@ async function addPayment(status: "failed" | "succeeded", at: Date, gateway: boo
 }
 
 async function failureSpikeAlerts() {
-  return owner.db
-    .select()
-    .from(adminAlerts)
-    .where(eq(adminAlerts.kind, "payment.failure_spike"));
+  return owner.db.select().from(adminAlerts).where(eq(adminAlerts.kind, "payment.failure_spike"));
 }
 
 async function setFailureSpikeEnabled(enabled: boolean) {
@@ -109,53 +106,46 @@ async function setFailureSpikeEnabled(enabled: boolean) {
 }
 
 describe("payments.failure_spike", () => {
-  it(
-    "alerts on gateway spikes, observes cooldown, ignores manual methods, and honors disablement",
-    async () => {
-      const now = new Date("2026-10-17T12:00:00.000Z");
-      const recent = new Date(now.getTime() - 60_000);
-      const logger = { info: () => undefined } as never;
+  it("alerts on gateway spikes, observes cooldown, ignores manual methods, and honors disablement", async () => {
+    const now = new Date("2026-10-17T12:00:00.000Z");
+    const recent = new Date(now.getTime() - 60_000);
+    const logger = { info: () => undefined } as never;
 
-      for (let index = 0; index < 4; index += 1) await addPayment("failed", recent, true);
-      await paymentsFailureSpikeJob({}, { db: api.db, logger }, now);
-      expect(await failureSpikeAlerts()).toHaveLength(0);
+    for (let index = 0; index < 4; index += 1) await addPayment("failed", recent, true);
+    await paymentsFailureSpikeJob({}, { db: api.db, logger }, now);
+    expect(await failureSpikeAlerts()).toHaveLength(0);
 
-      for (let index = 0; index < 3; index += 1) await addPayment("failed", recent, true);
-      for (let index = 0; index < 2; index += 1) await addPayment("succeeded", recent, true);
-      await addPayment("failed", recent, false);
-      await paymentsFailureSpikeJob({}, { db: api.db, logger }, now);
-      const first = await failureSpikeAlerts();
-      expect(first).toHaveLength(1);
-      expect(first[0]?.summary).toBe(
-        "Card payments (kashier_card): 7 of 9 failed in the last 15 min",
-      );
-      expect(first[0]?.link).toBe("/admin/billing/payments?status=failed&method=kashier_card");
-      expect(first[0]?.summary).not.toMatch(/@|\+?\d{7,}/);
+    for (let index = 0; index < 3; index += 1) await addPayment("failed", recent, true);
+    for (let index = 0; index < 2; index += 1) await addPayment("succeeded", recent, true);
+    await addPayment("failed", recent, false);
+    await paymentsFailureSpikeJob({}, { db: api.db, logger }, now);
+    const first = await failureSpikeAlerts();
+    expect(first).toHaveLength(1);
+    expect(first[0]?.summary).toBe(
+      "Card payments (kashier_card): 7 of 9 failed in the last 15 min",
+    );
+    expect(first[0]?.link).toBe("/admin/billing/payments?status=failed&method=kashier_card");
+    expect(first[0]?.summary).not.toMatch(/@|\+?\d{7,}/);
 
-      await paymentsFailureSpikeJob(
-        {},
-        { db: api.db, logger },
-        new Date(now.getTime() + 5 * 60_000),
-      );
-      expect(await failureSpikeAlerts()).toHaveLength(1);
+    await paymentsFailureSpikeJob({}, { db: api.db, logger }, new Date(now.getTime() + 5 * 60_000));
+    expect(await failureSpikeAlerts()).toHaveLength(1);
 
-      const afterCooldown = new Date(now.getTime() + 61 * 60_000);
-      for (let index = 0; index < 5; index += 1) {
-        await addPayment("failed", new Date(afterCooldown.getTime() - 60_000), true);
-      }
-      await paymentsFailureSpikeJob({}, { db: api.db, logger }, afterCooldown);
-      expect(await failureSpikeAlerts()).toHaveLength(2);
+    const afterCooldown = new Date(now.getTime() + 61 * 60_000);
+    for (let index = 0; index < 5; index += 1) {
+      await addPayment("failed", new Date(afterCooldown.getTime() - 60_000), true);
+    }
+    await paymentsFailureSpikeJob({}, { db: api.db, logger }, afterCooldown);
+    expect(await failureSpikeAlerts()).toHaveLength(2);
 
-      await setFailureSpikeEnabled(false);
-      for (let index = 0; index < 5; index += 1) {
-        await addPayment("failed", new Date(afterCooldown.getTime() + 60_000), true);
-      }
-      await paymentsFailureSpikeJob(
-        {},
-        { db: api.db, logger },
-        new Date(afterCooldown.getTime() + 2 * 60_000),
-      );
-      expect(await failureSpikeAlerts()).toHaveLength(2);
-    },
-  );
+    await setFailureSpikeEnabled(false);
+    for (let index = 0; index < 5; index += 1) {
+      await addPayment("failed", new Date(afterCooldown.getTime() + 60_000), true);
+    }
+    await paymentsFailureSpikeJob(
+      {},
+      { db: api.db, logger },
+      new Date(afterCooldown.getTime() + 2 * 60_000),
+    );
+    expect(await failureSpikeAlerts()).toHaveLength(2);
+  });
 });

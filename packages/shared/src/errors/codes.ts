@@ -27,6 +27,20 @@ export const ErrorCode = {
   PHONE_VERIFICATION_REQUIRED: "PHONE_VERIFICATION_REQUIRED",
   // A webhook whose signature does not verify (recorded, never processed).
   INVALID_SIGNATURE: "INVALID_SIGNATURE",
+  // Content platform (Phase 4 WP3, CONTENT-PLATFORM §11): workflow refusals the editor must tell apart.
+  CONTENT_CONFLICT: "CONTENT_CONFLICT",
+  CONTENT_ILLEGAL_TRANSITION: "CONTENT_ILLEGAL_TRANSITION",
+  CONTENT_GATES_BLOCK: "CONTENT_GATES_BLOCK",
+  CONTENT_PUBLISH_CAP: "CONTENT_PUBLISH_CAP",
+  CONTENT_FOUR_EYES: "CONTENT_FOUR_EYES",
+  CONTENT_NOT_A_REVIEWER: "CONTENT_NOT_A_REVIEWER",
+  CONTENT_COMMENT_REQUIRED: "CONTENT_COMMENT_REQUIRED",
+  CONTENT_SCHEDULE_IN_PAST: "CONTENT_SCHEDULE_IN_PAST",
+  CONTENT_REVIEW_NOT_REQUIRED: "CONTENT_REVIEW_NOT_REQUIRED",
+  CONTENT_NOT_APPROVED: "CONTENT_NOT_APPROVED",
+  CONTENT_SLUG_TAKEN: "CONTENT_SLUG_TAKEN",
+  CONTENT_IN_USE: "CONTENT_IN_USE",
+  CONTENT_REDIRECT_INVALID: "CONTENT_REDIRECT_INVALID",
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
@@ -200,6 +214,97 @@ export const ERROR_INFO: Record<ErrorCode, ErrorCodeInfo> = {
   INVALID_SIGNATURE: {
     httpStatus: 401,
     message: { ar: "توقيع غير صالح.", en: "Invalid signature." },
+  },
+  CONTENT_CONFLICT: {
+    httpStatus: 409,
+    message: {
+      ar: "تم تعديل هذا المحتوى من مكان آخر. راجع النسخة الأحدث قبل الحفظ.",
+      en: "This content was changed elsewhere. Review the newer version before saving.",
+    },
+  },
+  CONTENT_ILLEGAL_TRANSITION: {
+    httpStatus: 409,
+    message: {
+      ar: "هذا الإجراء غير متاح في الحالة الحالية للمحتوى.",
+      en: "This action is not available in the content's current state.",
+    },
+  },
+  CONTENT_GATES_BLOCK: {
+    httpStatus: 422,
+    message: {
+      ar: "لا يمكن النشر قبل إصلاح الملاحظات الإلزامية.",
+      en: "This cannot be published until the blocking checks are fixed.",
+    },
+  },
+  CONTENT_PUBLISH_CAP: {
+    httpStatus: 409,
+    message: {
+      ar: "تم بلوغ الحد اليومي للنشر. جدول النشر ليوم آخر.",
+      en: "The daily publishing limit was reached. Schedule it for another day.",
+    },
+  },
+  CONTENT_FOUR_EYES: {
+    httpStatus: 403,
+    message: {
+      ar: "لا يمكنك اعتماد نسخة قدّمتَها للمراجعة بنفسك.",
+      en: "You cannot approve a revision you submitted yourself.",
+    },
+  },
+  CONTENT_NOT_A_REVIEWER: {
+    httpStatus: 403,
+    message: {
+      ar: "الاعتماد الطبي يتطلب ملفًا تعريفيًا لمراجع مرتبطًا بحسابك.",
+      en: "Medical review requires a reviewer profile linked to your account.",
+    },
+  },
+  CONTENT_COMMENT_REQUIRED: {
+    httpStatus: 422,
+    message: {
+      ar: "اكتب تعليقًا يوضح التعديلات المطلوبة.",
+      en: "Write a comment that explains the requested changes.",
+    },
+  },
+  CONTENT_SCHEDULE_IN_PAST: {
+    httpStatus: 422,
+    message: {
+      ar: "اختر وقتًا في المستقبل للجدولة.",
+      en: "Pick a time in the future to schedule.",
+    },
+  },
+  CONTENT_REVIEW_NOT_REQUIRED: {
+    httpStatus: 409,
+    message: {
+      ar: "هذا المحتوى لا يحتاج إلى مراجعة طبية.",
+      en: "This content does not need medical review.",
+    },
+  },
+  CONTENT_NOT_APPROVED: {
+    httpStatus: 409,
+    message: {
+      ar: "النشر يتطلب اعتماد النسخة الحالية أولًا.",
+      en: "Publishing requires the current revision to be approved first.",
+    },
+  },
+  CONTENT_SLUG_TAKEN: {
+    httpStatus: 409,
+    message: {
+      ar: "هذا الرابط مستخدم بالفعل. اختر رابطًا آخر.",
+      en: "This URL slug is already used. Pick another.",
+    },
+  },
+  CONTENT_IN_USE: {
+    httpStatus: 409,
+    message: {
+      ar: "لا يمكن حذف هذا العنصر لأنه مستخدم في محتوى.",
+      en: "This cannot be deleted because content still uses it.",
+    },
+  },
+  CONTENT_REDIRECT_INVALID: {
+    httpStatus: 422,
+    message: {
+      ar: "هذا التحويل يسبب حلقة أو سلسلة تحويلات.",
+      en: "This redirect would create a loop or a redirect chain.",
+    },
   },
 };
 

@@ -81,7 +81,10 @@ export async function mediaProcessJob(
       variants,
     });
     if (updated) await media.remove(stagingKey);
-    logger.info({ assetId, variants: variants.length }, "Media processed");
+    logger.info(
+      { assetId, variants: variants.length, warnings: processed.warnings },
+      "Media processed",
+    );
   } catch (error) {
     if (!(error instanceof MediaRejected)) throw error;
     await reject(error.reason);

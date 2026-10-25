@@ -15,6 +15,10 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: { "/*": ["./src/brand-defaults/**"] },
   poweredByHeader: false,
   reactStrictMode: true,
+  // `/sitemap-articles-<n>.xml`: an App Router directory cannot be named `sitemap-articles-[n].xml`.
+  rewrites: () => [
+    { source: "/sitemap-articles-:n(\\d+).xml", destination: "/sitemap-articles/:n" },
+  ],
   // @wasfa/ui ships TypeScript source.
   transpilePackages: ["@wasfa/ui"],
   // `experimental.inlineCss` measured 2026-10-23 (Lighthouse mobile, median of 3, production build):

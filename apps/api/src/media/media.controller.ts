@@ -20,16 +20,15 @@ class PatchMediaDto extends createZodDto(patchMediaSchema) {}
 class MediaIdParamDto extends createZodDto(mediaIdParamSchema) {}
 class ListMediaQueryDto extends createZodDto(listMediaQuerySchema) {}
 
-// Reuses the site-settings permissions (the closest existing ones: media is part of the public
-// site's content). A dedicated `media.*` pair can replace them when the content roles land (WP3).
-// `MediaService` writes the `media.*` audit rows.
+// Media belongs to the content platform: `content.read` / `content.write` (admin and marketing roles
+// hold them; super_admin has everything). `MediaService` writes the `media.*` audit rows.
 @Controller("admin/media")
 export class MediaController {
   constructor(private readonly media: MediaService) {}
 
   @Post("uploads")
   @HttpCode(200)
-  @RequirePermission("settings.write")
+  @RequirePermission("content.write")
   @RateLimit(60)
   createUpload(
     @CurrentUser() actor: AuthenticatedUser,
@@ -41,7 +40,7 @@ export class MediaController {
 
   @Post(":id/commit")
   @HttpCode(200)
-  @RequirePermission("settings.write")
+  @RequirePermission("content.write")
   @RateLimit(60)
   commit(
     @CurrentUser() actor: AuthenticatedUser,
@@ -52,21 +51,28 @@ export class MediaController {
   }
 
   @Get()
-  @RequirePermission("settings.read")
+  @RequirePermission("content.read")
   @RateLimit(240)
   list(@Query() query: ListMediaQueryDto) {
     return this.media.list(query);
   }
 
   @Get(":id")
-  @RequirePermission("settings.read")
+  @RequirePermission("content.read")
   @RateLimit(240)
   get(@Param() params: MediaIdParamDto) {
     return this.media.get(params.id);
   }
 
+  @Get(":id/usage")
+  @RequirePermission("content.read")
+  @RateLimit(240)
+  usage(@Param() params: MediaIdParamDto) {
+    return this.media.usage(params.id);
+  }
+
   @Patch(":id")
-  @RequirePermission("settings.write")
+  @RequirePermission("content.write")
   @RateLimit(60)
   patch(
     @CurrentUser() actor: AuthenticatedUser,

@@ -5,6 +5,7 @@ export * from "./audit-logs.js";
 export * from "./auth.js";
 export * from "./billing.js";
 export * from "./chats.js";
+export * from "./content.js";
 export * from "./contact-messages.js";
 export * from "./credits.js";
 export * from "./deals.js";

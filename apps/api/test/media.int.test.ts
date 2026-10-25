@@ -70,20 +70,20 @@ const put = (upload: { url: string; headers: Record<string, string> }, data: Buf
   fetch(upload.url, { method: "PUT", headers: upload.headers, body: new Uint8Array(data) });
 
 describe("who may use the media library", () => {
-  it("asks for sign-in, a second factor and the settings permissions", async () => {
+  it("asks for sign-in, a second factor and the content permissions", async () => {
     const data = bytesOf("perm");
     expect(
       (await ctx.harness.call("POST", "/admin/media/uploads", { body: declare(data) })).statusCode,
     ).toBe(401);
     expect((await ctx.harness.call("GET", "/admin/media")).statusCode).toBe(401);
 
-    const reader = await ctx.admin(await ctx.roleLacking("settings.write"));
+    const reader = await ctx.admin(await ctx.roleLacking("content.write"));
     expect((await create(declare(data), reader)).statusCode).toBe(403);
     expect((await ctx.harness.call("GET", "/admin/media", { jar: reader.jar })).statusCode).toBe(
       200,
     );
 
-    const blind = await ctx.admin(await ctx.roleLacking("settings.read"));
+    const blind = await ctx.admin(await ctx.roleLacking("content.read"));
     expect((await ctx.harness.call("GET", "/admin/media", { jar: blind.jar })).statusCode).toBe(
       403,
     );

@@ -292,6 +292,18 @@ it is recorded in `docs/phases/phase1.md`.
 
 Then `chmod 600 /opt/wasfa/.env.prod`. Never paste its content into chat, tickets or commits.
 
+### 3.7a Content platform secrets (Phase 4)
+
+Three optional values in `.env.prod`. Generate each secret with `openssl rand -base64 48` (at least 32 characters):
+
+| Variable | Used by | What it does | When unset |
+|---|---|---|---|
+| `CONTENT_PREVIEW_SECRET` | api | Signs the share links of unpublished content drafts. | Previews are switched off (the admin cannot create a link). |
+| `REVALIDATE_SECRET` | worker and web (same value) | Signs and verifies the call that clears the web cache after content is published, changed or unpublished. | The web answers 404 on `/api/revalidate` and the worker skips the call: pages refresh only when their cache expires. |
+| `WEB_INTERNAL_URL` | worker | Where the worker reaches the web app inside Docker. Defaults to `http://web:3000` in `compose.prod.yml`. | The worker skips the cache purge. |
+
+The worker also sits on the `edge` network so it can reach `web`; nothing extra is published.
+
 ### 3.8 First deploy
 
 Push to `main` (or **Actions → Deploy → Run workflow** with a commit SHA that has images). The

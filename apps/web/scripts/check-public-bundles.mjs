@@ -15,7 +15,22 @@ import { gzipSync } from "node:zlib";
 const strict = process.argv.includes("--strict");
 const distDir = resolve(process.env.NEXT_DIST_DIR || ".next");
 
-const PUBLIC_ROUTES = ["/", "/pricing", "/contact", "/privacy", "/terms", "/disclaimer", "/en"];
+const PUBLIC_ROUTES = [
+  "/",
+  "/pricing",
+  "/contact",
+  "/privacy",
+  "/terms",
+  "/disclaimer",
+  "/en",
+  // Content templates (WP3): server-rendered, their only client code is the marketing chrome.
+  "/blog",
+  "/blog/[slug]",
+  "/guides/[slug]",
+  "/glossary/[slug]",
+  "/authors/[slug]",
+  "/en/blog/[slug]",
+];
 // Framework floor (React 19 + Next client runtime) is about 120 KB gzip, measured 2026-10-23: 80 KB is not reachable.
 // Pages with a real form (zod + the public message catalogue, about 70 KB gzip together) get their own ceiling.
 const FORM_ROUTES = new Set(["/pricing", "/contact"]);
@@ -27,6 +42,11 @@ const FORBIDDEN = [
   { name: "pdfjs", needles: ["pdfjs-dist", "pdf.worker", "GlobalWorkerOptions"] },
   { name: "heic2any", needles: ["heic2any", "libheif"] },
   { name: "qrcode", needles: ["QRCode", "qrcode"] },
+  // Server-only content code (WP3): the markdown renderer, the revalidation signer, the preview-token signer.
+  {
+    name: "content-server",
+    needles: ["x-revalidate-signature", "rehype-sanitize", "remark-directive", "ReplayCache"],
+  },
   { name: "chat", needles: ["chat-composer", "ChatThread", "/ai/chat"] },
 ];
 
@@ -41,7 +61,7 @@ const cache = new Map();
 
 function load(chunkPath) {
   // Paths look like ".next/static/chunks/x.js"; resolve against the dist dir to honour NEXT_DIST_DIR.
-  const file = resolve(distDir, chunkPath.replace(/^\.next\//, ""));
+  const file = resolve(distDir, chunkPath.replace(/^\.next[\\/]/, ""));
   if (!cache.has(file)) {
     const buffer = readFileSync(file);
     cache.set(file, { text: buffer.toString("utf8"), gzip: gzipSync(buffer).length });

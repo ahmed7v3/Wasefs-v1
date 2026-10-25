@@ -53,8 +53,7 @@ const env = {
   ENCRYPTION_KEY: KEY.toString("base64"),
 } as unknown as WorkerEnv;
 
-const run = (now = new Date()) =>
-  growthLifecycleJob({}, { db: db.db, logger, payments, env }, now);
+const run = (now = new Date()) => growthLifecycleJob({}, { db: db.db, logger, payments, env }, now);
 
 async function user(options: { daysOld: number; consent?: boolean; verified?: boolean }) {
   const id = randomUUID();
@@ -120,7 +119,10 @@ describe("lifecycle mail", () => {
     await run();
     await run();
     expect(mailsTo(consenting)).toHaveLength(1);
-    expect(mailsTo(consenting)[0]?.payload).toMatchObject({ template: "lifecycle_mail", kind: "day1_guide" });
+    expect(mailsTo(consenting)[0]?.payload).toMatchObject({
+      template: "lifecycle_mail",
+      kind: "day1_guide",
+    });
     expect(mailsTo(silent)).toHaveLength(0);
     expect(mailsTo(unverified)).toHaveLength(0);
   });
@@ -132,7 +134,9 @@ describe("lifecycle mail", () => {
 
     const capped = await user({ daysOld: 3.5 });
     await doneAnalyses(capped, 1);
-    await db.db.insert(growthMailLog).values({ userId: capped, kind: "value_recap", periodKey: "manual" });
+    await db.db
+      .insert(growthMailLog)
+      .values({ userId: capped, kind: "value_recap", periodKey: "manual" });
     await run();
     expect(mailsTo(capped)).toHaveLength(0);
   });
@@ -141,14 +145,23 @@ describe("lifecycle mail", () => {
     const id = await user({ daysOld: 6.5 });
     await doneAnalyses(id, 3);
     await run();
-    const offers = await db.db.select().from(personalOffers).where(eq(personalOffers.ownerUserId, id));
+    const offers = await db.db
+      .select()
+      .from(personalOffers)
+      .where(eq(personalOffers.ownerUserId, id));
     expect(offers).toHaveLength(1);
     expect(offers[0]).toMatchObject({ kind: "welcome", ruleKey: "welcome_offer" });
-    const mail = mailsTo(id).find((entry) => (entry.payload as { kind?: string }).kind === "day6_offer");
+    const mail = mailsTo(id).find(
+      (entry) => (entry.payload as { kind?: string }).kind === "day6_offer",
+    );
     expect(mail?.payload).toMatchObject({ params: { percent: "20" } });
     await run();
-    expect(mailsTo(id).filter((entry) => (entry.payload as { kind?: string }).kind === "day6_offer")).toHaveLength(1);
-    expect(await db.db.select().from(personalOffers).where(eq(personalOffers.ownerUserId, id))).toHaveLength(1);
+    expect(
+      mailsTo(id).filter((entry) => (entry.payload as { kind?: string }).kind === "day6_offer"),
+    ).toHaveLength(1);
+    expect(
+      await db.db.select().from(personalOffers).where(eq(personalOffers.ownerUserId, id)),
+    ).toHaveLength(1);
   });
 
   it("does not offer a welcome to someone who already paid", async () => {
@@ -165,7 +178,9 @@ describe("lifecycle mail", () => {
       currentPeriodEnd: new Date(Date.now() + 20 * DAY),
     });
     await run();
-    expect(await db.db.select().from(personalOffers).where(eq(personalOffers.ownerUserId, id))).toHaveLength(0);
+    expect(
+      await db.db.select().from(personalOffers).where(eq(personalOffers.ownerUserId, id)),
+    ).toHaveLength(0);
   });
 
   it("sends the last call at expiry + 30 days, then stays silent for 90 days", async () => {
@@ -181,8 +196,13 @@ describe("lifecycle mail", () => {
       currentPeriodEnd: new Date(Date.now() - 31 * DAY),
     });
     await run();
-    expect(mailsTo(id).map((entry) => (entry.payload as { kind?: string }).kind)).toContain("last_call");
-    const [prefs] = await db.db.select().from(notificationPrefs).where(eq(notificationPrefs.userId, id));
+    expect(mailsTo(id).map((entry) => (entry.payload as { kind?: string }).kind)).toContain(
+      "last_call",
+    );
+    const [prefs] = await db.db
+      .select()
+      .from(notificationPrefs)
+      .where(eq(notificationPrefs.userId, id));
     expect(prefs?.marketingSilencedUntil?.getTime()).toBeGreaterThan(Date.now() + 89 * DAY);
   });
 
@@ -230,8 +250,15 @@ describe("retention", () => {
   it("deletes growth events and mail log rows older than 13 months", async () => {
     const id = await user({ daysOld: 500 });
     const old = new Date(Date.now() - 400 * DAY);
-    await db.db.insert(growthEvents).values({ name: "pricing_viewed", sessionId: "srv:old-session", userId: id, occurredAt: old });
-    await db.db.insert(growthMailLog).values({ userId: id, kind: "day1_guide", periodKey: "old", sentAt: old });
+    await db.db.insert(growthEvents).values({
+      name: "pricing_viewed",
+      sessionId: "srv:old-session",
+      userId: id,
+      occurredAt: old,
+    });
+    await db.db
+      .insert(growthMailLog)
+      .values({ userId: id, kind: "day1_guide", periodKey: "old", sentAt: old });
     const deleted = await pruneGrowthData(db.db, new Date());
     expect(deleted.events).toBeGreaterThanOrEqual(1);
     expect(deleted.mailLog).toBeGreaterThanOrEqual(1);

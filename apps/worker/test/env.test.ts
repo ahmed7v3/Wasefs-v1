@@ -24,6 +24,7 @@ describe("workerEnvSchema", () => {
       evals: 1,
       payments: 1,
       seo: 1,
+      content: 1,
     });
     expect(env.MAIL_DAILY_CAP).toBe(280);
     expect(env.SMTP_PORT).toBe(587);
@@ -50,6 +51,7 @@ describe("workerEnvSchema", () => {
       evals: 1,
       payments: 1,
       seo: 1,
+      content: 1,
     });
   });
 

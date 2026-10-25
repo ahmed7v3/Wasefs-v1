@@ -385,9 +385,10 @@ describe("evals.import", () => {
       .where(eq(aiEvalItems.setId, outcome.setId ?? ""));
     expect(items).toHaveLength(1);
     expect(items[0]?.kind).toBe("printed");
-    expect((items[0]?.expected as { items: { name: string }[] }).items.map((i) => i.name)).toEqual(
-      ["Panadol", "Zyrtec"],
-    );
+    expect((items[0]?.expected as { items: { name: string }[] }).items.map((i) => i.name)).toEqual([
+      "Panadol",
+      "Zyrtec",
+    ]);
     const [file] = await owner.db
       .select()
       .from(files)

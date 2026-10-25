@@ -203,7 +203,28 @@ Migrations `0010_billing_core.sql`, `0011_rewards_deals.sql`, `0012_growth_alert
 **Seed (insert-only, `seed-billing.ts`).** Hidden plans `plus` (150 credits), `pro` (500; moved here from `seed-ai.ts`, where it was 300) and `clinic` (2,000, `audience = organization`, `max_members = 5`) with entitlements (all modes; web search only on `pro` and `clinic`) and EGP prices for 1 and 12 months (BILLING §2.2); credit packs `pack_100`, `pack_300`, `pack_1000`; one tax rule (EG, 14% = 1400 bps, `inclusive`, **inactive**); payment methods `kashier_card` (disabled until keys), `instapay` and `vodafone_cash` (enabled, `01014677026`, proof required, fee 0, EGP); referral program `standard` with the REFERRALS §3.3 rules (the referee's 10% first-payment discount is a coupon, not a rule); payout methods `vodafone_cash`, `instapay` (disabled). Children are seeded only in the transaction that creates their parent. Site settings `billing`, `rewards` (`enabled = false`) and `growth` are seeded from the registry defaults.
 
 
-Phase 4 tables (blog, tickets, ...) are described in ARCHITECTURE.md and enter this file when they are built.
+### Phase 4 — WP3 (content platform, migration 0023)
+
+Owner: content platform (WP3). All tables are platform data reachable only through `content.*` permission-checked admin routes, the publishing API (WP4) and the public read path. Detail: [CONTENT-PLATFORM.md](./CONTENT-PLATFORM.md) §3 and §11, and the section "Content platform (migration 0023)" at the end of this file.
+
+| Table | Purpose |
+|---|---|
+| `content_people` | Authors and medical reviewers (`role` author / reviewer / both), bio, credentials, optional licence number, optional link to a `users` row (unique when set). |
+| `content_categories` | Two-level topic tree (`parent_id`, depth enforced by the service), AR/EN slugs and SEO text, `requires_medical_review`, default reviewer. |
+| `content_tags` | Flat tags with AR and/or EN slug (at least one). |
+| `content_items` | Stable identity of an article / guide / glossary entry / page: type, locale, slug, workflow status, pointers to revisions, scheduling and review dates, search columns. |
+| `content_revisions` | Immutable history: one row per save, authored text plus derived html / toc / counts / quality results. |
+| `content_autosaves` | One editor draft buffer per (item, user); never a revision. |
+| `content_item_tags` | Item to tag join. |
+| `content_links` | Outbound links of the current revision (internal / external), replaced wholesale on save. |
+| `content_entities` | Drugs and glossary terms an item refers to (explicit or auto-detected). |
+| `content_media_refs` | Which media assets an item uses and in which role; drives "used in N articles". |
+| `content_corrections` | Public correction notes on an item. |
+| `slug_redirects` | `from_path` to `to_path` redirects (slug change, archive, merge, manual). |
+| `content_publish_log` | Append-style audit of every status change with actor; also counts the daily publish cap. |
+| `content_review_comments` | Reviewer comments tied to a revision (request changes / approve / note). |
+
+`media_assets` gains `original_filename`, `seo_filename`, `caption`, `credit`, `licence` (default `own`, CHECK in `MEDIA_LICENCES`), `licence_ref` and `warnings` (jsonb array).
 
 ---
 
@@ -375,3 +396,15 @@ Not added yet, on purpose: a trigram index for admin user search by name/email/p
 `growth_mail_log` (user, kind, period_key, sent_at): one row per lifecycle mail, unique `(user_id, kind, period_key)` makes each mail at-most-once; the weekly cap counts rows of the last 7 days. `wasfa_api` may SELECT, INSERT and DELETE (retention), never UPDATE. Retention 13 months, together with `growth_events` (worker job `growth.retention`, nightly 04:40 UTC). Deleted with the user (cascade).
 
 `taste_grants` adds `source_analysis_id` and `analysis_id` (FK rx_analyses, set null) and `credits`: the free Deep try grants exactly the analysis' price (credit ledger `trial_grant`, key `taste:<grantId>`), the analysis then reserves and settles normally, and the unused part is taken back (`expiry`, key `taste:<grantId>:expire`).
+
+### Content platform (migration 0023, Phase 4 WP3)
+
+Item / revision split (CONTENT-PLATFORM §11.1). `content_items` is the identity and the workflow state of the WORKING copy; every save inserts an immutable `content_revisions` row (`number` is per item, unique). Four nullable pointers on the item name revisions: `current_revision_id` (newest), `reviewed_revision_id` (the one a reviewer approved), `published_revision_id` (what the public sees; set means "live") and `submitted_revision_id`. The pointers and `content_revisions.parent_revision_id` are circular with the revisions table, so Drizzle declares them as plain uuid and the migration adds the foreign keys by hand, `ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED`, so a transaction may insert an item and its first revision in either order. `content_revisions.item_id` is `ON DELETE RESTRICT`: an item with history cannot be deleted by accident.
+
+Guard trigger. `content_revisions_guard()` (BEFORE UPDATE OR DELETE) refuses DELETE and any UPDATE of the authored columns (`item_id`, `number`, `kind`, `title`, `excerpt`, `definition`, `body_md`, `note`, `created_by_*`, `parent_revision_id`, `created_at`). The derived columns (`body_html`, `toc`, `word_count`, `reading_minutes`, `minhash`, `quality`, `diff_stats`) stay updatable so a renderer upgrade can re-render history. The one exception is `created_by_user_id` going to NULL, which the `ON DELETE SET NULL` of user deletion needs; `created_by_name` keeps the snapshot.
+
+Search. `content_items.search_text` (normalised plain text of the current body, written by the service) feeds `search_tsv`, a STORED generated `tsvector` over title, slug and search_text with the `simple` configuration (Arabic has no stemmer in stock Postgres). Indexes: GIN on `search_tsv`; GIN `gin_trgm_ops` on `title` for fuzzy title match and the duplicate-title gate; partial `(type, locale, published_at DESC) WHERE published_revision_id IS NOT NULL` for public lists; partial `(scheduled_at) WHERE status = 'scheduled'` for the scheduler; partial `(reviewer_id) WHERE status = 'in_review'` for review queues; `(status, updated_at DESC)` for the admin list. Uniqueness: `(type, locale, slug)`, `(translation_group_id, locale)` and `(api_key_id, external_id) WHERE external_id IS NOT NULL` (idempotent API upserts; `api_key_id` has no FK until WP4 adds `api_keys`).
+
+Publishing. `publishItemTx` / `unpublishItemTx` (`packages/db/src/content-publish.ts`) move the pointer, write `content_publish_log` and enqueue the `content.changed` outbox event in the caller's transaction; the API and the scheduled-publish worker both use them. `content_publish_log` is also the source of the daily publish cap (`countPublishedSince`).
+
+Permissions. The migration grants `content.read/write/publish/review/manage` to `admin` and `content.read/write/publish` to `marketing` (data migration; `super_admin` is a wildcard).

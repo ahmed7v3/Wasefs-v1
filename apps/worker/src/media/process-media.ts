@@ -9,8 +9,13 @@ import sharp, { type Metadata } from "sharp";
 
 import { MediaRejected } from "./rejected.js";
 
-/** Encoder settings per format (BRAND/CONTENT-PLATFORM §5.3 budgets are checked by the worker tests). */
-export const MEDIA_QUALITY = { avif: 50, webp: 70, jpeg: 75 } as const;
+/** Starting encoder quality per format (CONTENT-PLATFORM §5.3); AVIF may step down to meet its budget. */
+export const MEDIA_QUALITY = { avif: 50, webp: 72, jpeg: 75 } as const;
+/** CONTENT-PLATFORM §5.3: a 1600 px AVIF article image is at most 180 KB. Applies to that width only. */
+export const MEDIA_AVIF_BUDGET_BYTES = 180_000;
+const AVIF_BUDGET_WIDTH = 1600;
+const AVIF_QUALITY_FLOOR = 30;
+const AVIF_QUALITY_STEP = 5;
 const BLUR_WIDTH = 16;
 
 const ACCEPTED = new Set<string>(MEDIA_MIMES);
@@ -29,6 +34,28 @@ export interface ProcessedMedia {
   height: number;
   blurDataUrl: string;
   variants: ProcessedVariant[];
+  /** Empty normally; `"avif_over_budget_1600"` when even the quality floor misses the AVIF budget. */
+  warnings: string[];
+}
+
+/**
+ * Encodes at `start`, then lowers quality by `step` until the result fits `budget` or `floor` is
+ * reached. Returns the first fitting result, or the floor result with `withinBudget: false`.
+ */
+export async function encodeWithinBudget(
+  encodeAt: (quality: number) => Promise<Buffer>,
+  budget: number,
+  start: number,
+  floor: number,
+  step: number,
+): Promise<{ body: Buffer; quality: number; withinBudget: boolean }> {
+  let quality = start;
+  let body = await encodeAt(quality);
+  while (body.byteLength > budget && quality > floor) {
+    quality = Math.max(floor, quality - step);
+    body = await encodeAt(quality);
+  }
+  return { body, quality, withinBudget: body.byteLength <= budget };
 }
 
 // Decoded pixels are not worth keeping around between jobs; memory is the scarce resource here.
@@ -71,9 +98,22 @@ export async function processMedia(input: Buffer, declaredMime: string): Promise
     const fitting = MEDIA_VARIANT_WIDTHS.filter((candidate) => candidate <= width);
     const widths = fitting.length > 0 ? fitting : [width];
     const variants: ProcessedVariant[] = [];
+    const warnings: string[] = [];
     for (const target of widths) {
       for (const format of ["avif", "webp", "jpeg"] as const) {
-        variants.push({ format, width: target, body: await encode(input, target, format) });
+        if (format === "avif" && target === AVIF_BUDGET_WIDTH) {
+          const fitted = await encodeWithinBudget(
+            (quality) => encode(input, target, "avif", quality),
+            MEDIA_AVIF_BUDGET_BYTES,
+            MEDIA_QUALITY.avif,
+            AVIF_QUALITY_FLOOR,
+            AVIF_QUALITY_STEP,
+          );
+          if (!fitted.withinBudget) warnings.push("avif_over_budget_1600");
+          variants.push({ format, width: target, body: fitted.body });
+        } else {
+          variants.push({ format, width: target, body: await encode(input, target, format) });
+        }
       }
     }
     const blur = await decode(input)
@@ -88,6 +128,7 @@ export async function processMedia(input: Buffer, declaredMime: string): Promise
       height,
       blurDataUrl: `data:image/webp;base64,${blur.toString("base64")}`,
       variants,
+      warnings,
     };
   } catch (error) {
     // The header was fine but the pixels are not: decoding the same bytes again would fail the same way.
@@ -102,7 +143,12 @@ function rejectReasonOf(error: unknown): "too_many_pixels" | "unreadable" {
     : "unreadable";
 }
 
-async function encode(input: Buffer, width: number, format: MediaFormat): Promise<Buffer> {
+async function encode(
+  input: Buffer,
+  width: number,
+  format: MediaFormat,
+  avifQuality: number = MEDIA_QUALITY.avif,
+): Promise<Buffer> {
   let pipeline = decode(input)
     .rotate()
     .resize({ width, withoutEnlargement: true })
@@ -113,6 +159,6 @@ async function encode(input: Buffer, width: number, format: MediaFormat): Promis
     return pipeline.jpeg({ quality: MEDIA_QUALITY.jpeg, mozjpeg: true }).toBuffer();
   }
   return format === "avif"
-    ? pipeline.avif({ quality: MEDIA_QUALITY.avif }).toBuffer()
+    ? pipeline.avif({ quality: avifQuality }).toBuffer()
     : pipeline.webp({ quality: MEDIA_QUALITY.webp }).toBuffer();
 }

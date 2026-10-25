@@ -3,7 +3,7 @@
 import { t } from "@wasfa/shared/i18n";
 import { cn } from "@wasfa/ui";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 import { isNavActive, visibleNavGroups } from "../../lib/admin-nav";
 import { useAdminCounts } from "../../lib/use-admin-counts";
@@ -20,6 +20,7 @@ export interface AdminNavProps {
  */
 export function AdminNav({ permissions, onNavigate }: AdminNavProps) {
   const pathname = usePathname();
+  const search = useSearchParams();
   const groups = visibleNavGroups(permissions);
   const counts = useAdminCounts(permissions);
 
@@ -30,7 +31,7 @@ export function AdminNav({ permissions, onNavigate }: AdminNavProps) {
           <p className="px-3 text-sm font-semibold text-text-muted">{t(group.label)}</p>
           <ul className="flex flex-col gap-1">
             {group.items.map((item) => {
-              const active = isNavActive(item.href, pathname);
+              const active = isNavActive(item.href, pathname, search);
               const Icon = item.icon;
               const waiting = item.badge ? counts?.[item.badge] : null;
               const badge = waiting ? waiting : null;

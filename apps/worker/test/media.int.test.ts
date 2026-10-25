@@ -94,7 +94,8 @@ describe("media.process", () => {
     const done = await row(id);
     expect(done).toMatchObject({ status: "ready", width: 1400, height: 700, originalKey: null });
     expect(done.blurDataUrl).toMatch(/^data:image\/webp;base64,/);
-    expect(done.variants).toHaveLength(4 * 3);
+    // 320, 480, 640, 960 and 1280 fit a 1400 px original (1600 would upscale), in three formats.
+    expect(done.variants).toHaveLength(5 * 3);
     for (const variant of done.variants) {
       expect(variant.key).toMatch(new RegExp(`^media/${done.sha256}/${String(variant.width)}\\.`));
       const stored = await head(variant.key);

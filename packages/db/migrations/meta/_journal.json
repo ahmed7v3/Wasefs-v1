@@ -162,6 +162,13 @@
       "when": 1792497633730,
       "tag": "0022_brand_icons_waitlist",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792868736649,
+      "tag": "0023_content_platform",
+      "breakpoints": true
     }
   ]
 }

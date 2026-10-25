@@ -1,0 +1,229 @@
+cluster,keyword,lang,variant_type,region,intent,funnel,owner_url,page_type,priority,notes
+C01-brand,وصفة AI,ar,primary,all,navigational,brand,/,home,P1,brand canonical name
+C01-brand,وصفه ai,ar,spelling,all,navigational,brand,/,home,P1,taa marbuta dropped
+C01-brand,وصفة اي اي,ar,transliteration,all,navigational,brand,/,home,P2,
+C01-brand,وصفة ذكاء اصطناعي,ar,synonym,all,navigational,brand,/,home,P2,
+C01-brand,موقع وصفة,ar,modifier,all,navigational,brand,/,home,P2,
+C01-brand,wasfa ai,en,primary,all,navigational,brand,/en,home,P1,
+C01-brand,wasefa ai,en,spelling,all,navigational,brand,/en,home,P1,owner's spelling; common misspelling
+C01-brand,wasfah ai,en,spelling,all,navigational,brand,/en,home,P2,
+C01-brand,wasfa.online,en,domain,all,navigational,brand,/en,home,P1,
+C01-brand,wasfa app,en,modifier,all,navigational,brand,/en,home,P2,apps are "coming soon"; do not imply availability
+C01-brand,wasfa ai pricing,en,modifier,all,transactional,brand,/en/pricing,pricing,P2,
+C01-brand,أسعار وصفة AI,ar,modifier,all,transactional,brand,/pricing,pricing,P2,
+C02-ai-rx-reader,قراءة الروشتة بالذكاء الاصطناعي,ar,primary,EG,transactional,tool,/features/prescription-reader,feature,P1,head term of the product
+C02-ai-rx-reader,قراءة الروشته بالذكاء الاصطناعي,ar,spelling,EG,transactional,tool,/features/prescription-reader,feature,P1,
+C02-ai-rx-reader,قراءة الوصفة الطبية بالذكاء الاصطناعي,ar,regional,SA|GULF|LEV,transactional,tool,/features/prescription-reader,feature,P1,Gulf/Levant term
+C02-ai-rx-reader,تحليل الروشتة بالذكاء الاصطناعي,ar,synonym,EG,transactional,tool,/features/prescription-reader,feature,P1,
+C02-ai-rx-reader,تحليل الوصفة الطبية,ar,regional,SA|GULF,transactional,tool,/features/prescription-reader,feature,P1,
+C02-ai-rx-reader,برنامج قراءة الروشتة,ar,modifier,EG,transactional,tool,/features/prescription-reader,feature,P1,
+C02-ai-rx-reader,تطبيق قراءة الروشتة,ar,modifier,EG,transactional,tool,/features/prescription-reader,feature,P1,web app today; apps coming soon
+C02-ai-rx-reader,موقع قراءة الروشتة,ar,modifier,EG,transactional,tool,/features/prescription-reader,feature,P1,
+C02-ai-rx-reader,قارئ الروشتة,ar,synonym,EG,transactional,tool,/features/prescription-reader,feature,P1,
+C02-ai-rx-reader,قارئ الوصفات الطبية,ar,regional,SA|GULF,transactional,tool,/features/prescription-reader,feature,P1,
+C02-ai-rx-reader,ذكاء اصطناعي يقرأ الروشتة,ar,question,EG,transactional,tool,/features/prescription-reader,feature,P2,
+C02-ai-rx-reader,قراءة روشتة اون لاين,ar,modifier,EG,transactional,tool,/features/prescription-reader,feature,P1,
+C02-ai-rx-reader,قراءة الروشتة مجانا,ar,modifier,EG,transactional,tool,/features/prescription-reader,feature,P1,free plan exists
+C02-ai-rx-reader,تحويل الروشتة الى نص,ar,synonym,EG,transactional,tool,/features/prescription-reader,feature,P2,
+C02-ai-rx-reader,AI لقراءة الروشتة,ar,mixed_script,EG,transactional,tool,/features/prescription-reader,feature,P2,
+C02-ai-rx-reader,شات جي بي تي قراءة روشتة,ar,competitor_mod,EG,transactional,tool,/features/prescription-reader,feature,P2,answer honestly why a dedicated tool checks against a drug DB
+C02-ai-rx-reader,AI prescription reader,en,primary,all,transactional,tool,/en/features/prescription-reader,feature,P1,
+C02-ai-rx-reader,AI prescription analysis,en,synonym,all,transactional,tool,/en/features/prescription-reader,feature,P1,
+C02-ai-rx-reader,prescription reader app,en,modifier,all,transactional,tool,/en/features/prescription-reader,feature,P1,
+C02-ai-rx-reader,read prescription online,en,modifier,all,transactional,tool,/en/features/prescription-reader,feature,P1,
+C02-ai-rx-reader,AI prescription interpretation,en,synonym,all,transactional,tool,/en/features/prescription-reader,feature,P2,
+C02-ai-rx-reader,prescription OCR,en,synonym,all,transactional,tool,/en/features/prescription-reader,feature,P2,
+C02-ai-rx-reader,AI prescription reader free,en,modifier,all,transactional,tool,/en/features/prescription-reader,feature,P2,
+C02-ai-rx-reader,arabic prescription reader,en,modifier,all,transactional,tool,/en/features/prescription-reader,feature,P1,differentiator
+C02-ai-rx-reader,AI tool to understand prescriptions,en,question,all,transactional,tool,/en/features/prescription-reader,feature,P2,
+C02-ai-rx-reader,AI prescriptions,en,synonym,all,transactional,tool,/en/features/prescription-reader,feature,P2,
+C03-read-rx,قراءة الروشتة,ar,primary,EG,problem,awareness,/guides/how-to-read-a-prescription,guide,P1,pillar guide links to the feature page
+C03-read-rx,كيف اقرأ الروشتة,ar,question,EG,informational,awareness,/guides/how-to-read-a-prescription,guide,P1,
+C03-read-rx,ازاي اقرا الروشته,ar,colloquial,EG,informational,awareness,/guides/how-to-read-a-prescription,guide,P2,use as FAQ question
+C03-read-rx,طريقة قراءة الوصفة الطبية,ar,regional,SA|GULF,informational,awareness,/guides/how-to-read-a-prescription,guide,P1,
+C03-read-rx,فهم الروشتة,ar,synonym,EG,informational,awareness,/guides/how-to-read-a-prescription,guide,P1,
+C03-read-rx,فهم الوصفة الطبية,ar,regional,SA|GULF,informational,awareness,/guides/how-to-read-a-prescription,guide,P1,
+C03-read-rx,شرح الروشتة,ar,synonym,EG,informational,awareness,/features/medicine-explainer,feature,P1,explainer feature owns "شرح"
+C03-read-rx,ترجمة الروشتة,ar,synonym,EG,informational,awareness,/features/medicine-explainer,feature,P2,
+C03-read-rx,ترجمة الروشتة للعربي,ar,modifier,EG,transactional,tool,/features/medicine-explainer,feature,P2,
+C03-read-rx,مكونات الروشتة,ar,synonym,EG,informational,awareness,/guides/how-to-read-a-prescription,guide,P3,
+C03-read-rx,how to read a prescription,en,primary,all,informational,awareness,/en/guides/how-to-read-a-prescription,guide,P1,
+C03-read-rx,understanding medical prescriptions,en,synonym,all,informational,awareness,/en/guides/how-to-read-a-prescription,guide,P1,
+C03-read-rx,understand my prescription,en,question,all,problem,awareness,/en/guides/how-to-read-a-prescription,guide,P2,
+C03-read-rx,explain my prescription,en,question,all,transactional,tool,/en/features/medicine-explainer,feature,P2,
+C03-read-rx,translate prescription to english,en,modifier,all,transactional,tool,/en/features/medicine-explainer,feature,P3,
+C04-handwriting,قراءة خط الدكتور,ar,primary,EG,problem,tool,/features/handwritten-prescriptions,feature,P1,
+C04-handwriting,فك خط الدكتور,ar,colloquial,EG,problem,tool,/features/handwritten-prescriptions,feature,P1,
+C04-handwriting,خط الدكتور في الروشتة,ar,synonym,EG,problem,awareness,/features/handwritten-prescriptions,feature,P1,
+C04-handwriting,قراءة خط الطبيب,ar,regional,SA|GULF|LEV,problem,tool,/features/handwritten-prescriptions,feature,P1,
+C04-handwriting,قراءة الروشتة المكتوبة بخط اليد,ar,synonym,EG,transactional,tool,/features/handwritten-prescriptions,feature,P1,
+C04-handwriting,برنامج قراءة خط الدكتور,ar,modifier,EG,transactional,tool,/features/handwritten-prescriptions,feature,P1,
+C04-handwriting,تطبيق فك خط الدكاترة,ar,modifier,EG,transactional,tool,/features/handwritten-prescriptions,feature,P2,
+C04-handwriting,ليه خط الدكاترة وحش,ar,colloquial,EG,informational,awareness,/blog/why-doctors-handwriting-is-hard-to-read,article,P2,article; links to feature
+C04-handwriting,read doctor handwriting,en,primary,all,problem,tool,/en/features/handwritten-prescriptions,feature,P1,
+C04-handwriting,doctor handwriting translator,en,synonym,all,transactional,tool,/en/features/handwritten-prescriptions,feature,P1,
+C04-handwriting,decode doctor handwriting,en,synonym,all,problem,tool,/en/features/handwritten-prescriptions,feature,P1,
+C04-handwriting,handwritten prescription reader,en,synonym,all,transactional,tool,/en/features/handwritten-prescriptions,feature,P1,
+C04-handwriting,read handwritten prescription,en,synonym,all,transactional,tool,/en/features/handwritten-prescriptions,feature,P1,
+C04-handwriting,why is doctors handwriting so bad,en,question,all,informational,awareness,/en/blog/why-doctors-handwriting-is-hard-to-read,article,P3,
+C05-scan,تصوير الروشتة,ar,primary,EG,transactional,tool,/features/prescription-reader,feature,P2,section "صوّر الروشتة"
+C05-scan,مسح الروشتة ضوئيا,ar,synonym,EG,transactional,tool,/features/prescription-reader,feature,P2,
+C05-scan,رفع صورة الروشتة,ar,synonym,EG,transactional,tool,/features/prescription-reader,feature,P2,
+C05-scan,ماسح الروشتات,ar,synonym,EG,transactional,tool,/features/prescription-reader,feature,P3,
+C05-scan,prescription scanner,en,primary,all,transactional,tool,/en/features/prescription-reader,feature,P1,
+C05-scan,prescription scanner app,en,modifier,all,transactional,tool,/en/features/prescription-reader,feature,P1,
+C05-scan,scan prescription online,en,modifier,all,transactional,tool,/en/features/prescription-reader,feature,P2,
+C05-scan,prescription scanning and analysis,en,synonym,all,transactional,tool,/en/features/prescription-reader,feature,P2,
+C05-scan,tips for photographing a prescription,en,question,all,informational,activation,/en/guides/photograph-a-prescription,guide,P3,activation guide
+C05-scan,ازاي اصور الروشتة صح,ar,colloquial,EG,informational,activation,/guides/photograph-a-prescription,guide,P3,activation guide (lifecycle mail links here)
+C06-identify,معرفة اسم الدواء من الروشتة,ar,primary,EG,problem,tool,/features/prescription-reader,feature,P1,
+C06-identify,معرفة الدواء من الروشتة,ar,synonym,EG,problem,tool,/features/prescription-reader,feature,P1,
+C06-identify,اسم الدواء المكتوب في الروشتة,ar,question,EG,problem,tool,/features/prescription-reader,feature,P2,
+C06-identify,التعرف على الأدوية بالذكاء الاصطناعي,ar,synonym,all,transactional,tool,/features/prescription-reader,feature,P2,prescription text only; NOT loose-pill photos
+C06-identify,AI medication identification,en,primary,all,transactional,tool,/en/features/prescription-reader,feature,P2,clarify: from the prescription, not pill photos
+C06-identify,identify medicine from prescription,en,synonym,all,problem,tool,/en/features/prescription-reader,feature,P2,
+C06-identify,what medicine is written on my prescription,en,question,all,problem,tool,/en/features/prescription-reader,feature,P3,
+C07-assistant,مساعد طبي ذكي,ar,primary,all,transactional,tool,/features/ai-assistant,feature,P1,
+C07-assistant,مساعد طبي بالذكاء الاصطناعي,ar,synonym,all,transactional,tool,/features/ai-assistant,feature,P1,
+C07-assistant,مساعد طبي عربي,ar,modifier,all,transactional,tool,/features/ai-assistant,feature,P1,
+C07-assistant,ذكاء اصطناعي طبي,ar,synonym,all,transactional,tool,/features/ai-assistant,feature,P1,
+C07-assistant,ذكاء اصطناعي طبي عربي,ar,modifier,all,transactional,tool,/features/ai-assistant,feature,P1,
+C07-assistant,اسأل عن دواء,ar,question,all,transactional,tool,/features/ai-assistant,feature,P2,
+C07-assistant,اسأل صيدلي اون لاين,ar,competitor_mod,EG,transactional,tool,/features/ai-assistant,feature,P2,must state: not a pharmacist; suggests asking one
+C07-assistant,شات طبي بالعربي,ar,synonym,all,transactional,tool,/features/ai-assistant,feature,P2,
+C07-assistant,AI medical assistant,en,primary,all,transactional,tool,/en/features/ai-assistant,feature,P1,
+C07-assistant,arabic AI medical assistant,en,modifier,all,transactional,tool,/en/features/ai-assistant,feature,P1,differentiator
+C07-assistant,AI medication assistant,en,synonym,all,transactional,tool,/en/features/ai-assistant,feature,P2,
+C07-assistant,AI drug information,en,synonym,all,informational,tool,/en/features/ai-assistant,feature,P2,
+C07-assistant,ask AI about my medication,en,question,all,transactional,tool,/en/features/ai-assistant,feature,P2,
+C08-explainer,شرح الدواء,ar,primary,all,informational,tool,/features/medicine-explainer,feature,P1,
+C08-explainer,شرح الادوية بالعربي,ar,modifier,all,informational,tool,/features/medicine-explainer,feature,P1,
+C08-explainer,معلومات عن دواء,ar,synonym,all,informational,tool,/drugs,hub,P1,hub owns generic drug-info intent
+C08-explainer,الدواء ده بيعمل ايه,ar,colloquial,EG,informational,awareness,/features/medicine-explainer,feature,P2,FAQ question
+C08-explainer,medicine explained in arabic,en,modifier,all,informational,tool,/en/features/medicine-explainer,feature,P3,
+C09-drug-search,بحث عن دواء,ar,primary,all,navigational,tool,/drugs,hub,P1,
+C09-drug-search,البحث عن الأدوية,ar,synonym,all,navigational,tool,/drugs,hub,P1,
+C09-drug-search,دليل الأدوية,ar,synonym,all,navigational,tool,/drugs,hub,P1,
+C09-drug-search,دليل الادوية المصري,ar,regional,EG,navigational,tool,/drugs,hub,P1,state coverage honestly
+C09-drug-search,دليل الأدوية السعودي,ar,regional,SA,navigational,tool,/drugs,hub,P2,only if SFDA data is imported
+C09-drug-search,موسوعة الأدوية,ar,synonym,all,navigational,tool,/drugs,hub,P2,
+C09-drug-search,نشرة دواء,ar,synonym,all,informational,tool,/drugs,hub,P2,we summarise; we do not copy leaflets
+C09-drug-search,المادة الفعالة للدواء,ar,synonym,all,informational,tool,/drugs,hub,P2,
+C09-drug-search,الاسم العلمي للدواء,ar,synonym,all,informational,tool,/drugs,hub,P2,
+C09-drug-search,بديل الدواء,ar,synonym,all,informational,tool,/drugs,hub,P2,brand pages own "بديل {brand}"
+C09-drug-search,medication search,en,primary,all,navigational,tool,/en/drugs,hub,P2,
+C09-drug-search,drug information arabic,en,modifier,all,navigational,tool,/en/drugs,hub,P2,
+C09-drug-search,drug lookup,en,synonym,all,navigational,tool,/en/drugs,hub,P3,
+C09-drug-search,medication search in arabic,en,modifier,all,navigational,tool,/en/drugs,hub,P2,
+C10-drug-facets,الآثار الجانبية للأدوية,ar,primary,all,informational,awareness,/guides/understanding-side-effects,guide,P2,generic; specific drugs go to drug pages
+C10-drug-facets,موانع استعمال الأدوية,ar,synonym,all,informational,awareness,/guides/understanding-side-effects,guide,P3,
+C10-drug-facets,drug uses side effects precautions,en,primary,all,informational,awareness,/en/drugs,hub,P3,generic; facets live on drug pages
+C11-abbrev,اختصارات الروشتة,ar,primary,all,informational,awareness,/glossary,glossary-hub,P1,glossary hub
+C11-abbrev,معنى اختصارات الروشتة,ar,question,all,informational,awareness,/glossary,glossary-hub,P1,
+C11-abbrev,رموز الروشتة الطبية,ar,synonym,all,informational,awareness,/glossary,glossary-hub,P1,
+C11-abbrev,معنى bid في الروشتة,ar,question,all,informational,awareness,/glossary/bid,glossary,P1,
+C11-abbrev,معنى tid في الروشتة,ar,question,all,informational,awareness,/glossary/tid,glossary,P1,
+C11-abbrev,معنى od في الروشتة,ar,question,all,informational,awareness,/glossary/od,glossary,P1,
+C11-abbrev,معنى qid في الروشتة,ar,question,all,informational,awareness,/glossary/qid,glossary,P1,
+C11-abbrev,معنى prn في الروشتة,ar,question,all,informational,awareness,/glossary/prn,glossary,P1,
+C11-abbrev,معنى sos في الروشتة,ar,question,all,informational,awareness,/glossary/sos,glossary,P1,
+C11-abbrev,معنى hs في الروشتة,ar,question,all,informational,awareness,/glossary/hs,glossary,P2,
+C11-abbrev,معنى ac و pc في الروشتة,ar,question,all,informational,awareness,/glossary/ac-pc,glossary,P2,
+C11-abbrev,معنى stat في الروشتة,ar,question,all,informational,awareness,/glossary/stat,glossary,P2,
+C11-abbrev,معنى rx في الروشتة,ar,question,all,informational,awareness,/glossary/rx,glossary,P2,
+C11-abbrev,كلمة tab في الروشتة,ar,question,all,informational,awareness,/glossary/tab,glossary,P2,
+C11-abbrev,معنى cap و syp في الروشتة,ar,question,all,informational,awareness,/glossary/dosage-forms,glossary,P2,
+C11-abbrev,prescription abbreviations,en,primary,all,informational,awareness,/en/glossary,glossary-hub,P1,
+C11-abbrev,prescription abbreviations meaning,en,question,all,informational,awareness,/en/glossary,glossary-hub,P1,
+C11-abbrev,sig codes,en,synonym,all,informational,awareness,/en/glossary,glossary-hub,P2,
+C11-abbrev,latin prescription abbreviations,en,synonym,all,informational,awareness,/en/glossary,glossary-hub,P2,
+C11-abbrev,what does bid mean on a prescription,en,question,all,informational,awareness,/en/glossary/bid,glossary,P1,
+C11-abbrev,what does tid mean on a prescription,en,question,all,informational,awareness,/en/glossary/tid,glossary,P1,
+C11-abbrev,what does qd mean,en,question,all,informational,awareness,/en/glossary/od,glossary,P2,QD/OD share one entry (safety note on QD)
+C11-abbrev,what does prn mean,en,question,all,informational,awareness,/en/glossary/prn,glossary,P1,
+C11-abbrev,what does hs mean on a prescription,en,question,all,informational,awareness,/en/glossary/hs,glossary,P2,
+C11-abbrev,what does sig mean on a prescription,en,question,all,informational,awareness,/en/glossary/sig,glossary,P2,
+C12-pharmacists,برنامج للصيدليات لقراءة الروشتات,ar,primary,EG,transactional,b2b,/for/pharmacists,audience,P1,
+C12-pharmacists,برنامج صيدلية بالذكاء الاصطناعي,ar,synonym,EG,transactional,b2b,/for/pharmacists,audience,P1,
+C12-pharmacists,مساعد الصيدلي الذكي,ar,synonym,all,transactional,b2b,/for/pharmacists,audience,P1,
+C12-pharmacists,أدوات الصيدلي,ar,synonym,all,transactional,b2b,/for/pharmacists,audience,P2,
+C12-pharmacists,قراءة الروشتات في الصيدلية,ar,synonym,EG,transactional,b2b,/for/pharmacists,audience,P2,
+C12-pharmacists,AI for pharmacists,en,primary,all,transactional,b2b,/en/for/pharmacists,audience,P1,
+C12-pharmacists,pharmacy prescription reading software,en,synonym,all,transactional,b2b,/en/for/pharmacists,audience,P2,
+C12-pharmacists,AI pharmacy assistant,en,synonym,all,transactional,b2b,/en/for/pharmacists,audience,P2,
+C13-clinics,برنامج للعيادات بالذكاء الاصطناعي,ar,primary,all,transactional,b2b,/for/clinics,audience,P2,
+C13-clinics,ذكاء اصطناعي للأطباء,ar,synonym,all,transactional,b2b,/for/doctors,audience,P2,
+C13-clinics,AI for doctors prescriptions,en,primary,all,transactional,b2b,/en/for/doctors,audience,P3,
+C13-clinics,AI for clinics,en,synonym,all,transactional,b2b,/en/for/clinics,audience,P3,
+C14-patients,فهم أدويتي,ar,primary,all,problem,awareness,/for/patients,audience,P2,
+C14-patients,تنظيم مواعيد الأدوية,ar,synonym,all,informational,awareness,/guides/organise-chronic-medicines,guide,P2,
+C14-patients,جدول مواعيد الدواء,ar,synonym,all,informational,awareness,/guides/organise-chronic-medicines,guide,P2,
+C14-patients,أدوية كبار السن تنظيمها,ar,synonym,all,informational,awareness,/guides/organise-chronic-medicines,guide,P3,
+C14-patients,أسئلة تسألها للصيدلي,ar,question,all,informational,awareness,/guides/questions-to-ask-your-pharmacist,guide,P2,
+C14-patients,questions to ask your pharmacist,en,question,all,informational,awareness,/en/guides/questions-to-ask-your-pharmacist,guide,P3,
+C14-patients,understand my medications,en,problem,all,problem,awareness,/en/for/patients,audience,P3,
+C15-pricing,قراءة الروشتة مجانا بالذكاء الاصطناعي,ar,modifier,EG,transactional,tool,/pricing,pricing,P2,free plan section
+C15-pricing,اشتراك وصفة AI,ar,modifier,all,transactional,brand,/pricing,pricing,P2,
+C15-pricing,free AI prescription reader,en,modifier,all,transactional,tool,/en/pricing,pricing,P2,
+C16-pregnancy,أدوية ممنوعة للحامل,ar,primary,all,informational,awareness,/guides/medicines-in-pregnancy,guide,P1,YMYL: reviewer required
+C16-pregnancy,الأدوية الآمنة للحامل,ar,synonym,all,informational,awareness,/guides/medicines-in-pregnancy,guide,P1,
+C16-pregnancy,هل الدواء آمن للحامل,ar,question,all,informational,awareness,/guides/medicines-in-pregnancy,guide,P1,
+C16-pregnancy,أدوية الرضاعة الطبيعية,ar,synonym,all,informational,awareness,/guides/medicines-and-breastfeeding,guide,P2,
+C16-pregnancy,medicines safe in pregnancy,en,primary,all,informational,awareness,/en/guides/medicines-in-pregnancy,guide,P3,English SERP is very competitive
+C17-antibiotics,طريقة استخدام المضاد الحيوي الصحيحة,ar,primary,all,informational,awareness,/guides/taking-antibiotics-correctly,guide,P1,
+C17-antibiotics,المضاد الحيوي قبل الأكل ولا بعده,ar,colloquial,EG,question,awareness,/guides/taking-antibiotics-correctly,guide,P1,
+C17-antibiotics,نسيت جرعة المضاد الحيوي,ar,question,all,informational,awareness,/guides/taking-antibiotics-correctly,guide,P2,
+C17-antibiotics,مدة المضاد الحيوي,ar,question,all,informational,awareness,/guides/taking-antibiotics-correctly,guide,P2,
+C17-antibiotics,مضادات حيوية,ar,class,all,informational,awareness,/drugs/classes/antibiotics,class,P1,class hub
+C17-antibiotics,how to take antibiotics correctly,en,primary,all,informational,awareness,/en/guides/taking-antibiotics-correctly,guide,P3,
+C18-interactions,التداخلات الدوائية,ar,primary,all,informational,awareness,/guides/drug-interactions-explained,guide,P1,explains; no pair checker in Phase 4
+C18-interactions,تعارض الأدوية مع بعض,ar,synonym,EG,informational,awareness,/guides/drug-interactions-explained,guide,P1,
+C18-interactions,هل يمكن أخذ دوائين مع بعض,ar,question,all,informational,awareness,/guides/drug-interactions-explained,guide,P2,
+C18-interactions,drug interactions explained,en,primary,all,informational,awareness,/en/guides/drug-interactions-explained,guide,P3,
+C19-template,{ingredient_ar} دواعي الاستعمال,ar,template,all,informational,drug,/drugs/ingredients/{slug}#uses,ingredient,P1,× approved ingredients
+C19-template,{ingredient_ar} لماذا يستخدم,ar,template,all,informational,drug,/drugs/ingredients/{slug}#uses,ingredient,P1,
+C19-template,استخدامات {ingredient_ar},ar,template,all,informational,drug,/drugs/ingredients/{slug}#uses,ingredient,P1,
+C19-template,{ingredient_ar} الآثار الجانبية,ar,template,all,informational,drug,/drugs/ingredients/{slug}#side-effects,ingredient,P1,
+C19-template,أضرار {ingredient_ar},ar,template,all,informational,drug,/drugs/ingredients/{slug}#side-effects,ingredient,P1,
+C19-template,موانع استعمال {ingredient_ar},ar,template,all,informational,drug,/drugs/ingredients/{slug}#precautions,ingredient,P1,
+C19-template,{ingredient_ar} للحامل,ar,template,all,informational,drug,/drugs/ingredients/{slug}#pregnancy,ingredient,P1,
+C19-template,{ingredient_ar} للمرضع,ar,template,all,informational,drug,/drugs/ingredients/{slug}#breastfeeding,ingredient,P2,
+C19-template,{ingredient_ar} للأطفال,ar,template,all,informational,drug,/drugs/ingredients/{slug}#children,ingredient,P2,general label info; no dose calculator
+C19-template,طريقة استخدام {ingredient_ar},ar,template,all,informational,drug,/drugs/ingredients/{slug}#how-to-take,ingredient,P1,
+C19-template,{ingredient_ar} قبل الأكل ولا بعده,ar,template,EG,informational,drug,/drugs/ingredients/{slug}#how-to-take,ingredient,P2,
+C19-template,نسيت جرعة {ingredient_ar},ar,template,all,informational,drug,/drugs/ingredients/{slug}#missed-dose,ingredient,P2,
+C19-template,تداخلات {ingredient_ar},ar,template,all,informational,drug,/drugs/ingredients/{slug}#interactions,ingredient,P2,overview only
+C19-template,{ingredient_ar} والكحول,ar,template,all,informational,drug,/drugs/ingredients/{slug}#food-alcohol,ingredient,P3,
+C19-template,حفظ {ingredient_ar},ar,template,all,informational,drug,/drugs/ingredients/{slug}#storage,ingredient,P3,
+C19-template,{brand_ar} المادة الفعالة,ar,template,all,informational,drug,/drugs/{slug},brand,P1,× indexable brands
+C19-template,الاسم العلمي ل{brand_ar},ar,template,all,informational,drug,/drugs/{slug},brand,P1,
+C19-template,بديل {brand_ar},ar,template,all,informational,drug,/drugs/{slug}#alternatives,brand,P1,factual same-ingredient list
+C19-template,{brand_ar} لماذا يستخدم,ar,template,all,informational,drug,/drugs/{slug}#uses,brand,P1,summary + link to ingredient
+C19-template,{brand_ar} {strength},ar,template,all,navigational,drug,/drugs/{slug}#forms,brand,P2,
+C19-template,{brand_ar} شراب,ar,template,all,navigational,drug,/drugs/{slug}#forms,brand,P2,
+C19-template,{brand_en} دواعي الاستعمال,ar,template_mixed,all,informational,drug,/drugs/{slug}#uses,brand,P1,Latin brand name inside Arabic query
+C19-template,{brand_en} للحامل,ar,template_mixed,all,informational,drug,/drugs/{slug}#pregnancy,brand,P2,
+C19-template,{ingredient_en} uses,en,template,all,informational,drug,/en/drugs/ingredients/{slug}#uses,ingredient,P2,
+C19-template,what is {ingredient_en} used for,en,template,all,informational,drug,/en/drugs/ingredients/{slug}#uses,ingredient,P2,
+C19-template,{ingredient_en} side effects,en,template,all,informational,drug,/en/drugs/ingredients/{slug}#side-effects,ingredient,P2,
+C19-template,{ingredient_en} pregnancy,en,template,all,informational,drug,/en/drugs/ingredients/{slug}#pregnancy,ingredient,P3,
+C19-template,{ingredient_en} in arabic,en,template,all,informational,drug,/drugs/ingredients/{slug},ingredient,P2,Arabic page answers this; hreflang pair
+C19-template,{brand_en} generic name,en,template,all,informational,drug,/en/drugs/{slug},brand,P2,
+C19-template,{brand_en} alternatives,en,template,all,informational,drug,/en/drugs/{slug}#alternatives,brand,P2,
+C19-template,{class_ar},ar,template,all,informational,drug,/drugs/classes/{slug},class,P2,× classes with ≥3 indexable members
+C20-questions,هل الروشتة لها مدة صلاحية,ar,question,all,informational,awareness,/blog/prescription-validity,article,P3,
+C20-questions,هل ينفع آخذ الدواء بدون روشتة,ar,question,EG,informational,awareness,/blog/prescription-only-medicines,article,P2,
+C20-questions,ايه الفرق بين الاسم التجاري والعلمي للدواء,ar,question,all,informational,awareness,/blog/brand-vs-generic-names,article,P2,links to drugs hub
+C20-questions,ليه الصيدلي بيغير الدواء ببديل,ar,question,EG,informational,awareness,/blog/why-pharmacists-substitute,article,P2,
+C20-questions,هل الدواء المثيل نفس الأصلي,ar,question,all,informational,awareness,/blog/brand-vs-generic-names,article,P2,same owner as above
+C20-questions,ازاي اعرف الجرعة من الروشتة,ar,question,EG,informational,awareness,/guides/how-to-read-a-prescription,guide,P2,section of the pillar
+C20-questions,معنى 1×3 في الروشتة,ar,question,EG,informational,awareness,/glossary/frequency-notation,glossary,P1,Egyptian notation; high value
+C20-questions,معنى 2×1 في الروشتة,ar,question,EG,informational,awareness,/glossary/frequency-notation,glossary,P1,
+C20-questions,can AI read prescriptions accurately,en,question,all,informational,consideration,/en/features/prescription-reader#accuracy,feature,P2,cite eval method honestly
+C20-questions,is it safe to use AI for medication information,en,question,all,informational,consideration,/en/editorial-policy,trust,P3,
+C20-questions,هل الذكاء الاصطناعي يقرأ الروشتة بدقة,ar,question,all,informational,consideration,/features/prescription-reader#accuracy,feature,P1,
+C20-questions,هل استخدام الذكاء الاصطناعي في الأدوية آمن,ar,question,all,informational,consideration,/editorial-policy,trust,P2,
+C21-franco,roshta,ar-Latn,arabizi,EG,navigational,tool,/features/prescription-reader,feature,P3,
+C21-franco,rosheta,ar-Latn,arabizi,EG,navigational,tool,/features/prescription-reader,feature,P3,
+C21-franco,a2ra roshta,ar-Latn,arabizi,EG,transactional,tool,/features/prescription-reader,feature,P3,
+C21-franco,wasfa tebeya,ar-Latn,arabizi,SA|GULF,transactional,tool,/features/prescription-reader,feature,P3,

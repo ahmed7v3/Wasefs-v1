@@ -47,6 +47,8 @@ export async function createApp(
     // Only Caddy may set X-Forwarded-*; with an empty list nothing is trusted.
     trustProxy: env.TRUST_PROXY.length > 0 ? [...env.TRUST_PROXY] : false,
     genReqId: requestId,
+    // The default (100) is shorter than a content preview token (signed payload, about 150 characters).
+    maxParamLength: 512,
     logger: false,
   });
 

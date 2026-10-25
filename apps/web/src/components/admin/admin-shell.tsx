@@ -2,7 +2,7 @@
 
 import { t } from "@wasfa/shared/i18n";
 import { Menu } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { navItemFor } from "../../lib/admin-nav";
@@ -34,11 +34,12 @@ export interface AdminShellProps {
  */
 export function AdminShell({ user, permissions, branding, children }: AdminShellProps) {
   const pathname = usePathname();
+  const search = useSearchParams();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const closeDrawer = useCallback(() => {
     setDrawerOpen(false);
   }, []);
-  const title = navItemFor(pathname);
+  const title = navItemFor(pathname, search);
 
   return (
     <div className="min-h-dvh bg-bg lg:flex">

@@ -1,0 +1,105 @@
+import type { Options as SanitizeSchema } from "rehype-sanitize";
+
+/*
+ * The allow-list every stored `body_html` passes through (CONTENT-PLATFORM §11.3). It starts from
+ * nothing, not from a default schema: an element or attribute that is not named here does not exist.
+ * No clobber prefix, because heading ids must equal the TOC anchors the public page links to.
+ * Link and image URLs are policed separately (`policy.ts`): the schema only fixes the protocols, and
+ * the host of every image is checked against the media origin after sanitising.
+ */
+export const SANITIZE_SCHEMA: SanitizeSchema = {
+  // Elements whose text content is dropped too, not just the tag.
+  strip: [
+    "script",
+    "style",
+    "iframe",
+    "object",
+    "embed",
+    "svg",
+    "math",
+    "template",
+    "noscript",
+    "textarea",
+    "title",
+  ],
+  tagNames: [
+    "p",
+    "h2",
+    "h3",
+    "h4",
+    "ul",
+    "ol",
+    "li",
+    "blockquote",
+    "strong",
+    "em",
+    "del",
+    "a",
+    "code",
+    "pre",
+    "br",
+    "hr",
+    "table",
+    "thead",
+    "tbody",
+    "tr",
+    "th",
+    "td",
+    "aside",
+    "figure",
+    "figcaption",
+    "picture",
+    "source",
+    "img",
+    "section",
+    "sup",
+  ],
+  attributes: {
+    "*": [],
+    h2: ["id"],
+    h3: ["id"],
+    h4: ["id"],
+    li: ["id"],
+    ol: ["start"],
+    a: [
+      "href",
+      "title",
+      "rel",
+      "id",
+      ["className", "entity-link", "data-footnote-backref"],
+      ["dataEntity", "drug", "glossary"],
+      "dataFootnoteRef",
+      "dataFootnoteBackref",
+      "ariaLabel",
+      ["ariaDescribedBy", "footnote-label"],
+    ],
+    code: [["className", /^language-[a-z0-9_+-]{1,30}$/]],
+    th: [["align", "left", "right", "center"]],
+    td: [["align", "left", "right", "center"]],
+    aside: [
+      ["className", "callout", "callout-note", "callout-warning", "callout-tip", "content-cta"],
+      ["role", "note"],
+      ["dataCta", "analyze"],
+    ],
+    section: [["className", "footnotes"], "dataFootnotes"],
+    source: [["type", "image/avif", "image/webp", "image/jpeg"], "srcSet", "sizes"],
+    img: [
+      "src",
+      "srcSet",
+      "sizes",
+      "width",
+      "height",
+      "alt",
+      ["loading", "lazy", "eager"],
+      ["decoding", "async"],
+    ],
+  },
+  protocols: {
+    href: ["http", "https"],
+    src: ["http", "https"],
+  },
+  clobber: [],
+  clobberPrefix: "",
+  // Heading ids come from the renderer; a stray `<li>` cannot appear outside a list after sanitising.
+  required: {},
+};

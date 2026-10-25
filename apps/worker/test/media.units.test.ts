@@ -1,10 +1,15 @@
+import { MEDIA_VARIANT_WIDTHS } from "@wasfa/shared/schemas/media";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 
-import { processMedia } from "../src/media/process-media.js";
+import {
+  encodeWithinBudget,
+  MEDIA_AVIF_BUDGET_BYTES,
+  processMedia,
+} from "../src/media/process-media.js";
 import { MediaRejected } from "../src/media/rejected.js";
 
-import { pngBomb, solidPng, twoToneJpeg } from "./support/image-fixtures.js";
+import { noisyJpeg, pngBomb, solidPng, twoToneJpeg } from "./support/image-fixtures.js";
 
 /*
  * The media pipeline on ordinary and hostile input. Every fixture is built in the test.
@@ -19,6 +24,47 @@ async function rejection(promise: Promise<unknown>): Promise<string> {
   }
   return "accepted";
 }
+
+describe("encodeWithinBudget", () => {
+  it("steps quality down by the step until the result fits, and keeps that result", async () => {
+    const seen: number[] = [];
+    const fake = (quality: number): Promise<Buffer> => {
+      seen.push(quality);
+      return Promise.resolve(Buffer.alloc(quality > 40 ? 200 : 50));
+    };
+    const result = await encodeWithinBudget(fake, 100, 50, 30, 5);
+    expect(seen).toEqual([50, 45, 40]);
+    expect(result).toMatchObject({ quality: 40, withinBudget: true });
+    expect(result.body.byteLength).toBe(50);
+  });
+
+  it("stops at the floor and reports the miss when nothing fits", async () => {
+    const seen: number[] = [];
+    const fake = (quality: number): Promise<Buffer> => {
+      seen.push(quality);
+      return Promise.resolve(Buffer.alloc(500));
+    };
+    const result = await encodeWithinBudget(fake, 100, 50, 30, 5);
+    expect(seen).toEqual([50, 45, 40, 35, 30]);
+    expect(result).toMatchObject({ quality: 30, withinBudget: false });
+  });
+
+  it("encodes once when the first result already fits", async () => {
+    let calls = 0;
+    const result = await encodeWithinBudget(
+      () => {
+        calls += 1;
+        return Promise.resolve(Buffer.alloc(10));
+      },
+      100,
+      50,
+      30,
+      5,
+    );
+    expect(calls).toBe(1);
+    expect(result.withinBudget).toBe(true);
+  });
+});
 
 describe("processMedia", () => {
   it("strips EXIF (GPS included) from every variant and applies the orientation", async () => {
@@ -48,7 +94,7 @@ describe("processMedia", () => {
   it("builds avif, webp and jpeg at every width up to the original, never upscaling", async () => {
     const result = await processMedia(await twoToneJpeg(1000, 500), "image/jpeg");
     const widths = [...new Set(result.variants.map((variant) => variant.width))];
-    expect(widths).toEqual([320, 640, 960]);
+    expect(widths).toEqual([320, 480, 640, 960]);
     for (const width of widths) {
       expect(
         result.variants
@@ -61,6 +107,25 @@ describe("processMedia", () => {
     );
     expect(new Set(types)).toEqual(new Set(["heif", "webp", "jpeg"]));
     expect(result.variants.every((variant) => variant.body.byteLength > 0)).toBe(true);
+  });
+
+  it("builds the spec widths for a large noisy photo and holds the 1600 AVIF to its budget or warns", async () => {
+    const result = await processMedia(await noisyJpeg(3000, 2000), "image/jpeg");
+    const widths = [...new Set(result.variants.map((variant) => variant.width))];
+    expect(widths).toEqual(MEDIA_VARIANT_WIDTHS.filter((width) => width <= 1600));
+    expect(widths).toEqual([320, 480, 640, 960, 1280, 1600]);
+    const avif = result.variants.find((v) => v.format === "avif" && v.width === 1600);
+    expect(avif).toBeDefined();
+    expect(
+      (avif?.body.byteLength ?? Infinity) <= MEDIA_AVIF_BUDGET_BYTES ||
+        result.warnings.includes("avif_over_budget_1600"),
+    ).toBe(true);
+  }, 120_000);
+
+  it("gives a small image only the widths it can fill, with no warnings", async () => {
+    const result = await processMedia(await twoToneJpeg(500, 250), "image/jpeg");
+    expect([...new Set(result.variants.map((variant) => variant.width))]).toEqual([320, 480]);
+    expect(result.warnings).toEqual([]);
   });
 
   it("keeps a picture narrower than the smallest width as one variant of its own size", async () => {

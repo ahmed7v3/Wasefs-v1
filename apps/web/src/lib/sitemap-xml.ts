@@ -18,6 +18,8 @@ export interface SitemapUrl {
   priority?: number;
   /** hreflang → absolute URL; listed on every version of the page. */
   alternates?: Record<string, string>;
+  /** Absolute URL of the featured image (`<image:image>`), articles only. */
+  image?: string;
 }
 
 export interface SitemapChild {
@@ -50,13 +52,20 @@ export function buildUrlset(urls: readonly SitemapUrl[]): string {
       "<url>",
       `<loc>${escapeXml(entry.url)}</loc>`,
       `<lastmod>${escapeXml(entry.lastModified)}</lastmod>`,
-      ...(entry.changeFrequency ? [`<changefreq>${escapeXml(entry.changeFrequency)}</changefreq>`] : []),
-      ...(entry.priority === undefined ? [] : [`<priority>${entry.priority.toFixed(1)}</priority>`]),
+      ...(entry.changeFrequency
+        ? [`<changefreq>${escapeXml(entry.changeFrequency)}</changefreq>`]
+        : []),
+      ...(entry.priority === undefined
+        ? []
+        : [`<priority>${entry.priority.toFixed(1)}</priority>`]),
       ...links,
+      ...(entry.image
+        ? [`<image:image><image:loc>${escapeXml(entry.image)}</image:loc></image:image>`]
+        : []),
       "</url>",
     ].join("");
   });
-  return `${XML_HEADER}<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">${body.join("")}</urlset>`;
+  return `${XML_HEADER}<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">${body.join("")}</urlset>`;
 }
 
 export function buildSitemapIndex(
@@ -90,21 +99,28 @@ export function pageSitemapUrls(siteUrl: string): SitemapUrl[] {
   });
 }
 
-/** Blog, drug and glossary children join this table when those content types exist. */
+/** Static children; the content-platform children are built from the API in `content-sitemaps.ts`. */
 export const SITEMAP_CHILDREN: readonly SitemapChild[] = [
   { file: "sitemap-pages.xml", urls: pageSitemapUrls },
 ];
 
-export function sitemapIndexFor(siteUrl: string): string {
-  return buildSitemapIndex(
-    SITEMAP_CHILDREN.map((child) => ({
+/** `extra` are the content children, which need the API and so are resolved by the route (`content-sitemaps.ts`). */
+export function sitemapIndexFor(
+  siteUrl: string,
+  extra: readonly { file: string; lastModified: string }[] = [],
+): string {
+  return buildSitemapIndex([
+    ...SITEMAP_CHILDREN.map((child) => ({
       loc: new URL(`/${child.file}`, siteUrl).toString(),
-      lastModified: child.urls(siteUrl).reduce(
-        (latest, entry) => (entry.lastModified > latest ? entry.lastModified : latest),
-        "",
-      ),
+      lastModified: child
+        .urls(siteUrl)
+        .reduce((latest, entry) => (entry.lastModified > latest ? entry.lastModified : latest), ""),
     })),
-  );
+    ...extra.map((child) => ({
+      loc: new URL(`/${child.file}`, siteUrl).toString(),
+      lastModified: child.lastModified,
+    })),
+  ]);
 }
 
 export const SITEMAP_HEADERS = {

@@ -1,6 +1,16 @@
 import {
   Activity,
+  ArrowRightLeft,
   Banknote,
+  BookA,
+  BookOpen,
+  CalendarDays,
+  Contact,
+  File,
+  FileText,
+  FolderTree,
+  Images,
+  Inbox,
   Bell,
   BellRing,
   Building2,
@@ -311,6 +321,90 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
     ],
   },
   {
+    id: "content",
+    label: "admin.nav.group.content",
+    items: [
+      {
+        href: "/admin/content?type=article",
+        label: "admin.nav.content.articles",
+        description: "admin.nav.content.articles.description",
+        icon: FileText,
+        permission: "content.read",
+      },
+      {
+        href: "/admin/content?type=guide",
+        label: "admin.nav.content.guides",
+        description: "admin.nav.content.guides.description",
+        icon: BookOpen,
+        permission: "content.read",
+      },
+      {
+        href: "/admin/content?type=glossary",
+        label: "admin.nav.content.glossary",
+        description: "admin.nav.content.glossary.description",
+        icon: BookA,
+        permission: "content.read",
+      },
+      {
+        href: "/admin/content?type=page",
+        label: "admin.nav.content.pages",
+        description: "admin.nav.content.pages.description",
+        icon: File,
+        permission: "content.read",
+      },
+      {
+        href: "/admin/content/review",
+        label: "admin.nav.content.review",
+        description: "admin.nav.content.review.description",
+        icon: Inbox,
+        permission: "content.read",
+      },
+      {
+        href: "/admin/content/calendar",
+        label: "admin.nav.content.calendar",
+        description: "admin.nav.content.calendar.description",
+        icon: CalendarDays,
+        permission: "content.read",
+      },
+      {
+        href: "/admin/media",
+        label: "admin.nav.content.media",
+        description: "admin.nav.content.media.description",
+        icon: Images,
+        permission: "content.read",
+      },
+      {
+        href: "/admin/content/taxonomy",
+        label: "admin.nav.content.taxonomy",
+        description: "admin.nav.content.taxonomy.description",
+        icon: FolderTree,
+        permission: "content.read",
+      },
+      {
+        href: "/admin/content/people",
+        label: "admin.nav.content.people",
+        description: "admin.nav.content.people.description",
+        icon: Contact,
+        permission: "content.read",
+      },
+      {
+        href: "/admin/content/redirects",
+        label: "admin.nav.content.redirects",
+        description: "admin.nav.content.redirects.description",
+        icon: ArrowRightLeft,
+        permission: "content.read",
+      },
+      {
+        // A deep link to the `content` group of the general settings page; never "active" itself.
+        href: "/admin/settings#group-content",
+        label: "admin.nav.content.settings",
+        description: "admin.nav.content.settings.description",
+        icon: SlidersHorizontal,
+        permission: "settings.read",
+      },
+    ],
+  },
+  {
     id: "ai",
     label: "admin.nav.group.ai",
     items: [
@@ -475,7 +569,16 @@ export function visibleNavGroups(permissions: readonly string[]): AdminNavGroup[
   })).filter((group) => group.items.length > 0);
 }
 
-const NAV_HREFS = ADMIN_NAV.flatMap((group) => group.items.map((item) => item.href));
+/** Path, query and hash of a nav href (`/admin/content?type=guide`, `/admin/settings#group-content`). */
+function parseHref(href: string): { path: string; query: URLSearchParams; hash: boolean } {
+  const [beforeHash = "", hash] = href.split("#");
+  const [path = "", query = ""] = beforeHash.split("?");
+  return { path, query: new URLSearchParams(query), hash: hash !== undefined };
+}
+
+const NAV_PATHS = ADMIN_NAV.flatMap((group) =>
+  group.items.map((item) => parseHref(item.href).path),
+);
 
 const isWithin = (href: string, pathname: string) =>
   pathname === href || pathname.startsWith(`${href}/`);
@@ -483,14 +586,32 @@ const isWithin = (href: string, pathname: string) =>
 /**
  * Active on the exact path (overview) or the path and everything below it, unless a longer entry
  * also matches: `/admin/ai/models` is the models page, not the AI settings page it sits under.
+ * An entry with a query (`/admin/content?type=guide`) is active only on exactly that path with
+ * those params; an entry with a hash is a deep link and is never the current page.
  */
-export function isNavActive(href: string, pathname: string): boolean {
-  if (href === "/admin") return pathname === "/admin";
-  if (!isWithin(href, pathname)) return false;
-  return !NAV_HREFS.some((other) => other.length > href.length && isWithin(other, pathname));
+export function isNavActive(
+  href: string,
+  pathname: string,
+  search: string | URLSearchParams = "",
+): boolean {
+  const { path, query, hash } = parseHref(href);
+  if (hash) return false;
+  if (query.size > 0) {
+    if (pathname !== path) return false;
+    const current = typeof search === "string" ? new URLSearchParams(search) : search;
+    return [...query].every(([name, value]) => current.get(name) === value);
+  }
+  if (path === "/admin") return pathname === "/admin";
+  if (!isWithin(path, pathname)) return false;
+  return !NAV_PATHS.some((other) => other.length > path.length && isWithin(other, pathname));
 }
 
 /** The nav item of the current path, for the top bar title. */
-export function navItemFor(pathname: string): AdminNavItem | undefined {
-  return ADMIN_NAV.flatMap((group) => group.items).find((item) => isNavActive(item.href, pathname));
+export function navItemFor(
+  pathname: string,
+  search: string | URLSearchParams = "",
+): AdminNavItem | undefined {
+  return ADMIN_NAV.flatMap((group) => group.items).find((item) =>
+    isNavActive(item.href, pathname, search),
+  );
 }

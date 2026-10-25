@@ -51,6 +51,12 @@ export const workerEnvSchema = z
     WORKER_CONCURRENCY_PAYMENTS: concurrency,
     /** ... and on the `seo` queue (IndexNow pings: one small HTTP call per job). */
     WORKER_CONCURRENCY_SEO: concurrency,
+    /** ... and on the `content` queue (scheduled publishing; one run at a time keeps the daily cap exact). */
+    WORKER_CONCURRENCY_CONTENT: concurrency,
+    /** Where the web app answers inside the network (`http://web:3000`); unset = no cache purge (dev). */
+    WEB_INTERNAL_URL: optional(z.url()),
+    /** Signs the cache purge call to the web (`/api/revalidate`); unset = no cache purge (dev). */
+    REVALIDATE_SECRET: optional(z.string().min(32)),
     /** The web app origin (first entry of the api's `WEB_ORIGIN` list): links in receipts point there. */
     WEB_ORIGIN: z
       .string()
@@ -119,5 +125,6 @@ export function queueConcurrency(env: WorkerEnv): Record<QueueName, number> {
     evals: env.WORKER_CONCURRENCY_EVALS,
     payments: env.WORKER_CONCURRENCY_PAYMENTS,
     seo: env.WORKER_CONCURRENCY_SEO,
+    content: env.WORKER_CONCURRENCY_CONTENT,
   };
 }

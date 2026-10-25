@@ -17,6 +17,7 @@ import {
 } from "@wasfa/shared/schemas/admin-growth";
 import { Button, Card, Dialog, Field, Input, Select, Tab, TabList, TabPanel, Tabs, moneyText, useToast } from "@wasfa/ui";
 import { Plus } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 
@@ -392,7 +393,7 @@ function SettingsTab() {
               <li key={field.key}>{`${t(`admin.referrals.setting.${field.key}` as MessageKey)}: ${formatNumber(field.points)} ≈ ${moneyText(field.valueMinor, data.currency)}`}</li>
             ))}
           </ul>
-          <a href="/admin/settings?key=rewards" className="text-primary underline">{t("admin.referrals.editSettings")}</a>
+          <Link href="/admin/settings?key=rewards" className="text-primary underline">{t("admin.referrals.editSettings")}</Link>
         </div>
       )}
     </ResourceBoundary>

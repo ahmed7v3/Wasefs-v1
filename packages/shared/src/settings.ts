@@ -508,6 +508,103 @@ export const seoSettingsSchema = z.object({
     ]),
 });
 
+/** Claims an editor may not publish (CONTENT-PLATFORM §6.2): matched on Arabic-normalised, lower-case text. */
+export const DEFAULT_FORBIDDEN_PHRASES = [
+  "يشفي نهائيًا",
+  "بدون أي آثار جانبية",
+  "بدون اعراض جانبية",
+  "بديل عن الطبيب",
+  "بديل للطبيب",
+  "علاج مضمون",
+  "يعالج جميع الأمراض",
+  "يعالج كل الأمراض",
+  "شفاء تام",
+  "شفاء مضمون",
+  "آمن 100%",
+  "guaranteed cure",
+  "no side effects",
+  "replaces your doctor",
+  "cures all",
+] as const;
+
+/**
+ * Editorial platform (CONTENT-PLATFORM §9): the publishing cap, preview lifetime, quality-gate
+ * thresholds and auto-link limits. Admin only; the API reads it on every save and publish.
+ */
+export const contentSettingsSchema = z.object({
+  maxPublishesPerDay: z.number().int().min(1).max(500).default(25),
+  /** IANA zone whose midnight starts the publishing-cap day and in which schedules are shown. */
+  timeZone: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .refine((zone) => {
+      try {
+        new Intl.DateTimeFormat("en", { timeZone: zone });
+        return true;
+      } catch {
+        return false;
+      }
+    }, "unknown time zone")
+    .default("Africa/Cairo"),
+  previewTokenHours: z.number().int().min(1).max(168).default(24),
+  minWords: z
+    .object({
+      article: z.number().int().min(0).max(10_000).default(600),
+      guide: z.number().int().min(0).max(10_000).default(1_200),
+      glossary: z.number().int().min(0).max(10_000).default(80),
+    })
+    .default({ article: 600, guide: 1_200, glossary: 80 }),
+  /** Shingle-Jaccard similarity against published items of the same locale. */
+  duplicate: z
+    .object({
+      warnAt: z.number().min(0.05).max(1).default(0.4),
+      blockAt: z.number().min(0.05).max(1).default(0.6),
+    })
+    .refine((value) => value.warnAt < value.blockAt, "warnAt must be below blockAt")
+    .default({ warnAt: 0.4, blockAt: 0.6 }),
+  titleSimilarityBlockAt: z.number().min(0.5).max(1).default(0.9),
+  forbiddenPhrases: z
+    .array(z.string().trim().min(2).max(120))
+    .max(200)
+    .default([...DEFAULT_FORBIDDEN_PHRASES]),
+  autoLink: z
+    .object({
+      enabled: z.boolean().default(true),
+      maxPerTarget: z.number().int().min(1).max(5).default(1),
+      minWordsBetween: z.number().int().min(0).max(1_000).default(120),
+    })
+    .default({ enabled: true, maxPerTarget: 1, minWordsBetween: 120 }),
+  defaultAuthorId: z.uuid().nullable().default(null),
+  reviewIntervalDays: z
+    .object({
+      general: z.number().int().min(30).max(1_095).default(365),
+      highRisk: z.number().int().min(30).max(1_095).default(180),
+    })
+    .default({ general: 365, highRisk: 180 }),
+  /** Narrower featured images raise the `image_size` warning. */
+  featuredMinWidth: z.number().int().min(320).max(4_000).default(1_200),
+  /** External links to these hosts (and subdomains) keep link equity; every other host gets nofollow. */
+  dofollowDomains: z
+    .array(z.string().trim().toLowerCase().min(3).max(100))
+    .max(100)
+    .default([
+      "who.int",
+      "nih.gov",
+      "ncbi.nlm.nih.gov",
+      "fda.gov",
+      "ema.europa.eu",
+      "edaegypt.gov.eg",
+      "sfda.gov.sa",
+      "cdc.gov",
+      "nice.org.uk",
+      "cochranelibrary.com",
+    ]),
+  /** An English draft may be generated from an Arabic article; it is reviewed like any other. */
+  autoTranslateDrafts: z.boolean().default(false),
+});
+
 export const SETTING_VISIBILITIES = ["public", "admin"] as const;
 export type SettingVisibility = (typeof SETTING_VISIBILITIES)[number];
 
@@ -537,6 +634,8 @@ export const SETTINGS_REGISTRY = {
   billing: { schema: billingSettingsSchema, visibility: "admin" },
   rewards: { schema: rewardsSettingsSchema, visibility: "admin" },
   growth: { schema: growthSettingsSchema, visibility: "admin" },
+  /** Admin only: quality-gate thresholds and the publishing cap of the editorial platform. */
+  content: { schema: contentSettingsSchema, visibility: "admin" },
 } as const satisfies Record<string, { schema: z.ZodType; visibility: SettingVisibility }>;
 
 export type SettingsRegistry = typeof SETTINGS_REGISTRY;
