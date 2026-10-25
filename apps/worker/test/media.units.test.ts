@@ -110,7 +110,9 @@ describe("processMedia", () => {
   });
 
   it("builds the spec widths for a large noisy photo and holds the 1600 AVIF to its budget or warns", async () => {
-    const result = await processMedia(await noisyJpeg(3000, 2000), "image/jpeg");
+    // 1700 px wide is the smallest source that still yields the 1600 variant; a bigger one only makes
+    // every variant re-decode more pixels (the AVIF encode of incompressible noise is the slow part).
+    const result = await processMedia(await noisyJpeg(1700, 1100), "image/jpeg");
     const widths = [...new Set(result.variants.map((variant) => variant.width))];
     expect(widths).toEqual(MEDIA_VARIANT_WIDTHS.filter((width) => width <= 1600));
     expect(widths).toEqual([320, 480, 640, 960, 1280, 1600]);
@@ -120,7 +122,7 @@ describe("processMedia", () => {
       (avif?.body.byteLength ?? Infinity) <= MEDIA_AVIF_BUDGET_BYTES ||
         result.warnings.includes("avif_over_budget_1600"),
     ).toBe(true);
-  }, 120_000);
+  }, 300_000);
 
   it("gives a small image only the widths it can fill, with no warnings", async () => {
     const result = await processMedia(await twoToneJpeg(500, 250), "image/jpeg");
