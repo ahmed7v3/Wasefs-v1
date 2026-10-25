@@ -3,6 +3,9 @@ import { z } from "zod";
 import { BILLING_KEY_PATTERN, BILLING_MAX_MONTHS, CURRENCY_CODE_PATTERN } from "../billing.js";
 import { PHI_ACCESS_REASONS } from "../growth.js";
 import { PLAN_KEY_PATTERN } from "../plans.js";
+import { RX_FIELDS, RX_RATINGS } from "../rx.js";
+
+import { rxViewSchema } from "./rx.js";
 
 /*
  * User 360 (Task 3.15; ADMIN-CONSOLE-SPEC §8): bodies and queries of the `/admin/users/:id/*`
@@ -39,6 +42,52 @@ export const adminPhiSessionSchema = z.object({
   note: z.string().trim().max(300).optional(),
 });
 export type AdminPhiSession = z.output<typeof adminPhiSessionSchema>;
+
+// --- Prescription detail (opened inside an access session) -----------------------------------------
+
+const detailInstant = z.iso.datetime({ offset: true });
+
+/** `GET /admin/users/:id/prescriptions/:rxId`: the customer's own view plus every audit detail. */
+export const adminPrescriptionDetailSchema = z.object({
+  view: rxViewSchema,
+  images: z.array(
+    z.object({
+      fileId: z.uuid(),
+      pageNo: z.number().int().min(1),
+      url: z.string().nullable(),
+      expiresInSeconds: z.number().nullable(),
+    }),
+  ),
+  details: z.object({
+    skillVersion: z.string(),
+    routeVersion: z.number().int().nullable(),
+    cached: z.boolean(),
+    cacheOf: z.uuid().nullable(),
+    patientInitials: z.string().nullable(),
+    prescriberInitials: z.string().nullable(),
+    queuedAt: detailInstant,
+    startedAt: detailInstant.nullable(),
+    finishedAt: detailInstant.nullable(),
+    durationMs: z.number().int().min(0).nullable(),
+    costUsdMicros: z.number().min(0),
+    rating: z.enum(RX_RATINGS).nullable(),
+    ratingNote: z.string().nullable(),
+    ratedAt: detailInstant.nullable(),
+    shareForReview: z.boolean(),
+    createdBy: z.object({ id: z.uuid(), name: z.string() }).nullable(),
+    corrections: z.array(
+      z.object({
+        itemIndex: z.number().int().min(0),
+        field: z.enum(RX_FIELDS),
+        before: z.string().nullable(),
+        after: z.string().nullable(),
+        createdAt: detailInstant,
+        consentForEval: z.boolean(),
+      }),
+    ),
+  }),
+});
+export type AdminPrescriptionDetail = z.output<typeof adminPrescriptionDetailSchema>;
 
 // --- Notes --------------------------------------------------------------------------------------
 
@@ -125,7 +174,11 @@ export type PlanChangeEffect = (typeof PLAN_CHANGE_EFFECTS)[number];
 export const adminCouponGrantSchema = z.object({ couponId: z.uuid() });
 export const adminPersonalOfferSchema = z.object({
   promotionId: z.uuid(),
-  validHours: z.number().int().min(1).max(24 * 90),
+  validHours: z
+    .number()
+    .int()
+    .min(1)
+    .max(24 * 90),
 });
 export const adminPointsAdjustSchema = z.object({
   amount: z

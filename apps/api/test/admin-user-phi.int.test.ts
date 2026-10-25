@@ -8,6 +8,7 @@ import {
   files,
   phiAccessSessions,
   rxAnalyses,
+  rxCorrections,
   rxPages,
 } from "@wasfa/db";
 import { RX_SKILL_NAME } from "@wasfa/shared/rx";
@@ -153,24 +154,93 @@ describe("prescriptions", () => {
     await call(health, "GET", `/admin/users/${customerId}/prescriptions/${rxId}`);
     const views = await ctx.auditRowsFor("phi.view", customerId);
     expect(views).toHaveLength(2);
-    expect(views[0]?.after).toMatchObject({ recordType: "rx_analysis", recordId: rxId, reason: "support_request" });
+    expect(views[0]?.after).toMatchObject({
+      recordType: "rx_analysis",
+      recordId: rxId,
+      reason: "support_request",
+    });
 
     // Another admin with the same permission has no session of their own: refused.
-    expect((await call(otherHealth, "GET", `/admin/users/${customerId}/prescriptions/${rxId}`)).statusCode).toBe(403);
+    expect(
+      (await call(otherHealth, "GET", `/admin/users/${customerId}/prescriptions/${rxId}`))
+        .statusCode,
+    ).toBe(403);
+  });
+
+  it("returns full details with corrections and timings, even when the user did not share it", async () => {
+    const startedAt = new Date(Date.now() - 5_000);
+    const finishedAt = new Date(startedAt.getTime() + 3_000);
+    await db()
+      .update(rxAnalyses)
+      .set({ startedAt, finishedAt, patientInitials: "A.B." })
+      .where(eq(rxAnalyses.id, rxId));
+    await db()
+      .insert(rxCorrections)
+      .values({
+        analysisId: rxId,
+        itemIndex: 0,
+        field: "dose",
+        before: "1",
+        after: "2",
+        userId: customerId,
+      });
+    const [row] = await db()
+      .select({ shared: rxAnalyses.shareForReview })
+      .from(rxAnalyses)
+      .where(eq(rxAnalyses.id, rxId));
+    expect(row?.shared).toBe(false);
+
+    const opened = await call(health, "GET", `/admin/users/${customerId}/prescriptions/${rxId}`);
+    expect(opened.statusCode, opened.body).toBe(200);
+    const body = opened.json();
+    expect(body.view.id).toBe(rxId);
+    expect(body.images).toHaveLength(1);
+    expect(body.details).toMatchObject({
+      cached: false,
+      cacheOf: null,
+      patientInitials: "A.B.",
+      durationMs: 3_000,
+      costUsdMicros: 0,
+      shareForReview: false,
+      createdBy: { id: customerId },
+    });
+    expect(body.details.corrections).toEqual([
+      expect.objectContaining({
+        itemIndex: 0,
+        field: "dose",
+        before: "1",
+        after: "2",
+        consentForEval: false,
+      }),
+    ]);
+    const list = await call(health, "GET", `/admin/users/${customerId}/prescriptions`);
+    expect(list.json().items[0]).toHaveProperty("skillVersion");
+    expect(list.json().items[0]).toHaveProperty("finishedAt");
   });
 
   it("refuses an expired session", async () => {
     await db()
       .update(phiAccessSessions)
-      .set({ expiresAt: new Date(Date.now() - 1_000), createdAt: new Date(Date.now() - 60 * 60_000) })
+      .set({
+        expiresAt: new Date(Date.now() - 1_000),
+        createdAt: new Date(Date.now() - 60 * 60_000),
+      })
       .where(eq(phiAccessSessions.adminUserId, health.userId));
-    expect((await call(health, "GET", `/admin/users/${customerId}/prescriptions/${rxId}`)).statusCode).toBe(403);
+    expect(
+      (await call(health, "GET", `/admin/users/${customerId}/prescriptions/${rxId}`)).statusCode,
+    ).toBe(403);
   });
 
   it("is closed to support unless granted, even with a session", async () => {
-    expect((await call(support, "GET", `/admin/users/${customerId}/prescriptions`)).statusCode).toBe(403);
     expect(
-      (await call(support, "POST", `/admin/users/${customerId}/phi-sessions`, { reason: "dispute" })).statusCode,
+      (await call(support, "GET", `/admin/users/${customerId}/prescriptions`)).statusCode,
+    ).toBe(403);
+    expect(
+      (
+        await call(support, "POST", `/admin/users/${customerId}/phi-sessions`, {
+          reason: "dispute",
+        })
+      ).statusCode,
     ).toBe(403);
   });
 });
@@ -182,18 +252,26 @@ describe("chats", () => {
     expect(list.body).not.toContain("Private title");
     expect(list.json().items[0]).toMatchObject({ id: chatId, messageCount: 1 });
 
-    await call(health, "POST", `/admin/users/${customerId}/phi-sessions`, { reason: "quality_review" });
+    await call(health, "POST", `/admin/users/${customerId}/phi-sessions`, {
+      reason: "quality_review",
+    });
     const opened = await call(health, "GET", `/admin/users/${customerId}/chats/${chatId}`);
     expect(opened.statusCode, opened.body).toBe(200);
     expect(opened.body).toContain(CHAT_TEXT);
     const views = await ctx.auditRowsFor("phi.view", customerId);
-    expect(views.some((row) => (row.after as { recordType?: string }).recordType === "chat")).toBe(true);
+    expect(views.some((row) => (row.after as { recordType?: string }).recordType === "chat")).toBe(
+      true,
+    );
   });
 
   it("hides another user's chat behind this user's id", async () => {
     const stranger = (await ctx.harness.signedInUser()).userId;
-    expect((await call(health, "GET", `/admin/users/${stranger}/chats/${chatId}`)).statusCode).toBe(403);
+    expect((await call(health, "GET", `/admin/users/${stranger}/chats/${chatId}`)).statusCode).toBe(
+      403,
+    );
     await call(health, "POST", `/admin/users/${stranger}/phi-sessions`, { reason: "dispute" });
-    expect((await call(health, "GET", `/admin/users/${stranger}/chats/${chatId}`)).statusCode).toBe(404);
+    expect((await call(health, "GET", `/admin/users/${stranger}/chats/${chatId}`)).statusCode).toBe(
+      404,
+    );
   });
 });

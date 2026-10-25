@@ -102,6 +102,7 @@ export class AdminUserPhiService {
       items: page.items.map((row) => ({
         ...withoutCursor(row),
         createdAt: row.createdAt.toISOString(),
+        finishedAt: row.finishedAt?.toISOString() ?? null,
       })),
       nextCursor: page.nextCursor,
     };
@@ -134,8 +135,37 @@ export class AdminUserPhiService {
         };
       }),
     );
+    const extras = await this.repo.prescriptionExtras(rxId);
     await this.recordView(request, userId, "rx_analysis", rxId, session);
-    return { view, images };
+    return {
+      view,
+      images,
+      details: {
+        skillVersion: row.skillVersion,
+        routeVersion: row.routeVersion,
+        cached: row.cacheOf !== null,
+        cacheOf: row.cacheOf,
+        patientInitials: row.patientInitials,
+        prescriberInitials: row.prescriberInitials,
+        queuedAt: row.queuedAt.toISOString(),
+        startedAt: row.startedAt?.toISOString() ?? null,
+        finishedAt: row.finishedAt?.toISOString() ?? null,
+        durationMs:
+          row.startedAt && row.finishedAt
+            ? Math.max(0, row.finishedAt.getTime() - row.startedAt.getTime())
+            : null,
+        costUsdMicros: extras.costUsdMicros,
+        rating: row.rating,
+        ratingNote: row.ratingNote,
+        ratedAt: row.ratedAt?.toISOString() ?? null,
+        shareForReview: row.shareForReview,
+        createdBy: extras.creator,
+        corrections: extras.corrections.map((correction) => ({
+          ...correction,
+          createdAt: correction.createdAt.toISOString(),
+        })),
+      },
+    };
   }
 
   async chatList(userId: string, query: AdminUserPageQuery) {

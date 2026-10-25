@@ -186,6 +186,9 @@ export const prescriptionsPageSchema = page(
     lowConfidence: z.number().nullable(),
     mediumConfidence: z.number().nullable(),
     credits: z.number(),
+    costUsdMicros: z.number(),
+    skillVersion: z.string(),
+    finishedAt: iso.nullable(),
   }),
 );
 
