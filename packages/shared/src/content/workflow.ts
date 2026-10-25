@@ -40,6 +40,12 @@ export interface WorkflowActor {
   permissions: ReadonlySet<string>;
   /** The account is linked to an active `content_people` reviewer profile. */
   isActiveReviewer: boolean;
+  /**
+   * The platform owner (`super_admin`). The owner answers for their own content: no reviewer profile,
+   * no second pair of eyes, no approval step before publishing, and quality gates advise instead of
+   * blocking. Every such override is written to the audit log by the API.
+   */
+  isOwner?: boolean | undefined;
 }
 
 export const WORKFLOW_ERROR_CODES = [
@@ -131,8 +137,11 @@ export function transition(
 
     case "approve": {
       if (item.status !== "in_review") return fail("ILLEGAL_TRANSITION");
-      if (!actor.isActiveReviewer) return fail("NOT_A_REVIEWER");
-      if (actor.userId === item.submittedBy || actor.userId === item.submittedRevisionAuthorId) {
+      if (!actor.isActiveReviewer && !actor.isOwner) return fail("NOT_A_REVIEWER");
+      if (
+        !actor.isOwner &&
+        (actor.userId === item.submittedBy || actor.userId === item.submittedRevisionAuthorId)
+      ) {
         return fail("FOUR_EYES");
       }
       return ok("approved", {
@@ -143,15 +152,17 @@ export function transition(
 
     case "request_changes": {
       if (item.status !== "in_review") return fail("ILLEGAL_TRANSITION");
-      if (!actor.isActiveReviewer) return fail("NOT_A_REVIEWER");
+      if (!actor.isActiveReviewer && !actor.isOwner) return fail("NOT_A_REVIEWER");
       if ((input.comment ?? "").trim() === "") return fail("COMMENT_REQUIRED");
       return ok("draft", {});
     }
 
     case "schedule":
     case "publish": {
-      const fromDraft = item.status === "draft" && !item.requiresReview;
-      const fromReviewed = item.status === "approved";
+      // The owner may publish from any working state: review is a duty of the team, not of the owner.
+      const fromDraft = item.status === "draft" && (!item.requiresReview || actor.isOwner === true);
+      const fromReviewed =
+        item.status === "approved" || (item.status === "in_review" && actor.isOwner === true);
       // Publishing a scheduled item is how the worker (and an impatient editor) publishes it now.
       const fromScheduled = item.status === "scheduled" && action === "publish";
       if (!fromDraft && !fromReviewed && !fromScheduled) return fail("ILLEGAL_TRANSITION");
@@ -162,10 +173,14 @@ export function transition(
         return fail("SCHEDULE_IN_PAST");
       }
       // Approval binds to a revision: an edit after approval moved the item to draft, but guard anyway.
-      if (item.requiresReview && item.reviewedRevisionId !== item.currentRevisionId) {
+      if (
+        !actor.isOwner &&
+        item.requiresReview &&
+        item.reviewedRevisionId !== item.currentRevisionId
+      ) {
         return fail("NOT_APPROVED_REVISION");
       }
-      if (!input.gatesPass) return fail("GATES_BLOCK");
+      if (!actor.isOwner && !input.gatesPass) return fail("GATES_BLOCK");
       if (action === "schedule") {
         return ok("scheduled", { setScheduledAt: input.at ?? null });
       }

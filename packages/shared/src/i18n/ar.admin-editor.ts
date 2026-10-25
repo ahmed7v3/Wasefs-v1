@@ -203,6 +203,8 @@ export const arAdminEditor = {
   "admin.editor.publish.confirmUpdateBody": "ستُستبدل النسخة المنشورة على {path} بهذه النسخة.",
   "admin.editor.publish.blocked": "لا يمكن النشر الآن. أصلح الملاحظات الإلزامية التالية أولًا.",
   "admin.editor.publish.warnings": "تحذيرات لا تمنع النشر",
+  "admin.editor.publish.advisory":
+    "هذه الملاحظات استشارية بالنسبة لك: القرار لك، ويمكنك النشر كما هو. سيُسجَّل في سجل التدقيق أنك نشرت رغم هذه الملاحظات.",
   "admin.editor.category.none": "بدون تصنيف",
   "admin.editor.category.review": "هذا المحتوى يتطلب مراجعة طبية قبل النشر.",
   "admin.editor.category.noReview": "هذا المحتوى لا يتطلب مراجعة طبية؛ يمكن نشره مباشرة.",

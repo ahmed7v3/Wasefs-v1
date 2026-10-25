@@ -64,7 +64,7 @@ afterEach(() => {
 describe("submit", () => {
   it("moves a draft into review and records who submitted what", async () => {
     const { act, repo } = setup(makeItem());
-    expect(await act("submit")).toEqual({ from: "draft", to: "in_review" });
+    expect(await act("submit")).toEqual({ from: "draft", to: "in_review", overridden: [] });
     expect(lastPatch(repo)).toMatchObject({
       status: "in_review",
       submittedRevisionId: ids.rev,
@@ -214,7 +214,11 @@ describe("schedule and publish", () => {
 
   it("publishes through the shared helper and wakes the worker", async () => {
     const { act, repo, outbox } = setup(approved());
-    expect(await act("publish", publisher())).toEqual({ from: "approved", to: "published" });
+    expect(await act("publish", publisher())).toEqual({
+      from: "approved",
+      to: "published",
+      overridden: [],
+    });
     expect(repo.publish).toHaveBeenCalledWith({
       itemId: ids.item,
       actor: { type: "user", id: ids.other, name: "Tester" },

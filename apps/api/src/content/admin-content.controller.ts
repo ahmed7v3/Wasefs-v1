@@ -179,7 +179,11 @@ export class AdminContentController {
         targetType: "content_item",
         targetId: params.id,
         before: { status: outcome.from },
-        after: { status: outcome.to },
+        after: {
+          status: outcome.to,
+          // Gates or the daily cap the owner chose to publish past.
+          ...(outcome.overridden.length > 0 ? { ownerOverride: outcome.overridden } : {}),
+        },
       },
       { verbatim: true },
     );

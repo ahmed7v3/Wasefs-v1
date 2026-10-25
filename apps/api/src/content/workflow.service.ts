@@ -74,7 +74,7 @@ export class ContentWorkflowService {
     action: ContentAction,
     body: ContentActionBody,
     actor: ContentActorCtx,
-  ): Promise<{ from: ContentStatus; to: ContentStatus }> {
+  ): Promise<{ from: ContentStatus; to: ContentStatus; overridden: string[] }> {
     const now = new Date();
     const item = await this.repo.findItem(itemId);
     if (!item?.currentRevisionId) throw new AppError(ErrorCode.NOT_FOUND);
@@ -123,6 +123,7 @@ export class ContentWorkflowService {
 
     // 2. Fresh gates before schedule / publish.
     let freshGates: QualityGate[] | null = null;
+    const overridden: string[] = [];
     if (action === "schedule" || action === "publish") {
       const built = await this.render.build({
         itemId: item.id,
@@ -140,7 +141,14 @@ export class ContentWorkflowService {
         approvedMatchesCurrent: item.reviewedRevisionId === item.currentRevisionId,
       });
       freshGates = built.gates;
-      if (hasBlockingIssues(built.gates)) {
+      if (hasBlockingIssues(built.gates) && actor.isOwner === true) {
+        // The owner decides: failing gates are advice. What was overridden goes to the audit log.
+        overridden.push(
+          ...built.gates
+            .filter((gate) => gate.level === "block" && !gate.ok)
+            .map((gate) => gate.id),
+        );
+      } else if (hasBlockingIssues(built.gates)) {
         throw new AppError(ErrorCode.CONTENT_GATES_BLOCK, {
           details: {
             gates: built.gates
@@ -244,6 +252,16 @@ export class ContentWorkflowService {
         }
       };
 
+      // The owner scheduling or publishing a revision nobody reviewed approves it by doing so: the
+      // approval pointer then matches what goes live, which the scheduler and the gates rely on.
+      const ownerApproval: Partial<ContentItem> =
+        actor.isOwner === true &&
+        (action === "schedule" || action === "publish") &&
+        workflowItem(locked).requiresReview &&
+        locked.reviewedRevisionId !== currentRevisionId
+          ? { reviewedRevisionId: currentRevisionId, reviewedAt: now }
+          : {};
+
       switch (action) {
         case "submit":
           patch = {
@@ -285,7 +303,12 @@ export class ContentWorkflowService {
           await log("draft");
           break;
         case "schedule":
-          patch = { ...patch, status: "scheduled", scheduledAt: input.at ?? null };
+          patch = {
+            ...patch,
+            ...ownerApproval,
+            status: "scheduled",
+            scheduledAt: input.at ?? null,
+          };
           if (freshGates) await data.updateRevisionQuality(current.id, freshGates);
           await log("scheduled");
           break;
@@ -297,11 +320,14 @@ export class ContentWorkflowService {
           await data.lockPublishCap();
           const since = localDayBounds(now, settings.timeZone).start;
           if ((await data.countPublishedSince(since)) >= settings.maxPublishesPerDay) {
-            throw new AppError(ErrorCode.CONTENT_PUBLISH_CAP);
+            // The cap protects the site from a runaway automation; the owner publishing by hand is not one.
+            if (actor.isOwner !== true) throw new AppError(ErrorCode.CONTENT_PUBLISH_CAP);
+            overridden.push("daily_cap");
           }
           if (freshGates) await data.updateRevisionQuality(current.id, freshGates);
           // The helper moves the pointers, writes the publish log and the outbox event itself.
           await data.publish({ itemId, actor: stamped, now });
+          patch = { ...patch, ...ownerApproval };
           emitted = true;
           break;
         }
@@ -349,7 +375,7 @@ export class ContentWorkflowService {
         lockVersion: locked.lockVersion + 1,
         updatedAt: now,
       });
-      return { from: locked.status, to: decided.status };
+      return { from: locked.status, to: decided.status, overridden };
     });
 
     if (emitted) await kickOutbox(this.outbox, eventKey);

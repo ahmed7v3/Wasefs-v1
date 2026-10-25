@@ -452,6 +452,69 @@ describe("transition: rules", () => {
   });
 });
 
+describe("transition: the owner (super_admin)", () => {
+  const owner = actor(ALL, { isOwner: true });
+
+  it("approves without a reviewer profile and without a second pair of eyes", () => {
+    const own = item({
+      status: "in_review",
+      submittedBy: "user-actor",
+      submittedRevisionAuthorId: "user-actor",
+    });
+    expect(transition(own, owner, "approve", input()).ok).toBe(true);
+    expect(transition(own, actor(ALL), "approve", input())).toEqual({
+      ok: false,
+      code: "NOT_A_REVIEWER",
+    });
+  });
+
+  it("requests changes without a reviewer profile (the comment is still required)", () => {
+    const pending = item({ status: "in_review" });
+    expect(transition(pending, owner, "request_changes", input({ comment: "x" })).ok).toBe(true);
+    expect(transition(pending, owner, "request_changes", input({ comment: " " }))).toEqual({
+      ok: false,
+      code: "COMMENT_REQUIRED",
+    });
+  });
+
+  it.each(["draft", "in_review", "approved"] as const)(
+    "publishes a reviewed-required item straight from %s",
+    (status) => {
+      const result = transition(item({ status }), owner, "publish", input());
+      expect(result).toMatchObject({ ok: true, status: "published" });
+    },
+  );
+
+  it("publishes and schedules past failing gates", () => {
+    expect(transition(item(), owner, "publish", input({ gatesPass: false })).ok).toBe(true);
+    expect(transition(item(), owner, "schedule", input({ gatesPass: false, at: FUTURE })).ok).toBe(
+      true,
+    );
+  });
+
+  it("does not lift the other rules: permissions, past schedules, archived items", () => {
+    expect(transition(item(), actor([], { isOwner: true }), "publish", input())).toEqual({
+      ok: false,
+      code: "FORBIDDEN",
+    });
+    expect(transition(item(), owner, "schedule", input({ at: PAST }))).toEqual({
+      ok: false,
+      code: "SCHEDULE_IN_PAST",
+    });
+    expect(transition(item({ status: "archived" }), owner, "publish", input())).toEqual({
+      ok: false,
+      code: "ILLEGAL_TRANSITION",
+    });
+  });
+
+  it("is offered publish while gates fail; a plain publisher is not", () => {
+    expect(allowedActions(item(), owner, false, NOW)).toContain("publish");
+    expect(allowedActions(item({ requiresReview: false }), actor(ALL), false, NOW)).not.toContain(
+      "publish",
+    );
+  });
+});
+
 describe("allowedActions", () => {
   it("lists exactly the actions transition would accept", () => {
     for (const review of [true, false]) {
