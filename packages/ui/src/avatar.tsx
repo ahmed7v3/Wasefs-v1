@@ -54,6 +54,8 @@ export function Avatar({ name, src, size = 40, className, ...props }: AvatarProp
           width={size}
           height={size}
           loading="lazy"
+          // Google's avatar host refuses some referrers.
+          referrerPolicy="no-referrer"
           className="size-full object-cover"
           onError={() => {
             setFailedSrc(src);

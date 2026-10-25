@@ -32,6 +32,9 @@ function user(index: number): AdminUser {
     status: "active",
     roles: [],
     accountType: "individual",
+    image: null,
+    providers: ["credential"],
+    twoFactorEnabled: false,
     createdAt: "2026-10-01T10:00:00.000Z",
     lastLoginAt: null,
   };

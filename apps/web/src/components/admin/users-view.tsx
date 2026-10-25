@@ -8,7 +8,7 @@ import { Eye, UserCheck, UserRoundX } from "lucide-react";
 import { useMemo, useState } from "react";
 import { z } from "zod";
 
-import { formatShortDate, tOr } from "../../lib/admin-format";
+import { formatDateTime, formatRelativeTime, formatShortDate, tOr } from "../../lib/admin-format";
 import { api } from "../../lib/api-client";
 import { buildQuery, useCursorList } from "../../lib/use-admin-data";
 import { useAdminRoles } from "../../lib/use-admin-roles";
@@ -19,6 +19,7 @@ import { ConfirmDialog } from "./confirm-dialog";
 import { DataTable, type DataTableColumn, type RowAction } from "./data-table";
 import { FilterBar, useFiltersActive, type FilterField } from "./filter-bar";
 import { UserDrawer } from "./user-drawer";
+import { ProviderChips, UserCell } from "./user-identity";
 
 const idSchema = z.uuid();
 
@@ -93,17 +94,14 @@ export function UsersView({ meId, permissions }: UsersViewProps) {
       id: "name",
       header: t("admin.users.col.name"),
       primary: true,
-      cell: (user) => user.name,
+      cell: (user) => (
+        <UserCell name={user.name} email={user.email} phone={user.phone} image={user.image} />
+      ),
     },
     {
-      id: "email",
-      header: t("admin.users.col.email"),
-      cell: (user) => (user.email ? <bdi dir="ltr">{user.email}</bdi> : "—"),
-    },
-    {
-      id: "phone",
-      header: t("admin.users.col.phone"),
-      cell: (user) => (user.phone ? <bdi dir="ltr">{user.phone}</bdi> : "—"),
+      id: "signIn",
+      header: t("admin.users.col.signIn"),
+      cell: (user) => <ProviderChips providers={user.providers} />,
     },
     {
       id: "status",
@@ -114,6 +112,18 @@ export function UsersView({ meId, permissions }: UsersViewProps) {
       id: "roles",
       header: t("admin.users.col.roles"),
       cell: (user) => <RoleChips roles={user.roles} names={names} />,
+    },
+    {
+      id: "lastLogin",
+      header: t("admin.users.col.lastLogin"),
+      cell: (user) =>
+        user.lastLoginAt ? (
+          <span title={formatDateTime(user.lastLoginAt)}>
+            {formatRelativeTime(user.lastLoginAt)}
+          </span>
+        ) : (
+          <span className="text-text-muted">{t("admin.users.neverSignedIn")}</span>
+        ),
     },
     {
       id: "created",
@@ -180,6 +190,8 @@ export function UsersView({ meId, permissions }: UsersViewProps) {
         onOpenRow={(user) => {
           openUser(user.id);
         }}
+        // The name alone: the e-mail under it is context, not part of what the button is called.
+        openLabel={(user) => user.name}
         rowActions={rowActions}
         actionsLabel={(user) => t("admin.table.actionsFor", { name: user.name })}
         nextCursor={list.nextCursor}

@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
+  accounts,
   organizationMembers,
   organizations,
   sessions,
@@ -29,6 +30,8 @@ export interface UserListRow {
   phoneVerified: boolean;
   status: UserStatus;
   accountType: AccountType;
+  image: string | null;
+  twoFactorEnabled: boolean;
   createdAt: Date;
   lastLoginAt: Date | null;
   /** `created_at` as exact text, for the cursor. */
@@ -37,7 +40,6 @@ export interface UserListRow {
 
 export interface UserDetailRow extends Omit<UserListRow, "cursorAt"> {
   suspendedReason: string | null;
-  twoFactorEnabled: boolean;
   deletedAt: Date | null;
   locale: Locale;
 }
@@ -74,6 +76,8 @@ const listColumns = {
   phoneVerified: users.phoneVerified,
   status: users.status,
   accountType: users.accountType,
+  image: users.image,
+  twoFactorEnabled: users.twoFactorEnabled,
   createdAt: users.createdAt,
   lastLoginAt: users.lastLoginAt,
 };
@@ -145,12 +149,25 @@ export class AdminUsersRepo {
     return byUser;
   }
 
+  /** Linked sign-in methods of several users at once, sorted and distinct, keyed by user id. */
+  async providersOf(userIds: readonly string[]): Promise<Map<string, string[]>> {
+    const byUser = new Map<string, string[]>();
+    if (userIds.length === 0) return byUser;
+    const rows = await this.handle.db
+      .selectDistinct({ userId: accounts.userId, providerId: accounts.providerId })
+      .from(accounts)
+      .where(inArray(accounts.userId, [...userIds]))
+      .orderBy(asc(accounts.providerId));
+    for (const row of rows)
+      byUser.set(row.userId, [...(byUser.get(row.userId) ?? []), row.providerId]);
+    return byUser;
+  }
+
   async find(userId: string): Promise<UserDetailRow | undefined> {
     const [row] = await this.handle.db
       .select({
         ...listColumns,
         suspendedReason: users.suspendedReason,
-        twoFactorEnabled: users.twoFactorEnabled,
         deletedAt: users.deletedAt,
         locale: users.locale,
       })

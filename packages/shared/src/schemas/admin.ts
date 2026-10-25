@@ -73,6 +73,11 @@ export const adminUserSchema = z.object({
   status: z.enum(USER_STATUSES),
   roles: z.array(z.string()),
   accountType: z.enum(ACCOUNT_TYPES),
+  /** Profile picture from the social sign-up; only an `https:` URL, otherwise null. */
+  image: z.string().url().nullable(),
+  /** Distinct sign-in methods linked to the account, sorted (`credential`, `google`, `facebook`, ...). */
+  providers: z.array(z.string()),
+  twoFactorEnabled: z.boolean(),
   createdAt: isoDate,
   lastLoginAt: isoDate.nullable(),
 });
@@ -104,7 +109,6 @@ export type AuditEntry = z.output<typeof auditEntrySchema>;
 export const adminUserDetailSchema = z.object({
   user: adminUserSchema.extend({
     suspendedReason: z.string().nullable(),
-    twoFactorEnabled: z.boolean(),
     deletedAt: isoDate.nullable(),
     locale: z.enum(LOCALES),
   }),
