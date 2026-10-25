@@ -1,6 +1,6 @@
 # ROADMAP — Wasfa AI
 
-> The whole product is built in **five phases (0–4)**. Phase 0 (foundation) is done; four build phases remain.
+> The whole product is built in **six phases (0–5)**. Phases 0–3 are built (owner-side items are listed in each phase file); Phase 4 is planned in detail and Phase 5 closes the launch.
 > Each phase ends with something a real user can use. Testing, deployment, and hardening run **inside** every phase (CI and deploy already exist from Phase 0); they are not separate phases.
 > Executable detail lives in `docs/phases/phaseN.md`, which is written when the previous phase closes, so it always matches the real code.
 
@@ -8,9 +8,10 @@
 |---|---|---|---|
 | 0 | Foundation & security baseline | open the placeholder site; the platform runs, deploys, and backs up | ✅ done (environment-bound carry-overs listed in Phase 1) |
 | 1 | Identity, admin core & public front door | sign up (email / Google / phone), finish onboarding, see the dashboard shell; admins manage users, roles, settings, and errors; visitors see the real landing page | ✅ closed — open items carried over in `phase1.md` Notes |
-| 2 | The AI product | analyze a prescription, chat with the AI assistant and its skills, all metered by credits under plan limits; admins control providers, models, routing, skills, plans, and the drug database | ⏳ next — `phase2.md` (Task 2.0 close-out done) |
-| 3 | Payments, plans, referrals & growth | pay (Kashier card, or InstaPay / Vodafone Cash approved by an admin), subscribe to flexible plans with promotions and coupons, invite friends and earn points to withdraw or convert into credits; institutions get special deals; admins see everything about a user and upgrade anyone; the product encourages subscription by showing real value | planned — `phase3.md` plus `BILLING.md`, `REFERRALS-REWARDS.md`, `GROWTH-STRATEGY.md`, `ADMIN-CONSOLE-SPEC.md` written |
-| 4 | Content, SEO/GEO & support | read the blog and drug pages, find the site on Google and AI answers, open support tickets and get push and email replies; the launch checklist passes | planned |
+| 2 | The AI product | analyze a prescription, chat with the AI assistant and its skills, all metered by credits under plan limits; admins control providers, models, routing, skills, plans, and the drug database | ✅ built — owner-side items open in `phase2.md` |
+| 3 | Payments, plans, referrals & growth | pay (Kashier card, or InstaPay / Vodafone Cash approved by an admin), subscribe to flexible plans with promotions and coupons, invite friends and earn points to withdraw or convert into credits; institutions get special deals; admins see everything about a user and upgrade anyone; the product encourages subscription by showing real value | ✅ built (final verification 2026-10-18) — open items in `phase3.md` Notes |
+| 4 | Discoverability, content engine, campaigns & ad inventory | find the site on Google and in AI answers, read reviewed articles and medicine pages; the owner publishes from a phone or through the Publishing API; campaigns are tracked with consent; ad placements can be sold | planned — `phase4.md` plus `SEO-GEO.md`, `CONTENT-PLATFORM.md`, `PUBLISHING-API.md`, `TRACKING.md`, `ADS.md`, `BRAND-AND-HOMEPAGE.md` |
+| 5 | Support & launch readiness | open support tickets and get push and email replies; the launch checklist passes | planned |
 
 ---
 
@@ -52,16 +53,18 @@ Three releases, each deployable on its own (details in `docs/phases/phase3.md`):
 - **B — Grow:** organisation wallets, seats, member caps and join links; deals for any user, organisation, referral code or email domain; referral codes, points (pending / cash / credit-only buckets, 1,000 points = 100 EGP by default), rewards for sign-ups and paid subscriptions, tiers, anti-fraud; convert points to credits or request a cash withdrawal (alerts to all admins); admin growth console.
 - **C — Convert & know:** value moments, a free taste of Deep mode, personalised plan advice, real-deadline offers, lifecycle emails with frequency caps, experiments with guardrail metrics; admin user 360 (subscription, payments, credits, prescription history, chats, referrals, notes) with an Upgrade dialog; campaign links, consent-aware tracking and server-side conversion events (optional, may slide to the start of Phase 4).
 
-### Phase 4 — Content, SEO/GEO & support
-- Blog: categories, tags, authors (E-E-A-T), medical reviewer, scheduling; HMAC-signed publishing API with image upload.
-- Programmatic drug pages from the drug DB; country/city landing pages; JSON-LD set; split sitemaps, RSS, `llms.txt`; `SEO-GEO.md`.
-- Support: tickets (user + admin inbox, canned replies, internal notes), Web Push + email replies, contact form, error-ref linking.
-- Ad slots (admin-controlled placements).
-- Launch readiness: full `SECURITY.md` checklist pass, load test of AI + auth endpoints, Lighthouse CI on public pages, restore drill, English locale switch (if the owner wants it at launch).
+### Phase 4 — Discoverability, content engine, campaigns & ad inventory
+Three releases plus a final gate (details in `docs/phases/phase4.md`; specs `SEO-GEO.md`, `CONTENT-PLATFORM.md`, `PUBLISHING-API.md`, `TRACKING.md`, `ADS.md`, `BRAND-AND-HOMEPAGE.md`):
+- **A — Fast, credible front door:** live-site fixes (Cloudflare HTML rewriting behind hydration error #418 and the CSP violation), performance and Lighthouse CI, Arabic/English URL architecture, SEO core (robots from settings, sitemap index, hreflang, structured data, IndexNow, `llms.txt`, AI crawler policy); new logo and favicon system, media pipeline and OG renderer; homepage refresh, feature, audience and trust pages.
+- **B — Content engine:** blog, guides and glossary with authors, medical reviewers, review workflow, scheduling, revisions and an SEO panel, managed from a phone; the Publishing API for AI agents and automation; medicine pages from reviewed monographs; Search Console sync, SEO dashboard and health checks.
+- **C — Measure & monetise:** campaign links and attribution, consent management, pixels and server-side conversions with deduplication (the deferred Phase 3 Task 3.16); first-party advertising inventory that never touches sensitive pages or medical data.
 
+### Phase 5 — Support & launch readiness
+- Support: tickets (user + admin inbox, canned replies, internal notes), Web Push + email replies, contact form into tickets, error-ref linking.
+- Launch readiness: full `SECURITY.md` checklist pass, load test of AI + auth endpoints, restore drill, English UI for the signed-in app (if the owner wants it at launch), Phase 4 carry-overs.
 ---
 
-## Out of scope for phases 0–4
+## Out of scope for phases 0–5
 Mobile app (Expo), Stripe, Apple sign-in (needed only for iOS), mobile push via FCM, and moving `web` to Cloudflare. All were planned in ARCHITECTURE.md as "later".
 
 **Outbound WhatsApp messages** (renewal reminders, campaigns, ticket replies) are also out of scope: the Phase 1 bridge is receive-only by design, and outbound bulk messaging is what gets numbers banned. Those features use email and Web Push; outbound WhatsApp waits for the official Meta Cloud API.

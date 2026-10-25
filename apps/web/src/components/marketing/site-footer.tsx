@@ -18,8 +18,15 @@ import type { ReactNode } from "react";
 type FooterLinkKey = keyof ReturnType<typeof landingFor>["footer"]["links"];
 
 export interface FooterColumn {
-  id: "product" | "company" | "legal";
-  links: { href: string; label: FooterLinkKey }[];
+  id: "product" | "resources" | "company" | "legal";
+  links: ({ href: string; label: FooterLinkKey } | { href: string; messageKey: MessageKey })[];
+}
+
+/** Content sections with published items (`hasPublicContent`); a section without any gets no link. */
+export interface FooterContent {
+  blog: boolean;
+  guides: boolean;
+  glossary: boolean;
 }
 
 /** English counterpart of a marketing path: every page below ships in both languages. */
@@ -32,8 +39,22 @@ function enPath(path: string): string {
  * the legal pages follow `PUBLIC_PAGES`, so English visitors get the Arabic original until a page
  * has an English version.
  */
-export function footerColumns(locale: Locale): FooterColumn[] {
+export function footerColumns(
+  locale: Locale,
+  content: FooterContent = { blog: false, guides: false, glossary: false },
+): FooterColumn[] {
   const localized = (path: string) => (locale === "en" ? enPath(path) : path);
+  const resources: FooterColumn["links"] = [
+    ...(content.blog
+      ? [{ href: localized("/blog"), messageKey: "content.nav.blog" as const }]
+      : []),
+    ...(content.guides
+      ? [{ href: localized("/guides"), messageKey: "content.nav.guides" as const }]
+      : []),
+    ...(content.glossary
+      ? [{ href: localized("/glossary"), messageKey: "content.nav.glossary" as const }]
+      : []),
+  ];
   return [
     {
       id: "product",
@@ -50,7 +71,8 @@ export function footerColumns(locale: Locale): FooterColumn[] {
         { href: localized("/for/clinics"), label: "clinics" },
       ],
     },
-    // TODO(Release B): a "resources" column (blog, guides, medicines, glossary) joins once those sections exist.
+    // Medicines join this column when that section exists (Release B).
+    ...(resources.length > 0 ? [{ id: "resources" as const, links: resources }] : []),
     {
       id: "company",
       links: [
@@ -128,6 +150,7 @@ export interface SiteFooterProps {
   locale?: Locale;
   /** The request path, for the language switch. */
   path?: string;
+  content?: FooterContent;
 }
 
 /**
@@ -135,7 +158,7 @@ export interface SiteFooterProps {
  * admin set (each hidden when empty) and the bottom bar. A server component, so the copyright year
  * is rendered once per request and cannot mismatch on hydration.
  */
-export function SiteFooter({ settings, locale = "ar", path = "/" }: SiteFooterProps) {
+export function SiteFooter({ settings, locale = "ar", path = "/", content }: SiteFooterProps) {
   const { footer } = landingFor(locale);
   const tr = (key: MessageKey, params?: Record<string, string | number>) => t(key, params, locale);
   const channels = contactLinks(settings.contact);
@@ -148,7 +171,7 @@ export function SiteFooter({ settings, locale = "ar", path = "/" }: SiteFooterPr
   return (
     <footer className="border-t border-border bg-surface">
       <Container className="py-12">
-        <div className="grid grid-cols-2 gap-x-6 gap-y-8 lg:grid-cols-[1.5fr_1.2fr_1fr_1fr_1fr]">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-8 lg:grid-cols-[1.5fr_1.2fr_1fr_1fr_1fr_1fr]">
           <div className="col-span-2 lg:col-span-1">
             <BrandMark branding={settings.branding} locale={locale} />
             <p className="mt-3 max-w-xs text-base text-text-muted">{footer.tagline}</p>
@@ -182,16 +205,16 @@ export function SiteFooter({ settings, locale = "ar", path = "/" }: SiteFooterPr
             ) : null}
           </div>
 
-          {footerColumns(locale).map((column) => (
+          {footerColumns(locale, content).map((column) => (
             <nav key={column.id} aria-labelledby={`footer-${column.id}`}>
               <h2 id={`footer-${column.id}`} className={headingClass}>
-                {footer[column.id]}
+                {column.id === "resources" ? tr("content.footer.resources") : footer[column.id]}
               </h2>
               <ul className="mt-2">
                 {column.links.map((item) => (
                   <li key={item.href}>
                     <Link href={item.href} className={footerLink}>
-                      {footer.links[item.label]}
+                      {"messageKey" in item ? tr(item.messageKey) : footer.links[item.label]}
                     </Link>
                   </li>
                 ))}

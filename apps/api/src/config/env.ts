@@ -75,6 +75,11 @@ export const apiEnvSchema = z
     // --- Authentication (Better Auth) ---
     /** Signs sessions' cookies and verification tokens: `openssl rand -base64 48`. Rotating it signs everyone out. */
     BETTER_AUTH_SECRET: z.string().min(32),
+    /**
+     * Signs `/preview/<token>` links of unpublished content (CONTENT-PLATFORM §4.4). Unset = previews are
+     * switched off (the endpoint answers 404 and the editor hides the button). `openssl rand -base64 48`.
+     */
+    CONTENT_PREVIEW_SECRET: optional(z.string().min(32)),
     /** Public origin of this API, used in links Better Auth generates (verification, OAuth callbacks). */
     API_PUBLIC_URL: originSchema.default("http://localhost:4000"),
     /** Domain of the session cookie so `wasfa.online` and `api.wasfa.online` share it. Unset = host-only (local dev). */

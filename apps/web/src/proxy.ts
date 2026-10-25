@@ -2,10 +2,15 @@ import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server
 
 import { REFERRAL_COOKIE, normalizeReferralCode, referralCookie } from "./lib/attribution-cookies";
 import { botHitFor, reportBotHit } from "./lib/bot-report";
+import { getPublicPathState } from "./lib/content-api";
 import { SECURITY_HEADERS, buildCsp, generateNonce, parseSources } from "./lib/csp";
 import { isProduction, publicEnv } from "./lib/env";
+import { createPathStateCache, goneHtml, isContentPath, matchPathState } from "./lib/path-state";
 import { hasSessionCookie, isProtectedPath, loginPath } from "./lib/route-guard";
 import { isNoindexPath } from "./lib/seo-robots";
+
+/** 301/410 maps for the content prefixes, kept in process for a minute (CONTENT-PLATFORM §11.5). */
+const pathStates = createPathStateCache(getPublicPathState);
 
 function withSecurityHeaders(response: NextResponse, csp: string, noindex = false): NextResponse {
   if (noindex) response.headers.set("X-Robots-Tag", "noindex, nofollow");
@@ -25,7 +30,7 @@ function withSecurityHeaders(response: NextResponse, csp: string, noindex = fals
  * pages verify the session with the API). `/login` and `/register` are left alone: the page itself
  * asks `/me` and forwards people who are already signed in.
  */
-export function proxy(request: NextRequest, event: NextFetchEvent): NextResponse {
+export async function proxy(request: NextRequest, event: NextFetchEvent): Promise<NextResponse> {
   const nonce = generateNonce();
   const csp = buildCsp({
     nonce,
@@ -51,6 +56,29 @@ export function proxy(request: NextRequest, event: NextFetchEvent): NextResponse
     // Resolved against the request URL, so the redirect keeps the host the visitor used.
     const target = new URL(loginPath(`${pathname}${search}`), request.nextUrl);
     return withSecurityHeaders(NextResponse.redirect(target, 307), csp, noindex);
+  }
+
+  if ((request.method === "GET" || request.method === "HEAD") && isContentPath(pathname)) {
+    const match = matchPathState((await pathStates.get()) ?? { redirects: {}, gone: [] }, pathname);
+    if (match?.kind === "redirect") {
+      // The query string is dropped on purpose: the new URL is built from the target path alone.
+      return withSecurityHeaders(
+        NextResponse.redirect(new URL(match.to, request.nextUrl), 301),
+        csp,
+        noindex,
+      );
+    }
+    if (match?.kind === "gone") {
+      const gone = new NextResponse(goneHtml(pathname), {
+        status: 410,
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "x-robots-tag": "noindex",
+          "cache-control": "public, max-age=300",
+        },
+      });
+      return withSecurityHeaders(gone, csp, noindex);
+    }
   }
 
   const requestHeaders = new Headers(request.headers);

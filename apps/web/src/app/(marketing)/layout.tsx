@@ -4,6 +4,7 @@ import { ContactHub } from "../../components/contact-hub";
 import { SiteFooter } from "../../components/marketing/site-footer";
 import { SiteHeader } from "../../components/marketing/site-header";
 import { VitalsBeacon } from "../../components/vitals-beacon";
+import { hasPublicContent } from "../../lib/content-api";
 import { publicEnv } from "../../lib/env";
 import { localeFromPath } from "../../lib/locale";
 import { getPublicSettings } from "../../lib/public-settings";
@@ -20,15 +21,22 @@ export default async function MarketingLayout({ children }: { children: ReactNod
   // `proxy.ts` forwards the request path; the English routes live under `/en`.
   const path = requestHeaders.get("x-pathname") ?? "/";
   const locale = localeFromPath(path);
+  // Header and footer links to blog, guides and glossary exist only while they have published items.
+  // The layout must not fail a page when the content API is down: no content links then.
+  const content = await hasPublicContent(locale).catch(() => ({
+    blog: false,
+    guides: false,
+    glossary: false,
+  }));
   return (
     <div className="marketing-type relative isolate flex min-h-dvh flex-col">
       {/* One faint lattice behind the top of every public page (the landing hero included). */}
       <div aria-hidden="true" className="lattice absolute inset-x-0 top-0 -z-10 h-176" />
-      <SiteHeader locale={locale} path={path} />
+      <SiteHeader locale={locale} path={path} content={content} />
       <main id="main" className="flex-1">
         {children}
       </main>
-      <SiteFooter settings={settings} locale={locale} path={path} />
+      <SiteFooter settings={settings} locale={locale} path={path} content={content} />
       <ContactHub contact={settings.contact} locale={locale} />
       <VitalsBeacon
         route={vitalsRoute(path)}

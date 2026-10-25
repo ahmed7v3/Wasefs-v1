@@ -13,7 +13,7 @@ import {
   gatewayFromConfig,
   type PaymentGateway,
 } from "@wasfa/shared/gateways";
-import { DEFAULT_JOB_OPTIONS } from "@wasfa/shared/queues";
+import { DEFAULT_JOB_OPTIONS, indexNowPayloadSchema } from "@wasfa/shared/queues";
 import { Queue } from "bullmq";
 
 import type { WorkerEnv } from "../config/env.js";
@@ -47,6 +47,10 @@ export interface PaymentsRuntime {
     delayMs: number,
     jobId: string,
   ): Promise<void>;
+  /** `outbox.drain` now, so committed events (a scheduled publish) are handled within seconds. */
+  enqueueOutboxDrain(): Promise<void>;
+  /** `seo.indexnow` for absolute https URLs (at most `INDEXNOW_MAX_URLS`). */
+  enqueueIndexNow(urls: string[]): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -61,6 +65,8 @@ export function createPaymentsRuntime(
     connection,
     defaultJobOptions: DEFAULT_JOB_OPTIONS,
   });
+  const payments = new Queue("payments", { connection, defaultJobOptions: DEFAULT_JOB_OPTIONS });
+  const seo = new Queue("seo", { connection, defaultJobOptions: DEFAULT_JOB_OPTIONS });
   return {
     async gateway(gatewayKey) {
       if (gatewayKey === "fake") return fake;
@@ -100,8 +106,14 @@ export function createPaymentsRuntime(
         delay: Math.max(1, delayMs),
       });
     },
+    async enqueueOutboxDrain() {
+      await payments.add("outbox.drain", {});
+    },
+    async enqueueIndexNow(urls) {
+      await seo.add("seo.indexnow", indexNowPayloadSchema.parse({ urls }));
+    },
     async close() {
-      await notifications.close();
+      await Promise.all([notifications.close(), payments.close(), seo.close()]);
     },
   };
 }

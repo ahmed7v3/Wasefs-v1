@@ -55,6 +55,11 @@ export const SETTING_UNITS: Record<string, SettingUnit> = {
   "billing.creditPackValidMonths": "months",
   "billing.trial.credits": "credits",
 
+  "content.maxPublishesPerDay": "perDay",
+  "content.previewTokenHours": "hours",
+  "content.reviewIntervalDays.general": "days",
+  "content.reviewIntervalDays.highRisk": "days",
+
   "rewards.pointValueMinor": "minor",
   "rewards.minWithdrawalPoints": "points",
   "rewards.maxWithdrawalPointsPerMonth": "points",
@@ -285,6 +290,38 @@ export const SETTING_LAYOUTS: Partial<Record<SettingKey, readonly SettingSection
       paths: ["brandRegex", "aiReferrerHosts"],
     },
   ],
+  content: [
+    {
+      id: "publishing",
+      title: "admin.settings.section.content.publishing",
+      description: "admin.settings.section.content.publishing.description",
+      paths: ["maxPublishesPerDay", "timeZone", "previewTokenHours"],
+    },
+    {
+      id: "quality",
+      title: "admin.settings.section.content.quality",
+      description: "admin.settings.section.content.quality.description",
+      paths: [
+        "minWords",
+        "duplicate",
+        "titleSimilarityBlockAt",
+        "forbiddenPhrases",
+        "featuredMinWidth",
+      ],
+    },
+    {
+      id: "links",
+      title: "admin.settings.section.content.links",
+      description: "admin.settings.section.content.links.description",
+      paths: ["autoLink", "dofollowDomains"],
+    },
+    {
+      id: "review",
+      title: "admin.settings.section.content.review",
+      description: "admin.settings.section.content.review.description",
+      paths: ["defaultAuthorId", "reviewIntervalDays", "autoTranslateDrafts"],
+    },
+  ],
   landing: [
     {
       id: "proof",
@@ -365,5 +402,11 @@ export const GENERAL_SETTINGS_GROUPS: readonly SettingsPageGroup[] = [
     title: "admin.settings.group.seo",
     description: "admin.settings.group.seo.description",
     keys: ["seo"],
+  },
+  {
+    id: "content",
+    title: "admin.settings.group.content",
+    description: "admin.settings.group.content.description",
+    keys: ["content"],
   },
 ];

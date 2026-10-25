@@ -28,6 +28,21 @@ export async function twoToneJpeg(
   return image.jpeg({ quality: 95 }).toBuffer();
 }
 
+/** Gaussian noise: incompressible on purpose, so the AVIF budget has something to bite on. */
+export function noisyJpeg(width: number, height: number): Promise<Buffer> {
+  return sharp({
+    create: {
+      width,
+      height,
+      channels: 3,
+      background: { r: 128, g: 128, b: 128 },
+      noise: { type: "gaussian", mean: 128, sigma: 60 },
+    },
+  })
+    .jpeg({ quality: 90 })
+    .toBuffer();
+}
+
 export function solidPng(width: number, height: number, alpha = 1): Promise<Buffer> {
   return sharp({
     create: { width, height, channels: 4, background: { r: 10, g: 120, b: 60, alpha } },

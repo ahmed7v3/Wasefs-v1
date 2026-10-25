@@ -25,6 +25,16 @@
       "import": "./dist/gateways.js",
       "default": "./dist/gateways.js"
     },
+    "./content/constants": {
+      "types": "./dist/content/constants.d.ts",
+      "import": "./dist/content/constants.js",
+      "default": "./dist/content/constants.js"
+    },
+    "./content/paths": {
+      "types": "./dist/content/paths.d.ts",
+      "import": "./dist/content/paths.js",
+      "default": "./dist/content/paths.js"
+    },
     "./crypto": {
       "types": "./dist/crypto.d.ts",
       "import": "./dist/crypto.js",
@@ -369,6 +379,31 @@
       "types": "./dist/reward-sentence.d.ts",
       "import": "./dist/reward-sentence.js",
       "default": "./dist/reward-sentence.js"
+    },
+    "./content": {
+      "types": "./dist/content/index.d.ts",
+      "import": "./dist/content/index.js",
+      "default": "./dist/content/index.js"
+    },
+    "./content/render": {
+      "types": "./dist/content/render/index.d.ts",
+      "import": "./dist/content/render/index.js",
+      "default": "./dist/content/render/index.js"
+    },
+    "./content/revalidate": {
+      "types": "./dist/content/revalidate.d.ts",
+      "import": "./dist/content/revalidate.js",
+      "default": "./dist/content/revalidate.js"
+    },
+    "./content/preview-token": {
+      "types": "./dist/content/preview-token.d.ts",
+      "import": "./dist/content/preview-token.js",
+      "default": "./dist/content/preview-token.js"
+    },
+    "./schemas/content": {
+      "types": "./dist/schemas/content.d.ts",
+      "import": "./dist/schemas/content.js",
+      "default": "./dist/schemas/content.js"
     }
   },
   "files": [
@@ -381,10 +416,22 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "mdast-util-to-string": "4.0.0",
+    "rehype-sanitize": "6.0.0",
+    "rehype-stringify": "10.0.1",
+    "remark-directive": "4.0.0",
+    "remark-gfm": "4.0.1",
+    "remark-parse": "11.0.0",
+    "remark-rehype": "11.1.2",
+    "unified": "11.0.5",
+    "unist-util-visit": "5.1.0",
     "zod": "^4.6.6"
   },
   "devDependencies": {
+    "@types/hast": "3.0.5",
+    "@types/mdast": "4.0.4",
     "@types/node": "^24.0.0",
+    "@types/unist": "3.0.3",
     "@wasfa/config": "workspace:*",
     "eslint": "^10.12.0",
     "fast-check": "^4.10.2",

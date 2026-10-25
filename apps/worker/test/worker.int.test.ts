@@ -57,7 +57,18 @@ beforeAll(async () => {
   const email = createEmailRuntime(testEnv(redisInfra.url), connection, logger);
   set = startWorkers(
     connection,
-    { system: 2, notifications: 1, credits: 1, images: 1, drugs: 1, rx: 1, evals: 1, payments: 1, seo: 1 },
+    {
+      system: 2,
+      notifications: 1,
+      credits: 1,
+      images: 1,
+      drugs: 1,
+      rx: 1,
+      evals: 1,
+      payments: 1,
+      seo: 1,
+      content: 1,
+    },
     { redis: connection, db: database.db, logger, email },
   );
   producer = new Queue("system", { connection });
@@ -169,6 +180,20 @@ describe("closeWorkers", () => {
     };
     await expect(closeWorkers([stuck], 100)).resolves.toBe("forced");
     expect(calls).toEqual([undefined, true]);
+  });
+});
+
+describe("content publishing", () => {
+  it("has a handler and a one-minute scheduler, once", async () => {
+    expect(Object.keys(HANDLERS.content)).toEqual(["content.publish-due"]);
+    await registerSchedules(set.queues);
+    await registerSchedules(set.queues);
+    const content = set.queues.find((queue) => queue.name === "content");
+    const matching = ((await content?.getJobSchedulers()) ?? []).filter(
+      (scheduler) => scheduler.key === "content-publish-due",
+    );
+    expect(matching).toHaveLength(1);
+    expect(matching[0]?.every).toBe(60_000);
   });
 });
 

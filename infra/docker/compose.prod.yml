@@ -82,6 +82,8 @@ services:
       # Server-side calls (session, login providers, public settings) go straight to the api over
       # the edge network, not out through Cloudflare and back.
       API_INTERNAL_URL: http://api:4000
+      # Verifies the cache purge call from the worker (/api/revalidate). Unset = the endpoint answers 404.
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:-}
     tmpfs:
       - /tmp
       # Next.js writes its runtime cache here.
@@ -107,6 +109,8 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD:?}@redis:6379
       WEB_ORIGIN: ${WEB_ORIGIN:-https://wasfa.online}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?}
+      # Signs content preview links; unset = previews are off.
+      CONTENT_PREVIEW_SECRET: ${CONTENT_PREVIEW_SECRET:-}
       # The business WhatsApp number users send their verification code to (digits, with country
       # code). Empty = phone verification is unavailable and the UI hides it.
       WHATSAPP_NUMBER: ${WHATSAPP_NUMBER:-}
@@ -165,6 +169,10 @@ services:
       WORKER_CONCURRENCY_CREDITS: ${WORKER_CONCURRENCY_CREDITS:-1}
       WORKER_CONCURRENCY_IMAGES: ${WORKER_CONCURRENCY_IMAGES:-1}
       WORKER_CONCURRENCY_PAYMENTS: ${WORKER_CONCURRENCY_PAYMENTS:-1}
+      # Content cache purge: the worker calls the web app over the edge network. Either unset = no purge.
+      WEB_INTERNAL_URL: ${WEB_INTERNAL_URL:-http://web:3000}
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:-}
+      WORKER_CONCURRENCY_CONTENT: ${WORKER_CONCURRENCY_CONTENT:-1}
       # Receipt links point at the web app; reconciliation calls the payment provider (egress).
       WEB_ORIGIN: ${WEB_ORIGIN:-https://wasfa.online}
       API_PUBLIC_URL: https://${API_DOMAIN:-api.wasfa.online}
@@ -190,7 +198,8 @@ services:
       # Its own bot when set, else the backup-alert bot (BILLING §10).
       ALERT_TELEGRAM_BOT_TOKEN: ${ALERT_TELEGRAM_BOT_TOKEN:-${BACKUP_ALERT_TELEGRAM_BOT_TOKEN:-}}
     # `internal` for Postgres and Redis; `egress` (outbound only, nothing published) so mail can reach the SMTP relay.
-    networks: [internal, egress]
+    # `edge` only to reach the web app's /api/revalidate (WEB_INTERNAL_URL); nothing is published on it.
+    networks: [internal, egress, edge]
     depends_on:
       postgres:
         condition: service_healthy

@@ -13,6 +13,7 @@ import { alertDeliveryJob } from "./alerts/alert-delivery.job.js";
 import { alertDigestJob } from "./alerts/alert-digest.job.js";
 import { pendingDeliverySweepJob } from "./alerts/pending-delivery-sweep.job.js";
 import { brandingIconsJob } from "./branding/branding.job.js";
+import { publishDueJob } from "./content/publish-due.job.js";
 import { DeferJob } from "./defer.js";
 import { anonymizeDueJob, purgeExpiredJob } from "./jobs/accounts.job.js";
 import { spendRollupJob } from "./jobs/ai.spend-rollup.job.js";
@@ -113,6 +114,9 @@ export const HANDLERS: Handlers = {
   },
   seo: {
     "seo.indexnow": indexNowJob,
+  },
+  content: {
+    "content.publish-due": publishDueJob,
   },
   evals: {
     "evals.run": evalRunJob,
@@ -225,6 +229,9 @@ const SPEND_ROLLUP_INTERVAL_MS = 60 * 60 * 1000;
 /** Daily at 03:30 UTC: deletes uploaded images past their retention. */
 export const FILES_RETENTION_PATTERN = "30 3 * * *";
 
+/** Scheduled content goes live within a minute of its time. */
+const CONTENT_PUBLISH_DUE_INTERVAL_MS = 60_000;
+
 /** BILLING §5.6: open gateway payments are asked about every 5 minutes. */
 const PAYMENTS_RECONCILE_INTERVAL_MS = 5 * 60 * 1000;
 const PAYMENTS_EXPIRE_INTERVAL_MS = 5 * 60 * 1000;
@@ -312,6 +319,13 @@ export async function registerSchedules(queues: readonly Queue[]): Promise<void>
     "files.retention",
     { pattern: FILES_RETENTION_PATTERN, tz: "UTC" },
     { name: "files.retention", data: {} },
+  );
+  const content = queues.find((queue) => queue.name === "content");
+  if (content === undefined) throw new Error("content queue is not registered");
+  await content.upsertJobScheduler(
+    "content-publish-due",
+    { every: CONTENT_PUBLISH_DUE_INTERVAL_MS },
+    { name: "content.publish-due", data: {} },
   );
   // Beat once now so the API sees a live worker without waiting for the first interval.
   await system.add("system.heartbeat", { source: "manual" });

@@ -28,8 +28,32 @@ import { bridgeConnected, bridgeGone } from "./support/whatsapp";
 // projects, so every page is checked at both widths.
 
 const PUBLIC_PAGES = ["/login", "/register", "/forgot-password", "/verify-email"];
-/** Pages another part of the product adds; they are checked as soon as they exist. */
-const MARKETING_PAGES = ["/", "/pricing", "/contact", "/privacy"];
+/**
+ * Public marketing, feature, audience, trust and English pages; they are checked as soon as they exist.
+ */
+const MARKETING_PAGES = [
+  "/",
+  "/pricing",
+  "/contact",
+  "/privacy",
+  "/features/prescription-reader",
+  "/features/handwritten-prescriptions",
+  "/features/medicine-explainer",
+  "/features/ai-assistant",
+  "/for/pharmacists",
+  "/for/clinics",
+  "/for/doctors",
+  "/for/patients",
+  "/about",
+  "/editorial-policy",
+  "/medical-review",
+  "/sources",
+  "/en",
+  "/en/pricing",
+  "/en/features/prescription-reader",
+  "/en/for/pharmacists",
+  "/en/about",
+];
 
 for (const path of PUBLIC_PAGES) {
   test(`public page ${path}`, async ({ page }) => {

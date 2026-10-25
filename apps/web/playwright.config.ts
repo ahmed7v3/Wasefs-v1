@@ -61,9 +61,9 @@ const stackConfig = defineConfig({
       use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } },
     },
     {
-      // Only the accessibility pass runs at phone width (the flows are the same).
+      // The accessibility pass and the content admin screens run at phone width (the other flows are the same).
       name: "mobile",
-      testMatch: /a11y\.spec\.ts/,
+      testMatch: /(a11y|admin-content|content-editor)\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], viewport: { width: 360, height: 800 } },
     },
     {

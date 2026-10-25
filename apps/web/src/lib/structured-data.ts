@@ -195,12 +195,21 @@ function person(ref: PersonRef): JsonLd {
   return { "@type": "Person", name: ref.name, ...defined({ url: ref.url }) };
 }
 
+export interface ImageObjectInput {
+  url: string;
+  width?: number;
+  height?: number;
+}
+
 export interface ArticleInput {
   headline: string;
   description?: string;
   url: string;
-  /** Absolute image URLs (Google recommends three ratios). */
-  images?: readonly string[];
+  /** Absolute image URLs, or sized `ImageObject`s (Google recommends several ratios). */
+  images?: readonly (string | ImageObjectInput)[];
+  /** `BlogPosting` for blog posts; defaults to `Article`. */
+  type?: "Article" | "BlogPosting";
+  wordCount?: number;
   author: PersonRef;
   datePublished: string;
   dateModified: string;
@@ -211,9 +220,15 @@ export interface ArticleInput {
 export function article(input: ArticleInput): JsonLd {
   return {
     "@context": SCHEMA_CONTEXT,
-    "@type": "Article",
+    "@type": input.type ?? "Article",
     headline: input.headline,
-    ...defined({ description: input.description, image: input.images }),
+    ...defined({
+      description: input.description,
+      image: input.images?.map((image) =>
+        typeof image === "string" ? image : { "@type": "ImageObject", ...defined({ ...image }) },
+      ),
+      wordCount: input.wordCount,
+    }),
     mainEntityOfPage: input.url,
     author: person(input.author),
     datePublished: input.datePublished,
@@ -377,4 +392,23 @@ export function webPage(input: WebPageInput): JsonLd {
 
 export function aboutPage(input: WebPageInput): JsonLd {
   return webPageOfType("AboutPage", input);
+}
+
+export interface CollectionPageInput {
+  name: string;
+  url: string;
+  inLanguage: "ar" | "en";
+  description?: string;
+}
+
+/** A listing (blog home, category, tag): names the collection, claims nothing about its members. */
+export function collectionPage(input: CollectionPageInput): JsonLd {
+  return {
+    "@context": SCHEMA_CONTEXT,
+    "@type": "CollectionPage",
+    name: input.name,
+    url: input.url,
+    inLanguage: input.inLanguage,
+    ...defined({ description: input.description }),
+  };
 }

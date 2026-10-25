@@ -1,0 +1,388 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`body_html snapshots > ar-article-full > facts 1`] = `
+{
+  "entities": [
+    {
+      "kind": "drug",
+      "slug": "paracetamol",
+      "source": "explicit",
+    },
+  ],
+  "images": [
+    {
+      "alt": "قرص دواء",
+      "decorative": false,
+      "mediaId": "11111111-1111-4111-8111-111111111111",
+    },
+  ],
+  "links": [
+    {
+      "anchor": "باراسيتامول",
+      "href": "/drugs/paracetamol",
+      "internal": true,
+      "rel": "",
+    },
+    {
+      "anchor": "دليل الصداع",
+      "href": "/guides/headache-guide",
+      "internal": true,
+      "rel": "",
+    },
+    {
+      "anchor": "منظمة الصحة العالمية",
+      "href": "https://www.who.int/news-room",
+      "internal": false,
+      "rel": "noopener noreferrer",
+    },
+  ],
+  "readingMinutes": 1,
+  "toc": [
+    {
+      "id": "kl-ma-thtaj-marfth-an-alsdaa",
+      "level": 2,
+      "text": "كل ما تحتاج معرفته عن الصداع",
+    },
+    {
+      "id": "alaarad",
+      "level": 2,
+      "text": "الأعراض",
+    },
+    {
+      "id": "mty-tzwr-altbyb",
+      "level": 3,
+      "text": "متى تزور الطبيب؟",
+    },
+    {
+      "id": "footnote-label",
+      "level": 2,
+      "text": "المراجع والهوامش",
+    },
+  ],
+  "warnings": [
+    {
+      "code": "h1_in_body",
+    },
+  ],
+  "wordCount": 64,
+}
+`;
+
+exports[`body_html snapshots > ar-article-full > html 1`] = `
+"<h2 id="kl-ma-thtaj-marfth-an-alsdaa">كل ما تحتاج معرفته عن الصداع</h2>
+<p>الصداع من أكثر الأسباب شيوعًا لزيارة الطبيب. يستخدم كثيرون <a href="/drugs/paracetamol" title="باراسيتامول" class="entity-link" data-entity="drug">باراسيتامول</a> لتخفيف الألم، لكن <strong>الجرعة</strong> تختلف حسب العمر.</p>
+<h2 id="alaarad">الأعراض</h2>
+<ul>
+<li>ألم نابض في جانب واحد</li>
+<li>حساسية للضوء</li>
+<li>غثيان</li>
+</ul>
+<figure><picture><source type="image/avif" srcset="https://media.wasfa.online/media/aa11/640.avif 640w, https://media.wasfa.online/media/aa11/1280.avif 1280w" sizes="(min-width: 768px) 720px, 100vw"><source type="image/webp" srcset="https://media.wasfa.online/media/aa11/640.webp 640w, https://media.wasfa.online/media/aa11/1280.webp 1280w" sizes="(min-width: 768px) 720px, 100vw"><img src="https://media.wasfa.online/media/aa11/1200.jpg" width="1200" height="675" alt="قرص دواء" loading="lazy" decoding="async"></picture><figcaption>الجرعة الصحيحة أهم من كثرة الدواء</figcaption></figure>
+<aside class="callout callout-warning" role="note"><p><strong>تنبيه طبي</strong></p><p>لا تتجاوز الجرعة القصوى اليومية دون استشارة الطبيب.</p></aside>
+<h3 id="mty-tzwr-altbyb">متى تزور الطبيب؟</h3>
+<p>راجع الطبيب إذا استمر الصداع أكثر من ثلاثة أيام<sup><a href="#fn-1" id="fnref-1" data-footnote-ref aria-describedby="footnote-label">1</a></sup>. اقرأ أيضًا <a href="/guides/headache-guide">دليل الصداع</a> و<a href="https://www.who.int/news-room" rel="noopener noreferrer">منظمة الصحة العالمية</a>.</p>
+<aside class="content-cta" data-cta="analyze"><p>هل لديك روشتة تحتاج إلى فهمها؟</p><p><a href="/register">جرّب تحليل روشتتك مجانًا</a></p></aside>
+<section data-footnotes class="footnotes"><h2 id="footnote-label">المراجع والهوامش</h2>
+<ol>
+<li id="fn-1">
+<p>مصدر: منظمة الصحة العالمية، 2024. <a href="#fnref-1" data-footnote-backref="" aria-label="العودة إلى المرجع 1" class="data-footnote-backref">↩</a></p>
+</li>
+</ol>
+</section>"
+`;
+
+exports[`body_html snapshots > ar-autolink-limits > facts 1`] = `
+{
+  "entities": [
+    {
+      "kind": "drug",
+      "slug": "paracetamol",
+      "source": "auto",
+    },
+    {
+      "kind": "drug",
+      "slug": "ibuprofen",
+      "source": "auto",
+    },
+  ],
+  "images": [],
+  "links": [
+    {
+      "anchor": "باراسيتامول",
+      "href": "/drugs/paracetamol",
+      "internal": true,
+      "rel": "",
+    },
+    {
+      "anchor": "ايبوبروفين",
+      "href": "/drugs/ibuprofen",
+      "internal": true,
+      "rel": "",
+    },
+  ],
+  "readingMinutes": 1,
+  "toc": [
+    {
+      "id": "an-barasytamwl",
+      "level": 2,
+      "text": "عن باراسيتامول",
+    },
+  ],
+  "warnings": [],
+  "wordCount": 166,
+}
+`;
+
+exports[`body_html snapshots > ar-autolink-limits > html 1`] = `
+"<p>يحتوي الدواء على <a href="/drugs/paracetamol" title="باراسيتامول" class="entity-link" data-entity="drug">باراسيتامول</a> وهو مسكن، ويُؤخذ مع الأكل. ويختلف باراسيتامول عن ايبوبروفين في آلية العمل.</p>
+<h2 id="an-barasytamwl">عن باراسيتامول</h2>
+<p>الأسيتامينوفين هو الاسم الآخر. بعد ذلك بكلمات كثيرة جدًا نذكر ايبوبروفين من جديد كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة كلمة ثم <a href="/drugs/ibuprofen" title="ايبوبروفين" class="entity-link" data-entity="drug">ايبوبروفين</a> وباراسيتامول مرة أخرى.</p>"
+`;
+
+exports[`body_html snapshots > ar-glossary-entry > facts 1`] = `
+{
+  "entities": [
+    {
+      "kind": "glossary",
+      "slug": "bid",
+      "source": "explicit",
+    },
+  ],
+  "images": [],
+  "links": [
+    {
+      "anchor": "BID",
+      "href": "/glossary/bid",
+      "internal": true,
+      "rel": "",
+    },
+  ],
+  "readingMinutes": 1,
+  "toc": [],
+  "warnings": [
+    {
+      "code": "unknown_glossary",
+      "detail": "zzz",
+    },
+  ],
+  "wordCount": 13,
+}
+`;
+
+exports[`body_html snapshots > ar-glossary-entry > html 1`] = `"<p>تعني <strong><a href="/glossary/bid" title="مرتين يوميًا" class="entity-link" data-entity="glossary">BID</a></strong> تناول الدواء مرتين في اليوم. راجع أيضًا مصطلحًا آخر ومرتين يوميا.</p>"`;
+
+exports[`body_html snapshots > ar-page-mixed-direction > facts 1`] = `
+{
+  "entities": [],
+  "images": [
+    {
+      "alt": "",
+      "decorative": true,
+      "mediaId": "22222222-2222-4222-8222-222222222222",
+    },
+  ],
+  "links": [],
+  "readingMinutes": 1,
+  "toc": [
+    {
+      "id": "jraat-alatfal",
+      "level": 2,
+      "text": "جرعات الأطفال",
+    },
+  ],
+  "warnings": [],
+  "wordCount": 29,
+}
+`;
+
+exports[`body_html snapshots > ar-page-mixed-direction > html 1`] = `
+"<h2 id="jraat-alatfal">جرعات الأطفال</h2>
+<p>يُعطى Paracetamol للأطفال بجرعة 10-15 mg/kg كل 6 ساعات، ولا تتجاوز 4 جرعات في اليوم (QID).</p>
+<ol>
+<li>افحص الوزن</li>
+<li>احسب الجرعة: <code>weight × 15 mg</code></li>
+<li>استخدم الأداة المرفقة</li>
+</ol>
+<figure><picture><img src="https://media.wasfa.online/media/bb22/800.jpg" width="800" height="400" alt="" loading="lazy" decoding="async"></picture></figure>"
+`;
+
+exports[`body_html snapshots > en-article-full > facts 1`] = `
+{
+  "entities": [
+    {
+      "kind": "drug",
+      "slug": "ibuprofen",
+      "source": "explicit",
+    },
+  ],
+  "images": [
+    {
+      "alt": "A tablet",
+      "decorative": false,
+      "mediaId": "11111111-1111-4111-8111-111111111111",
+    },
+  ],
+  "links": [
+    {
+      "anchor": "Ibuprofen",
+      "href": "/en/drugs/ibuprofen",
+      "internal": true,
+      "rel": "",
+    },
+    {
+      "anchor": "a review",
+      "href": "https://pubmed.ncbi.nlm.nih.gov/12345/",
+      "internal": false,
+      "rel": "noopener noreferrer",
+    },
+    {
+      "anchor": "a blog",
+      "href": "https://example.com/post",
+      "internal": false,
+      "rel": "noopener noreferrer nofollow",
+    },
+  ],
+  "readingMinutes": 1,
+  "toc": [
+    {
+      "id": "understanding-headaches",
+      "level": 2,
+      "text": "Understanding headaches",
+    },
+    {
+      "id": "symptoms",
+      "level": 2,
+      "text": "Symptoms",
+    },
+  ],
+  "warnings": [
+    {
+      "code": "h1_in_body",
+    },
+  ],
+  "wordCount": 58,
+}
+`;
+
+exports[`body_html snapshots > en-article-full > html 1`] = `
+"<h2 id="understanding-headaches">Understanding headaches</h2>
+<p>Headaches are among the most common reasons to see a doctor. Many people take <a href="/en/drugs/ibuprofen" title="Ibuprofen" class="entity-link" data-entity="drug">Ibuprofen</a> for relief, but the <strong>dose</strong> depends on age.</p>
+<h2 id="symptoms">Symptoms</h2>
+<ol>
+<li>Throbbing pain on one side</li>
+<li>Sensitivity to light</li>
+<li>Nausea</li>
+</ol>
+<figure><picture><source type="image/avif" srcset="https://media.wasfa.online/media/aa11/640.avif 640w, https://media.wasfa.online/media/aa11/1280.avif 1280w" sizes="(min-width: 768px) 720px, 100vw"><source type="image/webp" srcset="https://media.wasfa.online/media/aa11/640.webp 640w, https://media.wasfa.online/media/aa11/1280.webp 1280w" sizes="(min-width: 768px) 720px, 100vw"><img src="https://media.wasfa.online/media/aa11/1200.jpg" width="1200" height="675" alt="A tablet" loading="lazy" decoding="async"></picture></figure>
+<aside class="callout callout-tip" role="note"><p><strong>Tip</strong></p><p>Keep a headache diary to share with your doctor.</p></aside>
+<blockquote>
+<p>Always read the leaflet before taking any medicine.</p>
+</blockquote>
+<p>See <a href="https://pubmed.ncbi.nlm.nih.gov/12345/" rel="noopener noreferrer">a review</a> and <a href="https://example.com/post" rel="noopener noreferrer nofollow">a blog</a>.</p>
+<aside class="content-cta" data-cta="analyze"><p>Have a prescription you want to understand?</p><p><a href="/register">Try the prescription reader free</a></p></aside>"
+`;
+
+exports[`body_html snapshots > en-guide-with-code-and-table > facts 1`] = `
+{
+  "entities": [],
+  "images": [],
+  "links": [],
+  "readingMinutes": 1,
+  "toc": [
+    {
+      "id": "dosing-table",
+      "level": 2,
+      "text": "Dosing table",
+    },
+    {
+      "id": "notes",
+      "level": 3,
+      "text": "Notes",
+    },
+  ],
+  "warnings": [],
+  "wordCount": 40,
+}
+`;
+
+exports[`body_html snapshots > en-guide-with-code-and-table > html 1`] = `
+"<h2 id="dosing-table">Dosing table</h2>
+<table>
+<thead>
+<tr>
+<th align="left">Drug</th>
+<th align="right">Adult dose</th>
+<th align="center">Max per day</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left">Paracetamol</td>
+<td align="right">500 mg</td>
+<td align="center">4 g</td>
+</tr>
+<tr>
+<td align="left">Ibuprofen</td>
+<td align="right">400 mg</td>
+<td align="center">1.2 g</td>
+</tr>
+</tbody>
+</table>
+<h3 id="notes">Notes</h3>
+<p>Text with <del>old</del> new wording and <code>inline code</code>.</p>
+<pre><code>dose = weight * 15  # mg
+</code></pre>
+<ul>
+<li>[ ] not a checkbox</li>
+<li>[x] also not a checkbox</li>
+</ul>"
+`;
+
+exports[`body_html snapshots > en-unsafe-input > facts 1`] = `
+{
+  "entities": [],
+  "images": [],
+  "links": [
+    {
+      "anchor": "there",
+      "href": "https://example.com/?a=1&b=2",
+      "internal": false,
+      "rel": "noopener noreferrer nofollow",
+    },
+  ],
+  "readingMinutes": 1,
+  "toc": [
+    {
+      "id": "footnote-label",
+      "level": 2,
+      "text": "References and footnotes",
+    },
+  ],
+  "warnings": [
+    {
+      "code": "raw_html_dropped",
+    },
+    {
+      "code": "external_image_refused",
+      "detail": "https://tracker.example/pixel.gif",
+    },
+    {
+      "code": "unsafe_link_removed",
+      "detail": "javascript:alert(1)",
+    },
+  ],
+  "wordCount": 11,
+}
+`;
+
+exports[`body_html snapshots > en-unsafe-input > html 1`] = `
+"<p>Click here or <a href="https://example.com/?a=1&#x26;b=2" rel="noopener noreferrer nofollow">there</a>.</p>
+<p>Plain html and a footnote.<sup><a href="#fn-note" id="fnref-note" data-footnote-ref aria-describedby="footnote-label">1</a></sup></p>
+<section data-footnotes class="footnotes"><h2 id="footnote-label">References and footnotes</h2>
+<ol>
+<li id="fn-note">
+<p>The note. <a href="#fnref-note" data-footnote-backref="" aria-label="Back to reference 1" class="data-footnote-backref">↩</a></p>
+</li>
+</ol>
+</section>"
+`;

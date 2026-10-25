@@ -15,7 +15,11 @@ import {
 } from "../src/lib/admin-nav";
 
 let pathname = "/admin/users";
-vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
+let search = "";
+vi.mock("next/navigation", () => ({
+  usePathname: () => pathname,
+  useSearchParams: () => new URLSearchParams(search),
+}));
 
 const hrefs = (permissions: readonly string[]) =>
   visibleNavGroups(permissions).flatMap((group) => group.items.map((item) => item.href));
@@ -80,6 +84,17 @@ describe("visibleNavGroups", () => {
       "/admin/alerts",
       "/admin/notifications",
       "/admin/whatsapp",
+      "/admin/content?type=article",
+      "/admin/content?type=guide",
+      "/admin/content?type=glossary",
+      "/admin/content?type=page",
+      "/admin/content/review",
+      "/admin/content/calendar",
+      "/admin/media",
+      "/admin/content/taxonomy",
+      "/admin/content/people",
+      "/admin/content/redirects",
+      "/admin/settings#group-content",
       "/admin/ai",
       "/admin/ai/providers",
       "/admin/ai/models",
@@ -121,6 +136,25 @@ describe("visibleNavGroups", () => {
     expect(visibleNavGroups(["users.read"]).map((group) => group.id)).not.toContain("ai");
   });
 
+  it("shows the content group to readers of content, and the settings link only with settings.read", () => {
+    expect(hrefs(["content.read"])).toEqual([
+      "/admin",
+      "/admin/content?type=article",
+      "/admin/content?type=guide",
+      "/admin/content?type=glossary",
+      "/admin/content?type=page",
+      "/admin/content/review",
+      "/admin/content/calendar",
+      "/admin/media",
+      "/admin/content/taxonomy",
+      "/admin/content/people",
+      "/admin/content/redirects",
+    ]);
+    expect(hrefs(["content.read", "settings.read"])).toContain("/admin/settings#group-content");
+    expect(visibleNavGroups(["content.read"]).map((group) => group.id)).toContain("content");
+    expect(visibleNavGroups(["users.read"]).map((group) => group.id)).not.toContain("content");
+  });
+
   it("canAccess treats a missing permission as denied and null as open", () => {
     expect(canAccess([], "users.read")).toBe(false);
     expect(canAccess(["users.read"], "users.read")).toBe(true);
@@ -143,9 +177,45 @@ describe("visibleNavGroups", () => {
   });
 });
 
+describe("isNavActive with query strings", () => {
+  it("highlights the ?type= entry that matches and no other", () => {
+    expect(isNavActive("/admin/content?type=guide", "/admin/content", "type=guide")).toBe(true);
+    expect(isNavActive("/admin/content?type=article", "/admin/content", "type=guide")).toBe(false);
+    expect(isNavActive("/admin/content?type=article", "/admin/content", "")).toBe(false);
+    // Extra params (filters) do not break the match.
+    expect(
+      isNavActive("/admin/content?type=guide", "/admin/content", "type=guide&status=draft"),
+    ).toBe(true);
+    // An editor page or another content screen never lights up a list entry.
+    expect(isNavActive("/admin/content?type=article", "/admin/content/abc", "type=article")).toBe(
+      false,
+    );
+    expect(isNavActive("/admin/content?type=article", "/admin/content/review", "")).toBe(false);
+  });
+
+  it("keeps the plain entries working next to them", () => {
+    expect(isNavActive("/admin/content/review", "/admin/content/review")).toBe(true);
+    expect(isNavActive("/admin/media", "/admin/media")).toBe(true);
+    expect(isNavActive("/admin/settings", "/admin/settings")).toBe(true);
+  });
+
+  it("never marks the settings deep link as the current page", () => {
+    expect(isNavActive("/admin/settings#group-content", "/admin/settings")).toBe(false);
+    expect(navItemFor("/admin/settings")?.href).toBe("/admin/settings");
+  });
+
+  it("finds the entry of the page title from the query string", () => {
+    expect(navItemFor("/admin/content", "type=glossary")?.href).toBe(
+      "/admin/content?type=glossary",
+    );
+    expect(navItemFor("/admin/content/calendar")?.href).toBe("/admin/content/calendar");
+  });
+});
+
 describe("AdminNav", () => {
   it("renders only permitted links and marks the current page", () => {
     pathname = "/admin/users";
+    search = "";
     render(<AdminNav permissions={["users.read", "audit.read"]} />);
     const nav = screen.getByRole("navigation", { name: t("admin.nav.label") });
     expect(nav).toBeTruthy();
@@ -160,9 +230,34 @@ describe("AdminNav", () => {
   });
 });
 
+describe("AdminNav content group", () => {
+  it("marks the list of the current ?type= as the page, and only that one", () => {
+    pathname = "/admin/content";
+    search = "type=guide";
+    render(<AdminNav permissions={["content.read"]} />);
+    expect(screen.getByText(t("admin.nav.group.content"))).toBeTruthy();
+    expect(
+      screen
+        .getByRole("link", { name: t("admin.nav.content.guides") })
+        .getAttribute("aria-current"),
+    ).toBe("page");
+    expect(
+      screen
+        .getByRole("link", { name: t("admin.nav.content.articles") })
+        .getAttribute("aria-current"),
+    ).toBeNull();
+    expect(
+      screen
+        .getByRole("link", { name: t("admin.nav.content.review") })
+        .getAttribute("aria-current"),
+    ).toBeNull();
+  });
+});
+
 describe("AdminNav AI group", () => {
   it("does not mark AI settings as the current page on the models page", () => {
     pathname = "/admin/ai/models";
+    search = "";
     render(<AdminNav permissions={["ai.read"]} />);
     expect(
       screen.getByRole("link", { name: t("admin.nav.aiModels") }).getAttribute("aria-current"),

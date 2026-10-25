@@ -10,19 +10,21 @@ import {
   type MediaAsset,
   type MediaListResponse,
   type MediaUploadResponse,
+  type MediaUsageResponse,
   type PatchMediaInput,
 } from "@wasfa/shared/schemas/media";
 
 import { AuditService } from "../audit/audit.service.js";
 
 import { MediaQueue } from "./media-queue.js";
+import { mediaRightsIssues, mergeRights, touchesRights } from "./media-rules.js";
 import { MediaStorage } from "./media-storage.js";
 import { MediaRepo } from "./media.repo.js";
 
 import type { MediaAssetRecord } from "@wasfa/db";
 import type { FastifyRequest } from "fastify";
 
-export function toMediaAsset(row: MediaAssetRecord): MediaAsset {
+export function toMediaAsset(row: MediaAssetRecord, usageCount = 0): MediaAsset {
   return {
     id: row.id,
     sha256: row.sha256,
@@ -38,6 +40,14 @@ export function toMediaAsset(row: MediaAssetRecord): MediaAsset {
     blurDataUrl: row.blurDataUrl,
     variants: row.variants,
     rejectReason: row.rejectReason,
+    originalFilename: row.originalFilename,
+    seoFilename: row.seoFilename,
+    caption: row.caption,
+    credit: row.credit,
+    licence: row.licence,
+    licenceRef: row.licenceRef,
+    warnings: row.warnings,
+    usageCount,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -53,6 +63,11 @@ const AUDIT_FIELDS = [
   "altEn",
   "focalX",
   "focalY",
+  "caption",
+  "credit",
+  "licence",
+  "licenceRef",
+  "seoFilename",
 ] as const;
 
 /**
@@ -149,13 +164,19 @@ export class MediaService {
   async get(id: string): Promise<MediaAsset> {
     const row = await this.repo.findById(id);
     if (row === undefined) throw new AppError(ErrorCode.NOT_FOUND);
-    return toMediaAsset(row);
+    return toMediaAsset(row, (await this.repo.usageCounts([id])).get(id) ?? 0);
+  }
+
+  async usage(id: string): Promise<MediaUsageResponse> {
+    if ((await this.repo.findById(id)) === undefined) throw new AppError(ErrorCode.NOT_FOUND);
+    return { items: await this.repo.usage(id) };
   }
 
   async list(query: ListMediaQuery): Promise<MediaListResponse> {
     const { items, total } = await this.repo.list(query);
+    const usage = await this.repo.usageCounts(items.map((row) => row.id));
     return {
-      items: items.map(toMediaAsset),
+      items: items.map((row) => toMediaAsset(row, usage.get(row.id) ?? 0)),
       total,
       page: query.page,
       pageSize: query.pageSize,
@@ -170,6 +191,17 @@ export class MediaService {
   ): Promise<MediaAsset> {
     const before = await this.repo.findById(id);
     if (before === undefined) throw new AppError(ErrorCode.NOT_FOUND);
+    if (touchesRights(patch)) {
+      const issues = mediaRightsIssues(mergeRights(before, patch));
+      if (issues.length > 0) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, {
+          details: {
+            fields: issues.map((issue) => (issue === "credit_required" ? "credit" : "licenceRef")),
+            reasons: issues,
+          },
+        });
+      }
+    }
     const after = await this.repo.update(id, patch);
     if (after === undefined) throw new AppError(ErrorCode.NOT_FOUND);
     await this.audit.recordFor(
@@ -184,6 +216,6 @@ export class MediaService {
       },
       { fields: AUDIT_FIELDS },
     );
-    return toMediaAsset(after);
+    return toMediaAsset(after, (await this.repo.usageCounts([id])).get(id) ?? 0);
   }
 }

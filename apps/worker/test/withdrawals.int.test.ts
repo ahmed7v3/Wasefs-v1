@@ -162,7 +162,9 @@ describe("the withdrawal.requested alert", () => {
       .select()
       .from(alertDeliveries)
       .where(and(eq(alertDeliveries.alertId, entry.payload.alertId as string)));
-    const inApp = deliveries.filter((row) => row.channel === "in_app").map((row) => row.adminUserId);
+    const inApp = deliveries
+      .filter((row) => row.channel === "in_app")
+      .map((row) => row.adminUserId);
     expect(inApp).toEqual(expect.arrayContaining([first, second]));
     expect(inApp).not.toContain(outsider);
     // Email and Telegram follow for each of them; WhatsApp stays off.
@@ -176,7 +178,9 @@ describe("withdrawals.notify", () => {
     const handler = outboxHandlers(runtime)["withdrawals.notify"];
     if (!handler) throw new Error("withdrawals.notify handler missing");
     const entries = await db.db.select().from(outbox).where(eq(outbox.topic, "withdrawals.notify"));
-    const mine = entries.filter((entry) => (entry.payload as { requestId?: string }).requestId === requestId);
+    const mine = entries.filter(
+      (entry) => (entry.payload as { requestId?: string }).requestId === requestId,
+    );
     const actions: OutboxPostCommitAction[] = [];
     for (const entry of mine) {
       const result = await db.db.transaction((tx) => handler(tx, entry));
@@ -200,10 +204,15 @@ describe("withdrawals.notify", () => {
       action.kind === "customer_message" ? [action.payload.kind] : [],
     );
     expect(kinds).toEqual(
-      expect.arrayContaining(["withdrawal_requested", "withdrawal_approved", "withdrawal_rejected"]),
+      expect.arrayContaining([
+        "withdrawal_requested",
+        "withdrawal_approved",
+        "withdrawal_rejected",
+      ]),
     );
     const rejected = actions.find(
-      (action) => action.kind === "customer_message" && action.payload.kind === "withdrawal_rejected",
+      (action) =>
+        action.kind === "customer_message" && action.payload.kind === "withdrawal_rejected",
     );
     if (rejected?.kind !== "customer_message") throw new Error("rejection notice missing");
     expect(rejected.payload.params).toMatchObject({
@@ -244,7 +253,12 @@ describe("withdrawals.overdue", () => {
     let at = new Date("2026-11-02T06:00:00Z");
     for (let i = 0; i < 24 * 7; i++) {
       if (
-        isWithinBusinessHours(at, { timezone: "Africa/Cairo", startHour: 9, endHour: 22, days: [0, 1, 2, 3, 4] })
+        isWithinBusinessHours(at, {
+          timezone: "Africa/Cairo",
+          startHour: 9,
+          endHour: 22,
+          days: [0, 1, 2, 3, 4],
+        })
       ) {
         return at;
       }
@@ -282,7 +296,14 @@ describe("withdrawals.overdue", () => {
 
     // Outside business hours nothing is raised.
     const night = new Date(now.getTime() + 12 * 3_600_000 + 2 * 60_000);
-    if (!isWithinBusinessHours(night, { timezone: "Africa/Cairo", startHour: 9, endHour: 22, days: [0, 1, 2, 3, 4] })) {
+    if (
+      !isWithinBusinessHours(night, {
+        timezone: "Africa/Cairo",
+        startHour: 9,
+        endHour: 22,
+        days: [0, 1, 2, 3, 4],
+      })
+    ) {
       await withdrawalsOverdueJob({}, { db: db.db }, night);
       expect(await count(old.request.id)).toBe(2);
     }
@@ -307,7 +328,10 @@ describe("withdrawals.reconcile", () => {
     const kind = "points.reconcile_drift";
     const drift = async () =>
       (
-        await db.db.select().from(adminAlerts).where(inArray(adminAlerts.kind, [kind]))
+        await db.db
+          .select()
+          .from(adminAlerts)
+          .where(inArray(adminAlerts.kind, [kind]))
       ).filter((alert) => alert.refType === "withdrawals_reconcile");
     await withdrawalsReconcileJob({}, { db: db.db, logger });
     expect(await drift()).toHaveLength(0);

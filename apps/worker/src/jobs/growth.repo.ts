@@ -2,7 +2,6 @@ import { growthMailLog, type Database } from "@wasfa/db";
 import { ANONYMIZED_EMAIL_DOMAIN, PHONE_PLACEHOLDER_EMAIL_DOMAIN } from "@wasfa/shared/identity";
 import { sql } from "drizzle-orm";
 
-
 import type { GrowthMailKind } from "@wasfa/shared/growth";
 import type { Locale } from "@wasfa/shared/i18n";
 
@@ -18,7 +17,12 @@ const iso = (date: Date) => date.toISOString();
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 
-const person = (row: { id: string; email: string; name: string; locale: string }): LifecyclePerson => ({
+const person = (row: {
+  id: string;
+  email: string;
+  name: string;
+  locale: string;
+}): LifecyclePerson => ({
   id: row.id,
   email: row.email,
   name: row.name,

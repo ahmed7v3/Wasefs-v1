@@ -53,8 +53,9 @@ class FakeRedis {
   }
 
   heartbeat(): string | undefined {
-    return (JSON.parse(this.values.get(WA_HEARTBEAT_KEY)?.value ?? "null") as { state?: string } | null)
-      ?.state;
+    return (
+      JSON.parse(this.values.get(WA_HEARTBEAT_KEY)?.value ?? "null") as { state?: string } | null
+    )?.state;
   }
 }
 

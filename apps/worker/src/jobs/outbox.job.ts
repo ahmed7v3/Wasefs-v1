@@ -25,11 +25,14 @@ import { type CustomerMessageInput } from "@wasfa/shared/customer-messages";
 import { MARKETING_SILENCE_AFTER_COMPLAINT_DAYS } from "@wasfa/shared/growth";
 import { formatMoney } from "@wasfa/shared/money";
 import { ALERT_KIND_PERMISSION } from "@wasfa/shared/permissions";
+import { CONTENT_CHANGED_TOPIC } from "@wasfa/shared/schemas/content";
 import { SUBSCRIPTION_REMINDER_SLOTS } from "@wasfa/shared/subscriptions";
 import { and, desc, eq, gte, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 
+import { contentChangeHandler, type ContentChangeDeps } from "../content/change-handler.js";
 import { jobIdFor } from "../notifications/customer-channel.js";
+import { readSetting } from "../settings.js";
 
 import { adminPlanChangeOutboxHandlers } from "./admin-plan-change.job.js";
 import { rewardOutboxHandlers } from "./rewards.job.js";
@@ -61,8 +64,11 @@ export function outboxHandlers(
     "enqueueEmail" | "webOrigin" | "enqueueAlertDelivery" | "enqueueAlertDigest"
   >,
   rewards: RewardEvaluationOptions = { deals: dealRewardOverrides },
+  content?: ContentChangeDeps,
 ): Record<string, OutboxHandler> {
   return {
+    // Without deps (tests, no runtime) the topic stays parked, never dropped.
+    ...(content ? { [CONTENT_CHANGED_TOPIC]: contentChangeHandler(content) } : {}),
     "alerts.fan_out": async (tx, entry) => {
       const { alertId } = z.object({ alertId: z.uuid() }).parse(entry.payload);
       const [alert] = await tx.select().from(adminAlerts).where(eq(adminAlerts.id, alertId));
@@ -446,10 +452,18 @@ export async function drainOutboxJob(
     logger.warn({ event: "payments.runtime_missing" }, "Outbox drain skipped");
     return;
   }
-  const handlers = outboxHandlers(payments, {
-    deals: dealRewardOverrides,
-    openSenderPhone: senderPhoneOpener(env),
-  });
+  const handlers = outboxHandlers(
+    payments,
+    { deals: dealRewardOverrides, openSenderPhone: senderPhoneOpener(env) },
+    {
+      logger,
+      webInternalUrl: env?.WEB_INTERNAL_URL,
+      revalidateSecret: env?.REVALIDATE_SECRET,
+      webOrigin: payments.webOrigin,
+      indexNowSettings: async () => (await readSetting(db, "seo")).indexNow,
+      enqueueIndexNow: (urls) => payments.enqueueIndexNow(urls),
+    },
+  );
   const result = await drainOutbox(db, handlers, new Date(), 50, async (action) => {
     if (action.kind === "alert_delivery") {
       await payments.enqueueAlertDelivery(action.deliveryId, action.jobId);

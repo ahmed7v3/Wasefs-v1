@@ -11,10 +11,7 @@ import {
   type Database,
   type GrowthRule,
 } from "@wasfa/db";
-import {
-  MARKETING_SILENCE_AFTER_LAST_CALL_DAYS,
-  type GrowthMailKind,
-} from "@wasfa/shared/growth";
+import { MARKETING_SILENCE_AFTER_LAST_CALL_DAYS, type GrowthMailKind } from "@wasfa/shared/growth";
 
 import {
   claimMail,
@@ -146,7 +143,9 @@ export async function growthLifecycleJob(
     if (gate.maxPerWeek > 0) {
       const dateOf = (date: Date) => date.toISOString().slice(0, 10);
       for (const person of await dayOneCandidates(db, gate)) {
-        if (await sendLifecycleMail(db, runtime, person, "day1_guide", "once", {}, "/analyze", now)) {
+        if (
+          await sendLifecycleMail(db, runtime, person, "day1_guide", "once", {}, "/analyze", now)
+        ) {
           mails += 1;
         }
       }
@@ -156,7 +155,18 @@ export async function growthLifecycleJob(
           drugs: person.drugs,
           minutes: person.analyses * settings.value.minutesSavedPerAnalysis,
         };
-        if (await sendLifecycleMail(db, runtime, person, "day3_value", "once", params, "/dashboard", now)) {
+        if (
+          await sendLifecycleMail(
+            db,
+            runtime,
+            person,
+            "day3_value",
+            "once",
+            params,
+            "/dashboard",
+            now,
+          )
+        ) {
           mails += 1;
         }
       }
@@ -166,7 +176,18 @@ export async function growthLifecycleJob(
       ] as const) {
         for (const offer of await offersToMail(db, { ...gate, ruleKey, kind })) {
           const params = { percent: percentOf(offer.percentBps), date: dateOf(offer.expiresAt) };
-          if (await sendLifecycleMail(db, runtime, offer, kind, offer.offerId, params, "/pricing", now)) {
+          if (
+            await sendLifecycleMail(
+              db,
+              runtime,
+              offer,
+              kind,
+              offer.offerId,
+              params,
+              "/pricing",
+              now,
+            )
+          ) {
             mails += 1;
           }
         }
@@ -209,5 +230,6 @@ export async function growthRetentionJob(
   now = new Date(),
 ): Promise<void> {
   const deleted = await pruneGrowthData(db, now);
-  if (deleted.events + deleted.mailLog > 0) logger.info(deleted, "Growth data past retention deleted");
+  if (deleted.events + deleted.mailLog > 0)
+    logger.info(deleted, "Growth data past retention deleted");
 }

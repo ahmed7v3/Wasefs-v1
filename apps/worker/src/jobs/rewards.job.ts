@@ -64,7 +64,10 @@ export async function releaseRewardsJob(
 ): Promise<void> {
   const result = await releaseDuePoints(db, now);
   if (result.failed > 0) {
-    logger.warn({ event: "rewards.release_failed", ...result }, "Some rewards could not be released");
+    logger.warn(
+      { event: "rewards.release_failed", ...result },
+      "Some rewards could not be released",
+    );
   } else if (result.released + result.reversed > 0) {
     logger.info(result, "Pending rewards released");
   }
@@ -86,7 +89,12 @@ export async function reconcileRewardsJob(
     return;
   }
   logger.error(
-    { event: "points.drift", wallets: result.wallets, drifted: result.drifted, walletIds: result.walletIds },
+    {
+      event: "points.drift",
+      wallets: result.wallets,
+      drifted: result.drifted,
+      walletIds: result.walletIds,
+    },
     "Points wallet drift detected",
   );
   await db.transaction((tx) =>

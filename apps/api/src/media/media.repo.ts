@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { mediaAssets, type MediaAssetRecord } from "@wasfa/db";
-import { and, count, desc, eq, sql } from "drizzle-orm";
+import { contentItems, contentMediaRefs, mediaAssets, type MediaAssetRecord } from "@wasfa/db";
+import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { DB, type DbHandle } from "../common/database.js";
 
@@ -74,6 +74,36 @@ export class MediaRepo {
       .where(eq(mediaAssets.id, id))
       .returning();
     return row;
+  }
+
+  /** Items using each asset (distinct items, whatever the role); assets without a use are absent. */
+  async usageCounts(ids: readonly string[]): Promise<Map<string, number>> {
+    if (ids.length === 0) return new Map();
+    const rows = await this.handle.db
+      .select({
+        mediaId: contentMediaRefs.mediaId,
+        total: sql<number>`count(distinct ${contentMediaRefs.itemId})::int`,
+      })
+      .from(contentMediaRefs)
+      .where(inArray(contentMediaRefs.mediaId, [...ids]))
+      .groupBy(contentMediaRefs.mediaId);
+    return new Map(rows.map((row) => [row.mediaId, row.total]));
+  }
+
+  /** Every (item, role) that references the asset, for the "where is this used" panel. */
+  async usage(id: string) {
+    return this.handle.db
+      .select({
+        id: contentItems.id,
+        type: contentItems.type,
+        title: contentItems.title,
+        role: contentMediaRefs.role,
+      })
+      .from(contentMediaRefs)
+      .innerJoin(contentItems, eq(contentItems.id, contentMediaRefs.itemId))
+      .where(eq(contentMediaRefs.mediaId, id))
+      .orderBy(asc(contentItems.title), asc(contentMediaRefs.role))
+      .limit(200);
   }
 
   async list(query: ListMediaQuery): Promise<{ items: MediaAssetRecord[]; total: number }> {

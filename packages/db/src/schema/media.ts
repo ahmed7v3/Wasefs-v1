@@ -1,4 +1,5 @@
 import {
+  MEDIA_LICENCES,
   MEDIA_MIMES,
   MEDIA_SHA256_PATTERN,
   MEDIA_STATUSES,
@@ -41,6 +42,17 @@ export const mediaAssets = pgTable(
       .notNull()
       .default(sql`'[]'::jsonb`),
     rejectReason: text(),
+    // Content-platform metadata (WP3). All optional except the licence, which defaults to `own`.
+    originalFilename: text(),
+    seoFilename: text(),
+    caption: text(),
+    credit: text(),
+    licence: text({ enum: MEDIA_LICENCES }).notNull().default("own"),
+    licenceRef: text(),
+    warnings: jsonb()
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     createdBy: uuid().references(() => users.id, { onDelete: "set null" }),
     ...timestamps(),
   },
@@ -50,6 +62,7 @@ export const mediaAssets = pgTable(
       "media_assets_mime_check",
       sql`${table.mime} is null or ${matches(table.mime, `^(${MEDIA_MIMES.join("|")})$`)}`,
     ),
+    check("media_assets_licence_check", inList(table.licence, MEDIA_LICENCES)),
     check("media_assets_sha256_check", matches(table.sha256, MEDIA_SHA256_PATTERN.source)),
     check(
       "media_assets_focal_check",

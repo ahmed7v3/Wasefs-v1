@@ -12,6 +12,16 @@ export type MediaMime = (typeof MEDIA_MIMES)[number];
 export const MEDIA_STATUSES = ["staged", "processing", "ready", "rejected"] as const;
 export type MediaStatus = (typeof MEDIA_STATUSES)[number];
 
+/** Rights basis of an image; surfaced as a caption credit and a gate in the content platform. */
+export const MEDIA_LICENCES = [
+  "own",
+  "licensed",
+  "cc-by",
+  "public-domain",
+  "ai-generated",
+] as const;
+export type MediaLicence = (typeof MEDIA_LICENCES)[number];
+
 export const MEDIA_FORMATS = ["avif", "webp", "jpeg"] as const;
 export type MediaFormat = (typeof MEDIA_FORMATS)[number];
 
@@ -22,7 +32,7 @@ export const MEDIA_MAX_PIXELS = 40_000_000;
 /** Presigned PUT lifetime. */
 export const MEDIA_UPLOAD_TTL_SECONDS = 600;
 /** Variant widths; a width above the original's is skipped (never upscaled). */
-export const MEDIA_VARIANT_WIDTHS = [320, 640, 960, 1280, 1920] as const;
+export const MEDIA_VARIANT_WIDTHS = [320, 480, 640, 960, 1280, 1600] as const;
 
 export const MEDIA_SHA256_PATTERN = /^[a-f0-9]{64}$/;
 
@@ -72,6 +82,18 @@ export const patchMediaSchema = z
     altEn: alt.nullable(),
     focalX: focal,
     focalY: focal,
+    caption: z.string().trim().max(300).nullable(),
+    credit: z.string().trim().max(200).nullable(),
+    licence: z.enum(MEDIA_LICENCES),
+    licenceRef: z.string().trim().max(300).nullable(),
+    /** Lower-case ASCII words joined by hyphens, without extension: the SEO file name. */
+    seoFilename: z
+      .string()
+      .trim()
+      .min(1)
+      .max(100)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "lower-case ascii words joined by hyphens")
+      .nullable(),
   })
   .partial()
   .refine((body) => Object.keys(body).length > 0, { message: "nothing to change" });
@@ -101,10 +123,33 @@ export const mediaAssetSchema = z.object({
   blurDataUrl: z.string().nullable(),
   variants: z.array(mediaVariantSchema),
   rejectReason: z.string().nullable(),
+  originalFilename: z.string().nullable(),
+  seoFilename: z.string().nullable(),
+  caption: z.string().nullable(),
+  credit: z.string().nullable(),
+  licence: z.enum(MEDIA_LICENCES),
+  licenceRef: z.string().nullable(),
+  /** Problems the worker found while processing (read-only), e.g. `avif_over_budget_1600`. */
+  warnings: z.array(z.string()),
+  /** Items that use the asset (`content_media_refs`); 0 when unused. */
+  usageCount: z.number().int(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
 export type MediaAsset = z.infer<typeof mediaAssetSchema>;
+
+/** `GET /admin/media/:id/usage`: where an asset is used. */
+export const mediaUsageResponseSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.uuid(),
+      type: z.enum(["article", "guide", "glossary", "page"]),
+      title: z.string(),
+      role: z.enum(["featured", "body", "og", "photo"]),
+    }),
+  ),
+});
+export type MediaUsageResponse = z.infer<typeof mediaUsageResponseSchema>;
 
 /** What `<ContentImage>` needs from an asset. */
 export type ContentImageAsset = Pick<

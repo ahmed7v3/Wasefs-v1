@@ -2,7 +2,9 @@ import { arAdminAi } from "./ar.admin-ai.js";
 import { arAdminBilling } from "./ar.admin-billing.js";
 import { arAdminBrand } from "./ar.admin-brand.js";
 import { arAdminConsole } from "./ar.admin-console.js";
+import { arAdminContent } from "./ar.admin-content.js";
 import { arAdminDrugs } from "./ar.admin-drugs.js";
+import { arAdminEditor } from "./ar.admin-editor.js";
 import { arAdminEvals } from "./ar.admin-evals.js";
 import { arAdminGateways } from "./ar.admin-gateways.js";
 import { arAdminGrowth } from "./ar.admin-growth.js";
@@ -20,6 +22,7 @@ import { arErrors } from "./ar.errors.js";
 import { arGrowthConsole } from "./ar.growth-console.js";
 import { arGrowth } from "./ar.growth.js";
 import { arOrg } from "./ar.org.js";
+import { arPublicContent } from "./ar.public-content.js";
 import { arPublic } from "./ar.public.js";
 import { arReferralsWeb } from "./ar.referrals-web.js";
 import { arRewards } from "./ar.rewards.js";
@@ -31,12 +34,15 @@ import { arWithdrawals } from "./ar.withdrawals.js";
 export const ar = {
   ...arCore,
   ...arPublic,
+  ...arPublicContent,
   ...arAdmin,
   ...arAdminAi,
   ...arAdminBilling,
   ...arAdminGateways,
   ...arAdminGrowth,
   ...arAdminConsole,
+  ...arAdminContent,
+  ...arAdminEditor,
   ...arAdminRevenue,
   ...arAdminSettings,
   ...arAdminSeo,

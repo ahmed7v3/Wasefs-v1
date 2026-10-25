@@ -44,7 +44,11 @@ let worker: ReturnType<typeof createDb>;
 let seq = 0;
 
 const sealed = (phone: string, paymentId: string) =>
-  encryptSecret(phone, decodeEncryptionKey(KEY.toString("base64")), `payment.sender_phone:${paymentId}`);
+  encryptSecret(
+    phone,
+    decodeEncryptionKey(KEY.toString("base64")),
+    `payment.sender_phone:${paymentId}`,
+  );
 
 const runtime = {
   webOrigin: "https://wasfa.example",
@@ -74,7 +78,11 @@ afterAll(async () => {
 async function newUser(values: Partial<typeof users.$inferInsert> = {}): Promise<string> {
   const [row] = await owner.db
     .insert(users)
-    .values({ name: "Omar Friend", email: `w${String(++seq)}-${randomUUID().slice(0, 6)}@example.com`, ...values })
+    .values({
+      name: "Omar Friend",
+      email: `w${String(++seq)}-${randomUUID().slice(0, 6)}@example.com`,
+      ...values,
+    })
     .returning({ id: users.id });
   if (!row) throw new Error("user insert failed");
   return row.id;
@@ -133,11 +141,20 @@ describe("outbox topics", () => {
 
     await owner.db
       .update(users)
-      .set({ emailVerified: true, phone: "+201066660001", phoneVerified: true, phoneVerifiedAt: new Date() })
+      .set({
+        emailVerified: true,
+        phone: "+201066660001",
+        phoneVerified: true,
+        phoneVerifiedAt: new Date(),
+      })
       .where(eq(users.id, refereeId));
-    await owner.db
-      .insert(rxAnalyses)
-      .values({ ownerUserId: refereeId, createdBy: refereeId, status: "done", mode: "fast", skillVersion: "t@1" });
+    await owner.db.insert(rxAnalyses).values({
+      ownerUserId: refereeId,
+      createdBy: refereeId,
+      status: "done",
+      mode: "fast",
+      skillVersion: "t@1",
+    });
     await queue("rewards.signup_check", { userId: refereeId }, `t:${randomUUID()}`);
     await queue("rewards.signup_check", { userId: refereeId }, `t:${randomUUID()}`);
     const result = await drain();
@@ -203,7 +220,11 @@ describe("outbox topics", () => {
     const referrerId = await newUser({ name: "Rana Referrer", phone });
     const refereeId = await newUser();
     const code = await ensureReferralCode(owner.db, referrerId);
-    await attributeReferral(owner.db, { refereeUserId: refereeId, code: code.code, source: "link" });
+    await attributeReferral(owner.db, {
+      refereeUserId: refereeId,
+      code: code.code,
+      source: "link",
+    });
     const order = await paidSubscription(refereeId);
     const [payment] = await owner.db
       .insert(payments)
@@ -234,7 +255,10 @@ describe("outbox topics", () => {
       },
     });
     await drainOutbox(worker.db, withKey, new Date(), 100);
-    const [row] = await owner.db.select().from(referrals).where(eq(referrals.refereeUserId, refereeId));
+    const [row] = await owner.db
+      .select()
+      .from(referrals)
+      .where(eq(referrals.refereeUserId, refereeId));
     expect(row).toMatchObject({ status: "held" });
     expect(row?.flags).toContain("same_payer");
   });
@@ -257,16 +281,25 @@ describe("rewards.release", () => {
 
 describe("rewards.reconcile", () => {
   it("is quiet when the ledger adds up and raises one critical alert on drift", async () => {
-    const before = await owner.db.select().from(adminAlerts).where(eq(adminAlerts.kind, "points.reconcile_drift"));
+    const before = await owner.db
+      .select()
+      .from(adminAlerts)
+      .where(eq(adminAlerts.kind, "points.reconcile_drift"));
     await reconcileRewardsJob({}, { db: worker.db, logger });
     expect(
-      await owner.db.select().from(adminAlerts).where(eq(adminAlerts.kind, "points.reconcile_drift")),
+      await owner.db
+        .select()
+        .from(adminAlerts)
+        .where(eq(adminAlerts.kind, "points.reconcile_drift")),
     ).toHaveLength(before.length);
 
     const victim = await newUser();
     await owner.db.insert(pointsWallets).values({ userId: victim, cash: 9 });
     await reconcileRewardsJob({}, { db: worker.db, logger });
-    const alerts = await owner.db.select().from(adminAlerts).where(eq(adminAlerts.kind, "points.reconcile_drift"));
+    const alerts = await owner.db
+      .select()
+      .from(adminAlerts)
+      .where(eq(adminAlerts.kind, "points.reconcile_drift"));
     expect(alerts).toHaveLength(before.length + 1);
     expect(alerts.at(-1)).toMatchObject({ severity: "critical" });
     expect(alerts.at(-1)?.summary).toMatch(/1 of \d+ wallets/);

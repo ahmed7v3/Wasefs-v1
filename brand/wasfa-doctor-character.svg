@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1257 1257" width="1257" height="1257">
+  <title>Wasfa Doctor Character</title>
+  <defs>
+    <linearGradient id="bodyGradient" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#3B74FF"/>
+      <stop offset="0.5" stop-color="#1446E6"/>
+      <stop offset="1" stop-color="#0A2AB4"/>
+    </linearGradient>
+    <linearGradient id="glossGradient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="eyeGradient" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#CFDDF6"/>
+    </linearGradient>
+    <linearGradient id="coatGradient" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.65" stop-color="#EEF4FF"/>
+      <stop offset="1" stop-color="#B9CBEF"/>
+    </linearGradient>
+    <linearGradient id="tubeGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4C86FF"/>
+      <stop offset="0.5" stop-color="#1446E6"/>
+      <stop offset="1" stop-color="#0A2AB4"/>
+    </linearGradient>
+    <linearGradient id="silverGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.4" stop-color="#C5CEDC"/>
+      <stop offset="0.6" stop-color="#7D889C"/>
+      <stop offset="1" stop-color="#E8EDF5"/>
+    </linearGradient>
+    <linearGradient id="badgeGradient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#DCE7FA"/>
+    </linearGradient>
+    <linearGradient id="plusGradient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2F6BFF"/>
+      <stop offset="1" stop-color="#0F3FD0"/>
+    </linearGradient>
+    <radialGradient id="shadowGradient" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#0A2AB4" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#0A2AB4" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <g id="Shadow">
+    <ellipse id="Ground-Shadow" cx="628" cy="1122" rx="340" ry="26" fill="url(#shadowGradient)"/>
+  </g>
+
+  <g id="Body">
+    <path id="Star" d="M 648.1 156.0 L 766.9 264.0 Q 790.0 285.0 819.7 291.3 L 972.3 323.7 Q 1002.0 330.0 996.8 354.5 L 970.2 480.5 Q 965.0 505.0 983.9 525.3 L 1081.1 629.7 Q 1100.0 650.0 1058.0 668.9 L 842.0 766.1 Q 800.0 785.0 775.5 817.2 L 649.5 982.8 Q 625.0 1015.0 601.2 982.8 L 478.8 817.2 Q 455.0 785.0 412.3 766.1 L 192.7 668.9 Q 150.0 650.0 168.9 629.7 L 266.1 525.3 Q 285.0 505.0 280.8 479.1 L 259.2 345.9 Q 255.0 320.0 284.4 315.1 L 435.6 289.9 Q 465.0 285.0 487.4 264.0 L 602.6 156.0 Q 625.0 135.0 648.1 156.0 Z" fill="url(#bodyGradient)"/>
+    <ellipse id="Gloss" cx="432" cy="392" rx="90" ry="42" transform="rotate(-28 432 392)" fill="url(#glossGradient)"/>
+  </g>
+
+  <g id="Eyes">
+    <rect id="Eye-Recess-Left" x="470" y="510" width="100" height="168" rx="50" fill="#06208F" fill-opacity="0.45"/>
+    <rect id="Eye-Left" x="478" y="518" width="84" height="152" rx="42" fill="url(#eyeGradient)"/>
+    <rect id="Eye-Recess-Right" x="687" y="510" width="100" height="168" rx="50" fill="#06208F" fill-opacity="0.45"/>
+    <rect id="Eye-Right" x="695" y="518" width="84" height="152" rx="42" fill="url(#eyeGradient)"/>
+  </g>
+
+  <g id="Coat-Left">
+    <path id="Coat-Left-Shape" d="M 268 700 C 330 738 388 790 432 838 L 602 1000 L 604 1082 C 585 1110 500 1116 420 1108 C 330 1098 262 1058 236 990 C 214 920 226 800 268 700 Z" fill="url(#coatGradient)"/>
+    <path id="Coat-Left-Lapel" d="M 300 735 C 350 780 390 820 420 850" fill="none" stroke="#A9BEE8" stroke-width="3" stroke-linecap="round" stroke-opacity="0.7"/>
+    <path id="Coat-Left-Fold" d="M 300 880 C 340 930 380 960 420 1000" fill="none" stroke="#A9BEE8" stroke-width="3" stroke-linecap="round" stroke-opacity="0.6"/>
+  </g>
+
+  <g id="Coat-Right">
+    <path id="Coat-Right-Shape" d="M 800 745 C 835 775 858 800 890 830 C 930 806 975 790 1010 800 C 1038 880 1048 960 1034 1020 C 1012 1068 930 1094 830 1098 C 735 1100 668 1078 640 1040 C 634 1008 690 975 712 930 C 738 880 752 800 800 745 Z" fill="url(#coatGradient)"/>
+    <path id="Coat-Right-Lapel" d="M 800 745 C 820 790 850 815 890 830" fill="none" stroke="#A9BEE8" stroke-width="3" stroke-linecap="round" stroke-opacity="0.7"/>
+    <path id="Coat-Right-Fold" d="M 690 1000 C 740 1030 820 1040 900 1020" fill="none" stroke="#A9BEE8" stroke-width="3" stroke-linecap="round" stroke-opacity="0.6"/>
+  </g>
+
+  <g id="Badge">
+    <rect id="Badge-Card" x="828" y="900" width="170" height="150" rx="24" fill="url(#badgeGradient)" stroke="#B7CBF2" stroke-width="3"/>
+    <rect id="Badge-Plus-Horizontal" x="866" y="960" width="94" height="30" rx="9" fill="url(#plusGradient)"/>
+    <rect id="Badge-Plus-Vertical" x="898" y="928" width="30" height="94" rx="9" fill="url(#plusGradient)"/>
+  </g>
+
+  <g id="Stethoscope-Right">
+    <path id="Tube-Right" d="M 930 712 C 955 640 1000 600 1048 560 C 1072 600 1066 652 1020 700" fill="none" stroke="url(#tubeGradient)" stroke-width="26" stroke-linecap="round"/>
+    <path id="Tube-Right-Gloss" d="M 938 706 C 960 646 1004 610 1046 572" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" stroke-opacity="0.35"/>
+    <circle id="Chest-Ring-Right" cx="925" cy="785" r="80" fill="url(#tubeGradient)"/>
+    <circle id="Chest-Disc-Right" cx="925" cy="785" r="60" fill="url(#silverGradient)"/>
+    <circle id="Chest-Inner-Ring-Right" cx="925" cy="785" r="50" fill="none" stroke="#1446E6" stroke-width="6"/>
+    <circle id="Chest-Center-Right" cx="925" cy="785" r="8" fill="#0A2AB4"/>
+  </g>
+
+  <g id="Stethoscope-Left">
+    <path id="Tube-Left-Blue" d="M 262 728 C 300 800 300 880 330 930" fill="none" stroke="url(#tubeGradient)" stroke-width="28" stroke-linecap="round"/>
+    <path id="Tube-Left-Silver" d="M 330 930 C 350 975 410 1010 478 1032" fill="none" stroke="url(#silverGradient)" stroke-width="20" stroke-linecap="round"/>
+    <path id="Tube-Left-Gloss" d="M 272 742 C 306 806 306 880 334 924" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" stroke-opacity="0.35"/>
+    <circle id="Ear-Tip-Left" cx="260" cy="728" r="20" fill="url(#tubeGradient)"/>
+    <circle id="Chest-Ring-Left" cx="484" cy="1040" r="36" fill="url(#tubeGradient)"/>
+    <circle id="Chest-Disc-Left" cx="484" cy="1040" r="26" fill="url(#silverGradient)"/>
+    <circle id="Knob-Left" cx="548" cy="1048" r="20" fill="url(#tubeGradient)"/>
+  </g>
+</svg>

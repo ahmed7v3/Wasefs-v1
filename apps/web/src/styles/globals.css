@@ -119,27 +119,6 @@
     animation: mascot-blink 5.5s ease-in-out infinite;
   }
 
-  /* Speed and precision demo: one 6 s loop, the four stages light in turn (delays set per step). */
-  .pipe-scan {
-    animation: pipe-scan 6s ease-in-out infinite;
-  }
-
-  .pipe-step {
-    animation: pipe-step 6s ease-in-out infinite both;
-  }
-
-  .pipe-result-1 {
-    animation: pipe-result-1 6s ease-in-out infinite both;
-  }
-
-  .pipe-result-2 {
-    animation: pipe-result-2 6s ease-in-out infinite both;
-  }
-
-  .pipe-result-3 {
-    animation: pipe-result-3 6s ease-in-out infinite both;
-  }
-
   .skip-link {
     position: absolute;
     inset-inline-start: 1rem;
@@ -235,100 +214,18 @@
   }
 }
 
-@keyframes pipe-scan {
-  0% {
-    opacity: 0;
-    transform: translateY(-100%);
-  }
-  3% {
-    opacity: 1;
-  }
-  22% {
-    opacity: 1;
-    transform: translateY(480%);
-  }
-  26%,
-  100% {
-    opacity: 0;
-    transform: translateY(480%);
-  }
-}
-
-@keyframes pipe-step {
-  0%,
-  2% {
-    opacity: 0;
-  }
-  6%,
-  22% {
-    opacity: 1;
-  }
-  28%,
-  100% {
-    opacity: 0;
-  }
-}
-
-@keyframes pipe-result-1 {
-  0%,
-  58% {
-    transform: translateY(0.5rem);
-  }
-  66%,
-  94% {
-    transform: none;
-  }
-  100% {
-    transform: translateY(0.5rem);
-  }
-}
-
-@keyframes pipe-result-2 {
-  0%,
-  66% {
-    transform: translateY(0.5rem);
-  }
-  74%,
-  94% {
-    transform: none;
-  }
-  100% {
-    transform: translateY(0.5rem);
-  }
-}
-
-@keyframes pipe-result-3 {
-  0%,
-  74% {
-    transform: translateY(0.5rem);
-  }
-  82%,
-  94% {
-    transform: none;
-  }
-  100% {
-    transform: translateY(0.5rem);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .float-slow,
   .iso-scan,
   .iso-packet,
   .mascot-bob,
-  .mascot-eyes,
-  .pipe-scan,
-  .pipe-step,
-  .pipe-result-1,
-  .pipe-result-2,
-  .pipe-result-3 {
+  .mascot-eyes {
     animation: none;
   }
 
   /* The scan has nothing to sweep over without motion: the beam and the packets are hidden. */
   .iso-scan,
-  .iso-packet,
-  .pipe-scan {
+  .iso-packet {
     display: none;
   }
 
@@ -925,4 +822,276 @@
       translate: 0 0;
     }
   }
+}
+
+/* ==========================================================================================
+   Content prose (WP3): styles exactly the markup the renderer stores in `bodyHtml`
+   (packages/shared/src/content/render): h2-h4 with ids, p, lists, blockquote, a / a.entity-link,
+   code / pre, hr, table (no wrapper), figure > picture > img + figcaption, aside.callout(-note|-tip|-warning),
+   aside.content-cta, section.footnotes. Tokens only, logical properties only, no motion.
+   ========================================================================================== */
+.content-prose {
+  font-size: 1.0625rem;
+  line-height: 1.9;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.content-prose > * {
+  max-inline-size: 72ch;
+}
+
+.content-prose > * + * {
+  margin-block-start: 1.1em;
+}
+
+.content-prose h2,
+.content-prose h3,
+.content-prose h4 {
+  /* The public header is sticky: anchors from the table of contents land below it. */
+  scroll-margin-block-start: 5.5rem;
+  color: var(--color-text);
+}
+
+.content-prose h2 {
+  margin-block-start: 2.2em;
+  font-size: 1.5rem;
+}
+
+.content-prose h3 {
+  margin-block-start: 1.8em;
+  font-size: 1.25rem;
+}
+
+.content-prose h4 {
+  margin-block-start: 1.5em;
+  font-size: 1.0625rem;
+}
+
+.content-prose ul,
+.content-prose ol {
+  padding-inline-start: 1.5rem;
+}
+
+.content-prose ul {
+  list-style: disc;
+}
+
+.content-prose ol {
+  list-style: decimal;
+}
+
+.content-prose li + li {
+  margin-block-start: 0.35em;
+}
+
+.content-prose li::marker {
+  color: var(--color-primary);
+}
+
+.content-prose blockquote {
+  margin-inline: 0;
+  padding-block: 0.25rem;
+  padding-inline: 1rem;
+  border-inline-start: 4px solid var(--color-accent);
+  color: var(--color-text-muted);
+}
+
+.content-prose a {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.content-prose a:hover {
+  color: var(--color-primary-hover);
+}
+
+.content-prose a:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+  border-radius: var(--radius-sm);
+}
+
+/* Links to a drug or a glossary entry: dotted, so they read as "more about this word", not as navigation. */
+.content-prose a.entity-link {
+  text-decoration-style: dotted;
+  text-decoration-thickness: 2px;
+}
+
+.content-prose code {
+  padding-inline: 0.3em;
+  border-radius: var(--radius-sm);
+  background: var(--color-neutral-50);
+  font-size: 0.92em;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.content-prose pre {
+  overflow-x: auto;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-50);
+  direction: ltr;
+  text-align: start;
+  line-height: 1.6;
+}
+
+.content-prose pre code {
+  padding: 0;
+  background: none;
+}
+
+.content-prose hr {
+  border: 0;
+  border-block-start: 1px solid var(--color-border);
+  margin-block: 2rem;
+}
+
+/* Numbers, doses and Latin names inside Arabic text keep their own direction. */
+.content-prose bdi {
+  unicode-bidi: isolate;
+}
+
+.content-prose table {
+  display: block;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+}
+
+.content-prose th,
+.content-prose td {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--color-border);
+  text-align: start;
+  vertical-align: top;
+}
+
+.content-prose th {
+  background: var(--color-neutral-50);
+  font-weight: 700;
+}
+
+@media (min-width: 48rem) {
+  .content-prose table {
+    display: table;
+    overflow-x: visible;
+  }
+}
+
+.content-prose figure {
+  margin-inline: 0;
+  max-inline-size: 100%;
+}
+
+.content-prose figure picture,
+.content-prose picture {
+  display: block;
+}
+
+.content-prose img {
+  display: block;
+  max-inline-size: 100%;
+  block-size: auto;
+  border-radius: var(--radius-md);
+}
+
+.content-prose figcaption {
+  margin-block-start: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}
+
+/* Callouts: border on the inline-start edge (left in LTR, right in RTL); text stays the body colour. */
+.content-prose .callout {
+  padding: 1rem 1.25rem;
+  border-inline-start: 5px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  background: var(--color-primary-soft);
+  color: var(--color-text);
+}
+
+.content-prose .callout > * + * {
+  margin-block-start: 0.6em;
+}
+
+.content-prose .callout-tip {
+  border-inline-start-color: var(--color-success);
+  background: var(--color-success-soft);
+}
+
+.content-prose .callout-warning {
+  border-inline-start-color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.content-prose .callout a {
+  color: var(--color-primary);
+}
+
+.content-prose .content-cta {
+  padding: 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  text-align: center;
+}
+
+.content-prose .content-cta p {
+  margin: 0;
+}
+
+.content-prose .content-cta p + p {
+  margin-block-start: 0.75rem;
+}
+
+.content-prose .content-cta a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.75rem;
+  padding-inline: 1.25rem;
+  border-radius: 9999px;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.content-prose .content-cta a:hover {
+  background: var(--color-primary-hover);
+  color: var(--color-on-primary);
+}
+
+.content-prose section.footnotes {
+  margin-block-start: 2.5rem;
+  padding-block-start: 1rem;
+  border-block-start: 1px solid var(--color-border);
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--color-text-muted);
+}
+
+.content-prose section.footnotes h2 {
+  margin-block-start: 0;
+  font-size: 1.125rem;
+}
+
+.content-prose sup a {
+  text-decoration: none;
+  padding-inline: 0.15em;
+}
+
+/* English bodies: left-to-right, tighter leading than Arabic needs. */
+.content-prose[lang="en"] {
+  direction: ltr;
+  line-height: 1.75;
 }

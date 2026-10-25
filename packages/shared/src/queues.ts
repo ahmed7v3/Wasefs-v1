@@ -147,6 +147,10 @@ export const QUEUE_REGISTRY = {
   seo: {
     "seo.indexnow": indexNowPayloadSchema,
   },
+  /** Content platform (Phase 4 WP3): `content.publish-due` publishes scheduled items within the daily cap, every minute. */
+  content: {
+    "content.publish-due": z.object({}),
+  },
   /** Accuracy evaluation (Phase 2, Task 2.10): label-set imports and eval runs; no credits, no users. */
   evals: {
     "evals.run": evalRunPayloadSchema,

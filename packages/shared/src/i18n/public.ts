@@ -1,10 +1,12 @@
 import { arBilling } from "./ar.billing.js";
 import { arCore } from "./ar.core.js";
 import { arErrors } from "./ar.errors.js";
+import { arPublicContent } from "./ar.public-content.js";
 import { arPublic } from "./ar.public.js";
 import { enBilling } from "./en.billing.js";
 import { enCore } from "./en.core.js";
 import { enErrors } from "./en.errors.js";
+import { enPublicContent } from "./en.public-content.js";
 import { enPublic } from "./en.public.js";
 
 import type { MessageKey } from "./ar.js";
@@ -20,12 +22,14 @@ import type { Locale } from "./locales.js";
 const publicAr: Partial<Record<MessageKey, string>> = {
   ...arCore,
   ...arPublic,
+  ...arPublicContent,
   ...arBilling,
   ...arErrors,
 };
 const publicEn: Partial<Record<MessageKey, string>> = {
   ...enCore,
   ...enPublic,
+  ...enPublicContent,
   ...enBilling,
   ...enErrors,
 };
