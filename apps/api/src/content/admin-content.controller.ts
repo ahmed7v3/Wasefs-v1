@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
@@ -17,6 +18,7 @@ import {
   contentActionParamsSchema,
   contentIdParamSchema,
   contentListQuerySchema,
+  contentPurgeBodySchema,
   contentRevisionParamsSchema,
   createContentItemSchema,
   createCorrectionSchema,
@@ -48,6 +50,7 @@ class ActionBodyDto extends createZodDto(contentActionBodySchema) {}
 class ActionParamsDto extends createZodDto(contentActionParamsSchema) {}
 class IdParamDto extends createZodDto(contentIdParamSchema) {}
 class RevisionParamsDto extends createZodDto(contentRevisionParamsSchema) {}
+class PurgeDto extends createZodDto(contentPurgeBodySchema) {}
 class CorrectionDto extends createZodDto(createCorrectionSchema) {}
 
 /** Audit verb per workflow action (`content.item.<verb>`). */
@@ -188,6 +191,40 @@ export class AdminContentController {
       { verbatim: true },
     );
     return this.items.get(params.id, actor);
+  }
+
+  /** Owner-only permanent delete. The audit row carries identifiers only, never the title or the text. */
+  @Delete("items/:id")
+  @HttpCode(204)
+  @RequirePermission("content.manage")
+  @RateLimit(20)
+  async purge(
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() request: FastifyRequest,
+    @Param() params: IdParamDto,
+    @Body() body: PurgeDto,
+  ): Promise<void> {
+    if (!user.isSuperAdmin) throw new AppError(ErrorCode.FORBIDDEN);
+    const result = await this.items.purge(
+      await this.items.actorFor(user),
+      params.id,
+      body.confirmTitle,
+    );
+    await this.audit.recordFor(
+      request,
+      {
+        action: "content.item.purged",
+        targetType: "content_item",
+        targetId: params.id,
+        before: {
+          type: result.type,
+          locale: result.locale,
+          slug: result.slug,
+          wasLive: result.wasLive,
+        },
+      },
+      { verbatim: true },
+    );
   }
 
   @Post("items/:id/preview-token")

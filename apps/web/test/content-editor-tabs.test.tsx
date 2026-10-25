@@ -64,6 +64,7 @@ function makeDetail(overrides: Partial<ContentItemDetail> = {}): ContentItemDeta
     publicPath: null,
     archivedRedirectTo: null,
     allowedActions: [],
+    canPurge: false,
     ...overrides,
   };
 }

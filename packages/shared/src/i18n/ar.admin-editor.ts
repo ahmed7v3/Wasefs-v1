@@ -245,6 +245,14 @@ export const arAdminEditor = {
   "admin.editor.archive.redirect": "تحويل إلى صفحة بديلة (اختياري)",
   "admin.editor.archive.redirect.hint": "مسار داخل الموقع، مثل /blog/another-article.",
   "admin.editor.archive.invalidPath": "اكتب مسارًا داخليًا يبدأ بشرطة مائلة واحدة.",
+  "admin.editor.action.purge": "حذف نهائي",
+  "admin.editor.result.purge": "تم حذف المحتوى نهائيًا.",
+  "admin.editor.purge.title": "حذف المحتوى نهائيًا",
+  "admin.editor.purge.warning":
+    "لا يمكن التراجع عن هذا الإجراء. سيُحذف النص وكل المراجعات والتعليقات وسجل النشر والتحويلات الخاصة بهذا المحتوى من قاعدة البيانات.",
+  "admin.editor.purge.mediaKept": "ملفات الوسائط تبقى في مكتبة الوسائط ولا تُحذف.",
+  "admin.editor.purge.confirmLabel": "اكتب عنوان المحتوى للتأكيد",
+  "admin.editor.purge.confirmHint": "العنوان الحالي: {title}",
   "admin.editor.unpublish.title": "إيقاف النشر؟",
   "admin.editor.unpublish.body": "تُرجع الصفحة 404 فورًا ويبقى المحتوى مسودة.",
 

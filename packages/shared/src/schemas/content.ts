@@ -260,6 +260,10 @@ export type ContentActionBody = z.output<typeof contentActionBodySchema>;
 export const contentActionParamsSchema = z.object({ id, action: contentActionSchema });
 
 export const contentIdParamSchema = z.object({ id });
+
+/** Permanent delete: the owner retypes the item's title as a guard against a wrong item. */
+export const contentPurgeBodySchema = z.object({ confirmTitle: z.string().min(1).max(300) });
+export type ContentPurgeBody = z.output<typeof contentPurgeBodySchema>;
 export const contentRevisionParamsSchema = z.object({ id, revisionId: id });
 
 export const personRefSchema = z.object({ id, name: z.string(), slug: z.string() });
@@ -379,6 +383,8 @@ export const contentItemDetailSchema = contentItemSummarySchema.extend({
   archivedRedirectTo: sitePathSchema.nullable(),
   /** Tells the UI which action buttons to show (computed by the workflow state machine for THIS user). */
   allowedActions: z.array(contentActionSchema),
+  /** The platform owner may delete the item permanently (DELETE /admin/content/items/:id). */
+  canPurge: z.boolean(),
 });
 export type ContentItemDetail = z.output<typeof contentItemDetailSchema>;
 

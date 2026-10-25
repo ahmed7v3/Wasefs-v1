@@ -144,7 +144,9 @@ export function PublishDialog({
   const failing = gates.filter((gate) => gate.level === "block" && !gate.ok);
   // Advisory gates are shown with the warnings and never hide the confirm button.
   const blocking = advisory ? [] : failing;
-  const warnings = advisory ? gates.filter((gate) => !gate.ok) : gates.filter((gate) => gate.level !== "block" && !gate.ok);
+  const warnings = advisory
+    ? gates.filter((gate) => !gate.ok)
+    : gates.filter((gate) => gate.level !== "block" && !gate.ok);
   return (
     <Dialog
       open={open}
@@ -293,6 +295,84 @@ export function ArchiveDialog({ open, ...props }: ArchiveDialogProps) {
       title={t("admin.editor.archive.title")}
     >
       {open ? <ArchiveForm {...props} /> : null}
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Permanent delete (owner only)
+// ---------------------------------------------------------------------------------------------
+
+/** The confirm button unlocks only when the typed text equals the item's title (the API checks the same, trimmed). */
+export function purgeConfirmMatches(typed: string, title: string): boolean {
+  return typed.trim() === title;
+}
+
+export interface PurgeDialogProps {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  busy: boolean;
+  error: string | null;
+  onConfirm: () => Promise<ActionResult>;
+}
+
+function PurgeForm({ onClose, title, busy, error, onConfirm }: Omit<PurgeDialogProps, "open">) {
+  const [typed, setTyped] = useState("");
+  const matches = purgeConfirmMatches(typed, title);
+
+  const submit = (event: FormEvent): void => {
+    event.preventDefault();
+    if (!matches) return;
+    void onConfirm().then((result) => {
+      if (result === "ok") onClose();
+    });
+  };
+
+  return (
+    <form onSubmit={submit} noValidate className="flex flex-col gap-4">
+      <p className="rounded-lg bg-danger-soft px-4 py-3 text-base text-danger">
+        {t("admin.editor.purge.warning")}
+      </p>
+      <p className="text-base text-text">{t("admin.editor.purge.mediaKept")}</p>
+      <Field
+        label={t("admin.editor.purge.confirmLabel")}
+        hint={t("admin.editor.purge.confirmHint", { title })}
+      >
+        {(control) => (
+          <Input
+            {...control}
+            autoComplete="off"
+            value={typed}
+            onChange={(event) => {
+              setTyped(event.target.value);
+            }}
+          />
+        )}
+      </Field>
+      <ErrorLine message={error} />
+      <div className="flex flex-wrap justify-end gap-3">
+        <Button variant="ghost" onClick={onClose}>
+          {t("common.cancel")}
+        </Button>
+        <Button type="submit" variant="danger" loading={busy} disabled={!matches}>
+          {t("admin.editor.action.purge")}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+export function PurgeDialog({ open, ...props }: PurgeDialogProps) {
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) props.onClose();
+      }}
+      title={t("admin.editor.purge.title")}
+    >
+      {open ? <PurgeForm {...props} /> : null}
     </Dialog>
   );
 }

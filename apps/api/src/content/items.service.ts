@@ -16,7 +16,11 @@ import {
   type WorkflowActor,
   type WorkflowItem,
 } from "@wasfa/shared/content";
-import { CONTENT_SLUG_MAX, type ContentType } from "@wasfa/shared/content/constants";
+import {
+  CONTENT_SLUG_MAX,
+  type ContentLocale,
+  type ContentType,
+} from "@wasfa/shared/content/constants";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import { PERMISSION_KEYS } from "@wasfa/shared/permissions";
 import {
@@ -416,7 +420,31 @@ export class ContentItemsService {
       publicPath: live ? contentPath(item.type, item.locale, item.slug) : null,
       archivedRedirectTo: item.archivedRedirectTo,
       allowedActions: allowedActions(workflowItem, actor, !hasBlockingIssues(gates), now),
+      canPurge: actor.isOwner === true,
     };
+  }
+
+  /**
+   * Owner-only permanent delete. The retyped title is checked against the locked row, so a stale
+   * editor tab cannot delete under an old title. Media files are untouched (see purgeItemTx).
+   */
+  async purge(
+    actor: ContentActorCtx,
+    id: string,
+    confirmTitle: string,
+  ): Promise<{ type: ContentType; locale: ContentLocale; slug: string; wasLive: boolean }> {
+    if (actor.isOwner !== true) throw new AppError(ErrorCode.FORBIDDEN);
+    const now = new Date();
+    const result = await this.repo.transaction(async (data) => {
+      const locked = await data.lockItem(id);
+      if (!locked) throw new AppError(ErrorCode.NOT_FOUND);
+      if (confirmTitle.trim() !== locked.title) {
+        throw new AppError(ErrorCode.VALIDATION_FAILED, { details: { field: "confirmTitle" } });
+      }
+      return data.purge({ itemId: id, now });
+    });
+    if (result.wasLive) await kickOutbox(this.outbox, `content.changed:${id}:purged`);
+    return result;
   }
 
   async listRevisions(id: string): Promise<RevisionSummary[]> {
