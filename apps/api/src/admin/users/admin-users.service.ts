@@ -21,7 +21,22 @@ import type { FastifyRequest } from "fastify";
 const isUsageIntent = (value: string): value is UsageIntent =>
   (USAGE_INTENTS as readonly string[]).includes(value);
 
-const toAdminUser = (row: UserListRow | UserDetailRow, roles: string[]): AdminUser => ({
+/** Only an `https:` URL is shown as an avatar; anything else (data:, javascript:, http:) is dropped. */
+export const safeAvatarUrl = (image: string | null | undefined): string | null => {
+  if (!image) return null;
+  try {
+    const url = new URL(image);
+    return url.protocol === "https:" ? url.href : null;
+  } catch {
+    return null;
+  }
+};
+
+export const toAdminUser = (
+  row: UserListRow | UserDetailRow,
+  roles: string[],
+  providers: string[],
+): AdminUser => ({
   id: row.id,
   name: row.name,
   // Phone-only accounts carry a placeholder address; it is never shown.
@@ -32,6 +47,9 @@ const toAdminUser = (row: UserListRow | UserDetailRow, roles: string[]): AdminUs
   status: row.status,
   roles,
   accountType: row.accountType,
+  image: safeAvatarUrl(row.image),
+  providers,
+  twoFactorEnabled: row.twoFactorEnabled,
   createdAt: row.createdAt.toISOString(),
   lastLoginAt: row.lastLoginAt?.toISOString() ?? null,
 });
@@ -60,9 +78,15 @@ export class AdminUsersService {
       query.limit,
     );
     const page = toPage(rows, query.limit, (row) => ({ at: row.cursorAt, key: row.id }));
-    const roles = await this.repo.rolesOf(page.items.map((row) => row.id));
+    const ids = page.items.map((row) => row.id);
+    const [roles, providers] = await Promise.all([
+      this.repo.rolesOf(ids),
+      this.repo.providersOf(ids),
+    ]);
     return {
-      items: page.items.map((row) => toAdminUser(row, roles.get(row.id) ?? [])),
+      items: page.items.map((row) =>
+        toAdminUser(row, roles.get(row.id) ?? [], providers.get(row.id) ?? []),
+      ),
       nextCursor: page.nextCursor,
     };
   }
@@ -70,8 +94,9 @@ export class AdminUsersService {
   async detail(userId: string): Promise<AdminUserDetail> {
     const row = await this.repo.find(userId);
     if (!row) throw new AppError(ErrorCode.NOT_FOUND);
-    const [roles, profile, organizations, sessions, recentAudit] = await Promise.all([
+    const [roles, providers, profile, organizations, sessions, recentAudit] = await Promise.all([
       this.repo.roleKeys(userId),
+      this.repo.providersOf([userId]),
       this.repo.profile(userId),
       this.repo.memberships(userId),
       this.repo.liveSessions(userId),
@@ -79,9 +104,8 @@ export class AdminUsersService {
     ]);
     return {
       user: {
-        ...toAdminUser(row, roles),
+        ...toAdminUser(row, roles, providers.get(userId) ?? []),
         suspendedReason: row.suspendedReason,
-        twoFactorEnabled: row.twoFactorEnabled,
         deletedAt: row.deletedAt?.toISOString() ?? null,
         locale: row.locale,
       },

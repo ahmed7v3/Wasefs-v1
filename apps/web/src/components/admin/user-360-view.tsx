@@ -2,13 +2,28 @@
 
 import { t } from "@wasfa/shared/i18n";
 import { type Permission } from "@wasfa/shared/permissions";
-import { Badge, Button, Card, Tab, TabList, TabPanel, Tabs, moneyText, useToast } from "@wasfa/ui";
+import {
+  Avatar,
+  Badge,
+  Button,
+  Card,
+  Tab,
+  TabList,
+  TabPanel,
+  Tabs,
+  moneyText,
+  useToast,
+} from "@wasfa/ui";
 import { ArrowUpCircle, Coins, Eye, NotebookPen } from "lucide-react";
 import { useState } from "react";
 
 import { formatDateTime, formatNumber } from "../../lib/admin-format";
 import { canAccess } from "../../lib/admin-nav";
-import { revealedContactSchema, userSummarySchema, type UserSummary } from "../../lib/admin-user-360";
+import {
+  revealedContactSchema,
+  userSummarySchema,
+  type UserSummary,
+} from "../../lib/admin-user-360";
 import { api } from "../../lib/api-client";
 import { useResource } from "../../lib/use-admin-data";
 
@@ -25,6 +40,7 @@ import {
   ReferralsTab,
   TimelineTab,
 } from "./user-360-tabs";
+import { CopyableUserId, ProviderChips } from "./user-identity";
 
 export interface User360ViewProps {
   userId: string;
@@ -35,13 +51,33 @@ function Chips({ summary }: { summary: UserSummary }) {
   const { chips } = summary;
   return (
     <div className="flex flex-wrap gap-2">
-      <Badge tone={chips.emailVerified ? "success" : "neutral"}>{t(chips.emailVerified ? "admin.user360.chip.emailVerified" : "admin.user360.chip.emailUnverified")}</Badge>
-      <Badge tone={chips.phoneVerified ? "success" : "neutral"}>{t(chips.phoneVerified ? "admin.user360.chip.phoneVerified" : "admin.user360.chip.phoneUnverified")}</Badge>
-      {chips.twoFactorEnabled ? <Badge tone="info">{t("admin.user360.chip.twoFactor")}</Badge> : null}
+      <Badge tone={chips.emailVerified ? "success" : "neutral"}>
+        {t(
+          chips.emailVerified
+            ? "admin.user360.chip.emailVerified"
+            : "admin.user360.chip.emailUnverified",
+        )}
+      </Badge>
+      <Badge tone={chips.phoneVerified ? "success" : "neutral"}>
+        {t(
+          chips.phoneVerified
+            ? "admin.user360.chip.phoneVerified"
+            : "admin.user360.chip.phoneUnverified",
+        )}
+      </Badge>
+      {chips.twoFactorEnabled ? (
+        <Badge tone="info">{t("admin.user360.chip.twoFactor")}</Badge>
+      ) : null}
       {chips.suspended ? <Badge tone="danger">{t("admin.user360.chip.suspended")}</Badge> : null}
-      <Badge tone={summary.plan.status === "active" ? "success" : "neutral"} data-testid="plan-chip">
+      <Badge
+        tone={summary.plan.status === "active" ? "success" : "neutral"}
+        data-testid="plan-chip"
+      >
         {summary.plan.expiresAt
-          ? t("admin.user360.chip.planUntil", { plan: summary.plan.nameAr, date: formatDateTime(summary.plan.expiresAt) })
+          ? t("admin.user360.chip.planUntil", {
+              plan: summary.plan.nameAr,
+              date: formatDateTime(summary.plan.expiresAt),
+            })
           : summary.plan.nameAr}
       </Badge>
     </div>
@@ -59,7 +95,13 @@ function ContactLine({ userId, summary }: { userId: string; summary: UserSummary
           <span key={key} className="flex items-center gap-2">
             <bdi dir="ltr">{revealed[key] ?? summary.contact[key]}</bdi>
             {revealed[key] ? null : (
-              <Button variant="ghost" aria-label={t(`admin.user360.reveal.${key}`)} onClick={() => { setField(key); }}>
+              <Button
+                variant="ghost"
+                aria-label={t(`admin.user360.reveal.${key}`)}
+                onClick={() => {
+                  setField(key);
+                }}
+              >
                 <Eye aria-hidden className="size-4" />
               </Button>
             )}
@@ -68,7 +110,9 @@ function ContactLine({ userId, summary }: { userId: string; summary: UserSummary
       )}
       <ReasonDialog
         open={field !== null}
-        onOpenChange={(open) => { if (!open) setField(null); }}
+        onOpenChange={(open) => {
+          if (!open) setField(null);
+        }}
         title={t("admin.user360.reveal.title")}
         effect={t("admin.user360.reveal.effect")}
         confirmLabel={t("admin.user360.reveal.confirm")}
@@ -79,7 +123,8 @@ function ContactLine({ userId, summary }: { userId: string; summary: UserSummary
             body: { field, reason },
             schema: revealedContactSchema,
           });
-          if (value.value) setRevealed((current) => ({ ...current, [field]: value.value ?? undefined }));
+          if (value.value)
+            setRevealed((current) => ({ ...current, [field]: value.value ?? undefined }));
           else toast({ tone: "info", title: t("admin.user360.reveal.none") });
           setField(null);
         }}
@@ -92,13 +137,28 @@ function SummaryStrip({ summary }: { summary: UserSummary }) {
   const revenue = Object.entries(summary.lifetimeRevenue);
   return (
     <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-      <div><dt className="text-sm text-text-muted">{t("admin.user360.memberSince")}</dt><dd className="text-text">{formatDateTime(summary.memberSince)}</dd></div>
-      <div><dt className="text-sm text-text-muted">{t("admin.user360.lastSeen")}</dt><dd className="text-text">{summary.lastSeenAt ? formatDateTime(summary.lastSeenAt) : "—"}</dd></div>
+      <div>
+        <dt className="text-sm text-text-muted">{t("admin.user360.memberSince")}</dt>
+        <dd className="text-text">{formatDateTime(summary.memberSince)}</dd>
+      </div>
+      <div>
+        <dt className="text-sm text-text-muted">{t("admin.user360.lastSeen")}</dt>
+        <dd className="text-text">
+          {summary.lastSeenAt ? formatDateTime(summary.lastSeenAt) : "—"}
+        </dd>
+      </div>
       <div>
         <dt className="text-sm text-text-muted">{t("admin.user360.revenue")}</dt>
-        <dd className="text-text tabular-nums">{revenue.length === 0 ? "—" : revenue.map(([currency, minor]) => moneyText(minor, currency)).join(" · ")}</dd>
+        <dd className="text-text tabular-nums">
+          {revenue.length === 0
+            ? "—"
+            : revenue.map(([currency, minor]) => moneyText(minor, currency)).join(" · ")}
+        </dd>
       </div>
-      <div><dt className="text-sm text-text-muted">{t("admin.user360.aiCost")}</dt><dd className="text-text tabular-nums">{`$${(summary.lifetimeAiCostUsdMicros / 1_000_000).toFixed(2)}`}</dd></div>
+      <div>
+        <dt className="text-sm text-text-muted">{t("admin.user360.aiCost")}</dt>
+        <dd className="text-text tabular-nums">{`$${(summary.lifetimeAiCostUsdMicros / 1_000_000).toFixed(2)}`}</dd>
+      </div>
       <div>
         <dt className="text-sm text-text-muted">{t("admin.user360.source")}</dt>
         <dd className="text-text">
@@ -131,32 +191,63 @@ export function User360View({ userId, permissions }: User360ViewProps) {
           <Card elevation="card" className="flex flex-col gap-4">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="flex flex-col gap-2">
-                <h1 className="font-heading text-2xl font-bold text-primary sm:text-3xl" data-testid="user-name">{data.profile.name}</h1>
+                <div className="flex items-center gap-3">
+                  <Avatar name={data.profile.name} src={data.profile.image} size={56} />
+                  <h1
+                    className="font-heading text-2xl font-bold text-primary sm:text-3xl"
+                    data-testid="user-name"
+                  >
+                    {data.profile.name}
+                  </h1>
+                </div>
+                <CopyableUserId id={data.profile.id} />
+                <ProviderChips providers={data.profile.providers} />
                 <Chips summary={data} />
                 <ContactLine userId={userId} summary={data} />
               </div>
               <div className="flex flex-wrap gap-2">
                 {can("users.upgrade") ? (
-                  <Button name="open-plan-change" onClick={() => { setChanging(true); }}>
+                  <Button
+                    name="open-plan-change"
+                    onClick={() => {
+                      setChanging(true);
+                    }}
+                  >
                     <ArrowUpCircle aria-hidden className="size-4" />
                     {t("admin.user360.action.plan")}
                   </Button>
                 ) : null}
                 {can("credits.adjust") ? (
-                  <Button variant="secondary" name="adjust-credits" onClick={() => { setAdjusting(true); }}>
+                  <Button
+                    variant="secondary"
+                    name="adjust-credits"
+                    onClick={() => {
+                      setAdjusting(true);
+                    }}
+                  >
                     <Coins aria-hidden className="size-4" />
                     {t("admin.user360.action.credits")}
                   </Button>
                 ) : null}
-                <Button variant="secondary" name="note" onClick={() => { setTab("notes"); }}>
+                <Button
+                  variant="secondary"
+                  name="note"
+                  onClick={() => {
+                    setTab("notes");
+                  }}
+                >
                   <NotebookPen aria-hidden className="size-4" />
                   {t("admin.user360.action.note")}
                 </Button>
               </div>
             </div>
             <p className="text-base text-text">
-              {t("admin.user360.walletLine", { balance: formatNumber(data.wallets.personal.balance) })}
-              {data.wallets.orgs.map((org) => ` · ${org.name}: ${formatNumber(org.balance)}`).join("")}
+              {t("admin.user360.walletLine", {
+                balance: formatNumber(data.wallets.personal.balance),
+              })}
+              {data.wallets.orgs
+                .map((org) => ` · ${org.name}: ${formatNumber(org.balance)}`)
+                .join("")}
             </p>
             <SummaryStrip summary={data} />
           </Card>
@@ -164,34 +255,78 @@ export function User360View({ userId, permissions }: User360ViewProps) {
           <Tabs value={tab} onValueChange={setTab}>
             <TabList aria-label={t("admin.user360.tabs")} className="flex-wrap">
               <Tab value="overview">{t("admin.user360.tab.overview")}</Tab>
-              {can("billing.read") ? <Tab value="billing">{t("admin.user360.tab.billing")}</Tab> : null}
-              {can("usage.read") ? <Tab value="credits">{t("admin.user360.tab.credits")}</Tab> : null}
-              {can("users.read_health") ? <Tab value="prescriptions">{t("admin.user360.tab.prescriptions")}</Tab> : null}
-              {can("users.read_chats") ? <Tab value="chats">{t("admin.user360.tab.chats")}</Tab> : null}
-              {can("referrals.read") ? <Tab value="referrals">{t("admin.user360.tab.referrals")}</Tab> : null}
+              {can("billing.read") ? (
+                <Tab value="billing">{t("admin.user360.tab.billing")}</Tab>
+              ) : null}
+              {can("usage.read") ? (
+                <Tab value="credits">{t("admin.user360.tab.credits")}</Tab>
+              ) : null}
+              {can("users.read_health") ? (
+                <Tab value="prescriptions">{t("admin.user360.tab.prescriptions")}</Tab>
+              ) : null}
+              {can("users.read_chats") ? (
+                <Tab value="chats">{t("admin.user360.tab.chats")}</Tab>
+              ) : null}
+              {can("referrals.read") ? (
+                <Tab value="referrals">{t("admin.user360.tab.referrals")}</Tab>
+              ) : null}
               <Tab value="notes">{t("admin.user360.tab.notes")}</Tab>
             </TabList>
-            <TabPanel value="overview" className="pt-4"><TimelineTab userId={userId} /></TabPanel>
-            {can("billing.read") ? <TabPanel value="billing" className="pt-4">{tab === "billing" ? <BillingTab userId={userId} /> : null}</TabPanel> : null}
-            {can("usage.read") ? <TabPanel value="credits" className="pt-4">{tab === "credits" ? <CreditsTab userId={userId} /> : null}</TabPanel> : null}
-            {can("users.read_health") ? <TabPanel value="prescriptions" className="pt-4">{tab === "prescriptions" ? <PrescriptionsTab userId={userId} /> : null}</TabPanel> : null}
-            {can("users.read_chats") ? <TabPanel value="chats" className="pt-4">{tab === "chats" ? <ChatsTab userId={userId} /> : null}</TabPanel> : null}
-            {can("referrals.read") ? <TabPanel value="referrals" className="pt-4">{tab === "referrals" ? <ReferralsTab userId={userId} /> : null}</TabPanel> : null}
-            <TabPanel value="notes" className="pt-4">{tab === "notes" ? <NotesTab userId={userId} /> : null}</TabPanel>
+            <TabPanel value="overview" className="pt-4">
+              <TimelineTab userId={userId} />
+            </TabPanel>
+            {can("billing.read") ? (
+              <TabPanel value="billing" className="pt-4">
+                {tab === "billing" ? <BillingTab userId={userId} /> : null}
+              </TabPanel>
+            ) : null}
+            {can("usage.read") ? (
+              <TabPanel value="credits" className="pt-4">
+                {tab === "credits" ? <CreditsTab userId={userId} /> : null}
+              </TabPanel>
+            ) : null}
+            {can("users.read_health") ? (
+              <TabPanel value="prescriptions" className="pt-4">
+                {tab === "prescriptions" ? <PrescriptionsTab userId={userId} /> : null}
+              </TabPanel>
+            ) : null}
+            {can("users.read_chats") ? (
+              <TabPanel value="chats" className="pt-4">
+                {tab === "chats" ? <ChatsTab userId={userId} /> : null}
+              </TabPanel>
+            ) : null}
+            {can("referrals.read") ? (
+              <TabPanel value="referrals" className="pt-4">
+                {tab === "referrals" ? <ReferralsTab userId={userId} /> : null}
+              </TabPanel>
+            ) : null}
+            <TabPanel value="notes" className="pt-4">
+              {tab === "notes" ? <NotesTab userId={userId} /> : null}
+            </TabPanel>
           </Tabs>
 
           <PlanChangeDialog
             open={changing}
             base={`/admin/users/${userId}`}
             targetName={data.profile.name}
-            onClose={() => { setChanging(false); }}
+            onClose={() => {
+              setChanging(false);
+            }}
             onChanged={summary.reload}
           />
           <AdjustCreditsDialog
             open={adjusting}
-            target={{ owner: { type: "user", id: userId }, label: data.profile.name, balance: data.wallets.personal.balance }}
-            knownWallets={[{ owner: { type: "user", id: userId }, balance: data.wallets.personal.balance }]}
-            onClose={() => { setAdjusting(false); }}
+            target={{
+              owner: { type: "user", id: userId },
+              label: data.profile.name,
+              balance: data.wallets.personal.balance,
+            }}
+            knownWallets={[
+              { owner: { type: "user", id: userId }, balance: data.wallets.personal.balance },
+            ]}
+            onClose={() => {
+              setAdjusting(false);
+            }}
             onAdjusted={summary.reload}
           />
         </div>
@@ -199,4 +334,3 @@ export function User360View({ userId, permissions }: User360ViewProps) {
     </ResourceBoundary>
   );
 }
-

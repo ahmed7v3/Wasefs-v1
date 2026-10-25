@@ -11,7 +11,14 @@ const page = <T extends z.ZodType>(item: T) =>
   z.object({ items: z.array(item), nextCursor: z.string().nullable() });
 
 export const userSummarySchema = z.object({
-  profile: z.object({ id: z.uuid(), name: z.string(), status: z.string(), locale: z.string() }),
+  profile: z.object({
+    id: z.uuid(),
+    name: z.string(),
+    status: z.string(),
+    locale: z.string(),
+    image: z.string().nullable(),
+    providers: z.array(z.string()),
+  }),
   contact: z.object({ email: z.string().nullable(), phone: z.string().nullable() }),
   chips: z.object({
     emailVerified: z.boolean(),
@@ -118,14 +125,21 @@ export const userCreditsSchema = z.object({
   ),
   usage: z.object({
     days: z.number(),
-    items: z.array(z.object({ task: z.string(), day: z.string(), calls: z.number(), credits: z.number() })),
+    items: z.array(
+      z.object({ task: z.string(), day: z.string(), calls: z.number(), credits: z.number() }),
+    ),
   }),
 });
 
 export const userReferralsSchema = z.object({
   code: z.object({ code: z.string() }).loose().nullable(),
   invitedBy: z
-    .object({ referralId: z.string(), code: z.string().nullable(), status: z.string(), referrerInitials: z.string().nullable() })
+    .object({
+      referralId: z.string(),
+      code: z.string().nullable(),
+      status: z.string(),
+      referrerInitials: z.string().nullable(),
+    })
     .nullable(),
   invitees: z.array(
     z.object({
@@ -139,8 +153,23 @@ export const userReferralsSchema = z.object({
       createdAt: iso,
     }),
   ),
-  wallet: z.object({ pending: z.number(), cash: z.number(), creditOnly: z.number(), lifetimeEarned: z.number() }),
-  ledger: page(z.object({ id: z.string(), kind: z.string(), bucket: z.string(), amount: z.number(), createdAt: iso }).loose()),
+  wallet: z.object({
+    pending: z.number(),
+    cash: z.number(),
+    creditOnly: z.number(),
+    lifetimeEarned: z.number(),
+  }),
+  ledger: page(
+    z
+      .object({
+        id: z.string(),
+        kind: z.string(),
+        bucket: z.string(),
+        amount: z.number(),
+        createdAt: iso,
+      })
+      .loose(),
+  ),
 });
 
 export const phiSessionSchema = z.object({ id: z.string(), reason: z.string(), expiresAt: iso });
@@ -161,7 +190,13 @@ export const prescriptionsPageSchema = page(
 );
 
 export const chatsPageSchema = page(
-  z.object({ id: z.string(), createdAt: iso, updatedAt: iso, messageCount: z.number(), archived: z.boolean() }),
+  z.object({
+    id: z.string(),
+    createdAt: iso,
+    updatedAt: iso,
+    messageCount: z.number(),
+    archived: z.boolean(),
+  }),
 );
 
 export const notesPageSchema = page(
@@ -177,10 +212,14 @@ export const notesPageSchema = page(
 
 export const planChangePreviewSchema = z.object({
   plan: z.object({ key: z.string(), nameAr: z.string(), monthlyCredits: z.number() }),
-  entitlements: z.array(z.object({ task: z.string(), allowed: z.boolean(), modes: z.array(z.string()) }).loose()),
+  entitlements: z.array(
+    z.object({ task: z.string(), allowed: z.boolean(), modes: z.array(z.string()) }).loose(),
+  ),
   effect: z.enum(["replace", "extend", "schedule"]),
   blocked: z.string().nullable(),
-  current: z.object({ planKey: z.string(), status: z.string(), source: z.string(), currentPeriodEnd: iso }).nullable(),
+  current: z
+    .object({ planKey: z.string(), status: z.string(), source: z.string(), currentPeriodEnd: iso })
+    .nullable(),
   effectiveAt: iso,
   newExpiry: iso,
   credits: z.object({ plan: z.number(), extra: z.number(), total: z.number() }),

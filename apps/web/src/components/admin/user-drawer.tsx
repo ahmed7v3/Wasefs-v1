@@ -11,6 +11,7 @@ import {
   Avatar,
   Badge,
   Button,
+  buttonStyles,
   Field,
   Input,
   Select,
@@ -21,7 +22,8 @@ import {
   Tabs,
   useToast,
 } from "@wasfa/ui";
-import { Plus, UserCheck, UserRoundX, X } from "lucide-react";
+import { ExternalLink, Plus, UserCheck, UserRoundX, X } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { formatDateTime, tOr } from "../../lib/admin-format";
@@ -34,6 +36,7 @@ import { Code, RoleChips, UserStatusBadge } from "./badges";
 import { ConfirmDialog } from "./confirm-dialog";
 import { DetailList, DetailSection } from "./detail-list";
 import { DetailDrawer } from "./drawer";
+import { CopyableUserId, ProviderChips } from "./user-identity";
 
 export interface UserDrawerProps {
   userId: string;
@@ -121,8 +124,9 @@ export function UserDrawer({
       {data && user ? (
         <>
           <div className="flex flex-wrap items-center gap-4">
-            <Avatar name={user.name} size={56} />
+            <Avatar name={user.name} src={user.image} size={56} />
             <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <p className="truncate font-heading text-xl font-bold text-text">{user.name}</p>
               <div className="flex flex-wrap items-center gap-2">
                 <UserStatusBadge status={user.status} />
                 {user.twoFactorEnabled ? (
@@ -139,6 +143,14 @@ export function UserDrawer({
                   {user.phone}
                 </bdi>
               ) : null}
+              <CopyableUserId id={user.id} />
+              <ProviderChips providers={user.providers} />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link href={`/admin/users/${user.id}`} className={buttonStyles()}>
+                <ExternalLink aria-hidden className="size-5" />
+                {t("admin.users.openProfile")}
+              </Link>
             </div>
             {canSuspend && !isSelf && user.status !== "deleted" ? (
               <Button
@@ -201,6 +213,22 @@ export function UserDrawer({
                           </Badge>
                         </span>
                       ) : null,
+                    },
+                    {
+                      label: t("admin.users.userId"),
+                      value: <CopyableUserId id={user.id} />,
+                    },
+                    {
+                      label: t("admin.users.providers"),
+                      value: <ProviderChips providers={user.providers} />,
+                    },
+                    {
+                      label: t("admin.users.twoFactor"),
+                      value: t(
+                        user.twoFactorEnabled
+                          ? "admin.users.twoFactorOn"
+                          : "admin.users.twoFactorOffLabel",
+                      ),
                     },
                     {
                       label: t("admin.users.accountType"),

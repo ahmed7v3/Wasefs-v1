@@ -11,11 +11,8 @@ import { SettingsService } from "../../settings/settings.service.js";
 import { decodeCursor, toPage, withoutCursor } from "../common/keyset.js";
 
 import { AdminUsersRepo } from "./admin-users.repo.js";
-import {
-  AdminUser360Repo,
-  decodeTimelineCursor,
-  encodeTimelineCursor,
-} from "./user-360.repo.js";
+import { safeAvatarUrl } from "./admin-users.service.js";
+import { AdminUser360Repo, decodeTimelineCursor, encodeTimelineCursor } from "./user-360.repo.js";
 
 import type { AdminUserPageQuery } from "@wasfa/shared/schemas/admin-user-360";
 
@@ -50,7 +47,7 @@ export class AdminUser360Service {
   async summary(userId: string) {
     const user = await this.require(userId);
     const owner = { type: "user", id: userId } as const;
-    const [subscription, plan, wallets, lastSeen, revenue, aiCost, source, memberships] =
+    const [subscription, plan, wallets, lastSeen, revenue, aiCost, source, memberships, providers] =
       await Promise.all([
         this.repo.liveSubscription(userId),
         this.plans.effectivePlan(owner),
@@ -60,6 +57,7 @@ export class AdminUser360Service {
         this.repo.lifetimeAiCostUsdMicros(userId),
         this.repo.referralSource(userId),
         this.users.memberships(userId),
+        this.users.providersOf([userId]),
       ]);
     return {
       profile: {
@@ -68,6 +66,8 @@ export class AdminUser360Service {
         accountType: user.accountType,
         locale: user.locale,
         status: user.status,
+        image: safeAvatarUrl(user.image),
+        providers: providers.get(userId) ?? [],
       },
       // Contact data stays masked here; `reveal-contact` is the audited way to the plain value.
       contact: {
@@ -91,7 +91,10 @@ export class AdminUser360Service {
         cancelAtPeriodEnd: subscription?.cancelAtPeriodEnd ?? false,
       },
       wallets: {
-        personal: { walletId: wallets.personal?.id ?? null, balance: wallets.personal?.balance ?? 0 },
+        personal: {
+          walletId: wallets.personal?.id ?? null,
+          balance: wallets.personal?.balance ?? 0,
+        },
         orgs: wallets.orgs.map((org) => ({
           orgId: org.orgId,
           name: org.name,
@@ -187,7 +190,8 @@ export class AdminUser360Service {
     }
 
     return {
-      current: subscriptions.find((row) => ["trialing", "active", "grace"].includes(row.status)) ?? null,
+      current:
+        subscriptions.find((row) => ["trialing", "active", "grace"].includes(row.status)) ?? null,
       subscriptions: subscriptions.map((row) => ({
         ...row,
         currentPeriodStart: row.currentPeriodStart.toISOString(),
@@ -237,7 +241,10 @@ export class AdminUser360Service {
     const page = toPage(ledgerRows, query.limit, (row) => ({ at: row.cursorAt, key: row.id }));
     return {
       wallets: {
-        personal: { walletId: wallets.personal?.id ?? null, balance: wallets.personal?.balance ?? 0 },
+        personal: {
+          walletId: wallets.personal?.id ?? null,
+          balance: wallets.personal?.balance ?? 0,
+        },
         orgs: wallets.orgs.map((org) => ({
           orgId: org.orgId,
           name: org.name,
@@ -313,10 +320,9 @@ export class AdminUser360Service {
       },
       withdrawals,
       flags: {
-        asReferee: invitedBy
-          ? { status: invitedBy.status }
-          : null,
-        flaggedInvitees: invitees.filter((row) => row.flags.length > 0 || row.fraudScore > 0).length,
+        asReferee: invitedBy ? { status: invitedBy.status } : null,
+        flaggedInvitees: invitees.filter((row) => row.flags.length > 0 || row.fraudScore > 0)
+          .length,
       },
     };
   }
