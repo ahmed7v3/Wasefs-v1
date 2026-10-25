@@ -106,6 +106,7 @@ export function UsersView({ meId, permissions }: UsersViewProps) {
     {
       id: "status",
       header: t("admin.users.col.status"),
+      className: "whitespace-nowrap wrap-normal",
       cell: (user) => <UserStatusBadge status={user.status} />,
     },
     {
@@ -116,6 +117,7 @@ export function UsersView({ meId, permissions }: UsersViewProps) {
     {
       id: "lastLogin",
       header: t("admin.users.col.lastLogin"),
+      className: "hidden whitespace-nowrap wrap-normal xl:table-cell",
       cell: (user) =>
         user.lastLoginAt ? (
           <span title={formatDateTime(user.lastLoginAt)}>
@@ -128,6 +130,8 @@ export function UsersView({ meId, permissions }: UsersViewProps) {
     {
       id: "created",
       header: t("admin.users.col.created"),
+      // The drawer has the dates; the table drops them where the columns would not fit the row.
+      className: "hidden whitespace-nowrap wrap-normal xl:table-cell",
       cell: (user) => formatShortDate(user.createdAt),
     },
   ];

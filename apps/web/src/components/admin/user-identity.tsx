@@ -6,16 +6,14 @@ import { Copy } from "lucide-react";
 
 import { tOr } from "../../lib/admin-format";
 
-import { Code } from "./badges";
-
 /** Sign-in methods as chips; an unknown provider shows its raw id. */
 export function ProviderChips({ providers }: { providers: readonly string[] }) {
   if (providers.length === 0)
     return <span className="text-text-muted">{t("admin.users.noProviders")}</span>;
   return (
-    <span className="flex flex-wrap gap-1.5">
+    <span className="flex min-w-0 flex-wrap gap-1.5">
       {providers.map((provider) => (
-        <Badge key={provider} tone="neutral" className="py-0.5">
+        <Badge key={provider} tone="neutral" className="py-0.5 whitespace-nowrap">
           {tOr(`admin.users.provider.${provider}`, provider)}
         </Badge>
       ))}
@@ -37,10 +35,18 @@ export function CopyableUserId({ id }: { id: string }) {
     );
   };
   return (
-    <span className="flex min-w-0 items-center gap-1">
-      <Code>{id}</Code>
+    <span className="flex min-w-0 max-w-full items-center gap-1">
+      {/* One line, cut with an ellipsis: an id must never wrap into a character-per-line column. */}
+      <bdi
+        dir="ltr"
+        title={id}
+        className="min-w-0 truncate rounded-sm bg-neutral-100 px-1.5 py-0.5 font-mono text-sm text-text"
+      >
+        {id}
+      </bdi>
       <Button
         variant="ghost"
+        className="shrink-0"
         name="copy-user-id"
         aria-label={t("admin.users.copyId")}
         onClick={copy}

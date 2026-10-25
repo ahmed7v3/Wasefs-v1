@@ -126,30 +126,34 @@ export function UserDrawer({
       ) : null}
       {data && user ? (
         <>
-          <div className="flex flex-wrap items-center gap-4">
-            <Avatar name={user.name} src={user.image} size={56} />
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <p className="truncate font-heading text-xl font-bold text-text">{user.name}</p>
-              <div className="flex flex-wrap items-center gap-2">
-                <UserStatusBadge status={user.status} />
-                {user.twoFactorEnabled ? (
-                  <Badge tone="success">{t("admin.users.twoFactorOn")}</Badge>
-                ) : null}
+          <div className="flex min-w-0 flex-col items-start gap-3">
+            <div className="flex w-full min-w-0 items-center gap-3">
+              <Avatar name={user.name} src={user.image} size={56} />
+              <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
+                <p className="line-clamp-2 min-w-0 break-words font-heading text-xl font-bold text-text [overflow-wrap:anywhere]">
+                  {user.name}
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <UserStatusBadge status={user.status} />
+                  {user.twoFactorEnabled ? (
+                    <Badge tone="success">{t("admin.users.twoFactorOn")}</Badge>
+                  ) : null}
+                </div>
               </div>
-              {user.email ? (
-                <bdi dir="ltr" className="truncate text-base">
-                  {user.email}
-                </bdi>
-              ) : null}
-              {user.phone ? (
-                <bdi dir="ltr" className="truncate text-base">
-                  {user.phone}
-                </bdi>
-              ) : null}
-              <CopyableUserId id={user.id} />
-              <ProviderChips providers={user.providers} />
             </div>
-            <div className="flex flex-wrap gap-2">
+            {user.email ? (
+              <p className="min-w-0 max-w-full text-base [overflow-wrap:anywhere]">
+                <bdi dir="ltr">{user.email}</bdi>
+              </p>
+            ) : null}
+            {user.phone ? (
+              <p className="min-w-0 max-w-full text-base [overflow-wrap:anywhere]">
+                <bdi dir="ltr">{user.phone}</bdi>
+              </p>
+            ) : null}
+            <CopyableUserId id={user.id} />
+            <ProviderChips providers={user.providers} />
+            <div className="flex w-full flex-wrap gap-2 [&>*]:max-sm:flex-1">
               <Link href={`/admin/users/${user.id}`} className={buttonStyles()}>
                 <ExternalLink aria-hidden className="size-5" />
                 {t("admin.users.openProfile")}
@@ -160,23 +164,23 @@ export function UserDrawer({
                   {t("admin.users.prescriptions")}
                 </Link>
               ) : null}
+              {canSuspend && !isSelf && user.status !== "deleted" ? (
+                <Button
+                  variant={user.status === "active" ? "secondary" : "primary"}
+                  name={user.status === "active" ? "suspend" : "unsuspend"}
+                  onClick={() => {
+                    onSuspendToggle(user);
+                  }}
+                >
+                  {user.status === "active" ? (
+                    <UserRoundX aria-hidden className="size-5" />
+                  ) : (
+                    <UserCheck aria-hidden className="size-5" />
+                  )}
+                  {t(user.status === "active" ? "admin.users.suspend" : "admin.users.unsuspend")}
+                </Button>
+              ) : null}
             </div>
-            {canSuspend && !isSelf && user.status !== "deleted" ? (
-              <Button
-                variant={user.status === "active" ? "secondary" : "primary"}
-                name={user.status === "active" ? "suspend" : "unsuspend"}
-                onClick={() => {
-                  onSuspendToggle(user);
-                }}
-              >
-                {user.status === "active" ? (
-                  <UserRoundX aria-hidden className="size-5" />
-                ) : (
-                  <UserCheck aria-hidden className="size-5" />
-                )}
-                {t(user.status === "active" ? "admin.users.suspend" : "admin.users.unsuspend")}
-              </Button>
-            ) : null}
           </div>
 
           {user.status === "suspended" && user.suspendedReason ? (
