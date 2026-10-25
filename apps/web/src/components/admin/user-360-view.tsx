@@ -15,6 +15,7 @@ import {
   useToast,
 } from "@wasfa/ui";
 import { ArrowUpCircle, Coins, Eye, NotebookPen } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { formatDateTime, formatNumber } from "../../lib/admin-format";
@@ -41,6 +42,17 @@ import {
   TimelineTab,
 } from "./user-360-tabs";
 import { CopyableUserId, ProviderChips } from "./user-identity";
+
+/** The permission each tab needs; `notes` and `overview` only need the page's own `users.read`. */
+const TAB_PERMISSION: Record<string, Permission> = {
+  overview: "users.read",
+  notes: "users.read",
+  billing: "billing.read",
+  credits: "usage.read",
+  prescriptions: "users.read_health",
+  chats: "users.read_chats",
+  referrals: "referrals.read",
+};
 
 export interface User360ViewProps {
   userId: string;
@@ -181,8 +193,17 @@ export function User360View({ userId, permissions }: User360ViewProps) {
   const summary = useResource(`/admin/users/${userId}/summary`, userSummarySchema);
   const [changing, setChanging] = useState(false);
   const [adjusting, setAdjusting] = useState(false);
-  const [tab, setTab] = useState("overview");
   const can = (permission: Permission) => canAccess(permissions, permission);
+  // `?tab=` picks the first tab (the users drawer links to `prescriptions`); a tab the caller may not
+  // see falls back to the overview.
+  const requested = useSearchParams().get("tab");
+  const [tab, setTab] = useState(
+    requested &&
+      Object.hasOwn(TAB_PERMISSION, requested) &&
+      can(TAB_PERMISSION[requested] ?? "users.read")
+      ? requested
+      : "overview",
+  );
 
   return (
     <ResourceBoundary resource={summary}>

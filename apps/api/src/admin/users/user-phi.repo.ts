@@ -3,10 +3,12 @@ import {
   chats,
   phiAccessSessions,
   rxAnalyses,
+  rxCorrections,
+  users,
   type PhiAccessSession,
   type RxAnalysis,
 } from "@wasfa/db";
-import { and, desc, eq, gt, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, or, sql, type SQL } from "drizzle-orm";
 
 import { DB, type DbHandle } from "../../common/database.js";
 import { afterCursor, stamp, type Cursor } from "../common/keyset.js";
@@ -77,6 +79,8 @@ export class AdminUserPhiRepo {
         createdAt: rxAnalyses.createdAt,
         status: rxAnalyses.status,
         mode: rxAnalyses.mode,
+        skillVersion: rxAnalyses.skillVersion,
+        finishedAt: rxAnalyses.finishedAt,
         credits: rxAnalyses.creditsCharged,
         pageCount: sql<number>`(select count(*)::int from rx_pages where rx_pages.analysis_id = rx_analyses.id)`,
         itemCount: sql<number>`jsonb_array_length(${items})`,
@@ -102,6 +106,36 @@ export class AdminUserPhiRepo {
       .from(rxAnalyses)
       .where(and(eq(rxAnalyses.id, rxId), ofUser(userId)));
     return row;
+  }
+
+  /** What the customer view lacks: the AI cost, who created it and the user's corrections (two reads, no N+1). */
+  async prescriptionExtras(rxId: string) {
+    const [head] = await this.handle.db
+      .select({
+        costUsdMicros: sql<number>`(select coalesce(sum(ai_usage.cost_usd_micros), 0)::float8 from ai_usage where ai_usage.request_id = ${rxAnalyses.id}::text)`,
+        creatorId: users.id,
+        creatorName: users.name,
+      })
+      .from(rxAnalyses)
+      .leftJoin(users, eq(users.id, rxAnalyses.createdBy))
+      .where(eq(rxAnalyses.id, rxId));
+    const corrections = await this.handle.db
+      .select({
+        itemIndex: rxCorrections.itemIndex,
+        field: rxCorrections.field,
+        before: rxCorrections.before,
+        after: rxCorrections.after,
+        createdAt: rxCorrections.createdAt,
+        consentForEval: rxCorrections.consentForEval,
+      })
+      .from(rxCorrections)
+      .where(eq(rxCorrections.analysisId, rxId))
+      .orderBy(asc(rxCorrections.createdAt), asc(rxCorrections.itemIndex));
+    return {
+      costUsdMicros: head?.costUsdMicros ?? 0,
+      creator: head?.creatorId ? { id: head.creatorId, name: head.creatorName ?? "" } : null,
+      corrections,
+    };
   }
 
   /** Dates and counts only: the title is the user's own words about their health. */

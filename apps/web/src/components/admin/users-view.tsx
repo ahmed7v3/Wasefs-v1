@@ -211,6 +211,7 @@ export function UsersView({ meId, permissions }: UsersViewProps) {
           meId={meId}
           canSuspend={canSuspend}
           canWriteRoles={canWriteRoles}
+          canReadHealth={permissions.includes("users.read_health")}
           roles={roles}
           roleNames={names}
           refreshSignal={refreshSignal}

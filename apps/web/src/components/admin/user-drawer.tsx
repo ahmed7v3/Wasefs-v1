@@ -22,7 +22,7 @@ import {
   Tabs,
   useToast,
 } from "@wasfa/ui";
-import { ExternalLink, Plus, UserCheck, UserRoundX, X } from "lucide-react";
+import { ExternalLink, FileText, Plus, UserCheck, UserRoundX, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -44,6 +44,8 @@ export interface UserDrawerProps {
   meId: string;
   canSuspend: boolean;
   canWriteRoles: boolean;
+  /** `users.read_health`: shows the quick link to the user's prescriptions. */
+  canReadHealth: boolean;
   /** Roles the account may pick from; `null` when the list is unavailable (a role key is typed instead). */
   roles: readonly AdminRole[] | null;
   roleNames: ReadonlyMap<string, string>;
@@ -65,6 +67,7 @@ export function UserDrawer({
   meId,
   canSuspend,
   canWriteRoles,
+  canReadHealth,
   roles,
   roleNames,
   refreshSignal,
@@ -151,6 +154,12 @@ export function UserDrawer({
                 <ExternalLink aria-hidden className="size-5" />
                 {t("admin.users.openProfile")}
               </Link>
+              {canReadHealth ? (
+                <Link href={`/admin/users/${user.id}?tab=prescriptions`} className={buttonStyles()}>
+                  <FileText aria-hidden className="size-5" />
+                  {t("admin.users.prescriptions")}
+                </Link>
+              ) : null}
             </div>
             {canSuspend && !isSelf && user.status !== "deleted" ? (
               <Button
