@@ -17,6 +17,7 @@ import {
   enqueueOutbox,
   mediaAssets,
   publishItemTx,
+  purgeItemTx,
   slugRedirects,
   unpublishItemTx,
   type ContentActor,
@@ -28,6 +29,7 @@ import {
   type NewContentLink,
   type NewContentPublishLogEntry,
   type PublishItemResult,
+  type PurgeItemResult,
   type Transaction,
 } from "@wasfa/db";
 import { plainForMatching } from "@wasfa/shared/content";
@@ -857,6 +859,11 @@ export class ContentTxData extends ContentData {
 
   unpublish(input: { itemId: string; actor: ContentActor; now: Date }): Promise<void> {
     return unpublishItemTx(this.tx, input);
+  }
+
+  /** Owner-only permanent delete of the item, its revisions and everything hanging off it (not media files). */
+  purge(input: { itemId: string; now: Date }): Promise<PurgeItemResult> {
+    return purgeItemTx(this.tx, input);
   }
 
   emit(

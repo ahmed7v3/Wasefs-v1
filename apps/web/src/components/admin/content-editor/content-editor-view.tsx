@@ -13,6 +13,7 @@ import {
   Languages,
   PanelRightClose,
   PanelRightOpen,
+  Trash2,
   Upload,
   X,
 } from "lucide-react";
@@ -25,6 +26,8 @@ import {
   derivePrimaryAction,
   overflowActions,
 } from "../../../lib/content-editor/actions";
+import { clearMirror } from "../../../lib/content-editor/autosave";
+import { describeContentError } from "../../../lib/content-editor/errors";
 import {
   useContentEditor,
   type NewItemParams,
@@ -44,7 +47,7 @@ import { ErrorNotice } from "../../error-notice";
 import { ConfirmDialog } from "../confirm-dialog";
 import { MediaPickerDialog } from "../media-picker-dialog";
 
-import { ArchiveDialog, PublishDialog, ScheduleDialog } from "./action-dialogs";
+import { ArchiveDialog, PublishDialog, PurgeDialog, ScheduleDialog } from "./action-dialogs";
 import { type MenuEntry } from "./action-menu";
 import { ConflictDialog } from "./conflict-dialog";
 import { EditorPanel, PANEL_LABELS, type PanelTab } from "./editor-panel";
@@ -69,7 +72,7 @@ export interface ContentEditorViewProps {
   permissions: readonly string[];
 }
 
-type DialogName = "schedule" | "publish" | "archive" | "unpublish" | null;
+type DialogName = "schedule" | "publish" | "archive" | "unpublish" | "purge" | null;
 type PickerTarget = "featured" | "og" | null;
 
 function EditorSkeleton() {
@@ -101,6 +104,8 @@ export function ContentEditorView({ itemId, newItem, permissions }: ContentEdito
   const [linkQuery, setLinkQuery] = useState("");
   const [dialog, setDialog] = useState<DialogName>(null);
   const [picker, setPicker] = useState<PickerTarget>(null);
+  const [purgeBusy, setPurgeBusy] = useState(false);
+  const [purgeError, setPurgeError] = useState<string | null>(null);
 
   const draft = editor.draft;
   const detail = editor.detail;
@@ -217,6 +222,27 @@ export function ContentEditorView({ itemId, newItem, permissions }: ContentEdito
     }
   };
 
+  const purgeItem = async (): Promise<"ok" | "failed"> => {
+    if (!detail) return "failed";
+    setPurgeBusy(true);
+    setPurgeError(null);
+    try {
+      await api(`/admin/content/items/${detail.id}`, {
+        method: "DELETE",
+        body: { confirmTitle: detail.title },
+      });
+      clearMirror(detail.id);
+      toast({ tone: "success", title: t("admin.editor.result.purge") });
+      router.push("/admin/content");
+      return "ok";
+    } catch (error) {
+      setPurgeError(describeContentError(error).message);
+      return "failed";
+    } finally {
+      setPurgeBusy(false);
+    }
+  };
+
   const otherLocale = editor.locale === "ar" ? "en" : "ar";
   const newUrl = (extra: string): string =>
     `/admin/content/new?type=${editor.type}&locale=${extra}`;
@@ -271,6 +297,18 @@ export function ContentEditorView({ itemId, newItem, permissions }: ContentEdito
         void openPreviewLink();
       },
     });
+    if (detail.canPurge) {
+      menu.push({
+        id: "purge",
+        label: t("admin.editor.action.purge"),
+        icon: <Trash2 className="size-5" />,
+        tone: "danger",
+        onSelect: () => {
+          setPurgeError(null);
+          openDialog("purge");
+        },
+      });
+    }
   }
 
   function createTwin(): void {
@@ -593,6 +631,16 @@ export function ContentEditorView({ itemId, newItem, permissions }: ContentEdito
         busy={editor.actionBusy === "archive"}
         error={editor.banner?.message ?? null}
         onConfirm={(redirectTo) => editor.runAction("archive", redirectTo ? { redirectTo } : {})}
+      />
+      <PurgeDialog
+        open={dialog === "purge"}
+        onClose={() => {
+          setDialog(null);
+        }}
+        title={detail?.title ?? ""}
+        busy={purgeBusy}
+        error={purgeError}
+        onConfirm={purgeItem}
       />
       <ConfirmDialog
         open={dialog === "unpublish"}

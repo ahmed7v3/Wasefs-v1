@@ -3,15 +3,22 @@ import { randomUUID } from "node:crypto";
 import {
   auditLogs,
   contentCategories,
+  contentAutosaves,
   contentItems,
+  contentItemTags,
+  contentLinks,
+  contentMediaRefs,
   contentPeople,
   contentPublishLog,
+  contentReviewComments,
+  contentRevisions,
+  contentTags,
   mediaAssets,
   outbox,
   slugRedirects,
 } from "@wasfa/db";
 import { contentItemDetailSchema, type ContentItemDetail } from "@wasfa/shared/schemas/content";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { AdminTestContext, type Admin } from "./support/admin-context.js";
@@ -83,7 +90,7 @@ const words = (seed: string, count: number) =>
 
 const call = (
   who: { jar: Admin["jar"] },
-  method: "GET" | "POST" | "PUT" | "PATCH",
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   path: string,
   body?: Record<string, unknown>,
 ) =>
@@ -579,5 +586,130 @@ describe("preview and audit", () => {
     expect((await ctx.auditRowsFor("content.item.created", item.id)).length).toBe(1);
     expect((await ctx.auditRowsFor("content.item.updated", item.id)).length).toBe(1);
     expect((await ctx.auditRowsFor("content.item.submitted", item.id)).length).toBe(1);
+  });
+});
+
+describe("permanent delete", () => {
+  async function liveItemWithEverything() {
+    const item = await approved(await createItem());
+    expect((await act(writer, item, "publish")).statusCode).toBe(200);
+    const live = await detail(item.id);
+    const moved = await call(writer, "PATCH", `items/${live.id}`, {
+      lockVersion: live.lockVersion,
+      meta: { slug: `${live.slug}-moved` },
+    });
+    expect(moved.statusCode, moved.body).toBe(200);
+    const movedItem = contentItemDetailSchema.parse(moved.json());
+    // A second revision, so the purge has history to delete.
+    const edited = await call(writer, "PATCH", `items/${movedItem.id}`, {
+      lockVersion: movedItem.lockVersion,
+      payload: { title: "edited working title" },
+    });
+    expect(edited.statusCode, edited.body).toBe(200);
+    const current = contentItemDetailSchema.parse(edited.json());
+    const [tag] = await ctx.owner.db
+      .insert(contentTags)
+      .values({ slugAr: `tag-${randomUUID().slice(0, 8)}`, nameAr: "وسم" })
+      .returning({ id: contentTags.id });
+    if (!tag) throw new Error("tag fixture");
+    await ctx.owner.db.insert(contentItemTags).values({ itemId: current.id, tagId: tag.id });
+    await call(writer, "PUT", `items/${current.id}/autosave`, {
+      baseRevisionId: current.currentRevision.id,
+      payload: { title: "autosaved" },
+    });
+    return current;
+  }
+
+  const purge = (who: { jar: Admin["jar"] }, id: string, confirmTitle: string) =>
+    call(who, "DELETE", `items/${id}`, { confirmTitle });
+
+  it("the owner removes a live item and everything of it, but not the media file", async () => {
+    const item = await liveItemWithEverything();
+    const oldPath = `/blog/${item.slug.replace(/-moved$/, "")}`;
+    const path = `/blog/${item.slug}`;
+    const db = ctx.owner.db;
+
+    const [before] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(contentRevisions)
+      .where(eq(contentRevisions.itemId, item.id));
+    expect(before?.n).toBeGreaterThan(1);
+
+    const res = await purge(owner, item.id, `  ${item.payload.title}  `);
+    expect(res.statusCode, res.body).toBe(204);
+
+    const gone = async (rows: Promise<unknown[]>) => expect(await rows).toHaveLength(0);
+    await gone(db.select().from(contentItems).where(eq(contentItems.id, item.id)));
+    await gone(db.select().from(contentRevisions).where(eq(contentRevisions.itemId, item.id)));
+    await gone(db.select().from(contentItemTags).where(eq(contentItemTags.itemId, item.id)));
+    await gone(db.select().from(contentMediaRefs).where(eq(contentMediaRefs.itemId, item.id)));
+    await gone(db.select().from(contentAutosaves).where(eq(contentAutosaves.itemId, item.id)));
+    await gone(db.select().from(contentLinks).where(eq(contentLinks.itemId, item.id)));
+    await gone(
+      db.select().from(contentReviewComments).where(eq(contentReviewComments.itemId, item.id)),
+    );
+    await gone(db.select().from(contentPublishLog).where(eq(contentPublishLog.itemId, item.id)));
+    await gone(
+      db
+        .select()
+        .from(slugRedirects)
+        .where(inArray(slugRedirects.fromPath, [oldPath, path])),
+    );
+    await gone(
+      db
+        .select()
+        .from(slugRedirects)
+        .where(inArray(slugRedirects.toPath, [oldPath, path])),
+    );
+    expect(await db.select().from(mediaAssets).where(eq(mediaAssets.id, mediaId))).toHaveLength(1);
+
+    const [audit] = await ctx.auditRowsFor("content.item.purged", item.id);
+    expect(audit?.before).toEqual({
+      type: "article",
+      locale: "ar",
+      slug: item.slug,
+      wasLive: true,
+    });
+    expect(JSON.stringify(audit)).not.toContain(item.payload.title);
+
+    const events = await db.select().from(outbox).where(eq(outbox.topic, "content.changed"));
+    expect(
+      events.some((row) => {
+        const payload = row.payload as { itemId: unknown; kind: string; oldPaths: string[] };
+        return (
+          payload.itemId === null && payload.kind === "unpublished" && payload.oldPaths[0] === path
+        );
+      }),
+    ).toBe(true);
+    expect((await call(owner, "GET", `items/${item.id}`)).statusCode).toBe(404);
+  });
+
+  it("refuses everyone but the super admin", async () => {
+    const item = await createItem();
+    expect((await purge(manager, item.id, item.payload.title)).statusCode).toBe(403);
+    expect((await purge(writer, item.id, item.payload.title)).statusCode).toBe(403);
+    expect(
+      await ctx.owner.db.select().from(contentItems).where(eq(contentItems.id, item.id)),
+    ).toHaveLength(1);
+    expect((await detail(item.id, owner)).canPurge).toBe(true);
+    expect((await detail(item.id, manager)).canPurge).toBe(false);
+  });
+
+  it("needs the exact title, and an unknown id is 404", async () => {
+    const item = await createItem();
+    const wrong = await purge(owner, item.id, "not the title");
+    expect(wrong.statusCode).toBe(400);
+    expect(wrong.json()).toMatchObject({ details: { field: "confirmTitle" } });
+    expect(
+      await ctx.owner.db.select().from(contentItems).where(eq(contentItems.id, item.id)),
+    ).toHaveLength(1);
+    expect((await purge(owner, randomUUID(), "anything")).statusCode).toBe(404);
+  });
+
+  it("a plain DELETE of a revision is still refused by the guard", async () => {
+    const item = await createItem();
+    await expect(
+      ctx.owner.db.execute(sql`delete from content_revisions where item_id = ${item.id}`),
+    ).rejects.toThrow();
   });
 });

@@ -169,6 +169,13 @@
       "when": 1792868736649,
       "tag": "0023_content_platform",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792928571687,
+      "tag": "0024_content_purge",
+      "breakpoints": true
     }
   ]
 }
