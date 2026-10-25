@@ -145,6 +145,13 @@ describe("the phone step", () => {
     expect(evaluate(state).currentStep).toBe("phone");
   });
 
+  it("a Google account (email already verified) still has to verify a phone before onboarding is done", () => {
+    const everythingElse = applicableSteps("individual").filter((step) => step !== "phone");
+    const state = fresh({ completedSteps: everythingElse });
+    expect(evaluate(state).currentStep).toBe("phone");
+    expect(evaluate({ ...state, phoneVerified: true }).currentStep).toBe("done");
+  });
+
   it("a verified phone wins over skipping", () => {
     const state = fresh({ phoneVerificationAvailable: false, phoneVerified: true });
     expect(statuses(state).phone).toBe("completed");

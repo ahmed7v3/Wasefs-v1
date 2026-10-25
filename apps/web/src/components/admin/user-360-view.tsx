@@ -101,11 +101,13 @@ function ContactLine({ userId, summary }: { userId: string; summary: UserSummary
   const [field, setField] = useState<"email" | "phone" | null>(null);
   const [revealed, setRevealed] = useState<Partial<Record<"email" | "phone", string>>>({});
   return (
-    <div className="flex flex-wrap items-center gap-4 text-base text-text">
+    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-x-4 gap-y-1 text-base text-text">
       {(["email", "phone"] as const).map((key) =>
         summary.contact[key] ? (
-          <span key={key} className="flex items-center gap-2">
-            <bdi dir="ltr">{revealed[key] ?? summary.contact[key]}</bdi>
+          <span key={key} className="flex min-w-0 max-w-full items-center gap-2">
+            <bdi dir="ltr" className="min-w-0 [overflow-wrap:anywhere]">
+              {revealed[key] ?? summary.contact[key]}
+            </bdi>
             {revealed[key] ? null : (
               <Button
                 variant="ghost"
@@ -208,14 +210,14 @@ export function User360View({ userId, permissions }: User360ViewProps) {
   return (
     <ResourceBoundary resource={summary}>
       {(data) => (
-        <div className="flex flex-col gap-6">
-          <Card elevation="card" className="flex flex-col gap-4">
+        <div className="mx-auto flex w-full min-w-0 max-w-screen-2xl flex-col gap-6">
+          <Card elevation="card" className="flex min-w-0 flex-col gap-4">
             <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-3">
+              <div className="flex min-w-0 max-w-full flex-1 basis-80 flex-col items-start gap-2">
+                <div className="flex min-w-0 max-w-full items-center gap-3">
                   <Avatar name={data.profile.name} src={data.profile.image} size={56} />
                   <h1
-                    className="font-heading text-2xl font-bold text-primary sm:text-3xl"
+                    className="line-clamp-2 min-w-0 font-heading text-2xl font-bold text-primary [overflow-wrap:anywhere] sm:text-3xl"
                     data-testid="user-name"
                   >
                     {data.profile.name}

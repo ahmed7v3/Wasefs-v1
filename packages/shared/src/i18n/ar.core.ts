@@ -129,6 +129,8 @@ export const arCore = {
   "auth.social.or": "أو",
   "auth.social.google": "المتابعة باستخدام Google",
   "auth.social.facebook": "المتابعة باستخدام Facebook",
+  "auth.social.googleSignUp": "التسجيل باستخدام Google",
+  "auth.social.googleNote": "ستحتاج بعد ذلك إلى ربط رقم هاتفك والتحقق منه قبل استخدام التطبيق.",
   "auth.register.title": "إنشاء حساب",
   "auth.register.lead": "أنشئ حسابك وابدأ استخدام وصفة AI في دقائق.",
   "auth.register.methodLabel": "طريقة التسجيل",
@@ -237,6 +239,8 @@ export const arCore = {
   "phone.verify.start": "ابدأ التحقق",
   "phone.waiting.instructions":
     "اضغط الزر لفتح واتساب، ثم أرسل الرسالة الجاهزة كما هي من رقمك. لا تغيّر الرمز.",
+  "phone.sameNumber":
+    "مهم: أرسل رمز التحقق من نفس رقم الهاتف الذي أدخلته ({phone}). الرسائل من أي رقم آخر لن تُقبل.",
   "phone.waiting.openWhatsapp": "فتح واتساب",
   "phone.waiting.codeLabel": "رمز التحقق (يُرسل كنص)",
   "phone.waiting.toNumber": "إلى الرقم",
