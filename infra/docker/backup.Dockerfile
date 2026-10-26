@@ -12,7 +12,7 @@ ARG ALPINE_IMAGE=alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910
 # has the crypto/x509 man-in-the-middle flaw CVE-2026-111943, and rclone talks TLS to R2. The module
 # download is verified against go.sum and the Go checksum database. To update: bump RCLONE_VERSION;
 # go back to the release binary once one is built with Go >= 1.26.10.
-FROM golang:1.26.10-alpine3.24@sha256:27f2d3b83cfc5803c8078f8e730af0f7c431bf067afaec8f60a36fb763187cba AS rclone
+FROM golang:1.27.3-alpine3.24@sha256:b8c9b82affbbb82a020bbcf998dad2ba9516944ac7e883524642a481a9505e9c AS rclone
 ARG RCLONE_VERSION=v1.75.2
 RUN CGO_ENABLED=0 GOBIN=/out go install -trimpath \
       -ldflags "-s -w -X github.com/rclone/rclone/fs.Version=${RCLONE_VERSION}" \
