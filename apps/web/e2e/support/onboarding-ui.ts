@@ -55,12 +55,13 @@ export async function answerProfession(page: Page): Promise<void> {
   await next(page);
 }
 
+/** The last step: the free plan is preselected, so "start free" finishes onboarding. */
 export async function answerPlan(page: Page): Promise<void> {
   await expect(stepHeading(page, "plan_picker")).toBeVisible();
   await next(page);
 }
 
-/** The optional last step: there is no Facebook page configured in the seed, so "next" finishes it. */
+/** The optional step before the plan: there is no Facebook page configured in the seed, so "next" passes it. */
 export async function skipSocial(page: Page): Promise<void> {
   await expect(stepHeading(page, "social_follow")).toBeVisible();
   const skip = page.locator("button[name=skip-social]");

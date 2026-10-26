@@ -22,7 +22,12 @@ export function newAccount(label = "Tester"): Account {
   return {
     name: `${label} ${id}`,
     // The label may hold spaces ("Pharmacy Owner"); the address keeps a slug of it.
-    email: `${label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "user"}-${id}@example.com`,
+    email: `${
+      label
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "") || "user"
+    }-${id}@example.com`,
     password: PASSWORD,
   };
 }
@@ -89,7 +94,9 @@ async function put(request: APIRequestContext, urls: StackUrls, step: string, da
     headers: originHeader(urls),
   });
   if (!response.ok()) {
-    throw new Error(`onboarding ${step} failed: ${String(response.status())} ${await response.text()}`);
+    throw new Error(
+      `onboarding ${step} failed: ${String(response.status())} ${await response.text()}`,
+    );
   }
 }
 
@@ -115,8 +122,8 @@ export async function finishOnboarding(
     usageIntent: ["study"],
     country: "EG",
   });
-  await put(request, urls, "plan_picker", { plan: "free" });
   await put(request, urls, "social_follow", { followed: false });
+  await put(request, urls, "plan_picker", { plan: "free" });
 }
 
 /** Makes the account a super admin with the same CLI the owner runs in production. */

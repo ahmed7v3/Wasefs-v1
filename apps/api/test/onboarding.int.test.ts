@@ -206,8 +206,8 @@ describe("GET /onboarding", () => {
       { step: "phone", status: "pending", optional: false },
       { step: "name", status: "pending", optional: false },
       { step: "profession_intent", status: "pending", optional: false },
-      { step: "plan_picker", status: "pending", optional: false },
       { step: "social_follow", status: "pending", optional: true },
+      { step: "plan_picker", status: "pending", optional: false },
     ]);
     expect(body.answers).toEqual({
       accountType: "individual",
@@ -275,6 +275,10 @@ describe("PUT /onboarding/:step access and input", () => {
       ["profession_intent", { profession: "doctor", usageIntent: ["study"] }],
       ["plan_picker", { plan: "pro" }],
       ["plan_picker", {}],
+      ["plan_picker", { plan: "paid" }],
+      ["plan_picker", { plan: "paid", planKey: "Pro Plan", months: 1 }],
+      ["plan_picker", { plan: "paid", planKey: "pro", months: 0 }],
+      ["plan_picker", { plan: "paid", planKey: "pro", months: 1.5 }],
       ["social_follow", { followed: "yes" }],
       ["social_follow", {}],
     ];
@@ -341,7 +345,7 @@ describe("the individual path", () => {
     expect((await userOf(user.userId)).name).toBe("Dr. Amal Hassan");
 
     body = state(await put(user.jar, "profession_intent", INTENT));
-    expect(body.currentStep).toBe("plan_picker");
+    expect(body.currentStep).toBe("social_follow");
     expect(body.answers).toMatchObject({
       profession: "pharmacist",
       usageIntent: ["pharmacy_work", "study"],
@@ -359,16 +363,17 @@ describe("the individual path", () => {
       (await harness.call("GET", "/me", { jar: user.jar })).json(),
     );
     expect(midway).toMatchObject({
-      onboarding: { currentStep: "plan_picker", done: false },
+      onboarding: { currentStep: "social_follow", done: false },
       canUseTools: false,
     });
 
-    body = state(await put(user.jar, "plan_picker", { plan: "free" }));
-    expect(body.currentStep).toBe("social_follow");
-    expect(body.answers.plan).toBe("free");
+    body = state(await put(user.jar, "social_follow", { followed: true }));
+    expect(body.currentStep).toBe("plan_picker");
     expect((await progressOf(user.userId))?.completedAt).toBeNull();
 
-    body = state(await put(user.jar, "social_follow", { followed: true }));
+    // The plan is the last step: choosing free finishes onboarding.
+    body = state(await put(user.jar, "plan_picker", { plan: "free" }));
+    expect(body.answers.plan).toBe("free");
     expect(body).toMatchObject({ currentStep: "done", done: true });
     expect(body.completedAt).not.toBeNull();
     expect(body.steps.every((s) => s.status === "completed")).toBe(true);
@@ -385,8 +390,9 @@ describe("the individual path", () => {
   it("the optional social_follow step may be skipped with followed: false", async () => {
     const user = await individualAtProfessionStep();
     state(await put(user.jar, "profession_intent", { ...INTENT, city: "Giza" }));
-    state(await put(user.jar, "plan_picker", { plan: "free" }));
-    const body = state(await put(user.jar, "social_follow", { followed: false }));
+    const skipped = state(await put(user.jar, "social_follow", { followed: false }));
+    expect(skipped.currentStep).toBe("plan_picker");
+    const body = state(await put(user.jar, "plan_picker", { plan: "free" }));
     expect(body).toMatchObject({ currentStep: "done", done: true });
     expect(body.steps.find((s) => s.step === "social_follow")).toEqual({
       step: "social_follow",
@@ -396,11 +402,28 @@ describe("the individual path", () => {
     expect(body.answers.city).toBe("Giza");
   });
 
+  it("records a paid choice as an intent and finishes onboarding; free clears it", async () => {
+    const user = await individualAtProfessionStep();
+    state(await put(user.jar, "profession_intent", INTENT));
+    state(await put(user.jar, "social_follow", { followed: false }));
+    const body = state(
+      await put(user.jar, "plan_picker", { plan: "paid", planKey: "pro", months: 12 }),
+    );
+    expect(body).toMatchObject({ currentStep: "done", done: true });
+    expect(body.answers.plan).toBe("paid");
+    expect(body.completedAt).not.toBeNull();
+    expect((await progressOf(user.userId))?.data).toMatchObject({
+      plan: "paid",
+      planKey: "pro",
+      months: 12,
+    });
+  });
+
   it("refuses every further answer once onboarding is complete", async () => {
     const user = await individualAtProfessionStep();
     state(await put(user.jar, "profession_intent", INTENT));
-    state(await put(user.jar, "plan_picker", { plan: "free" }));
     state(await put(user.jar, "social_follow", { followed: true }));
+    state(await put(user.jar, "plan_picker", { plan: "free" }));
 
     const res = await put(user.jar, "name", { name: "Changed" });
     expect(res.statusCode).toBe(409);
@@ -427,8 +450,8 @@ describe("order", () => {
     for (const [step, body] of [
       ["name", { name: "Too Early" }],
       ["profession_intent", INTENT],
-      ["plan_picker", { plan: "free" }],
       ["social_follow", { followed: true }],
+      ["plan_picker", { plan: "free" }],
     ] as const) {
       const res = await put(user.jar, step, body);
       expect(res.statusCode, step).toBe(409);
@@ -584,8 +607,8 @@ describe("the organization path", () => {
     const user = await organizationAtOrganizationStep();
     state(await put(user.jar, "organization", ORG));
     state(await put(user.jar, "profession_intent", INTENT));
-    state(await put(user.jar, "plan_picker", { plan: "free" }));
-    const done = state(await put(user.jar, "social_follow", { followed: true }));
+    state(await put(user.jar, "social_follow", { followed: true }));
+    const done = state(await put(user.jar, "plan_picker", { plan: "free" }));
     expect(done).toMatchObject({ currentStep: "done", done: true });
     expect(done.steps.map((s) => s.step)).toContain("organization");
   });
@@ -675,8 +698,8 @@ describe("the phone step", () => {
     state(await put(user.jar, "account_type", { accountType: "individual" }));
     state(await put(user.jar, "name", { name: "Skipper" }));
     state(await put(user.jar, "profession_intent", INTENT));
-    state(await put(user.jar, "plan_picker", { plan: "free" }));
     state(await put(user.jar, "social_follow", { followed: true }));
+    state(await put(user.jar, "plan_picker", { plan: "free" }));
 
     await setPhoneVerification("whatsapp_inbound");
     expect(state(await get(user.jar))).toMatchObject({ currentStep: "done", done: true });
@@ -702,7 +725,7 @@ describe("resume", () => {
     expect(after.answers.organization).toMatchObject({ name: "Nile Pharmacy" });
 
     // And it carries on from there.
-    expect(state(await put(jar, "profession_intent", INTENT)).currentStep).toBe("plan_picker");
+    expect(state(await put(jar, "profession_intent", INTENT)).currentStep).toBe("social_follow");
   });
 });
 
@@ -712,8 +735,8 @@ describe("@RequireVerified()", () => {
   async function finishedUser() {
     const user = await individualAtProfessionStep();
     state(await put(user.jar, "profession_intent", INTENT));
-    state(await put(user.jar, "plan_picker", { plan: "free" }));
     state(await put(user.jar, "social_follow", { followed: true }));
+    state(await put(user.jar, "plan_picker", { plan: "free" }));
     return user;
   }
 
@@ -781,8 +804,8 @@ describe("@RequireVerified()", () => {
     state(await put(user.jar, "account_type", { accountType: "individual" }));
     state(await put(user.jar, "name", { name: "Email Only" }));
     state(await put(user.jar, "profession_intent", INTENT));
-    state(await put(user.jar, "plan_picker", { plan: "free" }));
     state(await put(user.jar, "social_follow", { followed: false }));
+    state(await put(user.jar, "plan_picker", { plan: "free" }));
     expect((await userOf(user.userId)).phoneVerified).toBe(false);
     expect((await tools(user.jar)).statusCode).toBe(200);
   });

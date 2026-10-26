@@ -14,19 +14,21 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../lib/api-client";
 import { ApiRequestError, errorReason } from "../../lib/api-error";
 
+import { PlanPicker } from "./plan-picker";
 import { STEP_COPY, conflictMessageKey } from "./step-copy";
 import {
   AccountTypeStep,
   NameStep,
   OrganizationStep,
   PhoneStep,
-  PlanStep,
   ProfessionIntentStep,
   SocialStep,
   type StepProps,
+  type SubmitOptions,
 } from "./steps";
 import { StepProgress } from "./wizard-parts";
 
+import type { CatalogResponse } from "@wasfa/shared/schemas/billing";
 import type { ComponentType } from "react";
 
 const STEP_COMPONENTS: Record<OnboardingInputStep, ComponentType<StepProps>> = {
@@ -35,7 +37,7 @@ const STEP_COMPONENTS: Record<OnboardingInputStep, ComponentType<StepProps>> = {
   name: NameStep,
   organization: OrganizationStep,
   profession_intent: ProfessionIntentStep,
-  plan_picker: PlanStep,
+  plan_picker: PlanPicker,
   social_follow: SocialStep,
 };
 
@@ -46,6 +48,8 @@ export interface OnboardingWizardProps {
   /** From the public settings: the free plan's monthly analyses and the Facebook page, if any. */
   freeMonthlyAnalyses: number;
   facebookUrl: string | null;
+  /** The public catalog for the plan step; null when the API could not answer (free plan only). */
+  catalog: CatalogResponse | null;
 }
 
 /**
@@ -58,25 +62,30 @@ export function OnboardingWizard({
   nonce,
   freeMonthlyAnalyses,
   facebookUrl,
+  catalog,
 }: OnboardingWizardProps) {
   const router = useRouter();
   const [state, setState] = useState(initial);
   const [viewStep, setViewStep] = useState<string>(initial.currentStep);
   const [conflict, setConflict] = useState<string | null>(null);
+  const [leavingMessage, setLeavingMessage] = useState<string | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const shownStep = useRef(viewStep);
 
   const adopt = useCallback(
-    (next: OnboardingState) => {
+    (next: OnboardingState, options?: SubmitOptions) => {
       setState(next);
       setViewStep(next.currentStep);
-      if (next.done) router.replace("/dashboard");
+      if (next.done) {
+        setLeavingMessage(options?.doneMessage ?? null);
+        router.replace(options?.next ?? "/dashboard");
+      }
     },
     [router],
   );
 
   const submit = useCallback(
-    async (step: OnboardingInputStep, body: unknown): Promise<void> => {
+    async (step: OnboardingInputStep, body: unknown, options?: SubmitOptions): Promise<void> => {
       setConflict(null);
       try {
         adopt(
@@ -85,6 +94,7 @@ export function OnboardingWizard({
             body,
             schema: onboardingStateSchema,
           }),
+          options,
         );
       } catch (error) {
         if (!(error instanceof ApiRequestError) || error.code !== "CONFLICT") throw error;
@@ -118,7 +128,7 @@ export function OnboardingWizard({
     return (
       <div role="status" className="flex items-center justify-center gap-3 py-10 text-text-muted">
         <Spinner decorative />
-        {t("ui.loading")}
+        {leavingMessage ?? t("ui.loading")}
       </div>
     );
   }
@@ -166,6 +176,7 @@ export function OnboardingWizard({
         nonce={nonce}
         freeMonthlyAnalyses={freeMonthlyAnalyses}
         facebookUrl={facebookUrl}
+        catalog={catalog}
       />
     </div>
   );

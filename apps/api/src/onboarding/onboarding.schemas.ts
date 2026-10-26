@@ -1,3 +1,4 @@
+import { monthsSchema } from "@wasfa/shared/schemas/billing";
 import {
   ONBOARDING_PLANS,
   ONBOARDING_STEP_SCHEMAS,
@@ -27,6 +28,8 @@ export function parseSubmission(step: OnboardingInputStep, body: unknown): StepS
 const progressDataSchema = z.object({
   orgId: z.uuid().optional(),
   plan: z.enum(ONBOARDING_PLANS).optional(),
+  planKey: z.string().optional(),
+  months: monthsSchema.optional(),
   followed: z.boolean().optional(),
 });
 export type ProgressData = z.output<typeof progressDataSchema>;
