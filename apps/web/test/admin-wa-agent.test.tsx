@@ -117,6 +117,16 @@ beforeEach(() => {
       adminSettings = { ...adminSettings, voiceKey: { set: false, hint: null, updatedAt: null } };
       return Promise.resolve(new Response(null, { status: 204 }));
     }
+    if (path.includes("/admin/wa-agent/voice-test") && method === "POST") {
+      return Promise.resolve(
+        json({
+          url: "https://files.example/clip.ogg",
+          mime: "audio/ogg",
+          chars: 12,
+          expiresInSeconds: 60,
+        }),
+      );
+    }
     if (path.includes("/media-url")) {
       return Promise.resolve(
         json({ url: "https://files.example/signed", mime: "image/jpeg", expiresInSeconds: 60 }),
@@ -252,6 +262,59 @@ describe("the Settings tab", () => {
       expect(calls("PUT", "/admin/wa-agent/settings")).toHaveLength(1);
     });
     expect(String(calls("PUT", "/admin/wa-agent/settings")[0]?.[1]?.body)).not.toContain(SECRET);
+  });
+
+  it("explains why the voice cannot be tested before a key and a voice id are saved", async () => {
+    renderView();
+    await screen.findByRole("form", { name: t("admin.waAgent.settings.title") });
+    expect(screen.getByText(t("admin.waAgent.voice.test.noKey"))).toBeTruthy();
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: t("admin.waAgent.voice.test.run") })
+        .disabled,
+    ).toBe(true);
+    expect(calls("POST", "/admin/wa-agent/voice-test")).toHaveLength(0);
+  });
+
+  it("tests the saved voice and plays the returned link", async () => {
+    adminSettings = {
+      ...adminSettings,
+      settings: waAgentSettingsSchema.parse({ voice: { voiceId: "voice123" } }),
+      voiceKey: { set: true, hint: "xi-…cdef", updatedAt: "2026-10-26T10:00:00.000Z" },
+    };
+    renderView();
+    await screen.findByRole("form", { name: t("admin.waAgent.settings.title") });
+    await userEvent.type(screen.getByLabelText(t("admin.waAgent.voice.test.text")), "اهلا بيك");
+    await userEvent.click(screen.getByRole("button", { name: t("admin.waAgent.voice.test.run") }));
+    await waitFor(() => {
+      expect(calls("POST", "/admin/wa-agent/voice-test")).toHaveLength(1);
+    });
+    expect(JSON.parse(String(calls("POST", "/admin/wa-agent/voice-test")[0]?.[1]?.body))).toEqual({
+      text: "اهلا بيك",
+    });
+    const player = await screen.findByLabelText(t("admin.waAgent.voice.test.player"));
+    expect(player.getAttribute("src")).toBe("https://files.example/clip.ogg");
+  });
+
+  it("sends the optional voice numbers only when they are filled in", async () => {
+    renderView();
+    await screen.findByRole("form", { name: t("admin.waAgent.settings.title") });
+    expect(
+      screen.getByRole<HTMLInputElement>("textbox", { name: t("admin.waAgent.voice.dailyCharCap") })
+        .value,
+    ).toBe("20000");
+    await userEvent.type(
+      screen.getByRole("textbox", { name: t("admin.waAgent.voice.stability") }),
+      "0.4",
+    );
+    await userEvent.click(screen.getByRole("button", { name: t("admin.waAgent.save") }));
+    await waitFor(() => {
+      expect(calls("PUT", "/admin/wa-agent/settings")).toHaveLength(1);
+    });
+    const body = JSON.parse(String(calls("PUT", "/admin/wa-agent/settings")[0]?.[1]?.body)) as {
+      voice: Record<string, unknown>;
+    };
+    expect(body.voice["stability"]).toBe(0.4);
+    expect("similarityBoost" in body.voice).toBe(false);
   });
 
   it("clears the key only after a confirmation", async () => {

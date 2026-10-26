@@ -190,6 +190,13 @@
       "when": 1793040939092,
       "tag": "0026_integration_secrets",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1793043001797,
+      "tag": "0027_wa_agent_handoff_alert",
+      "breakpoints": true
     }
   ]
 }

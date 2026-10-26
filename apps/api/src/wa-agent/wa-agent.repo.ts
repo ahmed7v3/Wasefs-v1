@@ -6,6 +6,7 @@ import {
   findTurnUser,
   findVerifiedUserIdByPhone,
   getConversation,
+  getIntegrationSecret,
   insertInbound,
   insertOutbound,
   markOutbound,
@@ -13,6 +14,7 @@ import {
   recentTurnMessages,
   resumeConversation,
   setConversationSummary,
+  setMessageText,
   setMessagesMeta,
   turnMessagesAfter,
   upsertConversation,
@@ -121,5 +123,17 @@ export class WaAgentRepo {
 
   queuedCount(messageIds: readonly string[]): Promise<number> {
     return countQueuedMessages(this.handle.db, messageIds);
+  }
+
+  // --- voice (work package D) ---
+
+  /** A transcript or the words of a spoken reply, with its meta (keys already there stay). */
+  setText(messageId: string, text: string, meta: Record<string, unknown>): Promise<void> {
+    return setMessageText(this.handle.db, messageId, text, meta);
+  }
+
+  /** The decrypted ElevenLabs key, or null when none is stored. Server use only. */
+  elevenLabsKey(encKey: Buffer): Promise<string | null> {
+    return getIntegrationSecret(this.handle.db, "elevenlabs", encKey);
   }
 }

@@ -646,6 +646,11 @@ const waAgentVoiceSchema = z.object({
   voiceId: z.string().trim().max(64).default(""),
   modelId: z.string().trim().max(64).default(""),
   transcribeIncoming: z.boolean().default(true),
+  /** ElevenLabs characters the agent may speak per UTC day; over it, replies stay text. */
+  dailyCharCap: z.number().int().min(0).max(1_000_000).default(20_000),
+  /** ElevenLabs voice settings, sent only when set (the voice's own defaults otherwise). */
+  stability: z.number().min(0).max(1).optional(),
+  similarityBoost: z.number().min(0).max(1).optional(),
 });
 
 /**

@@ -189,3 +189,27 @@ export const waAgentSentSchema = z.object({
   waMessageId: z.string().min(1).max(128).optional(),
 });
 export type WaAgentSent = z.output<typeof waAgentSentSchema>;
+
+/*
+ * `wa:agent:events` (worker to api): what happened off the chat that the agent should tell the
+ * customer. Entries carry ids only; the api loads the facts itself, for the user the chat belongs
+ * to. The follow-up text is fixed (no model), see `WaAgentEventsConsumer`.
+ */
+
+/** The order the agent last opened for a chat (`attach_receipt` targets it); value is the order id. */
+export const waAgentOrderKey = (conversationId: string) => `wa:agent:order:${conversationId}`;
+export const WA_AGENT_ORDER_TTL_SECONDS = 7 * 24 * 60 * 60;
+/** The chat that asked for a prescription reading; value is the conversation id. Read by the worker. */
+export const waAgentRxKey = (rxId: string) => `wa:agent:rx:${rxId}`;
+export const WA_AGENT_RX_TTL_SECONDS = 24 * 60 * 60;
+/** A customer message newer than this lets the agent follow up (the bridge's reply window). */
+export const WA_AGENT_FOLLOW_UP_WINDOW_MS = 24 * 60 * 60 * 1_000;
+
+export const waAgentEventSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("order_paid"), userId: z.uuid(), orderId: z.uuid() }),
+  z.object({ type: z.literal("payment_rejected"), userId: z.uuid(), orderId: z.uuid() }),
+  z.object({ type: z.literal("payment_resubmit"), userId: z.uuid(), orderId: z.uuid() }),
+  z.object({ type: z.literal("rx_done"), rxId: z.uuid() }),
+  z.object({ type: z.literal("rx_failed"), rxId: z.uuid() }),
+]);
+export type WaAgentEvent = z.output<typeof waAgentEventSchema>;

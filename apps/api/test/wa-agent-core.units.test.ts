@@ -20,6 +20,8 @@ import {
 import { pickImageVariant, sendMediaTool } from "../src/wa-agent/agent/tools/send-media.js";
 import { replyParts } from "../src/wa-agent/agent/wa-agent-turn.service.js";
 
+import { unusedCommerceDeps } from "./support/wa-agent-commerce-fakes.js";
+
 import type { TurnMessage } from "@wasfa/db";
 import type { MediaAsset } from "@wasfa/shared/schemas/media";
 
@@ -292,6 +294,7 @@ describe("tools", () => {
         media: { find: () => Promise.resolve(asset()) },
         mediaOrigin: ORIGIN,
         handoff: { raise: () => Promise.resolve() },
+        ...unusedCommerceDeps,
       },
       ...overrides,
     };
@@ -314,6 +317,11 @@ describe("tools", () => {
     expect(toolsFor(true).map((tool) => tool.definition.name)).toEqual([
       "get_catalog",
       "account_status",
+      "offer_discount",
+      "start_subscription",
+      "attach_receipt",
+      "analyze_prescription",
+      "ask_medical",
       "send_media",
       "handoff_to_owner",
     ]);

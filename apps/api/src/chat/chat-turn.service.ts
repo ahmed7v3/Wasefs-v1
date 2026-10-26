@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { AiProviderError, noModelError, type ResolvedRoute, type RouterResult } from "@wasfa/ai";
 import { MEDICAL_AI_TASKS, type AiMode, type AiTask } from "@wasfa/shared/ai";
-import { AppError, ErrorCode, isAppError } from "@wasfa/shared/errors";
+import { AppError, ERROR_CODES, ErrorCode, isAppError } from "@wasfa/shared/errors";
 import { newId } from "@wasfa/shared/ids";
 import {
   CHAT_MAX_SOURCES,
@@ -46,6 +46,9 @@ interface Failure {
   reason?: string;
   ref?: string;
 }
+
+/** A WhatsApp question waits at most this long for its answer. */
+const ANSWER_ONCE_TIMEOUT_MS = 120_000;
 
 const taskOf = (mode: AiMode): AiTask => (mode === "deep" ? "deep_think" : "chat");
 
@@ -131,6 +134,69 @@ export class ChatTurnService {
     } finally {
       await ticket.release();
     }
+  }
+
+  /**
+   * One question answered without a stream (the WhatsApp agent's `ask_medical`): the same
+   * `send` as the web, with prompts, skills, safety, quota and the credit hold / settle / release,
+   * drained into text. The question goes into the user's single chat with `options.chatTitle`
+   * (created on first use). Refusals before and during the answer throw the `AppError` the web
+   * would have shown; a text is returned only when the model produced one.
+   */
+  async answerOnce(
+    user: AuthenticatedUser,
+    question: string,
+    options: { chatTitle: string; timeoutMs?: number },
+  ): Promise<{ text: string; creditsCharged: number }> {
+    const existing = await this.repo.findByTitle(user.id, options.chatTitle);
+    const chat =
+      existing ??
+      (await this.repo.update(user.id, (await this.repo.create(user.id, null)).id, {
+        title: options.chatTitle,
+      }));
+
+    let text = "";
+    let charged = 0;
+    // Held in an object: the callback below writes it, which flow analysis cannot see.
+    const outcome: { failure?: { code: string; reason: string | undefined } } = {};
+    const signal = AbortSignal.timeout(options.timeoutMs ?? ANSWER_ONCE_TIMEOUT_MS);
+    const io: ChatStreamIo = {
+      open: () => undefined,
+      send: (event) => {
+        if (event.event === "text") text += event.data.delta;
+        else if (event.event === "credits") charged = event.data.charged;
+        else if (event.event === "error") {
+          outcome.failure = { code: event.data.code, reason: event.data.reason };
+        }
+      },
+      close: () => undefined,
+      signal,
+      // No support reference exists for a turn nobody watches; the error is logged by name below.
+      report: (error) => {
+        this.logger.error(
+          { err: error instanceof Error ? error.name : "unknown" },
+          "answerOnce failure",
+        );
+        return Promise.resolve("");
+      },
+    };
+    await this.send(
+      user,
+      chat.id,
+      { content: question, fileIds: [], mode: "balanced", search: false },
+      io,
+    );
+    const { failure } = outcome;
+    if (failure !== undefined) {
+      const code = ERROR_CODES.find((candidate) => candidate === failure.code);
+      throw new AppError(code ?? ErrorCode.UPSTREAM_UNAVAILABLE, {
+        details: { reason: failure.reason ?? "provider_error" },
+      });
+    }
+    if (text.trim() === "") {
+      throw new AppError(ErrorCode.UPSTREAM_UNAVAILABLE, { details: { reason: "empty_answer" } });
+    }
+    return { text, creditsCharged: charged };
   }
 
   private async turn(args: {

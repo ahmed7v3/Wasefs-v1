@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { formatMoney } from "@wasfa/shared/money";
 
 import { CreditsService } from "../../credits/credits.service.js";
+import { SettingsService } from "../../settings/settings.service.js";
 import { SubscriptionsService } from "../../subscriptions/subscriptions.service.js";
 
 import type { AccountStatusFacts } from "./tools/index.js";
@@ -18,13 +19,15 @@ export class AgentAccountService {
   constructor(
     private readonly credits: CreditsService,
     private readonly subscriptions: SubscriptionsService,
+    private readonly settings: SettingsService,
   ) {}
 
   async status(userId: string, now: Date): Promise<AccountStatusFacts> {
-    const [wallet, mine, orders] = await Promise.all([
+    const [wallet, mine, orders, rx] = await Promise.all([
       this.credits.forUser(userId, now),
       this.subscriptions.mine(userId, now),
       this.subscriptions.orders(userId, ORDERS_FETCHED),
+      this.settings.get("rx"),
     ]);
     const subscription = mine.subscription;
     return {
@@ -40,6 +43,11 @@ export class AgentAccountService {
         balance: wallet.wallet.balance,
         monthlyCredits: wallet.monthlyCredits,
         nextGrantAt: wallet.nextGrantAt,
+      },
+      usage: {
+        rxCreditsPerPage: rx.creditsPerPage,
+        rxMaxPages: rx.maxPages,
+        chatCharging: "by_use",
       },
       pendingOrders: orders.items
         .filter((order) => order.status === "pending_payment")

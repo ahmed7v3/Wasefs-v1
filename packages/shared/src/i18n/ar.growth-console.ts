@@ -302,6 +302,7 @@ export const arGrowthConsole = {
   "admin.alerts.kind.withdrawal.requested": "طلب سحب",
   "admin.alerts.kind.withdrawal.overdue": "سحب متأخر",
   "admin.alerts.kind.reward.fraud_flag": "اشتباه احتيال مكافآت",
+  "admin.alerts.kind.wa_agent.handoff": "تحويل محادثة واتساب إليك",
   "admin.alerts.kind.credits.reconcile_drift": "فرق في مطابقة الرصيد",
   "admin.alerts.kind.points.reconcile_drift": "فرق في مطابقة النقاط",
   "admin.alerts.kind.refund.requested": "طلب استرداد",

@@ -53,6 +53,17 @@ export class ChatRepo {
     return row;
   }
 
+  /** The caller's oldest live chat with exactly this title (the WhatsApp assistant keeps one), or null. */
+  async findByTitle(userId: string, title: string): Promise<Chat | null> {
+    const [row] = await this.handle.db
+      .select()
+      .from(chats)
+      .where(and(eq(chats.userId, userId), eq(chats.title, title), eq(chats.archived, false)))
+      .orderBy(chats.createdAt)
+      .limit(1);
+    return row ?? null;
+  }
+
   /** `NOT_FOUND` for a missing or foreign chat. */
   require(userId: string, chatId: string): Promise<Chat> {
     return this.ofUser.require(userId, chatId);

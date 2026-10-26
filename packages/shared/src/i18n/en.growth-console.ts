@@ -301,6 +301,7 @@ export const enGrowthConsole: Record<keyof typeof arGrowthConsole, string> = {
   "admin.alerts.kind.withdrawal.requested": "Withdrawal requested",
   "admin.alerts.kind.withdrawal.overdue": "Withdrawal overdue",
   "admin.alerts.kind.reward.fraud_flag": "Reward fraud flag",
+  "admin.alerts.kind.wa_agent.handoff": "WhatsApp chat handed to you",
   "admin.alerts.kind.credits.reconcile_drift": "Credits reconcile drift",
   "admin.alerts.kind.points.reconcile_drift": "Points reconcile drift",
   "admin.alerts.kind.refund.requested": "Refund requested",

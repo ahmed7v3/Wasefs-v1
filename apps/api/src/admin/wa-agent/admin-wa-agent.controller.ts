@@ -14,6 +14,7 @@ import { cursorQuerySchema } from "@wasfa/shared/schemas/admin";
 import {
   pauseConversationSchema,
   setVoiceKeySchema,
+  voiceTestSchema,
   waAgentConversationListQuerySchema,
   waAgentIdParamSchema,
   waAgentUsageQuerySchema,
@@ -34,6 +35,7 @@ import type { FastifyRequest } from "fastify";
 class IdParamDto extends createZodDto(waAgentIdParamSchema) {}
 class SettingsDto extends createZodDto(waAgentSettingsSchema) {}
 class VoiceKeyDto extends createZodDto(setVoiceKeySchema) {}
+class VoiceTestDto extends createZodDto(voiceTestSchema) {}
 class ConversationListQueryDto extends createZodDto(waAgentConversationListQuerySchema) {}
 class MessagesQueryDto extends createZodDto(cursorQuerySchema.pick({ cursor: true })) {}
 class PauseDto extends createZodDto(pauseConversationSchema) {}
@@ -89,6 +91,23 @@ export class AdminWaAgentController {
   @Audited({ action: "wa_agent.voice_key_clear", targetType: "integration_secret" })
   async clearVoiceKey(@AuditCtx() audit: AuditScope): Promise<void> {
     await this.agent.clearVoiceKey(audit);
+  }
+
+  @Post("voice-test")
+  @HttpCode(200)
+  @RequirePermission("wa_agent.write")
+  @RequireFreshAuth(10)
+  @RateLimit(10)
+  @Audited({ action: "wa_agent.voice_test", targetType: "integration_secret" })
+  voiceTest(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Body() body: VoiceTestDto,
+    @AuditCtx() audit: AuditScope,
+  ) {
+    audit.targetId = "elevenlabs";
+    // The length only: the test text is not worth keeping in the audit log.
+    audit.after = { chars: body.text.length };
+    return this.agent.voiceTest(actor.id, body.text);
   }
 
   @Get("conversations")

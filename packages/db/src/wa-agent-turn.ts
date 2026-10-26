@@ -150,3 +150,20 @@ export async function countQueuedMessages(
     .where(and(inArray(waMessages.id, [...messageIds]), eq(waMessages.status, "queued")));
   return row?.total ?? 0;
 }
+
+/**
+ * Sets a message's text and adds `meta` (keys already there stay): a transcribed voice note becomes
+ * the customer's text, a spoken reply keeps the words it said so the transcript and the next turn
+ * can read them.
+ */
+export async function setMessageText(
+  db: Handle,
+  messageId: string,
+  text: string,
+  meta: Record<string, unknown>,
+): Promise<void> {
+  await db
+    .update(waMessages)
+    .set({ text, meta: sql`${waMessages.meta} || ${JSON.stringify(meta)}::jsonb` })
+    .where(eq(waMessages.id, messageId));
+}

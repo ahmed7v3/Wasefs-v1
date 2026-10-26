@@ -13,6 +13,7 @@ import type { ObjectStorage } from "../src/files/object-storage.js";
 import type { PlansService } from "../src/plans/plans.service.js";
 import type { SettingsService } from "../src/settings/settings.service.js";
 import type { WaAgentToolDeps } from "../src/wa-agent/agent/tool-deps.js";
+import type { WaAgentVoiceService } from "../src/wa-agent/voice/voice.service.js";
 import type { WaAgentStateService } from "../src/wa-agent/wa-agent-state.service.js";
 import type { WaAgentRepo } from "../src/wa-agent/wa-agent.repo.js";
 import type { WaOutboundService } from "../src/wa-agent/wa-outbound.service.js";
@@ -239,6 +240,7 @@ function harness(
     plans,
     storage,
     silentLogger,
+    {} as WaAgentVoiceService,
   );
   service.timing.now = () => clock.now;
   service.timing.sleep = (ms) => {
@@ -301,6 +303,11 @@ describe("who gets which tools", () => {
     expect(toolNames(h)).toEqual([
       "get_catalog",
       "account_status",
+      "offer_discount",
+      "start_subscription",
+      "attach_receipt",
+      "analyze_prescription",
+      "ask_medical",
       "send_media",
       "handoff_to_owner",
     ]);

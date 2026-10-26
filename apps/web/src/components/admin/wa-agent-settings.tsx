@@ -3,8 +3,11 @@
 import { t } from "@wasfa/shared/i18n";
 import {
   voiceKeyStateSchema,
+  voiceTestResultSchema,
+  WA_AGENT_VOICE_TEST_MAX_CHARS,
   waAgentAdminSettingsSchema,
   type VoiceKeyState,
+  type VoiceTestResult,
   type WaAgentAdminSettings,
 } from "@wasfa/shared/schemas/admin-wa-agent";
 import { planListResponseSchema } from "@wasfa/shared/schemas/plans";
@@ -85,6 +88,47 @@ function NumField({
           onChange={(event) => {
             setText(event.target.value);
             onChange(parse(event.target.value));
+          }}
+        />
+      )}
+    </Field>
+  );
+}
+
+/** A 0 to 1 number that may stay empty (the voice's own default then applies). */
+function OptionalFraction({
+  name,
+  label,
+  value,
+  onChange,
+  error,
+  disabled,
+}: {
+  name: string;
+  label: string;
+  value: number | undefined;
+  onChange: (value: number | undefined) => void;
+  error?: string | undefined;
+  disabled: boolean;
+}) {
+  const [text, setText] = useState(() => (value === undefined ? "" : String(value)));
+  return (
+    <Field
+      label={label}
+      hint={[t("admin.waAgent.voice.optionalHint"), range(0, 1)].join(" · ")}
+      error={error}
+    >
+      {(control) => (
+        <Input
+          {...control}
+          name={name}
+          inputMode="decimal"
+          dir="ltr"
+          value={text}
+          disabled={disabled}
+          onChange={(event) => {
+            setText(event.target.value);
+            onChange(event.target.value.trim() === "" ? undefined : Number(event.target.value));
           }}
         />
       )}
@@ -464,6 +508,103 @@ function VoiceKeyCard({
         tone="danger"
         onConfirm={clear}
       />
+    </div>
+  );
+}
+
+/**
+ * "Test voice": speaks a short text with the SAVED settings and plays the returned 60 second link.
+ * Not a <form> (it sits inside the settings form).
+ */
+function VoiceTestBox({ keySet, voiceId }: { keySet: boolean; voiceId: string }) {
+  const reauth = useReauth();
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<unknown>(null);
+  const [clip, setClip] = useState<VoiceTestResult | null>(null);
+  const blocked = !keySet
+    ? "admin.waAgent.voice.test.noKey"
+    : voiceId === ""
+      ? "admin.waAgent.voice.test.noVoiceId"
+      : null;
+
+  const run = async () => {
+    if (text.trim() === "" || blocked !== null) return;
+    setBusy(true);
+    setFailure(null);
+    setClip(null);
+    try {
+      setClip(
+        await reauth.run(() =>
+          api("/admin/wa-agent/voice-test", {
+            method: "POST",
+            body: { text: text.trim() },
+            schema: voiceTestResultSchema,
+          }),
+        ),
+      );
+    } catch (error) {
+      setFailure(error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      role="group"
+      aria-label={t("admin.waAgent.voice.test.title")}
+      className="flex flex-col gap-3 sm:col-span-2"
+    >
+      <span className="text-base font-semibold text-text">
+        {t("admin.waAgent.voice.test.title")}
+      </span>
+      <p className="text-sm text-text-muted">{t("admin.waAgent.voice.test.hint")}</p>
+      {blocked === null ? null : <Notice tone="info">{t(blocked)}</Notice>}
+      <Field label={t("admin.waAgent.voice.test.text")}>
+        {(control) => (
+          <Input
+            {...control}
+            name="voice-test-text"
+            maxLength={WA_AGENT_VOICE_TEST_MAX_CHARS}
+            value={text}
+            disabled={blocked !== null}
+            onChange={(event) => {
+              setText(event.target.value);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void run();
+              }
+            }}
+          />
+        )}
+      </Field>
+      {failure ? <ErrorNotice error={failure} supportHref={null} /> : null}
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        {clip ? (
+          <audio
+            controls
+            autoPlay
+            src={clip.url}
+            aria-label={t("admin.waAgent.voice.test.player")}
+            className="max-w-full"
+          />
+        ) : null}
+        <Button
+          type="button"
+          variant="secondary"
+          name="voice-test-run"
+          loading={busy}
+          disabled={blocked !== null || text.trim() === ""}
+          onClick={() => {
+            void run();
+          }}
+        >
+          {t("admin.waAgent.voice.test.run")}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -926,6 +1067,18 @@ function SettingsForm({
           50,
           2000,
         )}
+        {num(
+          "dailyCharCap",
+          t("admin.waAgent.voice.dailyCharCap"),
+          "voice.dailyCharCap",
+          draft.voice.dailyCharCap,
+          (value) => {
+            setVoice("dailyCharCap", value);
+          },
+          0,
+          1_000_000,
+          t("admin.waAgent.voice.dailyCharCapHint"),
+        )}
         <Field label={t("admin.waAgent.voice.voiceId")} error={err("voice.voiceId")}>
           {(control) => (
             <Input
@@ -954,6 +1107,26 @@ function SettingsForm({
             />
           )}
         </Field>
+        <OptionalFraction
+          name="stability"
+          label={t("admin.waAgent.voice.stability")}
+          value={draft.voice.stability}
+          onChange={(value) => {
+            setVoice("stability", value);
+          }}
+          error={err("voice.stability")}
+          disabled={disabled}
+        />
+        <OptionalFraction
+          name="similarityBoost"
+          label={t("admin.waAgent.voice.similarityBoost")}
+          value={draft.voice.similarityBoost}
+          onChange={(value) => {
+            setVoice("similarityBoost", value);
+          }}
+          error={err("voice.similarityBoost")}
+          disabled={disabled}
+        />
         <div className="flex items-center">
           <Switch
             name="transcribeIncoming"
@@ -966,6 +1139,9 @@ function SettingsForm({
           />
         </div>
         <VoiceKeyCard state={data.voiceKey} canWrite={canWrite} onChanged={onKeyChanged} />
+        {canWrite ? (
+          <VoiceTestBox keySet={data.voiceKey.set} voiceId={data.settings.voice.voiceId} />
+        ) : null}
       </Section>
 
       <Section title={t("admin.waAgent.takeover.title")} lead={t("admin.waAgent.takeover.lead")}>

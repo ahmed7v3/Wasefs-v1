@@ -4,7 +4,9 @@ import { t } from "@wasfa/shared/i18n";
 import { newId } from "@wasfa/shared/ids";
 import {
   WA_AGENT_IMAGE_MIMES,
+  WA_AGENT_MAX_AUDIO_BYTES,
   WA_AGENT_MAX_FILE_BYTES,
+  WA_AGENT_MAX_TEXT,
   type WaAgentOutboundPart,
 } from "@wasfa/shared/schemas/wa-agent";
 import { Redis } from "ioredis";
@@ -16,10 +18,14 @@ import { REDIS } from "../../common/redis.js";
 import { ObjectStorage } from "../../files/object-storage.js";
 import { PlansService } from "../../plans/plans.service.js";
 import { SettingsService } from "../../settings/settings.service.js";
+import { VoiceError } from "../voice/elevenlabs.client.js";
+import { textOnlyReason } from "../voice/voice-text.js";
+import { WaAgentVoiceService } from "../voice/voice.service.js";
 import { WaAgentStateService } from "../wa-agent-state.service.js";
 import { WaAgentRepo } from "../wa-agent.repo.js";
 import { type WaAgentTurnHandler } from "../wa-agent.tokens.js";
 import { WaOutboundService } from "../wa-outbound.service.js";
+
 
 import { phoneMarket } from "./agent-market.js";
 import { splitReply, toWhatsappText } from "./agent-output.js";
@@ -51,6 +57,8 @@ const LOCK_MS = 120_000;
 const MAX_EXTRA_TURNS = 3;
 
 const MAX_IMAGES = 4;
+/** Voice notes transcribed per turn (each one costs ElevenLabs time). */
+const MAX_TRANSCRIPTS = 5;
 const REPLY_WINDOW_MS = 24 * 60 * 60 * 1_000;
 const DAY_SECONDS = 86_400;
 const SUMMARY_AFTER_MESSAGES = 40;
@@ -106,6 +114,8 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
       }),
     now: () => Date.now(),
   };
+  /** Replaced by tests: decides the "sometimes" voice replies. */
+  random: () => number = () => Math.random();
   private readonly background = new Set<Promise<void>>();
 
   constructor(
@@ -119,6 +129,7 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
     private readonly plans: PlansService,
     private readonly storage: ObjectStorage,
     private readonly logger: PinoLogger,
+    private readonly voice: WaAgentVoiceService,
   ) {
     this.logger.setContext("WaAgentTurn");
   }
@@ -213,6 +224,7 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
       pending.map((message) => message.id),
       { turn: requestId },
     );
+    const heard = await this.transcribePending(rows, pending, config);
     const images = await this.loadImages(pending);
     const market = phoneMarket(conversation.phone, await this.settings.get("currency"));
     const system = buildSystemPrompt({
@@ -224,7 +236,7 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
       currency: market.currency,
       summary: conversation.summary,
     });
-    const messages = buildHistory(rows, images);
+    const messages = buildHistory(heard, images);
 
     const records: ToolCallRecord[] = [];
     const ctx: AgentToolContext = {
@@ -299,7 +311,10 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
       "Agent turn done",
     );
 
-    const parts = replyParts(result.text, ctx.mediaParts, config.caps);
+    const spoken = await this.speakReply(result.text, ctx.mediaParts, pending, config, now);
+    const parts: WaAgentOutboundPart[] = spoken
+      ? [{ kind: "voice", mediaKey: spoken.mediaKey }]
+      : replyParts(result.text, ctx.mediaParts, config.caps);
     let messageIds: string[] = [];
     if (parts.length > 0) {
       try {
@@ -310,6 +325,7 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
           { conversationId, reason: error instanceof Error ? error.name : "unknown" },
           "Agent reply not queued",
         );
+        if (spoken) await this.voice.discard(spoken.mediaKey);
         return;
       }
       await this.repo.setMeta(messageIds, {
@@ -318,6 +334,16 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
         costUsdMicros: result.costUsdMicros,
         truncated: result.truncated,
       });
+      const voiceRowId = messageIds[0];
+      if (spoken && voiceRowId !== undefined) {
+        // The words stay on the row: the inbox shows them and the next turn reads what was said.
+        // ElevenLabs characters are counted apart from the AI spend (their own daily cap).
+        await this.repo.setText(
+          voiceRowId,
+          toWhatsappText(result.text).slice(0, WA_AGENT_MAX_TEXT),
+          { voice: { chars: spoken.chars } },
+        );
+      }
     }
     if (ctx.handoffReason !== null) this.handoff.pauseWhenDelivered(conversationId, messageIds);
     this.track(this.refreshSummary(conversation, planId, now));
@@ -413,6 +439,92 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
       }
     }
     return images;
+  }
+
+  /**
+   * Turns this turn's voice notes into text (ElevenLabs speech to text), stores the words as the
+   * message's text and returns the rows as the model should see them: any audio row that has words
+   * (a transcript, or the words of a voice reply) reads as text. A note that cannot be transcribed
+   * stays a placeholder and carries `meta.transcribeError`.
+   */
+  private async transcribePending(
+    rows: readonly TurnMessage[],
+    pending: readonly TurnMessage[],
+    config: WaAgentSettings,
+  ): Promise<TurnMessage[]> {
+    const texts = new Map<string, string>();
+    const wanted = pending
+      .filter((message) => message.kind === "audio" && (message.text?.trim() ?? "") === "")
+      .slice(-MAX_TRANSCRIPTS);
+    if (wanted.length > 0 && config.voice.enabled && config.voice.transcribeIncoming) {
+      if (await this.voice.ready(config.voice)) {
+        for (const message of wanted) {
+          const text = await this.transcribeOne(message);
+          if (text !== null) texts.set(message.id, text);
+        }
+      }
+    }
+    return rows.map((row) => {
+      const text = texts.get(row.id) ?? row.text;
+      const said = text?.trim() ?? "";
+      return row.kind === "audio" && said !== ""
+        ? { ...row, kind: "text" as const, text: said }
+        : row;
+    });
+  }
+
+  private async transcribeOne(message: TurnMessage): Promise<string | null> {
+    const fail = async (code: string): Promise<null> => {
+      await this.repo.setMeta([message.id], { transcribeError: code }).catch(() => undefined);
+      return null;
+    };
+    if (
+      message.mediaKey === null ||
+      message.mediaMime === null ||
+      (message.mediaBytes ?? 0) > WA_AGENT_MAX_AUDIO_BYTES
+    ) {
+      return fail("no_audio");
+    }
+    let audio: Uint8Array;
+    try {
+      audio = await this.storage.getBytes(message.mediaKey, WA_AGENT_MAX_AUDIO_BYTES);
+    } catch {
+      return fail("read_failed");
+    }
+    try {
+      // No language hint: customers mix Arabic and English, and the API detects the language itself.
+      const transcript = await this.voice.transcribe(audio, message.mediaMime);
+      const text = transcript.text.trim().slice(0, WA_AGENT_MAX_TEXT);
+      if (text === "") return await fail("empty");
+      await this.repo.setText(message.id, text, { transcribed: true });
+      return text;
+    } catch (error) {
+      return fail(error instanceof VoiceError ? error.code : "failed");
+    }
+  }
+
+  /**
+   * The reply as one voice note, or null when it stays text: voice off, no key, the mode says no, the
+   * reply is long, carries media, or holds something the customer must read exactly (a link, a coupon
+   * code, a bank number), the daily character cap is used up or ElevenLabs failed.
+   */
+  private async speakReply(
+    text: string,
+    media: readonly WaAgentOutboundPart[],
+    pending: readonly TurnMessage[],
+    config: WaAgentSettings,
+    now: Date,
+  ): Promise<{ mediaKey: string; chars: number } | null> {
+    const { voice } = config;
+    const reply = text.trim();
+    if (!voice.enabled || voice.voiceId === "" || reply === "" || media.length > 0) return null;
+    if (reply.length > voice.maxChars || textOnlyReason(reply) !== null) return null;
+    const wanted =
+      voice.replyMode === "mirror"
+        ? pending.some((message) => message.kind === "audio")
+        : voice.replyMode === "sometimes" && this.random() * 100 < voice.sometimesPercent;
+    if (!wanted || !(await this.voice.ready(voice))) return null;
+    return this.voice.speak(toWhatsappText(reply), voice, now);
   }
 
   /** After more than 40 messages since the last summary, the older ones are folded into it. */

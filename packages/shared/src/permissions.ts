@@ -331,6 +331,7 @@ export const ALERT_KIND_PERMISSION = {
   "credits.reconcile_drift": "billing.read",
   "points.reconcile_drift": "billing.read",
   "reward.fraud_flag": "alerts.receive",
+  "wa_agent.handoff": "wa_agent.inbox",
   "system.test": "alerts.receive",
 } as const satisfies Record<import("./billing.js").AlertKind, Permission>;
 

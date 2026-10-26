@@ -43,6 +43,26 @@ export const enCore: Partial<Record<MessageKey, string>> = {
     "Sorry, we cannot help with this account right now. Please contact the Wasfa AI team through the website.",
   "whatsapp.agent.busy":
     "Sorry, we are very busy right now. We have noted your message and our team will reply soon.",
+  "whatsapp.agent.coupon.title": "A special discount for you",
+  "whatsapp.agent.medical.lengthHint":
+    "(The reply is sent over WhatsApp: keep the answer brief, at most {chars} characters.)",
+  "whatsapp.agent.chatTitle": "WhatsApp",
+  "whatsapp.agent.event.paid":
+    "Your payment for order {number} was approved and {item} is active. Thank you for choosing Wasfa AI.",
+  "whatsapp.agent.event.rejected":
+    "We could not approve the payment for order {number} ({item}): {reason}. You can send a new receipt here in the chat and we will review it.",
+  "whatsapp.agent.event.resubmit":
+    "We need a clearer receipt for the payment of order {number} ({item}). Send a clearer picture here in the chat and we will review it.",
+  "whatsapp.agent.event.packItem": "your credit pack",
+  "whatsapp.agent.event.rxDone.header":
+    "Your prescription has been read. Medicines found ({count}):",
+  "whatsapp.agent.event.rxDone.item": "{index}. {line}",
+  "whatsapp.agent.event.rxDone.lowConfidence": "(uncertain reading, check with your pharmacist)",
+  "whatsapp.agent.event.rxDone.unreadable":
+    "Some areas of the prescription could not be read, so check them yourself or ask your pharmacist.",
+  "whatsapp.agent.event.rxDone.link": "The full result and details of each medicine:",
+  "whatsapp.agent.event.rxFailed":
+    "We could not read the prescription, and the credits that were held have been returned to your account. Try a clearer picture with better light and send it again.",
   "email.greeting": "Hello {name},",
   "email.greetingAnonymous": "Hello,",
   "email.linkFallback": "If the button does not work, copy this link into your browser:",

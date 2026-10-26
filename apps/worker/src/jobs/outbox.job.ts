@@ -15,6 +15,7 @@ import {
   refunds,
   type OutboxHandler,
   type OutboxPostCommitAction,
+  type Transaction,
   dealRewardOverrides,
   type RewardEvaluationOptions,
   silenceMarketing,
@@ -32,6 +33,11 @@ import { z } from "zod";
 
 import { contentChangeHandler, type ContentChangeDeps } from "../content/change-handler.js";
 import { jobIdFor } from "../notifications/customer-channel.js";
+import {
+  agentShouldFollowUp,
+  pushWaAgentEvent,
+  type PaymentFollowUp,
+} from "../notifications/wa-agent-events.js";
 import { readSetting } from "../settings.js";
 
 import { adminPlanChangeOutboxHandlers } from "./admin-plan-change.job.js";
@@ -56,6 +62,17 @@ function customerMessage(payload: CustomerMessageInput): OutboxPostCommitAction 
 }
 
 const dayOf = (date: Date) => date.toISOString().slice(0, 10);
+
+/** Adds the WhatsApp agent's follow-up when the customer-message path will not tell them on WhatsApp. */
+async function withAgentFollowUp(
+  tx: Transaction,
+  event: PaymentFollowUp,
+  actions: OutboxPostCommitAction[],
+): Promise<OutboxPostCommitAction[]> {
+  return (await agentShouldFollowUp(tx, event))
+    ? [...actions, { kind: "wa_agent_event", event }]
+    : actions;
+}
 
 /** The outbox topics this worker knows. A topic without a handler is parked, never dropped. */
 export function outboxHandlers(
@@ -178,7 +195,7 @@ export function outboxHandlers(
       });
       if (row.owner.status !== "active") return;
       const path = `/billing/orders/${row.order.id}`;
-      return [
+      const actions = [
         customerMessage({
           key: `payment_rejected:${paymentId}:${String(row.payment.proofSubmissions)}`,
           userId: row.owner.id,
@@ -201,6 +218,11 @@ export function outboxHandlers(
           },
         }),
       ];
+      return withAgentFollowUp(
+        tx,
+        { type: "payment_rejected", userId: row.owner.id, orderId: row.order.id },
+        actions,
+      );
     },
     "billing.payment_resubmit": async (tx, entry) => {
       const { paymentId } = paymentPayload.parse(entry.payload);
@@ -219,7 +241,7 @@ export function outboxHandlers(
       });
       if (row.owner.status !== "active") return;
       const path = `/billing/orders/${row.order.id}`;
-      return [
+      const actions = [
         customerMessage({
           key: `payment_resubmit:${paymentId}:${String(row.payment.proofSubmissions)}`,
           userId: row.owner.id,
@@ -240,6 +262,11 @@ export function outboxHandlers(
           },
         }),
       ];
+      return withAgentFollowUp(
+        tx,
+        { type: "payment_resubmit", userId: row.owner.id, orderId: row.order.id },
+        actions,
+      );
     },
     /**
      * BILLING §7.2: 7/3/1 days before the end, during grace, and at expiry, with the one-tap renew
@@ -357,7 +384,7 @@ export function outboxHandlers(
               .where(eq(subscriptions.lastOrderId, order.id))
               .limit(1);
       const total = formatMoney(order.totalMinor, order.currency, owner.locale);
-      return [
+      const actions = [
         customerMessage({
           key: `order_paid:${order.id}`,
           userId: owner.id,
@@ -386,6 +413,11 @@ export function outboxHandlers(
           },
         }),
       ];
+      return withAgentFollowUp(
+        tx,
+        { type: "order_paid", userId: owner.id, orderId: order.id },
+        actions,
+      );
     },
     "billing.order_refunded": async (tx, entry) => {
       const { orderId, refundId } = refundPayload.parse(entry.payload);
@@ -428,7 +460,7 @@ export function outboxHandlers(
   };
 }
 
-type OutboxContext = Pick<JobContext, "db" | "logger" | "payments" | "env">;
+type OutboxContext = Pick<JobContext, "db" | "logger" | "payments" | "env" | "redis">;
 
 /** Opens the sealed sender number of a manual payment for the same-payer fraud check. */
 function senderPhoneOpener(env: JobContext["env"]): RewardEvaluationOptions["openSenderPhone"] {
@@ -446,7 +478,7 @@ function senderPhoneOpener(env: JobContext["env"]): RewardEvaluationOptions["ope
 /** `outbox.drain`, every 30 seconds. */
 export async function drainOutboxJob(
   _payload: JobPayload<"payments", "outbox.drain">,
-  { db, logger, payments, env }: OutboxContext,
+  { db, logger, payments, env, redis }: OutboxContext,
 ): Promise<void> {
   if (!payments) {
     logger.warn({ event: "payments.runtime_missing" }, "Outbox drain skipped");
@@ -469,6 +501,14 @@ export async function drainOutboxJob(
       await payments.enqueueAlertDelivery(action.deliveryId, action.jobId);
     } else if (action.kind === "customer_message") {
       await payments.enqueueCustomerMessage(action.payload, action.jobId);
+    } else if (action.kind === "wa_agent_event") {
+      // A follow-up is a courtesy: a Redis failure must not undo the payment decision's outbox row.
+      await pushWaAgentEvent(redis, action.event).catch((error: unknown) => {
+        logger.warn(
+          { event: action.event.type, reason: error instanceof Error ? error.name : "unknown" },
+          "WhatsApp agent event not queued",
+        );
+      });
     } else {
       await payments.enqueueAlertDigest(
         {

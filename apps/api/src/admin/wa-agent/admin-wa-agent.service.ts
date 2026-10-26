@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import {
   type VoiceKeyState,
+  type VoiceTestResult,
   type WaAgentAdminSettings,
   type WaAgentConversation,
   type WaAgentConversationState,
@@ -12,12 +13,17 @@ import {
 } from "@wasfa/shared/schemas/admin-wa-agent";
 import { FILE_URL_TTL_SECONDS } from "@wasfa/shared/schemas/files";
 import { WA_AGENT_MEDIA_PREFIX } from "@wasfa/shared/schemas/wa-agent";
+import { Redis } from "ioredis";
 
 import { AuditService } from "../../audit/audit.service.js";
+import { REDIS } from "../../common/redis.js";
 import { API_ENV } from "../../config/config.module.js";
 import { encryptionKey, type ApiEnv } from "../../config/env.js";
 import { ObjectStorage } from "../../files/object-storage.js";
 import { SettingsService } from "../../settings/settings.service.js";
+import { VoiceError } from "../../wa-agent/voice/elevenlabs.client.js";
+import { VoiceKeyService } from "../../wa-agent/voice/voice-key.service.js";
+import { WaAgentVoiceService } from "../../wa-agent/voice/voice.service.js";
 import { WaAgentStateService } from "../../wa-agent/wa-agent-state.service.js";
 import { decodeCursor, toPage } from "../common/keyset.js";
 
@@ -31,6 +37,8 @@ import type { FastifyRequest } from "fastify";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MINUTE_MS = 60 * 1000;
 const MESSAGE_PAGE = 50;
+const VOICE_TEST_PER_HOUR = 10;
+const VOICE_TEST_URL_SECONDS = 60;
 
 const notFound = (reason?: string) =>
   new AppError(ErrorCode.NOT_FOUND, reason === undefined ? {} : { details: { reason } });
@@ -79,6 +87,9 @@ export class AdminWaAgentService {
     private readonly state: WaAgentStateService,
     private readonly storage: ObjectStorage,
     @Inject(API_ENV) private readonly env: ApiEnv,
+    private readonly voiceKey: VoiceKeyService,
+    private readonly voice: WaAgentVoiceService,
+    @Inject(REDIS) private readonly redis: Redis,
   ) {}
 
   // --- Settings and the voice key -------------------------------------------------------------
@@ -105,6 +116,7 @@ export class AdminWaAgentService {
 
   async setVoiceKey(actorId: string, apiKey: string, audit: AuditScope): Promise<VoiceKeyState> {
     const stored = await this.repo.setVoiceKey(apiKey, encryptionKey(this.env), actorId);
+    this.voiceKey.invalidate();
     audit.targetId = "elevenlabs";
     // Never the key: whether one exists and its masked hint.
     audit.after = { hasKey: true, keyHint: stored.hint };
@@ -115,6 +127,53 @@ export class AdminWaAgentService {
     audit.targetId = "elevenlabs";
     audit.after = { hasKey: false, keyHint: null };
     await this.repo.clearVoiceKey();
+    this.voiceKey.invalidate();
+  }
+
+  /**
+   * Speaks a short text with the SAVED voice settings and returns a 60 second link to the clip, so the
+   * admin can hear the voice before switching replies on. 10 tests per admin per hour (each one costs
+   * ElevenLabs characters). The key is never part of any answer.
+   */
+  async voiceTest(actorId: string, text: string): Promise<VoiceTestResult> {
+    await this.limitVoiceTests(actorId);
+    const settings = await this.settings.get("waAgent");
+    if (!(await this.voiceKey.isSet())) throw conflict("voice_key_missing");
+    if (settings.voice.voiceId === "") throw conflict("voice_id_missing");
+    try {
+      const clip = await this.voice.test(text, settings.voice, new Date());
+      const url = await this.storage.presignGet(clip.mediaKey, VOICE_TEST_URL_SECONDS);
+      return { url, mime: clip.mime, chars: clip.chars, expiresInSeconds: VOICE_TEST_URL_SECONDS };
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      const reason =
+        error instanceof VoiceError
+          ? (
+              {
+                no_key: "voice_key_missing",
+                unauthorized: "voice_key_rejected",
+                rate_limited: "voice_rate_limited",
+                failed: "voice_failed",
+              } as const
+            )[error.code]
+          : "voice_failed";
+      throw new AppError(ErrorCode.UPSTREAM_UNAVAILABLE, { details: { reason } });
+    }
+  }
+
+  private async limitVoiceTests(actorId: string): Promise<void> {
+    const key = `wa:agent:voicetest:${actorId}`;
+    const results = await this.redis.multi().incr(key).expire(key, 3_600, "NX").pttl(key).exec();
+    const count = Number(results?.[0]?.[1]);
+    if (!Number.isFinite(count)) throw new AppError(ErrorCode.UPSTREAM_UNAVAILABLE);
+    if (count > VOICE_TEST_PER_HOUR) {
+      const ttlMs = Number(results?.[2]?.[1]);
+      throw new AppError(ErrorCode.RATE_LIMITED, {
+        details: {
+          retryAfterSeconds: Math.max(1, Math.ceil((ttlMs > 0 ? ttlMs : 3_600_000) / 1000)),
+        },
+      });
+    }
   }
 
   private async voiceKeyState(): Promise<VoiceKeyState> {

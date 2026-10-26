@@ -131,6 +131,31 @@ campaign `wa_agent`), audited, and visible in the admin coupon list.
 | **E. Admin** | `/admin/whatsapp/agent`: switches, persona, delays/caps, discounts, voice + key, media list; inbox (conversations, transcript, pause/resume/block, takeover state); usage & cost; permissions `wa_agent.read`, `wa_agent.write`, `wa_agent.inbox` | A (grows with B–D) |
 | Later | PDF/image renditions of rx results; lead tags + owner hot-lead alerts; weekly agent report | C |
 
+## 8a. Implementation notes (as built, 2026-10-27)
+
+- **Streams:** `wa:agent:in` (bridge → api), `wa:agent:out` (api → bridge), `wa:agent:sent` (bridge → api),
+  `wa:agent:events` (worker → api: order_paid, payment_rejected, payment_resubmit, rx_done, rx_failed).
+- **Tables:** `wa_conversations`, `wa_messages` (0025), `integration_secrets` (0026), alert kind
+  `wa_agent.handoff` (0027).
+- **Handoff:** the tool alerts at once and holds the agent silent; the pause is applied after the reply that
+  tells the customer the owner will answer has been sent (otherwise the bridge would drop it).
+- **Receipts:** a WhatsApp receipt has no transaction id; `txnId = "WA-" + payment reference`, sender phone =
+  the chat's phone (stored masked). Duplicate receipts are caught by the image hashes.
+- **Bank method:** `start_subscription` needs an enabled manual method with `provider = bank_transfer`,
+  `requiresProof`, for the customer's currency/country. None is seeded: the admin creates it in Billing →
+  Payment methods, otherwise the agent answers `no_bank_method` and offers the website checkout.
+- **Payment follow-ups** are sent by the agent only when the existing customer WhatsApp notifications would not
+  deliver that event (never twice).
+- **Medical answers** (`ask_medical`) come from the existing chat engine and are delivered verbatim, with the
+  standard disclaimer; rx results are a deterministic template + link, never model prose.
+- **Voice:** ElevenLabs STT `scribe_v2` (auto language), TTS `output_format=opus_48000_64` (default model
+  `eleven_multilingual_v2`); replies with a URL, coupon code, IBAN or ≥ 8 digits stay text; daily character
+  cap in Redis.
+- **Ops:** the `wa-bridge` service needs `R2_UPLOADS_*` and `MEDIA_PUBLIC_ORIGIN` in `compose.prod.yml`;
+  add a 1-day lifecycle rule on the `wa/test/` prefix of the uploads bucket (voice-test clips).
+- **Emergency stop:** AI → kill switch `wa_agent` stops the agent instantly; `waAgent.enabled` stops routing
+  to the agent; codes are unaffected by both.
+
 ## 9. Risks
 
 - **Number ban (Baileys):** owner-accepted. Mitigations: never first, 24 h window, delays with jitter + typing,

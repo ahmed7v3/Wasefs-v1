@@ -10,12 +10,8 @@ import { WaAgentRepo } from "../wa-agent.repo.js";
 
 import type { AlertKind } from "@wasfa/shared/billing";
 
-/**
- * The existing owner-alert kind this reuses. A dedicated `wa_agent.handoff` kind needs a migration
- * (the kind is a CHECK on `admin_alerts`) and a row in `ALERT_KIND_PERMISSION`; until then the alert
- * goes to every admin who receives alerts, and its text says what it is.
- */
-export const HANDOFF_ALERT_KIND: AlertKind = "reward.fraud_flag";
+/** The owner alert for a handed-over chat; it reaches admins holding `wa_agent.inbox`. */
+export const HANDOFF_ALERT_KIND: AlertKind = "wa_agent.handoff";
 
 /**
  * While set, the agent stays silent in this chat: the owner has been asked to take over and the pause

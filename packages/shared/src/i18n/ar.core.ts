@@ -48,6 +48,24 @@ export const arCore = {
     "نعتذر، لا يمكننا المساعدة في هذا الحساب حاليًا. يرجى التواصل مع فريق وصفة AI عبر الموقع.",
   "whatsapp.agent.busy":
     "نعتذر، الضغط علينا كبير الآن. سجّلنا رسالتك وسيردّ عليك فريقنا في أقرب وقت.",
+  "whatsapp.agent.coupon.title": "خصم خاص لك",
+  "whatsapp.agent.medical.lengthHint":
+    "(الرد سيصل عبر واتساب: اكتب إجابة موجزة لا تتجاوز {chars} حرفًا.)",
+  "whatsapp.agent.chatTitle": "واتساب",
+  "whatsapp.agent.event.paid": "تم اعتماد دفع الطلب {number} وتفعيل {item}. شكرًا لثقتك بوصفة AI.",
+  "whatsapp.agent.event.rejected":
+    "لم نتمكن من اعتماد دفع الطلب {number} ({item}): {reason}. يمكنك إرسال إيصال جديد هنا في المحادثة وسنراجعه.",
+  "whatsapp.agent.event.resubmit":
+    "نحتاج إلى إيصال أوضح لدفع الطلب {number} ({item}). أرسل صورة أوضح هنا في المحادثة وسنراجعها.",
+  "whatsapp.agent.event.packItem": "باقة الرصيد",
+  "whatsapp.agent.event.rxDone.header": "انتهت قراءة الروشتة. البنود المقروءة ({count}):",
+  "whatsapp.agent.event.rxDone.item": "{index}. {line}",
+  "whatsapp.agent.event.rxDone.lowConfidence": "(قراءة غير مؤكدة، راجعها مع الصيدلي)",
+  "whatsapp.agent.event.rxDone.unreadable":
+    "توجد مناطق في الروشتة لم نستطع قراءتها، فراجعها بنفسك أو اسأل الصيدلي.",
+  "whatsapp.agent.event.rxDone.link": "النتيجة الكاملة وتفاصيل كل دواء:",
+  "whatsapp.agent.event.rxFailed":
+    "تعذّرت قراءة الروشتة، وأعدنا الرصيد المخصوم إلى حسابك. جرّب صورة أوضح وإضاءة أفضل وأرسلها مرة أخرى.",
   "email.greeting": "مرحبًا {name}،",
   "email.greetingAnonymous": "مرحبًا،",
   "email.linkFallback": "إن لم يعمل الزر، انسخ الرابط التالي والصقه في المتصفح:",

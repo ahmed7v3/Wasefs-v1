@@ -97,6 +97,10 @@ export class MemoryRedis {
     return Promise.resolve(next);
   }
 
+  decrby(key: string, by: number): Promise<number> {
+    return this.incrby(key, -by);
+  }
+
   expire(key: string, seconds: number): Promise<number> {
     this.ttls.set(key, seconds * 1_000);
     return Promise.resolve(1);

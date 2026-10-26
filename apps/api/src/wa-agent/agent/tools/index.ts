@@ -1,17 +1,34 @@
 import { accountStatusTool } from "./account-status.js";
+import { analyzePrescriptionTool } from "./analyze-prescription.js";
+import { askMedicalTool } from "./ask-medical.js";
+import { attachReceiptTool } from "./attach-receipt.js";
 import { getCatalogTool } from "./get-catalog.js";
 import { handoffToOwnerTool } from "./handoff-to-owner.js";
+import { offerDiscountTool } from "./offer-discount.js";
 import { sendMediaTool } from "./send-media.js";
+import { startSubscriptionTool } from "./start-subscription.js";
 import { toolError, type AgentTool, type AgentToolContext } from "./tool.js";
 
 import type { ToolDefinition, ToolHandler } from "@wasfa/ai";
 
-export type { AccountStatusFacts, AgentTool, AgentToolContext, AgentToolDeps } from "./tool.js";
+export type {
+  AccountStatusFacts,
+  AgentCall,
+  AgentTool,
+  AgentToolContext,
+  AgentToolDeps,
+  AgentToolResult,
+} from "./tool.js";
 
 /** Every tool the agent has. A new tool is a new file in this folder plus one line here. */
 export const AGENT_TOOLS: readonly AgentTool[] = [
   getCatalogTool,
   accountStatusTool,
+  offerDiscountTool,
+  startSubscriptionTool,
+  attachReceiptTool,
+  analyzePrescriptionTool,
+  askMedicalTool,
   sendMediaTool,
   handoffToOwnerTool,
 ];

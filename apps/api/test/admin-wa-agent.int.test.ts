@@ -19,6 +19,7 @@ import {
   waAgentAdminSettingsSchema,
   waAgentConversationPageSchema,
   waAgentConversationStateSchema,
+  voiceTestResultSchema,
   waAgentMediaUrlSchema,
   waAgentMessagePageSchema,
   waAgentUsageSchema,
@@ -26,9 +27,12 @@ import {
 import { waAgentPauseKey } from "@wasfa/shared/schemas/wa-agent";
 import { waAgentSettingsSchema } from "@wasfa/shared/settings";
 import { and, desc, eq } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { encryptionKey } from "../src/config/env.js";
+import { ObjectStorage } from "../src/files/object-storage.js";
+import { ElevenLabsClient } from "../src/wa-agent/voice/elevenlabs.client.js";
+import { WaAgentVoiceService } from "../src/wa-agent/voice/voice.service.js";
 
 import { AdminTestContext, MISSING_ID, type Admin } from "./support/admin-context.js";
 
@@ -285,6 +289,104 @@ describe("the voice key", () => {
       await call("PUT", "/admin/wa-agent/voice-key", writer, { apiKey: "short" }),
       400,
       "VALIDATION_FAILED",
+    );
+  });
+});
+
+describe("the voice test", () => {
+  const settingsWithVoice = async (voiceId: string) => {
+    const current = waAgentAdminSettingsSchema.parse(
+      (await call("GET", "/admin/wa-agent/settings", writer)).json(),
+    ).settings;
+    const res = await call("PUT", "/admin/wa-agent/settings", writer, {
+      ...current,
+      voice: { ...current.voice, enabled: true, voiceId },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+  };
+
+  it("needs wa_agent.write: a reader and an inbox-only admin are refused", async () => {
+    expectError(await call("POST", "/admin/wa-agent/voice-test", reader, { text: "hi" }), 403, "FORBIDDEN");
+    expectError(await call("POST", "/admin/wa-agent/voice-test", inbox, { text: "hi" }), 403, "FORBIDDEN");
+  });
+
+  it("validates the text, and explains a missing key or voice id", async () => {
+    expectError(
+      await call("POST", "/admin/wa-agent/voice-test", writer, { text: "x".repeat(301) }),
+      400,
+      "VALIDATION_FAILED",
+    );
+    await call("DELETE", "/admin/wa-agent/voice-key", writer);
+    expectError(
+      await call("POST", "/admin/wa-agent/voice-test", writer, { text: "hi" }),
+      409,
+      "CONFLICT",
+      "voice_key_missing",
+    );
+    await call("PUT", "/admin/wa-agent/voice-key", writer, { apiKey: KEY });
+    await settingsWithVoice("");
+    expectError(
+      await call("POST", "/admin/wa-agent/voice-test", writer, { text: "hi" }),
+      409,
+      "CONFLICT",
+      "voice_id_missing",
+    );
+  });
+
+  it("speaks with the saved settings, returns a 60 second link, audits, and never shows the key", async () => {
+    await call("PUT", "/admin/wa-agent/voice-key", writer, { apiKey: KEY });
+    await settingsWithVoice("voice-test-1");
+    const client = ctx.app.get(ElevenLabsClient);
+    const seen: Array<{ url: string; key: string | undefined }> = [];
+    client.fetchImpl = (input, init) => {
+      seen.push({
+        url: String(input),
+        key: (init?.headers as Record<string, string> | undefined)?.["xi-api-key"],
+      });
+      return Promise.resolve(new Response(new Uint8Array([1, 2, 3]), { status: 200 }));
+    };
+    const storage = ctx.app.get(ObjectStorage);
+    const put = vi.spyOn(storage, "put").mockResolvedValue();
+    const voice = ctx.app.get(WaAgentVoiceService);
+    voice.scheduleRemoval = () => undefined;
+
+    const res = await call("POST", "/admin/wa-agent/voice-test", writer, { text: "اهلا بيك" });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.body).not.toContain(KEY);
+    const clip = voiceTestResultSchema.parse(res.json());
+    expect(clip).toMatchObject({ mime: "audio/ogg", chars: 8, expiresInSeconds: 60 });
+    expect(new URL(clip.url).searchParams.get("X-Amz-Expires")).toBe("60");
+    expect(clip.url).toContain("wa/test/");
+    expect(put).toHaveBeenCalledTimes(1);
+    expect(put.mock.calls[0]?.[0]).toMatch(/^wa\/test\/\d{4}\/\d{2}\/[0-9a-f-]+\.ogg$/);
+    expect(seen).toEqual([
+      {
+        url: "https://api.elevenlabs.io/v1/text-to-speech/voice-test-1?output_format=opus_48000_64",
+        key: KEY,
+      },
+    ]);
+    const audits = await auditOf("wa_agent.voice_test", "elevenlabs");
+    expect(audits.length).toBeGreaterThan(0);
+    expect(JSON.stringify(audits)).not.toContain(KEY);
+    put.mockRestore();
+    await call("DELETE", "/admin/wa-agent/voice-key", writer);
+  });
+
+  it("allows 10 tests per admin per hour", async () => {
+    const tester = await ctx.admin(await ctx.customRole(["wa_agent.read", "wa_agent.write"]));
+    await call("DELETE", "/admin/wa-agent/voice-key", writer);
+    for (let attempt = 0; attempt < 10; attempt++) {
+      expectError(
+        await call("POST", "/admin/wa-agent/voice-test", tester, { text: "hi" }),
+        409,
+        "CONFLICT",
+        "voice_key_missing",
+      );
+    }
+    expectError(
+      await call("POST", "/admin/wa-agent/voice-test", tester, { text: "hi" }),
+      429,
+      "RATE_LIMITED",
     );
   });
 });

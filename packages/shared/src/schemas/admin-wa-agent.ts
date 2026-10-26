@@ -45,6 +45,19 @@ export const setVoiceKeySchema = z.object({
 export const voiceKeyStateSchema = waAgentAdminSettingsSchema.shape.voiceKey;
 export type VoiceKeyState = z.output<typeof voiceKeyStateSchema>;
 
+/** The "Test voice" box: a short text spoken with the saved voice settings. */
+export const WA_AGENT_VOICE_TEST_MAX_CHARS = 300;
+export const voiceTestSchema = z.object({
+  text: z.string().trim().min(1).max(WA_AGENT_VOICE_TEST_MAX_CHARS),
+});
+export const voiceTestResultSchema = z.object({
+  url: z.string(),
+  mime: z.string(),
+  chars: z.number().int(),
+  expiresInSeconds: z.number().int(),
+});
+export type VoiceTestResult = z.output<typeof voiceTestResultSchema>;
+
 // --- Inbox --------------------------------------------------------------------------------------
 
 export const waAgentConversationListQuerySchema = cursorQuerySchema.extend({
