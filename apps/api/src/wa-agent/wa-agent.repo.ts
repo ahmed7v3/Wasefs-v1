@@ -1,15 +1,24 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
   blockConversation,
+  countQueuedMessages,
+  countTurnMessagesAfter,
+  findTurnUser,
   findVerifiedUserIdByPhone,
   getConversation,
   insertInbound,
   insertOutbound,
   markOutbound,
   pauseConversation,
+  recentTurnMessages,
   resumeConversation,
+  setConversationSummary,
+  setMessagesMeta,
+  turnMessagesAfter,
   upsertConversation,
   type OutboundPartRow,
+  type TurnMessage,
+  type TurnUser,
   type WaConversation,
 } from "@wasfa/db";
 
@@ -82,5 +91,35 @@ export class WaAgentRepo {
 
   block(conversationId: string): Promise<WaConversation | null> {
     return blockConversation(this.handle.db, conversationId);
+  }
+
+  // --- what an agent turn reads and writes (work package B) ---
+
+  recentMessages(conversationId: string, limit: number): Promise<TurnMessage[]> {
+    return recentTurnMessages(this.handle.db, conversationId, limit);
+  }
+
+  messagesAfter(conversationId: string, after: Date | null, limit: number): Promise<TurnMessage[]> {
+    return turnMessagesAfter(this.handle.db, conversationId, after, limit);
+  }
+
+  countAfter(conversationId: string, after: Date | null): Promise<number> {
+    return countTurnMessagesAfter(this.handle.db, conversationId, after);
+  }
+
+  setMeta(messageIds: readonly string[], meta: Record<string, unknown>): Promise<void> {
+    return setMessagesMeta(this.handle.db, messageIds, meta);
+  }
+
+  saveSummary(conversationId: string, summary: string): Promise<void> {
+    return setConversationSummary(this.handle.db, conversationId, summary);
+  }
+
+  findUser(userId: string): Promise<TurnUser | null> {
+    return findTurnUser(this.handle.db, userId);
+  }
+
+  queuedCount(messageIds: readonly string[]): Promise<number> {
+    return countQueuedMessages(this.handle.db, messageIds);
   }
 }

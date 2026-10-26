@@ -9,11 +9,13 @@ import {
 import { Redis } from "ioredis";
 
 import { REDIS } from "../common/redis.js";
+import { API_ENV } from "../config/config.module.js";
 import { SettingsService } from "../settings/settings.service.js";
 
 import { WaAgentStateService } from "./wa-agent-state.service.js";
 import { WaAgentRepo } from "./wa-agent.repo.js";
 
+import type { ApiEnv } from "../config/env.js";
 import type { OutboundPartRow } from "@wasfa/db";
 
 const refuse = (reason: string) => new AppError(ErrorCode.CONFLICT, { details: { reason } });
@@ -39,13 +41,17 @@ export class WaOutboundService {
     private readonly repo: WaAgentRepo,
     private readonly settings: SettingsService,
     @Inject(REDIS) private readonly redis: Redis,
+    @Inject(API_ENV) private readonly env: Pick<ApiEnv, "MEDIA_PUBLIC_ORIGIN">,
   ) {}
 
   /** Returns the ids of the queued messages, one per part, in order. */
   async enqueue(conversationId: string, parts: unknown): Promise<string[]> {
     const config = await this.settings.get("waAgent");
     if (!config.enabled) throw refuse("agent_disabled");
-    const parsed = waAgentOutboundFor(config.caps).safeParse(parts);
+    // A part that carries a url may only point into the public media library, never anywhere else.
+    const parsed = waAgentOutboundFor(config.caps, this.env.MEDIA_PUBLIC_ORIGIN ?? "").safeParse(
+      parts,
+    );
     if (!parsed.success) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, {
         details: {

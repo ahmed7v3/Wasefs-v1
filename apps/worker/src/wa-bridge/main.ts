@@ -146,6 +146,7 @@ if (command === "run") {
       socket: bridge.agentSocket,
       store: uploads,
       logger,
+      mediaOrigin: env.MEDIA_PUBLIC_ORIGIN,
     },
     signal: loopAbort.signal,
   }).catch((error: Error) => {

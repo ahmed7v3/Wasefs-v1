@@ -21,6 +21,7 @@ import {
   type BadgeTone,
 } from "@wasfa/ui";
 import { Copy, Link2Off } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 
@@ -191,6 +192,12 @@ export function WhatsappView({ canWrite }: { canWrite: boolean }) {
         canWrite={canWrite}
         onChanged={resource.reload}
       />
+      <p className="text-base text-text-muted">
+        {t("admin.whatsapp.agentLink.lead")}{" "}
+        <Link href="/admin/whatsapp/agent" className="font-semibold text-primary underline">
+          {t("admin.whatsapp.agentLink.link")}
+        </Link>
+      </p>
     </div>
   );
 }

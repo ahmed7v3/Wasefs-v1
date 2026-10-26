@@ -1,5 +1,5 @@
 import { parseEnv } from "@wasfa/shared/env";
-import { refineUploadsEnv, uploadsEnvShape } from "@wasfa/shared/storage";
+import { mediaEnvShape, refineUploadsEnv, uploadsEnvShape } from "@wasfa/shared/storage";
 import { z } from "zod";
 
 /** Environment of the `wa-bridge` process: Redis (streams), Postgres (auth state) and the encryption key. */
@@ -34,6 +34,8 @@ export const bridgeEnvSchema = z
       .default("default"),
     /** The private uploads bucket: inbound media for the agent and the files it sends. All four keys or none. */
     ...uploadsEnvShape,
+    /** Where the public media library is served: the only origin the agent may send files from by url. */
+    MEDIA_PUBLIC_ORIGIN: mediaEnvShape.MEDIA_PUBLIC_ORIGIN,
   })
   .superRefine((env, ctx) => {
     refineUploadsEnv(env, ctx);

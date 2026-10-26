@@ -90,6 +90,8 @@ class FakeSocket implements SocketHandle {
   sendImage = () => Promise.resolve(null);
   sendDocument = () => Promise.resolve(null);
   sendVoice = () => Promise.resolve(null);
+  sendImageUrl = () => Promise.resolve(null);
+  sendDocumentUrl = () => Promise.resolve(null);
 }
 
 /** The fake "database + Baileys" behind `openSession`. */

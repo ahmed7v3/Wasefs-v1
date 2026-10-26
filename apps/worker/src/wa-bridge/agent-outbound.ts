@@ -10,6 +10,7 @@ import {
   waAgentLastInKey,
   waAgentOutEntrySchema,
   waAgentPauseKey,
+  isMediaOriginUrl,
   waAgentSentIdKey,
   waAgentSentSchema,
   type WaAgentDropReason,
@@ -50,6 +51,14 @@ export interface AgentSocket {
   ) => Promise<string | null>;
   /** A voice note (push-to-talk, ogg/opus). */
   sendVoice: (jid: string, data: Buffer) => Promise<string | null>;
+  /** WhatsApp fetches the file itself: only urls of the public media library reach these two. */
+  sendImageUrl: (jid: string, url: string, caption: string | undefined) => Promise<string | null>;
+  sendDocumentUrl: (
+    jid: string,
+    url: string,
+    fileName: string,
+    mimetype: string,
+  ) => Promise<string | null>;
 }
 
 /** The uploads bucket, read only (`ObjectStore` fits). */
@@ -63,6 +72,8 @@ export interface AgentOutboundDeps {
   socket: AgentSocket;
   store: AgentStore | null;
   logger: Logger;
+  /** `MEDIA_PUBLIC_ORIGIN`: a part with a url is refused when it is not under it (or this is unset). */
+  mediaOrigin?: string | undefined;
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
   random?: () => number;
@@ -188,12 +199,28 @@ async function dropAll(
 
 class MediaMissing extends Error {}
 
+/** Parts that name a url instead of a stored upload, checked against the media origin. */
+function urlsAllowed(parts: readonly WaAgentOutboundPart[], origin: string | undefined): boolean {
+  return parts.every(
+    (part) =>
+      !("url" in part && part.url !== undefined) ||
+      (origin !== undefined && isMediaOriginUrl(part.url, origin)),
+  );
+}
+
 async function sendPart(
   deps: AgentOutboundDeps,
   jid: string,
   part: WaAgentOutboundPart,
 ): Promise<string | null> {
   if (part.kind === "text") return deps.socket.sendAgentText(jid, part.text);
+  if (part.kind === "image" && part.url !== undefined) {
+    return deps.socket.sendImageUrl(jid, part.url, part.caption);
+  }
+  if (part.kind === "document" && part.url !== undefined) {
+    return deps.socket.sendDocumentUrl(jid, part.url, part.fileName, "application/pdf");
+  }
+  if (part.mediaKey === undefined) throw new MediaMissing();
   const data = await deps.store?.get(part.mediaKey, WA_AGENT_MAX_FILE_BYTES).catch(() => null);
   if (!data) throw new MediaMissing();
   if (part.kind === "image") return deps.socket.sendImage(jid, data, part.caption);
@@ -233,6 +260,7 @@ export async function processAgentOut(
   const enqueuedAt = streamId === undefined ? Number.NaN : Number(streamId.split("-")[0]);
   if (Number.isFinite(enqueuedAt) && now() - enqueuedAt > AGENT_OUT_STALE_MS) return drop("stale");
   if (!isDirectJid(jid)) return drop("invalid");
+  if (!urlsAllowed(entry.parts, deps.mediaOrigin)) return drop("invalid");
 
   const { agent } = await deps.settings.current();
   if (!agent.enabled) return drop("disabled");

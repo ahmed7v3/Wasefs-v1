@@ -36,6 +36,7 @@ const NOW = 1_800_000_000_000;
 const nowSeconds = Math.floor(NOW / 1000);
 const PN = "201012345678@s.whatsapp.net";
 const logger = pino({ level: "silent" });
+const MEDIA_ORIGIN = "https://media.example.com";
 const noLid: LidResolver = { getPNForLID: () => Promise.resolve(null) };
 
 /** The few Redis commands the bridge's agent code uses, in memory (Lua is emulated, see `eval`). */
@@ -482,6 +483,7 @@ describe("outbound guard and sending", () => {
       files?: Record<string, Buffer>;
       failOn?: string;
       onSleep?: (redis: FakeRedis) => void;
+      mediaOrigin?: string | undefined;
     } = {},
   ): Out {
     const redis = new FakeRedis();
@@ -512,6 +514,8 @@ describe("outbound guard and sending", () => {
       sendImage: (_jid, data, caption) => id(`image:${String(data.length)}:${caption ?? ""}`),
       sendDocument: (_jid, data, name, mime) => id(`doc:${name}:${mime}:${String(data.length)}`),
       sendVoice: (_jid, data) => id(`voice:${String(data.length)}`),
+      sendImageUrl: (_jid, url, caption) => id(`imageurl:${url}:${caption ?? ""}`),
+      sendDocumentUrl: (_jid, url, name, mime) => id(`docurl:${url}:${name}:${mime}`),
     };
     const files = options.files ?? {};
     const deps: AgentOutboundDeps = {
@@ -520,6 +524,7 @@ describe("outbound guard and sending", () => {
       socket,
       store: { get: (key) => Promise.resolve(files[key] ?? null) },
       logger,
+      mediaOrigin: "mediaOrigin" in options ? options.mediaOrigin : MEDIA_ORIGIN,
       sleep: (ms) => {
         sleeps.push(ms);
         options.onSleep?.(redis);
@@ -593,6 +598,54 @@ describe("outbound guard and sending", () => {
       "doc:bank.pdf:application/pdf:20",
       "voice:30",
     ]);
+  });
+
+  it("sends an image and a PDF by public media url", async () => {
+    const out = outbound({
+      agent: { caps: { ...settingDefault("waAgent").caps, maxMessagesPerTurn: 3 } },
+    });
+    const image = `${MEDIA_ORIGIN}/media/abc/1200.jpeg`;
+    const doc = `${MEDIA_ORIGIN}/docs/bank.pdf`;
+    const result = await out.run([
+      { kind: "image", url: image, caption: "cap" },
+      { kind: "document", url: doc, fileName: "bank.pdf" },
+      text("after"),
+    ]);
+    expect(result).toEqual({ outcome: "sent", sent: 3 });
+    expect(out.calls.filter((call) => !call.startsWith("composing") && call !== "paused")).toEqual([
+      `imageurl:${image}:cap`,
+      `docurl:${doc}:bank.pdf:application/pdf`,
+      "text:after",
+    ]);
+  });
+
+  it("refuses a part whose url is outside the media origin, or any url without an origin", async () => {
+    for (const url of [
+      "https://evil.example.net/a.jpeg",
+      `${MEDIA_ORIGIN}.evil.net/a.jpeg`,
+      `${MEDIA_ORIGIN}@evil.net/a.jpeg`,
+      `${MEDIA_ORIGIN}/../a.jpeg`,
+    ]) {
+      const out = outbound();
+      expect(await out.run([{ kind: "image", url }])).toEqual({
+        outcome: "dropped",
+        reason: "invalid",
+      });
+      expect(out.calls).toEqual([]);
+    }
+    const noOrigin = outbound({ mediaOrigin: undefined });
+    expect(await noOrigin.run([{ kind: "image", url: `${MEDIA_ORIGIN}/a.jpeg` }])).toEqual({
+      outcome: "dropped",
+      reason: "invalid",
+    });
+  });
+
+  it("rejects a part that names both a stored key and a url", async () => {
+    const out = outbound();
+    const result = await out.run([
+      { kind: "image", mediaKey: "wa/2027/01/img", url: `${MEDIA_ORIGIN}/a.jpeg` },
+    ]);
+    expect(result).toEqual({ outcome: "invalid" });
   });
 
   it("drops a part whose file is gone and still sends the rest", async () => {

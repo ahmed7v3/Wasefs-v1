@@ -224,6 +224,12 @@ export function createBaileysSessionOpener(
               .id ?? null,
           sendDocument: async (jid, data, fileName, mimetype) =>
             (await socket.sendMessage(jid, { document: data, fileName, mimetype }))?.key.id ?? null,
+          sendImageUrl: async (jid, url, caption) =>
+            (await socket.sendMessage(jid, { image: { url }, ...(caption ? { caption } : {}) }))
+              ?.key.id ?? null,
+          sendDocumentUrl: async (jid, url, fileName, mimetype) =>
+            (await socket.sendMessage(jid, { document: { url }, fileName, mimetype }))?.key.id ??
+            null,
           sendVoice: async (jid, data) =>
             (
               await socket.sendMessage(jid, {

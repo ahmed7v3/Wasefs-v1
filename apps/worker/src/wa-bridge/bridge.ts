@@ -111,6 +111,9 @@ export class WaBridge {
     sendDocument: (jid, data, fileName, mimetype) =>
       this.live().sendDocument(jid, data, fileName, mimetype),
     sendVoice: (jid, data) => this.live().sendVoice(jid, data),
+    sendImageUrl: (jid, url, caption) => this.live().sendImageUrl(jid, url, caption),
+    sendDocumentUrl: (jid, url, fileName, mimetype) =>
+      this.live().sendDocumentUrl(jid, url, fileName, mimetype),
   };
 
   /** The socket, or an error: an agent send must fail loudly (its verdict is reported), never vanish. */

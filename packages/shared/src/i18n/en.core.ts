@@ -39,6 +39,10 @@ export const enCore: Partial<Record<MessageKey, string>> = {
   "whatsapp.customer.offer": "A special offer for you: {title}. Ends on {date}.",
   "whatsapp.customer.note": "Note: {note}",
   "whatsapp.customer.footer": "Wasfa AI · To stop WhatsApp messages, send: STOP",
+  "whatsapp.agent.accountUnavailable":
+    "Sorry, we cannot help with this account right now. Please contact the Wasfa AI team through the website.",
+  "whatsapp.agent.busy":
+    "Sorry, we are very busy right now. We have noted your message and our team will reply soon.",
   "email.greeting": "Hello {name},",
   "email.greetingAnonymous": "Hello,",
   "email.linkFallback": "If the button does not work, copy this link into your browser:",

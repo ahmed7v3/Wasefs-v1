@@ -35,7 +35,8 @@ export type PermissionGroup =
   | "referrals"
   | "rewards"
   | "deals"
-  | "content";
+  | "content"
+  | "wa_agent";
 
 export interface Label {
   ar: string;
@@ -72,6 +73,7 @@ export const PERMISSION_GROUPS: Record<PermissionGroup, Label> = {
   rewards: { ar: "المكافآت والنقاط", en: "Rewards and points" },
   deals: { ar: "الاتفاقات الخاصة", en: "Deals" },
   content: { ar: "المحتوى", en: "Content" },
+  wa_agent: { ar: "وكيل واتساب", en: "WhatsApp agent" },
 };
 
 export const PERMISSIONS = {
@@ -287,6 +289,27 @@ export const PERMISSIONS = {
     label: {
       ar: "إدارة التصنيفات والوسوم والكتّاب والتحويلات وأرشفة المحتوى",
       en: "Manage categories, tags, people, redirects and archive content",
+    },
+  },
+  "wa_agent.read": {
+    group: "wa_agent",
+    label: {
+      ar: "عرض إعدادات وكيل واتساب واستهلاكه",
+      en: "View the WhatsApp agent settings and usage",
+    },
+  },
+  "wa_agent.write": {
+    group: "wa_agent",
+    label: {
+      ar: "تعديل وكيل واتساب وإيقاف المحادثات وحظرها وضبط مفتاح الصوت",
+      en: "Edit the WhatsApp agent, pause or block chats and set the voice key",
+    },
+  },
+  "wa_agent.inbox": {
+    group: "wa_agent",
+    label: {
+      ar: "قراءة محادثات واتساب ومرفقاتها (بيانات صحية، تُسجَّل القراءة)",
+      en: "Read WhatsApp transcripts and media (health data, reads are logged)",
     },
   },
 } as const satisfies Record<string, PermissionInfo>;

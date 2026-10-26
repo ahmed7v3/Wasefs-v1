@@ -20,8 +20,11 @@ import {
   UNIT_SCALE,
 } from "../src/lib/setting-meta";
 
-/** `skills` is a per-plan map edited on /admin/ai/skills, not a generated form. */
-const FORM_KEYS = SETTING_KEYS.filter((key) => key !== "skills");
+/**
+ * `skills` is a per-plan map edited on /admin/ai/skills, and `waAgent` (lists, a secret next to it)
+ * on /admin/whatsapp/agent: neither is a generated form.
+ */
+const FORM_KEYS = SETTING_KEYS.filter((key) => key !== "skills" && key !== "waAgent");
 
 function renderForm(key: SettingKey, onSave = vi.fn<(value: unknown) => Promise<void>>()) {
   onSave.mockResolvedValue(undefined);
@@ -194,7 +197,7 @@ describe("settings presentation", () => {
   ];
 
   it("gives every settings key exactly one home", () => {
-    const dedicated: SettingKey[] = ["branding", "whatsapp", "ai", "skills"];
+    const dedicated: SettingKey[] = ["branding", "whatsapp", "waAgent", "ai", "skills"];
     const homes = [...GENERIC_PAGE_KEYS, ...dedicated];
     expect([...homes].sort()).toEqual([...SETTING_KEYS].sort());
     expect(new Set(homes).size).toBe(homes.length);

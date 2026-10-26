@@ -44,6 +44,10 @@ export const arCore = {
   "whatsapp.customer.offer": "عرض خاص لك: {title}. ينتهي يوم {date}.",
   "whatsapp.customer.note": "ملاحظة: {note}",
   "whatsapp.customer.footer": "وصفة AI · لإيقاف رسائل واتساب أرسل كلمة: إيقاف",
+  "whatsapp.agent.accountUnavailable":
+    "نعتذر، لا يمكننا المساعدة في هذا الحساب حاليًا. يرجى التواصل مع فريق وصفة AI عبر الموقع.",
+  "whatsapp.agent.busy":
+    "نعتذر، الضغط علينا كبير الآن. سجّلنا رسالتك وسيردّ عليك فريقنا في أقرب وقت.",
   "email.greeting": "مرحبًا {name}،",
   "email.greetingAnonymous": "مرحبًا،",
   "email.linkFallback": "إن لم يعمل الزر، انسخ الرابط التالي والصقه في المتصفح:",

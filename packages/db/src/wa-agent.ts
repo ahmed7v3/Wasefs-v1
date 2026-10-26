@@ -1,11 +1,26 @@
-import { and, eq, inArray, isNull, lt, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  or,
+  sql,
+  type AnyColumn,
+  type SQL,
+} from "drizzle-orm";
 
+import { aiUsage } from "./schema/ai.js";
 import { users } from "./schema/users.js";
 import { waConversations, waMessages, type WaConversation } from "./schema/wa-agent.js";
 
 import type { Database } from "./client.js";
 import type { Transaction } from "./credits-ledger.js";
-import type { WaAgentKind } from "@wasfa/shared/schemas/wa-agent";
+import type { WaAgentConversationStatus, WaAgentKind } from "@wasfa/shared/schemas/wa-agent";
 
 /*
  * The WhatsApp AI agent's transcript (docs/WA-AGENT.md). Plain functions over a `Database` or a
@@ -107,7 +122,12 @@ export async function insertInbound(
 
 export type OutboundPartRow =
   | { kind: "text"; text: string }
-  | { kind: "image" | "document" | "voice"; mediaKey: string; text?: string | undefined };
+  // A part sent from a public media url has no stored object: only its caption / file name is kept.
+  | {
+      kind: "image" | "document" | "voice";
+      mediaKey?: string | undefined;
+      text?: string | undefined;
+    };
 
 const OUTBOUND_KIND: Record<OutboundPartRow["kind"], WaAgentKind> = {
   text: "text",
@@ -130,7 +150,7 @@ export async function insertOutbound(
         direction: "out" as const,
         kind: OUTBOUND_KIND[part.kind],
         text: part.text ?? null,
-        mediaKey: part.kind === "text" ? null : part.mediaKey,
+        mediaKey: part.kind === "text" ? null : (part.mediaKey ?? null),
         status: "queued" as const,
       })),
     )
@@ -251,4 +271,223 @@ export async function blockConversation(
     .where(eq(waConversations.id, conversationId))
     .returning();
   return row ?? null;
+}
+
+// --- Admin reads (the inbox and the usage view: `wa_agent.inbox`, `wa_agent.read`) -----------------------
+
+/** A keyset position: `at` is the sort column as exact UTC text with microseconds. */
+export interface WaCursor {
+  at: string;
+  key: string;
+}
+
+const stampOf = (column: AnyColumn | SQL) =>
+  sql<string>`to_char(${column} at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
+
+const escapeLikeText = (text: string): string => text.replace(/[\\%_]/g, (char) => `\\${char}`);
+
+export interface ConversationFilter {
+  status?: WaAgentConversationStatus | undefined;
+  /** true = linked to an account, false = guest. */
+  linked?: boolean | undefined;
+  /** Phone digits, or part of a linked user's name or e-mail. */
+  q?: string | undefined;
+}
+
+export interface ConversationListRow {
+  id: string;
+  phone: string | null;
+  userId: string | null;
+  userName: string | null;
+  status: WaAgentConversationStatus;
+  pausedUntil: Date | null;
+  lastInboundAt: Date | null;
+  lastOutboundAt: Date | null;
+  /** First 80 characters of the newest message (its kind in brackets when it has no text). */
+  preview: string | null;
+  cursorAt: string;
+}
+
+/** `limit + 1` rows, most recently active chat first. */
+export async function listConversations(
+  db: Handle,
+  filter: ConversationFilter,
+  cursor: WaCursor | undefined,
+  limit: number,
+): Promise<ConversationListRow[]> {
+  const conditions: Array<SQL | undefined> = [];
+  if (filter.status !== undefined) conditions.push(eq(waConversations.status, filter.status));
+  if (filter.linked === true) conditions.push(isNotNull(waConversations.userId));
+  if (filter.linked === false) conditions.push(isNull(waConversations.userId));
+  const q = filter.q?.trim();
+  if (q) {
+    const pattern = `%${escapeLikeText(q)}%`;
+    const matchers: Array<SQL | undefined> = [
+      ilike(users.name, pattern),
+      ilike(users.email, pattern),
+    ];
+    const digits = q.replace(/\D/g, "");
+    if (digits.length >= 3 && /^[+\d\s-]+$/.test(q)) {
+      matchers.push(sql`${waConversations.phone} like ${`%${digits}%`}`);
+    }
+    conditions.push(or(...matchers));
+  }
+  if (cursor) {
+    conditions.push(
+      sql`(${waConversations.updatedAt}, ${waConversations.id}) < (${cursor.at}::timestamptz, ${cursor.key}::uuid)`,
+    );
+  }
+  return db
+    .select({
+      id: waConversations.id,
+      phone: waConversations.phone,
+      userId: waConversations.userId,
+      userName: users.name,
+      status: waConversations.status,
+      pausedUntil: waConversations.pausedUntil,
+      lastInboundAt: waConversations.lastInboundAt,
+      lastOutboundAt: waConversations.lastOutboundAt,
+      preview: sql<string | null>`(
+        select left(coalesce(${waMessages.text}, '[' || ${waMessages.kind} || ']'), 80)
+        from ${waMessages}
+        where ${waMessages.conversationId} = ${waConversations.id}
+        order by ${waMessages.createdAt} desc, ${waMessages.id} desc
+        limit 1
+      )`,
+      cursorAt: stampOf(waConversations.updatedAt),
+    })
+    .from(waConversations)
+    .leftJoin(users, eq(users.id, waConversations.userId))
+    .where(and(...conditions))
+    .orderBy(desc(waConversations.updatedAt), desc(waConversations.id))
+    .limit(limit + 1);
+}
+
+export interface TranscriptRow {
+  id: string;
+  direction: "in" | "out" | "owner";
+  kind: WaAgentKind;
+  text: string | null;
+  status: "received" | "queued" | "sent" | "dropped";
+  dropReason: string | null;
+  meta: Record<string, unknown>;
+  hasMedia: boolean;
+  createdAt: Date;
+  cursorAt: string;
+}
+
+/** `limit + 1` rows of one chat, newest first (the page reverses them to read top to bottom). */
+export async function listTranscript(
+  db: Handle,
+  conversationId: string,
+  cursor: WaCursor | undefined,
+  limit: number,
+): Promise<TranscriptRow[]> {
+  const conditions: Array<SQL | undefined> = [eq(waMessages.conversationId, conversationId)];
+  if (cursor) {
+    conditions.push(
+      sql`(${waMessages.createdAt}, ${waMessages.id}) < (${cursor.at}::timestamptz, ${cursor.key}::uuid)`,
+    );
+  }
+  return db
+    .select({
+      id: waMessages.id,
+      direction: waMessages.direction,
+      kind: waMessages.kind,
+      text: waMessages.text,
+      status: waMessages.status,
+      dropReason: waMessages.dropReason,
+      meta: waMessages.meta,
+      hasMedia: sql<boolean>`${waMessages.mediaKey} is not null`,
+      createdAt: waMessages.createdAt,
+      cursorAt: stampOf(waMessages.createdAt),
+    })
+    .from(waMessages)
+    .where(and(...conditions))
+    .orderBy(desc(waMessages.createdAt), desc(waMessages.id))
+    .limit(limit + 1);
+}
+
+/** The media object of one message; null when the message has none or does not exist. */
+export async function getMessageMedia(
+  db: Handle,
+  messageId: string,
+): Promise<{
+  id: string;
+  conversationId: string;
+  mediaKey: string;
+  mediaMime: string | null;
+} | null> {
+  const [row] = await db
+    .select({
+      id: waMessages.id,
+      conversationId: waMessages.conversationId,
+      mediaKey: waMessages.mediaKey,
+      mediaMime: waMessages.mediaMime,
+    })
+    .from(waMessages)
+    .where(eq(waMessages.id, messageId));
+  return row && row.mediaKey !== null ? { ...row, mediaKey: row.mediaKey } : null;
+}
+
+export interface WaUsageDayRow {
+  /** UTC day, `YYYY-MM-DD`. */
+  day: string;
+  inbound: number;
+  outboundSent: number;
+  conversations: number;
+  linkedConversations: number;
+  guestConversations: number;
+}
+
+const utcDay = (column: AnyColumn | SQL) =>
+  sql<string>`to_char(${column} at time zone 'utc', 'YYYY-MM-DD')`;
+
+/** Message and chat counts per UTC day since `since` (a UTC midnight). */
+export async function waUsageByDay(db: Handle, since: Date): Promise<WaUsageDayRow[]> {
+  const day = utcDay(waMessages.createdAt);
+  return db
+    .select({
+      day,
+      inbound: sql<number>`(count(*) filter (where ${waMessages.direction} = 'in'))::int`,
+      outboundSent: sql<number>`(count(*) filter (where ${waMessages.direction} = 'out' and ${waMessages.status} = 'sent'))::int`,
+      conversations: sql<number>`count(distinct ${waMessages.conversationId})::int`,
+      linkedConversations: sql<number>`(count(distinct ${waMessages.conversationId}) filter (where ${waConversations.userId} is not null))::int`,
+      guestConversations: sql<number>`(count(distinct ${waMessages.conversationId}) filter (where ${waConversations.userId} is null))::int`,
+    })
+    .from(waMessages)
+    .innerJoin(waConversations, eq(waConversations.id, waMessages.conversationId))
+    .where(and(gte(waMessages.createdAt, since), inArray(waMessages.direction, ["in", "out"])))
+    .groupBy(day)
+    .orderBy(day);
+}
+
+/** Dropped replies per UTC day and reason since `since`. */
+export async function waDroppedByDay(
+  db: Handle,
+  since: Date,
+): Promise<Array<{ day: string; reason: string; count: number }>> {
+  const day = utcDay(waMessages.createdAt);
+  const reason = sql<string>`coalesce(${waMessages.dropReason}, 'unknown')`;
+  return db
+    .select({ day, reason, count: sql<number>`count(*)::int` })
+    .from(waMessages)
+    .where(and(gte(waMessages.createdAt, since), eq(waMessages.status, "dropped")))
+    .groupBy(day, reason)
+    .orderBy(day, reason);
+}
+
+/** The agent's own AI cost (`ai_usage` task `wa_agent`) per UTC day since `since`, USD micros. */
+export async function waAgentCostByDay(
+  db: Handle,
+  since: Date,
+): Promise<Array<{ day: string; costUsdMicros: number }>> {
+  const day = utcDay(aiUsage.createdAt);
+  const rows = await db
+    .select({ day, cost: sql<string>`coalesce(sum(${aiUsage.costUsdMicros}), 0)::text` })
+    .from(aiUsage)
+    .where(and(gte(aiUsage.createdAt, since), eq(aiUsage.task, "wa_agent")))
+    .groupBy(day)
+    .orderBy(day);
+  return rows.map((row) => ({ day: row.day, costUsdMicros: Number(row.cost) }));
 }

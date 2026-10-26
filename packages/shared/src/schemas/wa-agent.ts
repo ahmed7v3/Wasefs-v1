@@ -84,27 +84,65 @@ const outboundMediaKey = z
 export const WA_AGENT_HARD_MAX_PARTS = 10;
 export const WA_AGENT_HARD_MAX_CHARS = 4_000;
 
-export function waAgentPartSchema(maxReplyChars: number = WA_AGENT_HARD_MAX_CHARS) {
+/**
+ * True when `url` is a plain file under the public media origin (`MEDIA_PUBLIC_ORIGIN`): the only
+ * kind of address the agent may hand to WhatsApp to fetch. An unset origin allows nothing.
+ */
+export function isMediaOriginUrl(url: string, origin: string): boolean {
+  const base = origin.replace(/\/+$/, "");
+  if (base === "" || !url.startsWith(`${base}/`)) return false;
+  const rest = url.slice(base.length + 1);
+  return rest !== "" && !/[\s?#\\]/.test(rest) && !rest.split("/").includes("..");
+}
+
+const hasOneSource = (part: { mediaKey?: string | undefined; url?: string | undefined }) =>
+  (part.mediaKey === undefined) !== (part.url === undefined);
+
+/**
+ * `mediaOrigin` narrows url parts to the public media library; leave it out where the origin is
+ * unknown (the bridge checks the same rule against its own environment).
+ */
+export function waAgentPartSchema(
+  maxReplyChars: number = WA_AGENT_HARD_MAX_CHARS,
+  mediaOrigin?: string,
+) {
+  const url = z
+    .url({ protocol: /^https?$/ })
+    .max(2_048)
+    .refine((value) => mediaOrigin === undefined || isMediaOriginUrl(value, mediaOrigin), {
+      message: "not a media library url",
+    })
+    .optional();
   return z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("text"), text: z.string().min(1).max(maxReplyChars) }),
-    z.object({
-      kind: z.literal("image"),
-      mediaKey: outboundMediaKey,
-      caption: z.string().max(1_024).optional(),
-    }),
-    z.object({
-      kind: z.literal("document"),
-      mediaKey: outboundMediaKey,
-      fileName: z.string().min(1).max(120),
-    }),
+    // An image or document is either a stored upload (`mediaKey`) or a public media url, never both.
+    z
+      .object({
+        kind: z.literal("image"),
+        mediaKey: outboundMediaKey.optional(),
+        url,
+        caption: z.string().max(1_024).optional(),
+      })
+      .refine(hasOneSource, { message: "mediaKey or url", path: ["mediaKey"] }),
+    z
+      .object({
+        kind: z.literal("document"),
+        mediaKey: outboundMediaKey.optional(),
+        url,
+        fileName: z.string().min(1).max(120),
+      })
+      .refine(hasOneSource, { message: "mediaKey or url", path: ["mediaKey"] }),
     z.object({ kind: z.literal("voice"), mediaKey: outboundMediaKey }),
   ]);
 }
 export type WaAgentOutboundPart = z.output<ReturnType<typeof waAgentPartSchema>>;
 
 /** The parts of one agent turn, bounded by the admin caps (`waAgent.caps`). */
-export function waAgentOutboundFor(caps: { maxReplyChars: number; maxMessagesPerTurn: number }) {
-  return z.array(waAgentPartSchema(caps.maxReplyChars)).min(1).max(caps.maxMessagesPerTurn);
+export function waAgentOutboundFor(
+  caps: { maxReplyChars: number; maxMessagesPerTurn: number },
+  mediaOrigin?: string,
+) {
+  return z.array(waAgentPartSchema(caps.maxReplyChars, mediaOrigin)).min(1).max(caps.maxMessagesPerTurn);
 }
 
 /** The parts at the hard code limits; the service narrows them to the admin caps. */
