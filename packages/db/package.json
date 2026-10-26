@@ -26,18 +26,18 @@
   "dependencies": {
     "@wasfa/shared": "workspace:*",
     "drizzle-orm": "^0.45.4",
-    "kysely": "0.29.6",
+    "kysely": "0.29.7",
     "postgres": "^3.4.9",
     "zod": "^4.6.6"
   },
   "devDependencies": {
-    "@testcontainers/postgresql": "^12.2.0",
+    "@testcontainers/postgresql": "^12.2.1",
     "@types/node": "^24.0.0",
     "@wasfa/config": "workspace:*",
     "drizzle-kit": "^0.31.11",
-    "eslint": "^10.12.0",
+    "eslint": "^10.13.0",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.5"
   }
 }
