@@ -39,7 +39,7 @@
     "@types/react-dom": "^19.3.0",
     "@wasfa/config": "workspace:*",
     "eslint": "^10.12.0",
-    "jsdom": "^29.1.1",
+    "jsdom": "^30.1.3",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "typescript": "^5.9.3",
