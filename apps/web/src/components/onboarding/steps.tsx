@@ -14,17 +14,8 @@ import {
   type OnboardingState,
 } from "@wasfa/shared/schemas/onboarding";
 import { citySchema, countryCodeSchema } from "@wasfa/shared/schemas/org";
-import {
-  Button,
-  Card,
-  Checkbox,
-  ComingSoonBadge,
-  Field,
-  Input,
-  Select,
-  buttonStyles,
-} from "@wasfa/ui";
-import { Building2, CircleCheck, ExternalLink, User } from "lucide-react";
+import { Button, Checkbox, Field, Input, Select, buttonStyles } from "@wasfa/ui";
+import { Building2, ExternalLink, User } from "lucide-react";
 import { z } from "zod";
 
 import { useApiForm } from "../../lib/forms";
@@ -36,17 +27,27 @@ import { PhoneVerification } from "../phone-verification";
 import { useStepAction } from "./use-step-action";
 import { ChoiceCard, GroupError, StepActions } from "./wizard-parts";
 
+import type { CatalogResponse } from "@wasfa/shared/schemas/billing";
 import type { FormEventHandler, ReactNode } from "react";
+
+export interface SubmitOptions {
+  /** Where to go when this answer finishes onboarding (default: the dashboard). */
+  next?: string | undefined;
+  /** What the "finishing" spinner says meanwhile (default: the generic loading text). */
+  doneMessage?: string | undefined;
+}
 
 export interface StepProps {
   state: OnboardingState;
   /** Sends one step's answer; resolves also when the server refused it with a `CONFLICT` (the wizard shows that). */
-  submit: (step: OnboardingInputStep, body: unknown) => Promise<void>;
+  submit: (step: OnboardingInputStep, body: unknown, options?: SubmitOptions) => Promise<void>;
   /** Back (absent on the first step) and the label of the primary button. */
   onBack: (() => void) | undefined;
   submitLabel: string;
   nonce: string | undefined;
   freeMonthlyAnalyses: number;
+  /** The public catalog, or null when the API could not answer. Only the plan step reads it. */
+  catalog: CatalogResponse | null;
   facebookUrl: string | null;
 }
 
@@ -384,42 +385,6 @@ export function ProfessionIntentStep({ state, submit, onBack, submitLabel }: Ste
       </Field>
       {form.formError ? <ErrorNotice error={form.formError} /> : null}
       <StepActions onBack={onBack} submitLabel={submitLabel} loading={form.submitting} />
-    </StepForm>
-  );
-}
-
-export function PlanStep({ submit, onBack, freeMonthlyAnalyses }: StepProps) {
-  const form = useApiForm({
-    schema: ONBOARDING_STEP_SCHEMAS.plan_picker,
-    initial: { plan: "free" as const },
-    submit: (values) => submit("plan_picker", values),
-  });
-  return (
-    <StepForm onSubmit={form.handleSubmit}>
-      <Card
-        elevation="flat"
-        className="flex flex-col gap-3 border-primary bg-primary-soft p-5 sm:p-6"
-      >
-        <div className="flex items-center gap-3">
-          <CircleCheck aria-hidden className="size-6 shrink-0 text-primary" />
-          <h2 className="font-heading text-xl font-semibold text-text">
-            {t("onboarding.plan.free")}
-          </h2>
-        </div>
-        <p className="text-lg text-text tabular-nums">
-          {t("onboarding.plan.freeQuota", { count: freeMonthlyAnalyses })}
-        </p>
-        <p className="flex flex-wrap items-center gap-2 text-base text-text-muted">
-          {t("onboarding.plan.paidSoon")}
-          <ComingSoonBadge />
-        </p>
-      </Card>
-      {form.formError ? <ErrorNotice error={form.formError} /> : null}
-      <StepActions
-        onBack={onBack}
-        submitLabel={t("onboarding.plan.select")}
-        loading={form.submitting}
-      />
     </StepForm>
   );
 }

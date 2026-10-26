@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { t } from "@wasfa/shared/i18n";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,10 +7,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OnboardingWizard } from "../src/components/onboarding/onboarding-wizard";
 import { conflictMessageKey } from "../src/components/onboarding/step-copy";
 
+import type { CatalogResponse } from "@wasfa/shared/schemas/billing";
 import type { OnboardingState } from "@wasfa/shared/schemas/onboarding";
 
 const replace = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace, refresh: vi.fn() }) }));
+// The growth queue talks to the network; these tests only count the requests of the wizard itself.
+vi.mock("../src/lib/growth-events", () => ({ trackGrowth: vi.fn() }));
 
 const fetchMock = vi.fn<typeof fetch>();
 const json = (body: unknown, status = 200) =>
@@ -40,8 +43,8 @@ function state(overrides: Partial<OnboardingState> = {}): OnboardingState {
       { step: "account_type", status: "completed", optional: false },
       { step: "name", status: "current", optional: false },
       { step: "profession_intent", status: "pending", optional: false },
-      { step: "plan_picker", status: "pending", optional: false },
       { step: "social_follow", status: "pending", optional: true },
+      { step: "plan_picker", status: "pending", optional: false },
     ],
     answers,
     ...overrides,
@@ -61,9 +64,69 @@ function at(current: OnboardingState["steps"][number]["step"]): OnboardingState 
   });
 }
 
-function renderWizard(initial: OnboardingState = state(), facebookUrl: string | null = null) {
+const price = (months: number, perMonthMinor: number, headlineMinor: number) => ({
+  months,
+  amountMinor: headlineMinor,
+  promotionId: null,
+  display: { headlineMinor, struckMinor: null, savingsMinor: 0, perMonthMinor },
+});
+
+function paidPlan(
+  key: string,
+  nameAr: string,
+  audience: CatalogResponse["plans"][number]["audience"],
+): CatalogResponse["plans"][number] {
+  return {
+    key,
+    audience,
+    names: { ar: nameAr, en: key },
+    tagline: null,
+    features: [],
+    badge: null,
+    pinRecommended: false,
+    trialDays: 0,
+    monthlyCredits: 150,
+    maxMembers: null,
+    fairUseNote: null,
+    prices: [price(1, 9_900, 9_900), price(12, 8_000, 96_000)],
+  };
+}
+
+const catalog: CatalogResponse = {
+  currency: "EGP",
+  country: null,
+  plans: [
+    paidPlan("plus", "بلس", "individual"),
+    paidPlan("clinic", "عيادة", "organization"),
+    paidPlan("everyone", "للجميع", "any"),
+  ],
+  freePlan: {
+    key: "free",
+    names: { ar: "مجانية الكتالوج", en: "Free" },
+    tagline: null,
+    features: [],
+    badge: null,
+    monthlyCredits: 25,
+  },
+  promotions: [],
+  creditPacks: [],
+  tax: { mode: "none" },
+  methods: [],
+  billing: { trialAvailable: false, reviewSlaMinutes: 60, refundWindowDays: 7 },
+};
+
+function renderWizard(
+  initial: OnboardingState = state(),
+  facebookUrl: string | null = null,
+  plans: CatalogResponse | null = catalog,
+) {
   return render(
-    <OnboardingWizard initial={initial} freeMonthlyAnalyses={3} facebookUrl={facebookUrl} />,
+    <OnboardingWizard
+      initial={initial}
+      freeMonthlyAnalyses={3}
+      facebookUrl={facebookUrl}
+      catalog={plans}
+    />,
   );
 }
 
@@ -154,11 +217,25 @@ describe("OnboardingWizard", () => {
     fetchMock.mockResolvedValue(
       json(state({ currentStep: "done", done: true, completedAt: "2026-01-01T00:00:00.000Z" })),
     );
-    renderWizard(at("social_follow"));
-    // No Facebook page configured: a single finish button answers `followed: false`.
-    await userEvent.click(screen.getByRole("button", { name: t("onboarding.finish") }));
+    renderWizard(at("plan_picker"));
+    // Free is preselected: one click finishes onboarding.
+    await userEvent.click(screen.getByRole("button", { name: t("onboarding.plan.startFree") }));
     await waitFor(() => {
       expect(replace).toHaveBeenCalledWith("/dashboard");
+    });
+    expect(String(fetchMock.mock.calls[0]?.[0])).toMatch(/\/onboarding\/plan_picker$/);
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ plan: "free" }));
+    expect(screen.getByRole("status").textContent).toContain(t("onboarding.plan.activating"));
+  });
+
+  it("answers the social step with followed: false and moves on to the plan", async () => {
+    fetchMock.mockResolvedValue(json(at("plan_picker")));
+    renderWizard(at("social_follow"));
+    await userEvent.click(screen.getByRole("button", { name: t("common.next") }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
+        t("onboarding.step.plan_picker.title"),
+      );
     });
     expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ followed: false }));
   });
@@ -176,10 +253,104 @@ describe("OnboardingWizard", () => {
     expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ followed: false }));
   });
 
-  it("shows the free plan with the monthly analyses from the settings", () => {
-    renderWizard(at("plan_picker"));
-    expect(screen.getByText(t("onboarding.plan.freeQuota", { count: 3 }))).toBeTruthy();
-    expect(screen.getByText(t("ui.comingSoon"))).toBeTruthy();
+  describe("plan step", () => {
+    const done = () =>
+      json(state({ currentStep: "done", done: true, completedAt: "2026-01-01T00:00:00.000Z" }));
+    const planCards = () =>
+      within(
+        screen.getByRole("group", { name: t("onboarding.plan.optionsLabel") }),
+      ).getAllByRole<HTMLInputElement>("radio");
+    const planNames = () => planCards().map((radio) => radio.closest("label")?.textContent ?? "");
+
+    it("preselects the free plan, first, with the catalog name and credits", () => {
+      renderWizard(at("plan_picker"));
+      const [first] = planCards();
+      expect(first?.value).toBe("free");
+      expect(first?.checked).toBe(true);
+      expect(planNames()[0]).toContain("مجانية الكتالوج");
+      expect(planNames()[0]).toContain(t("billing.plan.monthlyCredits", { count: 25 }));
+      expect(screen.getByText(t("onboarding.plan.changeLater"))).toBeTruthy();
+    });
+
+    it("sends a paid choice to checkout with the plan and period", async () => {
+      fetchMock.mockResolvedValue(done());
+      renderWizard(at("plan_picker"));
+      await userEvent.click(screen.getByRole("radio", { name: /بلس/ }));
+      await userEvent.click(
+        screen.getByRole("button", { name: t("onboarding.plan.continuePaid") }),
+      );
+      await waitFor(() => {
+        expect(replace).toHaveBeenCalledWith("/checkout?plan=plus&months=12&currency=EGP");
+      });
+      expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(
+        JSON.stringify({ plan: "paid", planKey: "plus", months: 12 }),
+      );
+      expect(screen.getByRole("status").textContent).toContain(t("onboarding.plan.toCheckout"));
+    });
+
+    it("follows the period switch", async () => {
+      fetchMock.mockResolvedValue(done());
+      renderWizard(at("plan_picker"));
+      await userEvent.click(
+        within(screen.getByRole("group", { name: t("billing.pricing.period") })).getByRole(
+          "radio",
+          {
+            name: new RegExp(t("billing.pricing.monthly")),
+          },
+        ),
+      );
+      await userEvent.click(screen.getByRole("radio", { name: /بلس/ }));
+      await userEvent.click(
+        screen.getByRole("button", { name: t("onboarding.plan.continuePaid") }),
+      );
+      await waitFor(() => {
+        expect(replace).toHaveBeenCalledWith("/checkout?plan=plus&months=1&currency=EGP");
+      });
+    });
+
+    it("shows an individual only the individual and any plans", () => {
+      renderWizard(at("plan_picker"));
+      const text = planNames().join("|");
+      expect(text).toContain("بلس");
+      expect(text).toContain("للجميع");
+      expect(text).not.toContain("عيادة");
+    });
+
+    it("shows an organization only the organization and any plans, and checks out for it", async () => {
+      fetchMock.mockResolvedValue(done());
+      const orgId = "3f2b8c1e-5d4a-4e6f-9a7b-1c2d3e4f5a6b";
+      const initial = at("plan_picker");
+      renderWizard({
+        ...initial,
+        answers: {
+          ...initial.answers,
+          accountType: "organization",
+          organization: { id: orgId, name: "Nile", type: "pharmacy", country: "EG", city: null },
+        },
+      });
+      const text = planNames().join("|");
+      expect(text).toContain("عيادة");
+      expect(text).toContain("للجميع");
+      expect(text).not.toContain("بلس");
+      await userEvent.click(screen.getByRole("radio", { name: /عيادة/ }));
+      await userEvent.click(
+        screen.getByRole("button", { name: t("onboarding.plan.continuePaid") }),
+      );
+      await waitFor(() => {
+        expect(replace).toHaveBeenCalledWith(
+          `/checkout?plan=clinic&months=12&currency=EGP&org=${orgId}`,
+        );
+      });
+    });
+
+    it("offers only the free plan, with no coming-soon text, when there is no catalog", () => {
+      renderWizard(at("plan_picker"), null, null);
+      expect(planCards()).toHaveLength(1);
+      expect(planNames()[0]).toContain(t("onboarding.plan.free"));
+      expect(planNames()[0]).toContain(t("billing.plan.monthlyCredits", { count: 3 }));
+      expect(screen.queryByText(t("ui.comingSoon"))).toBeNull();
+      expect(screen.getByRole("button", { name: t("onboarding.plan.startFree") })).toBeTruthy();
+    });
   });
 });
 

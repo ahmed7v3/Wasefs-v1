@@ -17,8 +17,8 @@ import {
   answerAccountType,
   answerName,
   answerOrganization,
-  answerPlan,
   answerProfession,
+  skipSocial,
   stepHeading,
 } from "./support/onboarding-ui";
 import { bridgeConnected, bridgeGone } from "./support/whatsapp";
@@ -112,10 +112,11 @@ test("every onboarding step (organization path, with the phone step)", async ({
   await answerOrganization(page, "A11y Pharmacy");
   await expectAccessible(page, "onboarding: profession and intent");
   await answerProfession(page);
-  await expectAccessible(page, "onboarding: plan");
-  await answerPlan(page);
   await expect(stepHeading(page, "social_follow")).toBeVisible();
   await expectAccessible(page, "onboarding: social");
+  await skipSocial(page);
+  await expect(stepHeading(page, "plan_picker")).toBeVisible();
+  await expectAccessible(page, "onboarding: plan");
 });
 
 test("onboarding steps of an individual: name step", async ({ context, page, urls, redis }) => {

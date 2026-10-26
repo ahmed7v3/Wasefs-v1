@@ -41,8 +41,8 @@ test("organization onboarding creates the organization and reaches the dashboard
   await page.locator("button[name=next]").click();
 
   await answerProfession(page);
-  await answerPlan(page);
   await skipSocial(page);
+  await answerPlan(page);
 
   await expect(page).toHaveURL(/\/dashboard$/);
   const firstName = account.name.split(" ")[0] ?? "";

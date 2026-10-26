@@ -32,8 +32,8 @@ describe("applicable steps", () => {
       "phone",
       "name",
       "profession_intent",
-      "plan_picker",
       "social_follow",
+      "plan_picker",
     ]);
   });
 
@@ -44,9 +44,14 @@ describe("applicable steps", () => {
       "name",
       "organization",
       "profession_intent",
-      "plan_picker",
       "social_follow",
+      "plan_picker",
     ]);
+  });
+
+  it("plan_picker is the last step", () => {
+    expect(applicableSteps("individual").at(-1)).toBe("plan_picker");
+    expect(applicableSteps("organization").at(-1)).toBe("plan_picker");
   });
 
   it("only social_follow is optional", () => {
@@ -66,8 +71,8 @@ describe("current step", () => {
       phone: "pending",
       name: "pending",
       profession_intent: "pending",
-      plan_picker: "pending",
       social_follow: "pending",
+      plan_picker: "pending",
     });
   });
 
@@ -80,12 +85,24 @@ describe("current step", () => {
       "account_type",
       "name",
       "profession_intent",
-      "plan_picker",
       "social_follow",
+      "plan_picker",
     ];
     const state = fresh({ phoneVerified: true, completedSteps, followed: true });
     expect(evaluate(state).currentStep).toBe("done");
     expect(Object.values(statuses(state))).toEqual(Array(6).fill("completed"));
+  });
+
+  it("answering plan_picker last finishes the wizard", () => {
+    const before = fresh({
+      phoneVerified: true,
+      completedSteps: ["account_type", "name", "profession_intent", "social_follow"],
+    });
+    expect(evaluate(before).currentStep).toBe("plan_picker");
+    expect(
+      evaluate({ ...before, completedSteps: [...before.completedSteps, "plan_picker"] })
+        .currentStep,
+    ).toBe("done");
   });
 
   it("an organization is not done until its organization step is", () => {
@@ -93,8 +110,8 @@ describe("current step", () => {
       "account_type",
       "name",
       "profession_intent",
-      "plan_picker",
       "social_follow",
+      "plan_picker",
     ];
     const state = fresh({ accountType: "organization", phoneVerified: true, completedSteps });
     expect(evaluate(state).currentStep).toBe("organization");
@@ -162,7 +179,7 @@ describe("social_follow", () => {
   const nearlyDone = (followed?: boolean): MachineState =>
     fresh({
       phoneVerified: true,
-      completedSteps: ["account_type", "name", "profession_intent", "plan_picker", "social_follow"],
+      completedSteps: ["account_type", "name", "profession_intent", "social_follow", "plan_picker"],
       followed,
     });
 
@@ -178,7 +195,7 @@ describe("social_follow", () => {
   it("without an answer it is the current step", () => {
     const state = fresh({
       phoneVerified: true,
-      completedSteps: ["account_type", "name", "profession_intent", "plan_picker"],
+      completedSteps: ["account_type", "name", "profession_intent"],
     });
     expect(evaluate(state).currentStep).toBe("social_follow");
   });
@@ -188,7 +205,7 @@ describe("finished accounts", () => {
   it("stay done even if the phone step would apply again", () => {
     const state = fresh({
       finished: true,
-      completedSteps: ["account_type", "name", "profession_intent", "plan_picker", "social_follow"],
+      completedSteps: ["account_type", "name", "profession_intent", "social_follow", "plan_picker"],
     });
     expect(evaluate(state).currentStep).toBe("done");
     expect(statuses(state).phone).toBe("skipped");
@@ -244,7 +261,7 @@ describe("canSubmit", () => {
   it("refuses everything once onboarding is complete", () => {
     const state = fresh({
       phoneVerified: true,
-      completedSteps: ["account_type", "name", "profession_intent", "plan_picker", "social_follow"],
+      completedSteps: ["account_type", "name", "profession_intent", "social_follow", "plan_picker"],
     });
     for (const step of ["account_type", "name", "social_follow"] as const) {
       expect(canSubmit(state, step)).toEqual({ ok: false, reason: "onboarding_complete" });

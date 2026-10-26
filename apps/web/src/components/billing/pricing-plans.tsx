@@ -136,7 +136,7 @@ function Recommendation({
 }
 
 /** The period switcher: every duration the admin priced, with the best saving it brings. */
-function DurationSwitch({
+export function DurationSwitch({
   durations,
   value,
   plans,

@@ -47,8 +47,8 @@ test("registers with email, verifies from the mail, finishes onboarding and reac
   await answerAccountType(page, "individual");
   await answerName(page, account.name);
   await answerProfession(page);
-  await answerPlan(page);
   await skipSocial(page);
+  await answerPlan(page);
 
   await expect(page).toHaveURL(/\/dashboard$/);
   const firstName = account.name.split(" ")[0] ?? "";

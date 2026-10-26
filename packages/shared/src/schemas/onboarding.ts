@@ -7,7 +7,9 @@ import {
   USAGE_INTENTS,
   type OnboardingStep,
 } from "../identity.js";
+import { PLAN_KEY_PATTERN } from "../plans.js";
 
+import { monthsSchema } from "./billing.js";
 import { citySchema, countryCodeSchema, orgDetailsSchema } from "./org.js";
 import { personNameSchema } from "./user.js";
 
@@ -25,8 +27,11 @@ export type OnboardingInputStep = (typeof ONBOARDING_INPUT_STEPS)[number];
 
 export const onboardingStepParamSchema = z.object({ step: z.enum(ONBOARDING_INPUT_STEPS) });
 
-/** The only plan before Phase 2. */
-export const ONBOARDING_PLANS = ["free"] as const;
+/**
+ * The plan the user chose on the last step: `free` finishes onboarding, `paid` is a recorded intent
+ * and sends them to checkout (which validates the plan against the catalog).
+ */
+export const ONBOARDING_PLANS = ["free", "paid"] as const;
 
 export const ONBOARDING_STEP_SCHEMAS = {
   account_type: z.object({ accountType: z.enum(ACCOUNT_TYPES) }),
@@ -44,7 +49,14 @@ export const ONBOARDING_STEP_SCHEMAS = {
     country: countryCodeSchema,
     city: citySchema.optional(),
   }),
-  plan_picker: z.object({ plan: z.enum(ONBOARDING_PLANS) }),
+  plan_picker: z.discriminatedUnion("plan", [
+    z.object({ plan: z.literal("free") }),
+    z.object({
+      plan: z.literal("paid"),
+      planKey: z.string().max(40).regex(PLAN_KEY_PATTERN),
+      months: monthsSchema,
+    }),
+  ]),
   /** Optional step: `followed: false` means skipped. */
   social_follow: z.object({ followed: z.boolean() }),
 } as const satisfies Record<OnboardingInputStep, z.ZodType>;

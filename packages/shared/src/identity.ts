@@ -41,8 +41,8 @@ export const ONBOARDING_STEPS = [
   "name",
   "organization",
   "profession_intent",
-  "plan_picker",
   "social_follow",
+  "plan_picker",
   "done",
 ] as const;
 export type OnboardingStep = (typeof ONBOARDING_STEPS)[number];
@@ -64,7 +64,9 @@ export const USAGE_INTENTS = [
 export type UsageIntent = (typeof USAGE_INTENTS)[number];
 
 /** Onboarding steps the user may pass without answering. */
-export const OPTIONAL_ONBOARDING_STEPS = ["social_follow"] as const satisfies readonly OnboardingStep[];
+export const OPTIONAL_ONBOARDING_STEPS = [
+  "social_follow",
+] as const satisfies readonly OnboardingStep[];
 
 /** E.164: `+`, a non-zero first digit, 8-15 digits in total. Same rule as the DB CHECK on phones (written without backslashes so the DB can inline `.source`). */
 export const E164_PATTERN = /^[+][1-9][0-9]{7,14}$/;

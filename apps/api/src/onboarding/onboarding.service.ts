@@ -1,11 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import { USAGE_INTENTS, type OnboardingStep, type UsageIntent } from "@wasfa/shared/identity";
-import {
-  ONBOARDING_PLANS,
-  type OnboardingInputStep,
-  type OnboardingState,
-} from "@wasfa/shared/schemas/onboarding";
 
 import { AuditService } from "../audit/audit.service.js";
 import { PhoneService } from "../phone/phone.service.js";
@@ -23,6 +18,7 @@ import { OnboardingRepo, type OrgFields } from "./onboarding.repo.js";
 import { parseSubmission, readProgressData, type ProgressData } from "./onboarding.schemas.js";
 
 import type { AuthenticatedUser } from "../common/current-user.js";
+import type { OnboardingInputStep, OnboardingState } from "@wasfa/shared/schemas/onboarding";
 import type { FastifyRequest } from "fastify";
 
 /** Organization fields kept in the audit trail. */
@@ -211,7 +207,16 @@ export class OnboardingService {
           break;
         }
         case "plan_picker": {
-          nextData.plan = ONBOARDING_PLANS[0];
+          // A recorded intent only: checkout validates a paid plan against the catalog.
+          const { input } = submission;
+          nextData.plan = input.plan;
+          if (input.plan === "paid") {
+            nextData.planKey = input.planKey;
+            nextData.months = input.months;
+          } else {
+            delete nextData.planKey;
+            delete nextData.months;
+          }
           break;
         }
         case "social_follow": {
