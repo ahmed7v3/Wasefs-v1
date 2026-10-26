@@ -139,6 +139,8 @@ export const QUEUE_REGISTRY = {
     // Conversion engine (Task 3.14): offers, lifecycle mail and taste credits hourly; retention nightly.
     "growth.lifecycle": paymentsMaintenancePayloadSchema,
     "growth.retention": paymentsMaintenancePayloadSchema,
+    // WhatsApp agent transcripts and their media past `waAgent.retentionDays`, nightly.
+    "wa-agent.retention": paymentsMaintenancePayloadSchema,
     // Withdrawals (Task 3.12): overdue reminders every 30 minutes, nightly paid-out vs ledger check.
     "withdrawals.overdue": paymentsMaintenancePayloadSchema,
     "withdrawals.reconcile": paymentsMaintenancePayloadSchema,

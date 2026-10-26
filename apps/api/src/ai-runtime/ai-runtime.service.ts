@@ -43,6 +43,8 @@ function featureSwitch(task: AiTask): keyof Omit<KillSwitch, "all"> | null {
       return "chat";
     case "web_search":
       return "search";
+    case "wa_agent":
+      return "wa_agent";
     default:
       return null;
   }

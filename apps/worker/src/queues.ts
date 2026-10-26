@@ -42,6 +42,7 @@ import { reconcileRewardsJob, releaseRewardsJob } from "./jobs/rewards.job.js";
 import { rxAnalyzeJob } from "./jobs/rx.job.js";
 import { indexNowJob } from "./jobs/seo.indexnow.job.js";
 import { subscriptionsBackfillJob, subscriptionsLifecycleJob } from "./jobs/subscriptions.job.js";
+import { waAgentRetentionJob } from "./jobs/wa-agent.retention.job.js";
 import { withdrawalsOverdueJob, withdrawalsReconcileJob } from "./jobs/withdrawals.job.js";
 import { mediaProcessJob } from "./media/media.job.js";
 import { customerNotifyJob, customerWhatsappCheckJob } from "./notifications/customer.job.js";
@@ -141,6 +142,7 @@ export const HANDLERS: Handlers = {
     "deals.monthly_bonus": dealsMonthlyBonusJob,
     "growth.lifecycle": growthLifecycleJob,
     "growth.retention": growthRetentionJob,
+    "wa-agent.retention": waAgentRetentionJob,
   },
 };
 
@@ -264,6 +266,7 @@ export const DEALS_MONTHLY_BONUS_PATTERN = "20 4 * * *";
 export const GROWTH_LIFECYCLE_PATTERN = "25 * * * *";
 /** Nightly at 04:40 UTC: growth events and the mail log past 13 months. */
 export const GROWTH_RETENTION_PATTERN = "40 4 * * *";
+export const WA_AGENT_RETENTION_PATTERN = "50 4 * * *";
 
 /** Registers repeatable jobs. Upserting by id is idempotent, so restarts never duplicate them. */
 export async function registerSchedules(queues: readonly Queue[]): Promise<void> {
@@ -405,6 +408,11 @@ export async function registerSchedules(queues: readonly Queue[]): Promise<void>
     "growth.retention",
     { pattern: GROWTH_RETENTION_PATTERN, tz: "UTC" },
     { name: "growth.retention", data: {} },
+  );
+  await payments.upsertJobScheduler(
+    "wa-agent.retention",
+    { pattern: WA_AGENT_RETENTION_PATTERN, tz: "UTC" },
+    { name: "wa-agent.retention", data: {} },
   );
   await payments.upsertJobScheduler(
     "withdrawals.overdue",

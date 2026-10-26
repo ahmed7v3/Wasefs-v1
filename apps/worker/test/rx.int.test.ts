@@ -184,9 +184,13 @@ const reading = (items: RxExtraction["items"]): RxExtraction => ({
   unreadableRegions: [],
 });
 
+/** The content parts of a request message (tool results have none; these tests never use tools). */
+const partsOf = (message: Parameters<FakeScript>[0]["messages"][number] | undefined) =>
+  message === undefined || message.role === "tool" ? [] : message.parts;
+
 const textOf = (req: Parameters<FakeScript>[0]): string =>
   req.messages
-    .flatMap((message) => message.parts)
+    .flatMap((message) => partsOf(message))
     .map((part) => (part.type === "text" ? part.text : ""))
     .join("\n");
 
@@ -374,7 +378,7 @@ describe("rx.analyze", () => {
     });
     // One call to read, none to verify.
     expect(adapter.requests).toHaveLength(1);
-    expect(adapter.requests[0]?.messages[0]?.parts.some((part) => part.type === "image")).toBe(
+    expect(partsOf(adapter.requests[0]?.messages[0]).some((part) => part.type === "image")).toBe(
       true,
     );
 
@@ -465,7 +469,7 @@ describe("rx.analyze", () => {
     if (verifyCall === undefined) throw new Error("no verify call");
     expect(isVerifyCall(verifyCall)).toBe(true);
     // One cropped image per flagged line, not the whole pages.
-    expect(verifyCall.messages[0]?.parts.filter((part) => part.type === "image")).toHaveLength(1);
+    expect(partsOf(verifyCall.messages[0]).filter((part) => part.type === "image")).toHaveLength(1);
 
     const result = resultOf(row);
     expect(result.items[0]?.verified).toBe("not_needed");
@@ -673,11 +677,17 @@ describe("rx.analyze", () => {
       .insert(siteSettings)
       .values({
         key: "ai",
-        value: { killSwitch: { all: false, rx: true, chat: false, search: false } },
+        value: {
+          killSwitch: { all: false, rx: true, chat: false, search: false, wa_agent: false },
+        },
       })
       .onConflictDoUpdate({
         target: siteSettings.key,
-        set: { value: { killSwitch: { all: false, rx: true, chat: false, search: false } } },
+        set: {
+          value: {
+            killSwitch: { all: false, rx: true, chat: false, search: false, wa_agent: false },
+          },
+        },
       });
     try {
       const testCase = await queued();
@@ -818,9 +828,9 @@ describe("rx.analyze without the drug database (the model reads on its own)", ()
     expect(result.items[0]?.details?.sideEffects).toEqual(["غثيان", "دوخة"]);
     expect(result.overview?.likelyConditions).toEqual(["قد يُستخدم في ارتفاع البرولاكتين"]);
     const detailsRequest = adapter.requests.find(isDetailsCall);
-    expect(detailsRequest?.messages.flatMap((m) => m.parts).some((p) => p.type === "image")).toBe(
-      false,
-    );
+    expect(
+      detailsRequest?.messages.flatMap((m) => partsOf(m)).some((p) => p.type === "image"),
+    ).toBe(false);
   });
 
   it("keeps a done analysis, without details, when the details step fails", async () => {

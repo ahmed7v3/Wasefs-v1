@@ -4,6 +4,8 @@ import { parseVerificationCode, type InboundMessage } from "@wasfa/shared/schema
 /** Messages older than this are history replayed after a reconnect, not a user waiting for a result. */
 export const MAX_INBOUND_AGE_MS = 15 * 60_000;
 
+type MaybeLong = number | { toNumber: () => number } | null | undefined;
+
 /** The slice of a Baileys `WAMessage` the bridge reads. A structural type keeps this file testable without Baileys. */
 export interface RawMessage {
   key: {
@@ -16,7 +18,31 @@ export interface RawMessage {
     conversation?: string | null;
     extendedTextMessage?: { text?: string | null } | null;
     ephemeralMessage?: { message?: RawMessage["message"] } | null;
+    // Media and other content the agent reads (docs/WA-AGENT.md); the verification path ignores them.
+    imageMessage?: {
+      caption?: string | null;
+      mimetype?: string | null;
+      fileLength?: MaybeLong;
+    } | null;
+    documentMessage?: {
+      caption?: string | null;
+      mimetype?: string | null;
+      fileLength?: MaybeLong;
+    } | null;
+    audioMessage?: {
+      mimetype?: string | null;
+      seconds?: number | null;
+      fileLength?: MaybeLong;
+    } | null;
+    videoMessage?: object | null;
+    stickerMessage?: object | null;
+    locationMessage?: object | null;
+    liveLocationMessage?: object | null;
+    contactMessage?: object | null;
+    contactsArrayMessage?: object | null;
   } | null;
+  /** The sender's WhatsApp profile name. */
+  pushName?: string | null;
   /** Seconds since the epoch; Baileys may hand over a `Long`. */
   messageTimestamp?: number | { toNumber: () => number } | null;
 }
@@ -174,4 +200,32 @@ export async function extractInbound(
     ok: true,
     message: { id: key.id, phone, code, receivedAt, jid: key.remoteJid },
   };
+}
+
+/** When the message was sent (epoch ms), or `fallback` when WhatsApp gave no timestamp. */
+export function sentAtMs(raw: RawMessage, fallback: number): number {
+  const seconds = secondsOf(raw.messageTimestamp);
+  return seconds === null ? fallback : seconds * 1000;
+}
+
+/**
+ * The phone number of the other side of a 1:1 chat (E.164), from the chat jid, its alternate form
+ * or the LID mapping; null when WhatsApp has not told us. Used for the agent, which keeps a chat
+ * it cannot resolve instead of dropping it (a guest).
+ */
+export async function chatPhone(raw: RawMessage, resolver: LidResolver): Promise<string | null> {
+  let phone = phoneFromPnJid(raw.key.remoteJid) ?? phoneFromPnJid(raw.key.remoteJidAlt);
+  if (phone === null && raw.key.remoteJid && splitJid(raw.key.remoteJid)?.server === LID_SERVER) {
+    try {
+      phone = phoneFromPnJid(await resolver.getPNForLID(raw.key.remoteJid));
+    } catch {
+      phone = null;
+    }
+  }
+  return phone;
+}
+
+/** The agent's key for a chat: the phone-number jid when known, else the LID jid as given. */
+export function agentChatJid(phone: string | null, remoteJid: string): string {
+  return phone === null ? remoteJid : `${phone.slice(1)}@s.whatsapp.net`;
 }

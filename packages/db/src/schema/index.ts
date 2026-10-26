@@ -29,4 +29,5 @@ export * from "./site-assets.js";
 export * from "./site-settings.js";
 export * from "./subscriptions.js";
 export * from "./users.js";
+export * from "./wa-agent.js";
 export * from "./wa-sessions.js";

@@ -6,6 +6,7 @@ import type {
   DiscoveredModel,
   NormalizedEvent,
   NormalizedRequest,
+  ToolCall,
   Usage,
 } from "../types.js";
 
@@ -50,6 +51,10 @@ function lastUserText(req: NormalizedRequest): string {
 function inputChars(req: NormalizedRequest): number {
   let chars = req.system?.length ?? 0;
   for (const message of req.messages) {
+    if (message.role === "tool") {
+      chars += message.content.length;
+      continue;
+    }
     for (const part of message.parts) if (part.type === "text") chars += part.text.length;
   }
   return chars;
@@ -66,12 +71,21 @@ function threeChunks(text: string): string[] {
 
 /**
  * What a scripted call answers: the text of the answer, or an error to throw. `usage` overrides the
- * default token counts (for cost assertions).
+ * default token counts (for cost assertions); `toolCalls` makes the model ask for tools.
  */
-export type FakeReply = string | AiProviderError | { text: string; usage?: Usage };
+export type FakeReply =
+  string | AiProviderError | { text: string; usage?: Usage; toolCalls?: ToolCall[] };
 
 /** Decides the reply to the `call`-th request (0-based). Tests use it to return recorded JSON fixtures. */
 export type FakeScript = (req: NormalizedRequest, call: number) => FakeReply | Promise<FakeReply>;
+
+/** A script that answers its replies in order (the last one repeats), for tool-loop tests. */
+export function scriptQueue(replies: readonly FakeReply[]): FakeScript {
+  return (_req, call) => {
+    const reply = replies[Math.min(call, replies.length - 1)];
+    return reply ?? "";
+  };
+}
 
 export class FakeAdapter implements AIProviderAdapter {
   /** Every request this adapter received, in order (scripted tests assert on prompts and call counts). */
@@ -84,8 +98,10 @@ export class FakeAdapter implements AIProviderAdapter {
     if (this.script) {
       const reply = await this.script(req, this.requests.length - 1);
       if (reply instanceof AiProviderError) throw reply;
-      const { text, usage } = typeof reply === "string" ? { text: reply, usage: undefined } : reply;
-      yield { type: "text", text };
+      const { text, usage, toolCalls } =
+        typeof reply === "string" ? { text: reply, usage: undefined, toolCalls: undefined } : reply;
+      if (text !== "") yield { type: "text", text };
+      if (toolCalls && toolCalls.length > 0) yield { type: "tool_calls", toolCalls };
       yield {
         type: "usage",
         usage: usage ?? {

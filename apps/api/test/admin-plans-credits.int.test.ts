@@ -1018,7 +1018,7 @@ describe("settings", () => {
     expect(ai?.value).toMatchObject({
       dailyCapUsdMicros: 10_000_000,
       alertPercent: 80,
-      killSwitch: { all: false, rx: false, chat: false, search: false },
+      killSwitch: { all: false, rx: false, chat: false, search: false, wa_agent: false },
       creditValueUsdMicros: 10_000,
       allowPreviewModels: false,
     });

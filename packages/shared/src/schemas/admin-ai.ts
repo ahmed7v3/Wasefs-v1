@@ -379,6 +379,7 @@ export const putAiSettingsSchema = z.object({
     rx: z.boolean(),
     chat: z.boolean(),
     search: z.boolean(),
+    wa_agent: z.boolean(),
   }),
   creditValueUsdMicros: aiSettingsSchema.shape.creditValueUsdMicros.unwrap(),
   allowPreviewModels: aiSettingsSchema.shape.allowPreviewModels.unwrap(),

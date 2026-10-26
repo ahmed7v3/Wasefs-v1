@@ -210,8 +210,9 @@ export const aiSettingsSchema = z.object({
       rx: z.boolean().default(false),
       chat: z.boolean().default(false),
       search: z.boolean().default(false),
+      wa_agent: z.boolean().default(false),
     })
-    .default({ all: false, rx: false, chat: false, search: false }),
+    .default({ all: false, rx: false, chat: false, search: false, wa_agent: false }),
   /** What one credit is worth in USD micros (default $0.01). */
   creditValueUsdMicros: z.number().int().min(1).default(10_000),
   /** Preview models can disappear without notice: off unless an admin allows them. */
@@ -605,6 +606,75 @@ export const contentSettingsSchema = z.object({
   autoTranslateDrafts: z.boolean().default(false),
 });
 
+const waAgentCapsSchema = z.object({
+  /** Replies (messages) to one chat per UTC hour / per UTC day. */
+  perChatPerHour: z.number().int().min(1).max(200).default(20),
+  perChatPerDay: z.number().int().min(1).max(1_000).default(60),
+  /** Replies to all chats together per UTC day. */
+  dailyTotal: z.number().int().min(1).max(20_000).default(1_500),
+  maxReplyChars: z.number().int().min(50).max(4_000).default(1_200),
+  maxMessagesPerTurn: z.number().int().min(1).max(10).default(3),
+});
+
+const waAgentDiscountsSchema = z.object({
+  enabled: z.boolean().default(false),
+  percentOff: z.number().int().min(1).max(50).default(10),
+  /** Plan keys the offer may apply to; empty = all individual plans. */
+  plans: z.array(z.string().trim().min(1).max(64)).max(50).default([]),
+  validHours: z.number().int().min(1).max(168).default(24),
+  perUserLifetime: z.number().int().min(1).max(5).default(1),
+  dailyCap: z.number().int().min(0).max(1_000).default(20),
+  newCustomersOnly: z.boolean().default(true),
+  minUserMessages: z.number().int().min(0).max(50).default(4),
+});
+
+const waAgentMediaItemSchema = z.object({
+  key: z
+    .string()
+    .min(1)
+    .max(40)
+    .regex(/^[a-z0-9][a-z0-9_-]*$/),
+  mediaAssetId: z.uuid(),
+  caption: z.string().trim().max(300).optional(),
+});
+
+const waAgentVoiceSchema = z.object({
+  enabled: z.boolean().default(false),
+  replyMode: z.enum(["mirror", "sometimes", "never"]).default("mirror"),
+  sometimesPercent: z.number().int().min(0).max(100).default(20),
+  maxChars: z.number().int().min(50).max(2_000).default(600),
+  voiceId: z.string().trim().max(64).default(""),
+  modelId: z.string().trim().max(64).default(""),
+  transcribeIncoming: z.boolean().default(true),
+});
+
+/**
+ * The WhatsApp AI agent (docs/WA-AGENT.md §7). Off by default and independent from
+ * `auth.phoneVerification`. The ElevenLabs key is a secret and never lives here.
+ */
+export const waAgentSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  /** Answer numbers that are not linked to a verified account. */
+  guestsEnabled: z.boolean().default(true),
+  /** The pause before a reply is sent (plus or minus 25 % jitter). */
+  replyDelaySeconds: z.number().int().min(3).max(60).default(10),
+  typingIndicator: z.boolean().default(true),
+  caps: waAgentCapsSchema.default(() => waAgentCapsSchema.parse({})),
+  /** The agent's own daily AI spend cap, USD micros (1 USD = 1,000,000). */
+  spendCapUsdMicros: z.number().int().min(0).max(1_000_000_000).default(5_000_000),
+  persona: z.string().max(4_000).default(""),
+  language: z.enum(["ar_eg", "ar", "en"]).default("ar_eg"),
+  emojiLevel: z.enum(["none", "light", "lively"]).default("light"),
+  /** The agent stays quiet in a chat this long after the owner types into it. */
+  takeoverPauseMinutes: z.number().int().min(5).max(10_080).default(120),
+  /** Transcripts and wa media are deleted after this many days. */
+  retentionDays: z.number().int().min(7).max(365).default(90),
+  discounts: waAgentDiscountsSchema.default(() => waAgentDiscountsSchema.parse({})),
+  media: z.array(waAgentMediaItemSchema).max(30).default([]),
+  voice: waAgentVoiceSchema.default(() => waAgentVoiceSchema.parse({})),
+});
+export type WaAgentSettings = z.output<typeof waAgentSettingsSchema>;
+
 export const SETTING_VISIBILITIES = ["public", "admin"] as const;
 export type SettingVisibility = (typeof SETTING_VISIBILITIES)[number];
 
@@ -620,6 +690,8 @@ export const SETTINGS_REGISTRY = {
   /** Blocked email domains and the phone-verification kill switch: admin only. */
   auth: { schema: authSettingsSchema, visibility: "admin" },
   whatsapp: { schema: whatsappSettingsSchema, visibility: "admin" },
+  /** The WhatsApp AI agent: its own switch, independent from `auth.phoneVerification`. */
+  waAgent: { schema: waAgentSettingsSchema, visibility: "admin" },
   alerts: { schema: alertsSettingsSchema, visibility: "admin" },
   ai: { schema: aiSettingsSchema, visibility: "admin" },
   /** Public: the price per page and the page limit are shown before a prescription is analysed. */
@@ -748,6 +820,8 @@ export function isAiSwitchedOff(
       return killSwitch.chat;
     case "web_search":
       return killSwitch.search;
+    case "wa_agent":
+      return killSwitch.wa_agent;
     default:
       return false;
   }

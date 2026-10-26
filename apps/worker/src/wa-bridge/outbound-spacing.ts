@@ -12,7 +12,7 @@ return math.max(0, target - now)
 
 /** Reserves a serialized send slot shared by replies and admin alerts. */
 export async function reserveOutboundDelay(
-  redis: Redis,
+  redis: Pick<Redis, "eval">,
   requestedDelayMs: number,
   now: number,
 ): Promise<number> {

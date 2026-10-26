@@ -49,7 +49,7 @@ Only ports **80/443** are exposed publicly, and only to Cloudflare IP ranges. Po
 | `web` | SSR/ISR pages, SEO, UI. Holds **no secrets** except public keys (Turnstile site key, pixel IDs). | More replicas, or move to Cloudflare (OpenNext) later. |
 | `api` | Auth, business logic, permissions, AI orchestration + streaming, payments, webhooks. Stateless. | Horizontal replicas behind Caddy. |
 | `worker` | Image re-encode, AI batch jobs, email and push sends, subscription expiry & renewal reminders, campaign sends, drug imports, account anonymization, sitemap rebuilds. (Backups run on the host, not here: decision #12.) | More workers; separate queues per job type. |
-| `wa-bridge` | Phase 1. A long-running Baileys (WhatsApp linked-device) client in the worker image: **receives** messages to verify phone numbers, replies at most once per verification, never starts a conversation. `internal` network + outbound internet, no ports. | Exactly one replica by design (one linked session). Replaceable by the Meta Cloud API behind the `PhoneVerifier` interface. |
+| `wa-bridge` | Phase 1. A long-running Baileys (WhatsApp linked-device) client in the worker image: **receives** messages to verify phone numbers (`wa:inbound`), and, when the AI agent is on (`waAgent.enabled`, independent of verification), routes every other 1:1 message and the owner's own typing to `wa:agent:in`, stores media in the private uploads bucket (`wa/<yyyy>/<mm>/<uuid>`) and sends the agent's replies from `wa:agent:out` after the anti-ban guard (24 h window, caps, owner pause, typing + delay), reporting each part on `wa:agent:sent`. Replies at most once per verification; **never starts a conversation**. `internal` network + outbound internet, no ports. | Exactly one replica by design (one linked session). Replaceable by the Meta Cloud API behind the `PhoneVerifier` interface. |
 | `postgres` | Source of truth. | Bigger instance → managed Postgres / read replica. |
 | `redis` | Rate limits, sessions cache, queues, settings cache, idempotency keys, SSE coordination. | Bigger instance → managed Redis. |
 | `caddy` | TLS (Cloudflare Origin cert), security headers, request size limits, routing. | — |
@@ -136,6 +136,13 @@ Adapters: `GeminiAdapter` (thinking config + thought signatures preserved across
 - `POST /ai/chats/:id/messages` returns `text/event-stream`.
 - Events mirror `NormalizedEvent`; the UI shows a collapsible "thinking" panel, a "searching the web…" chip with sources, then the streamed answer (Markdown + tables, RTL-aware).
 - Heartbeat every 15s; max stream duration per plan; one active stream per user (configurable).
+
+### 5.5b Tool calling (non-streaming agents)
+- Provider-neutral: `ToolDefinition { name, description, parameters (JSON Schema) }`, `NormalizedRequest.tools / toolChoice` (`auto` | `none` | `{ name }`), assistant messages carry `toolCalls`, results are `{ role: "tool", toolCallId, name, content }` messages. Adapters emit one `tool_calls` event (`ToolCall.arguments` is parsed JSON; unparseable wire JSON becomes `{ __invalid: <raw, 500 chars> }`, never an exception).
+- OpenAI-compatible and OpenRouter use `tools` / `tool_choice` / `tool_calls`; Gemini uses `functionDeclarations` / `functionCall` / `functionResponse` (ids are generated when Gemini sends none; thought signatures travel in `ToolCall.opaque`). Web search is never sent next to tools.
+- `runToolLoop` (`tool-loop.ts`) drives the multi-step loop over a `call` the caller builds from `router.run` + `collectCompletion` (task `wa_agent`, kill-switch group `wa_agent`, `all` covers it). Usage of every step goes through the normal router accounting and spend guard.
+- Fallback: a different model may take over only before the first tool ran. After that `call` gets `allowFallback: false` (map it to `RouterInput.noFallback`) and a failure ends the loop with `ToolLoopError`, because tools have side effects.
+- Never log prompts, tool arguments or tool results; tool errors reach the model as fixed codes (`unknown_tool`, `invalid_arguments`, `tool_failed`, `too_many_calls`).
 
 ### 5.6 Skills
 - Stored in `/skills/<skill-name>/SKILL.md` (agentskills.io format: frontmatter `name`, `description`, then instructions + output schema reference).

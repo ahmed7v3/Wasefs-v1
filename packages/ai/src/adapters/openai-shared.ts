@@ -5,7 +5,16 @@ import { AiProviderError } from "../types.js";
 import { abortable } from "./abortable.js";
 import { classifyUnknown, codeForStatus, errorForStatus } from "./errors.js";
 
-import type { NormalizedEvent, NormalizedMessage, NormalizedRequest, Usage } from "../types.js";
+import type {
+  ChatMessage,
+  NormalizedEvent,
+  NormalizedMessage,
+  NormalizedRequest,
+  ToolCall,
+  ToolChoice,
+  ToolDefinition,
+  Usage,
+} from "../types.js";
 
 /**
  * Helpers shared by the OpenAI-compatible and OpenRouter adapters: request body, robust SSE
@@ -29,7 +38,58 @@ export function joinUrl(base: string, path: string): string {
   return `${base.replace(/\/+$/, "")}${path}`;
 }
 
-function toContent(message: NormalizedMessage): { role: string; content: unknown[] } {
+/** Raw tool arguments kept in the error marker are cut here so a runaway model cannot bloat traces. */
+const INVALID_ARGS_MAX_CHARS = 500;
+
+/** Wire arguments are a JSON string; anything unparseable becomes a marker instead of an exception. */
+export function parseToolArguments(raw: string): unknown {
+  if (raw.trim() === "") return {};
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    return { __invalid: raw.slice(0, INVALID_ARGS_MAX_CHARS) };
+  }
+}
+
+function toWireArguments(args: unknown): string {
+  const invalid =
+    typeof args === "object" && args !== null && "__invalid" in (args as Record<string, unknown>);
+  return invalid ? "{}" : JSON.stringify(args ?? {});
+}
+
+export function toWireTools(tools: ToolDefinition[]): unknown[] {
+  return tools.map((tool) => ({
+    type: "function",
+    function: { name: tool.name, description: tool.description, parameters: tool.parameters },
+  }));
+}
+
+export function toWireToolChoice(choice: ToolChoice): unknown {
+  return typeof choice === "string"
+    ? choice
+    : { type: "function", function: { name: choice.name } };
+}
+
+function toWireMessage(message: NormalizedMessage): Record<string, unknown> {
+  if (message.role === "tool") {
+    return { role: "tool", tool_call_id: message.toolCallId, content: message.content };
+  }
+  if (message.toolCalls && message.toolCalls.length > 0) {
+    const text = message.parts.map((part) => (part.type === "text" ? part.text : "")).join("");
+    return {
+      role: "assistant",
+      content: text === "" ? null : text,
+      tool_calls: message.toolCalls.map((call) => ({
+        id: call.id,
+        type: "function",
+        function: { name: call.name, arguments: toWireArguments(call.arguments) },
+      })),
+    };
+  }
+  return toContent(message);
+}
+
+function toContent(message: ChatMessage): { role: string; content: unknown[] } {
   return {
     role: message.role,
     content: message.parts.map((part) =>
@@ -68,7 +128,7 @@ ${JSON.stringify(req.jsonSchema)}`
   if (req.system !== undefined || schemaNote !== "") {
     messages.push({ role: "system", content: `${req.system ?? ""}${schemaNote}`.trimStart() });
   }
-  for (const message of req.messages) messages.push(toContent(message));
+  for (const message of req.messages) messages.push(toWireMessage(message));
 
   const body: Record<string, unknown> = {
     model: req.model,
@@ -78,6 +138,10 @@ ${JSON.stringify(req.jsonSchema)}`
     [tokenParam]: req.maxOutputTokens,
   };
   if (req.temperature !== undefined) body.temperature = req.temperature;
+  if (req.tools && req.tools.length > 0) {
+    body.tools = toWireTools(req.tools);
+    if (req.toolChoice !== undefined) body.tool_choice = toWireToolChoice(req.toolChoice);
+  }
   if (req.jsonSchema) {
     body.response_format = schemaInPrompt
       ? { type: "json_object" }
@@ -168,6 +232,13 @@ const annotationSchema = z.object({
   url_citation: z.object({ url: z.string(), title: z.string().nullish() }).nullish(),
 });
 
+// Streamed tool calls arrive as fragments keyed by `index`: id and name first, arguments in pieces.
+const toolCallDeltaSchema = z.object({
+  index: z.number().nullish(),
+  id: z.string().nullish(),
+  function: z.object({ name: z.string().nullish(), arguments: z.string().nullish() }).nullish(),
+});
+
 const chunkSchema = z.object({
   choices: z
     .array(
@@ -178,6 +249,7 @@ const chunkSchema = z.object({
             reasoning: z.string().nullish(),
             reasoning_details: z.array(reasoningDetailSchema).nullish(),
             annotations: z.array(annotationSchema).nullish(),
+            tool_calls: z.array(toolCallDeltaSchema).nullish(),
           })
           .nullish(),
         finish_reason: z.string().nullish(),
@@ -189,7 +261,7 @@ const chunkSchema = z.object({
 });
 
 function mapFinishReason(reason: string): "stop" | "length" | "safety" | "other" {
-  if (reason === "stop") return "stop";
+  if (reason === "stop" || reason === "tool_calls") return "stop";
   if (reason === "length") return "length";
   if (reason === "content_filter") return "safety";
   return "other";
@@ -263,6 +335,7 @@ export async function* streamChat(
     const seenUrls = new Set<string>();
     let usage: z.infer<typeof usageSchema> | undefined;
     let finishReason: string | undefined;
+    const pendingCalls = new Map<number, { id: string; name: string; args: string }>();
 
     for await (const payload of abortable(parseSse(response.body), signal)) {
       if (signal.aborted) throw new AiProviderError("timeout");
@@ -291,6 +364,14 @@ export async function* streamChat(
             if (thinking) yield { type: "thinking", text: thinking };
           }
           if (delta.content) yield { type: "text", text: delta.content };
+          for (const fragment of delta.tool_calls ?? []) {
+            const index = fragment.index ?? 0;
+            const pending = pendingCalls.get(index) ?? { id: "", name: "", args: "" };
+            if (fragment.id) pending.id = fragment.id;
+            if (fragment.function?.name) pending.name += fragment.function.name;
+            if (fragment.function?.arguments) pending.args += fragment.function.arguments;
+            pendingCalls.set(index, pending);
+          }
 
           const sources: { url: string; title?: string }[] = [];
           for (const annotation of delta.annotations ?? []) {
@@ -311,6 +392,16 @@ export async function* streamChat(
     }
 
     if (signal.aborted) throw new AiProviderError("timeout");
+    const toolCalls: ToolCall[] = [...pendingCalls.entries()]
+      .sort(([a], [b]) => a - b)
+      .filter(([, call]) => call.name !== "")
+      .map(([index, call]) => ({
+        // Some gateways omit ids; a stable one keeps the tool result pairable.
+        id: call.id === "" ? `call_${String(index)}` : call.id,
+        name: call.name,
+        arguments: parseToolArguments(call.args),
+      }));
+    if (toolCalls.length > 0) yield { type: "tool_calls", toolCalls };
     if (usage) yield { type: "usage", usage: toUsage(usage, seenUrls.size > 0) };
     yield { type: "done", finishReason: finishReason ? mapFinishReason(finishReason) : "stop" };
   } catch (error) {

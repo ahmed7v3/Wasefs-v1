@@ -310,6 +310,11 @@
       "import": "./dist/schemas/admin-user-360.js",
       "default": "./dist/schemas/admin-user-360.js"
     },
+    "./schemas/wa-agent": {
+      "types": "./dist/schemas/wa-agent.d.ts",
+      "import": "./dist/schemas/wa-agent.js",
+      "default": "./dist/schemas/wa-agent.js"
+    },
     "./schemas/wa-alert": {
       "types": "./dist/schemas/wa-alert.d.ts",
       "import": "./dist/schemas/wa-alert.js",

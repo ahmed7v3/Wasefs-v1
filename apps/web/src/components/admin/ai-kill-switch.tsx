@@ -14,7 +14,7 @@ import { ConfirmDialog } from "./confirm-dialog";
 import type { ApiRequestError } from "../../lib/api-error";
 import type { FormEvent } from "react";
 
-export const KILL_SWITCH_NAMES = ["all", "rx", "chat", "search"] as const;
+export const KILL_SWITCH_NAMES = ["all", "rx", "chat", "search", "wa_agent"] as const;
 export type KillSwitchName = (typeof KILL_SWITCH_NAMES)[number];
 export type KillSwitchValue = Record<KillSwitchName, boolean>;
 

@@ -3,22 +3,25 @@ import {
   WA_CUSTOMER_PREFS_LIST,
   waCustomerPrefCommandSchema,
 } from "@wasfa/shared/customer-messages";
-import { WA_INBOUND_MAXLEN, WA_INBOUND_STREAM, WA_REPLY_STREAM } from "@wasfa/shared/schemas/phone";
+import { WA_REPLY_STREAM } from "@wasfa/shared/schemas/phone";
 import { waAlertOptInSchema } from "@wasfa/shared/schemas/wa-alert";
 import makeWASocket, {
   Browsers,
   DisconnectReason,
+  downloadMediaMessage,
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
   type WAMessage,
   type WASocket,
 } from "@whiskeysockets/baileys";
 
+import { routeInbound, type InboundRouterDeps } from "./agent-inbound.js";
+import { type MediaIo } from "./agent-media.js";
+import { type AgentSettingsSource } from "./agent-settings.js";
 import { usePostgresAuthState } from "./auth-state.js";
 import {
   extractAlertOptInCommand,
   extractCustomerPrefCommand,
-  extractInbound,
   isDirectJid,
   type RawMessage,
 } from "./inbound.js";
@@ -41,6 +44,10 @@ export interface BaileysSessionOptions {
   logger: Logger;
   redis: Redis;
   guard: ReplyGuard;
+  /** The agent's switches (cached); the two features are independent. */
+  agentSettings: AgentSettingsSource;
+  /** Where inbound media is stored; null when uploads storage is not configured. */
+  mediaStore: { put: MediaIo["put"] } | null;
 }
 
 function disconnectKind(status: number | undefined): DisconnectKind {
@@ -53,9 +60,13 @@ function disconnectKind(status: number | undefined): DisconnectKind {
 export function createBaileysSessionOpener(
   options: BaileysSessionOptions,
 ): () => Promise<BridgeSession> {
-  const { db, key, session, logger, redis, guard } = options;
+  const { db, key, session, logger, redis, guard, agentSettings, mediaStore } = options;
 
-  async function handleMessages(socket: WASocket, messages: WAMessage[]): Promise<void> {
+  async function handleMessages(
+    socket: WASocket,
+    messages: WAMessage[],
+    router: InboundRouterDeps,
+  ): Promise<void> {
     for (const message of messages) {
       const raw = message as unknown as RawMessage;
       const optIn = await extractAlertOptInCommand(raw, socket.signalRepository.lidMapping);
@@ -103,24 +114,20 @@ export function createBaileysSessionOpener(
         logger.info({ action: command.action }, "WhatsApp customer preference command queued");
         continue;
       }
-      const result = await extractInbound(raw, socket.signalRepository.lidMapping);
-      if (!result.ok) {
-        logger.debug({ reason: result.reason }, "Inbound message ignored");
-        continue;
+      // Codes, the agent and the owner's own messages: see agent-inbound.ts.
+      try {
+        const outcome = await routeInbound(raw, router, async () => {
+          await socket.readMessages([message.key]);
+        });
+        if (outcome.route === "ignored") {
+          logger.debug({ reason: outcome.reason }, "Inbound message ignored");
+        }
+      } catch (error) {
+        logger.error(
+          { reason: error instanceof Error ? error.name : "unknown" },
+          "Routing an inbound message failed",
+        );
       }
-      await guard.noteInbound(result.message.jid, result.message.id);
-      await socket.readMessages([message.key]).catch(() => undefined);
-      await redis.xadd(
-        WA_INBOUND_STREAM,
-        "MAXLEN",
-        "~",
-        WA_INBOUND_MAXLEN,
-        "*",
-        "data",
-        JSON.stringify(result.message),
-      );
-      // No phone number or code in the log line.
-      logger.info("Inbound verification message queued");
     }
   }
 
@@ -150,6 +157,24 @@ export function createBaileysSessionOpener(
           getMessage: () => Promise.resolve(undefined),
         });
 
+        const baileysDownload: MediaIo["download"] = async (raw) => {
+          const buffer = await downloadMediaMessage(
+            raw as unknown as WAMessage,
+            "buffer",
+            {},
+            { logger: baileysLogger, reuploadRequest: socket.updateMediaMessage },
+          );
+          return buffer;
+        };
+        const router: InboundRouterDeps = {
+          redis,
+          guard,
+          settings: agentSettings,
+          resolver: socket.signalRepository.lidMapping,
+          media: mediaStore === null ? null : { download: baileysDownload, put: mediaStore.put },
+          logger,
+        };
+
         // After `end` nothing may touch the database: an unlink has just emptied the session.
         let ended = false;
         socket.ev.on("creds.update", () => {
@@ -160,7 +185,7 @@ export function createBaileysSessionOpener(
         });
         socket.ev.on("messages.upsert", ({ messages, type }) => {
           if (ended || type !== "notify") return;
-          handleMessages(socket, messages).catch((error: Error) => {
+          handleMessages(socket, messages, router).catch((error: Error) => {
             logger.error({ reason: error.message }, "Handling inbound messages failed");
           });
         });
@@ -192,6 +217,21 @@ export function createBaileysSessionOpener(
           sendText: async (jid, text) => {
             await socket.sendMessage(jid, { text });
           },
+          sendAgentText: async (jid, text) =>
+            (await socket.sendMessage(jid, { text }))?.key.id ?? null,
+          sendImage: async (jid, data, caption) =>
+            (await socket.sendMessage(jid, { image: data, ...(caption ? { caption } : {}) }))?.key
+              .id ?? null,
+          sendDocument: async (jid, data, fileName, mimetype) =>
+            (await socket.sendMessage(jid, { document: data, fileName, mimetype }))?.key.id ?? null,
+          sendVoice: async (jid, data) =>
+            (
+              await socket.sendMessage(jid, {
+                audio: data,
+                ptt: true,
+                mimetype: "audio/ogg; codecs=opus",
+              })
+            )?.key.id ?? null,
         };
         return handle;
       },

@@ -1,4 +1,4 @@
-import type { MessagePart, NormalizedMessage } from "@wasfa/ai";
+import type { ChatMessage, MessagePart, NormalizedMessage } from "@wasfa/ai";
 
 /*
  * What the model is shown for one chat turn (phase2.md Task 2.11, "Context policy"):
@@ -50,7 +50,7 @@ export function recentHistory(
   rows: readonly HistoryRow[],
   summaryThroughId: string | null,
   maxChars = CONTEXT_MAX_HISTORY_CHARS,
-): NormalizedMessage[] {
+): ChatMessage[] {
   // -1 when there is no summary, or its last message is older than the rows we were given.
   const throughIndex =
     summaryThroughId === null ? -1 : rows.findIndex((row) => row.id === summaryThroughId);
@@ -77,7 +77,7 @@ export interface PromptInput {
   systemPrompt: string;
   skillBody: string | null;
   summary: string | null;
-  history: NormalizedMessage[];
+  history: ChatMessage[];
   userText: string;
   images: { mime: string; data: Uint8Array }[];
 }

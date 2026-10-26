@@ -1,10 +1,14 @@
 import { createDb } from "@wasfa/db";
 import { decodeEncryptionKey } from "@wasfa/shared/crypto";
 import { WA_HEARTBEAT_INTERVAL_MS } from "@wasfa/shared/schemas/phone";
+import { uploadsStorageConfig } from "@wasfa/shared/storage";
 import { Redis } from "ioredis";
 
 import { createLogger } from "../logger.js";
+import { ObjectStore } from "../storage/object-store.js";
 
+import { runAgentOutLoop } from "./agent-outbound.js";
+import { AgentSettingsCache } from "./agent-settings.js";
 import { AlertGuard } from "./alert-guard.js";
 import { runAlertLoop } from "./alerts.js";
 import { clearSession } from "./auth-state.js";
@@ -58,7 +62,9 @@ const blocking = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 const commandRedis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 const alertRedis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 const customerRedis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
-for (const connection of [redis, blocking, commandRedis, alertRedis, customerRedis]) {
+// The agent's outbound stream is read (blocking) on a connection of its own; its sends use `redis`.
+const agentRedis = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
+for (const connection of [redis, blocking, commandRedis, alertRedis, customerRedis, agentRedis]) {
   connection.on("error", (error: Error) => {
     logger.error({ reason: error.message }, "Redis connection error");
   });
@@ -66,6 +72,10 @@ for (const connection of [redis, blocking, commandRedis, alertRedis, customerRed
 const guard = new ReplyGuard(redis);
 const alertGuard = new AlertGuard(alertRedis, env.WA_ALERTS_ENABLED);
 const customerGuard = new CustomerGuard(customerRedis, db, env.WEB_ORIGIN ?? null);
+const agentSettings = new AgentSettingsCache(db, logger);
+// Without uploads storage the agent still runs: media arrives as "other" and files cannot be sent.
+const uploadsConfig = uploadsStorageConfig(env);
+const uploads = uploadsConfig === undefined ? null : new ObjectStore(uploadsConfig);
 
 const bridge = new WaBridge({
   redis,
@@ -77,6 +87,9 @@ const bridge = new WaBridge({
     logger,
     redis,
     guard,
+    agentSettings,
+    mediaStore:
+      uploads === null ? null : { put: (key, body, type) => uploads.put(key, body, type) },
   }),
   clearSession: () => clearSession(db, env.WA_SESSION),
   // The operator's terminal, not a log line: a pairing code is a short-lived secret.
@@ -124,6 +137,20 @@ if (command === "run") {
   }).catch((error: Error) => {
     logger.error({ reason: error.message }, "WhatsApp customer loop stopped");
   });
+  void runAgentOutLoop({
+    redis: agentRedis,
+    consumer: `bridge-${process.pid}`,
+    deps: {
+      redis,
+      settings: agentSettings,
+      socket: bridge.agentSocket,
+      store: uploads,
+      logger,
+    },
+    signal: loopAbort.signal,
+  }).catch((error: Error) => {
+    logger.error({ reason: error.message }, "WhatsApp agent outbound loop stopped");
+  });
   void runCommandLoop({
     redis: commandRedis,
     target: bridge,
@@ -146,6 +173,8 @@ async function shutdown(reason: string, code: number): Promise<void> {
   commandRedis.disconnect();
   alertRedis.disconnect();
   customerRedis.disconnect();
+  agentRedis.disconnect();
+  uploads?.close();
   await redis.quit().catch(() => {
     redis.disconnect();
   });

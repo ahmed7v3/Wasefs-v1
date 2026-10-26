@@ -1,6 +1,7 @@
 // The ONLY file that imports @google/genai: everything above it sees NormalizedRequest/Event only.
 import {
   ApiError,
+  FunctionCallingConfigMode,
   GoogleGenAI,
   MediaResolution as GeminiMediaResolution,
   ThinkingLevel as GeminiThinkingLevel,
@@ -13,6 +14,7 @@ import { classifyUnknown, errorForStatus, timedProbe } from "./errors.js";
 
 import type {
   AIProviderAdapter,
+  ChatMessage,
   ConnectionResult,
   DiscoveredModel,
   MediaResolution,
@@ -20,11 +22,14 @@ import type {
   NormalizedMessage,
   NormalizedRequest,
   ThinkingLevel,
+  ToolCall,
+  ToolChoice,
   Usage,
 } from "../types.js";
 import type {
   Content,
   GenerateContentConfig,
+  FunctionCallingConfig,
   GenerateContentResponse,
   Part,
   ThinkingConfig,
@@ -65,12 +70,69 @@ function mapFinishReason(reason: string | undefined): "stop" | "length" | "safet
   return "other";
 }
 
-function toParts(message: NormalizedMessage): Part[] {
+function toParts(message: ChatMessage): Part[] {
   return message.parts.map((part): Part =>
     part.type === "text"
       ? { text: part.text }
       : { inlineData: { mimeType: part.mime, data: Buffer.from(part.data).toString("base64") } },
   );
+}
+
+/** Gemini wants an object as a function response; tool content is JSON text from our loop. */
+function toFunctionResponse(content: string): Record<string, unknown> {
+  try {
+    const parsed: unknown = JSON.parse(content);
+    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+    return { result: parsed };
+  } catch {
+    return { result: content };
+  }
+}
+
+function toFunctionCallPart(call: ToolCall): Part {
+  const args =
+    typeof call.arguments === "object" && call.arguments !== null && !Array.isArray(call.arguments)
+      ? (call.arguments as Record<string, unknown>)
+      : {};
+  return {
+    functionCall: { id: call.id, name: call.name, args },
+    ...(call.opaque === undefined ? {} : { thoughtSignature: call.opaque }),
+  };
+}
+
+/** History to Gemini contents: tool results become one user turn per run of results (parallel calls). */
+export function toContents(messages: NormalizedMessage[]): Content[] {
+  const contents: Content[] = [];
+  for (const message of messages) {
+    if (message.role === "tool") {
+      const part: Part = {
+        functionResponse: {
+          id: message.toolCallId,
+          name: message.name,
+          response: toFunctionResponse(message.content),
+        },
+      };
+      const last = contents[contents.length - 1];
+      if (last?.role === "user" && last.parts?.every((p) => p.functionResponse !== undefined)) {
+        last.parts.push(part);
+      } else {
+        contents.push({ role: "user", parts: [part] });
+      }
+      continue;
+    }
+    const parts = toParts(message);
+    for (const call of message.toolCalls ?? []) parts.push(toFunctionCallPart(call));
+    contents.push({ role: message.role === "assistant" ? "model" : "user", parts });
+  }
+  return contents;
+}
+
+function toFunctionCallingConfig(choice: ToolChoice): FunctionCallingConfig {
+  if (choice === "auto") return { mode: FunctionCallingConfigMode.AUTO };
+  if (choice === "none") return { mode: FunctionCallingConfigMode.NONE };
+  return { mode: FunctionCallingConfigMode.ANY, allowedFunctionNames: [choice.name] };
 }
 
 function toThinkingConfig(req: NormalizedRequest): ThinkingConfig | undefined {
@@ -97,7 +159,23 @@ function buildConfig(req: NormalizedRequest, signal: AbortSignal): GenerateConte
     config.responseMimeType = "application/json";
     config.responseJsonSchema = req.jsonSchema;
   }
-  if (req.search) config.tools = [{ googleSearch: {} }];
+  if (req.tools && req.tools.length > 0) {
+    // googleSearch is deliberately not sent next to function declarations (tools win).
+    config.tools = [
+      {
+        functionDeclarations: req.tools.map((tool) => ({
+          name: tool.name,
+          description: tool.description,
+          parametersJsonSchema: tool.parameters,
+        })),
+      },
+    ];
+    if (req.toolChoice !== undefined) {
+      config.toolConfig = { functionCallingConfig: toFunctionCallingConfig(req.toolChoice) };
+    }
+  } else if (req.search) {
+    config.tools = [{ googleSearch: {} }];
+  }
   return config;
 }
 
@@ -132,10 +210,7 @@ export class GeminiAdapter implements AIProviderAdapter {
   }
 
   async *stream(req: NormalizedRequest, signal: AbortSignal): AsyncGenerator<NormalizedEvent> {
-    const contents: Content[] = req.messages.map((message) => ({
-      role: message.role === "assistant" ? "model" : "user",
-      parts: toParts(message),
-    }));
+    const contents = toContents(req.messages);
 
     try {
       if (signal.aborted) throw new AiProviderError("timeout");
@@ -149,6 +224,7 @@ export class GeminiAdapter implements AIProviderAdapter {
       let searched = false;
       let usage: Usage | undefined;
       let finishReason: string | undefined;
+      const toolCalls: ToolCall[] = [];
 
       for await (const chunk of abortable(chunks, signal)) {
         if (signal.aborted) throw new AiProviderError("timeout");
@@ -156,6 +232,17 @@ export class GeminiAdapter implements AIProviderAdapter {
 
         const candidate = chunk.candidates?.[0];
         for (const part of candidate?.content?.parts ?? []) {
+          if (part.functionCall?.name) {
+            const call = part.functionCall;
+            toolCalls.push({
+              // Gemini often sends no id; a positional one keeps results pairable.
+              id: call.id ?? `call_${String(toolCalls.length)}`,
+              name: call.name ?? "",
+              arguments: call.args ?? {},
+              ...(part.thoughtSignature === undefined ? {} : { opaque: part.thoughtSignature }),
+            });
+            continue;
+          }
           if (!part.text) continue;
           yield part.thought === true
             ? { type: "thinking", text: part.text }
@@ -180,6 +267,7 @@ export class GeminiAdapter implements AIProviderAdapter {
       }
 
       if (signal.aborted) throw new AiProviderError("timeout");
+      if (toolCalls.length > 0) yield { type: "tool_calls", toolCalls };
       // Usage is cumulative across chunks; only the last figure counts, and only if the provider sent one.
       if (usage) yield { type: "usage", usage: { ...usage, searchCount: searched ? 1 : 0 } };
       yield { type: "done", finishReason: mapFinishReason(finishReason) };

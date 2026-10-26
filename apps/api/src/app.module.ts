@@ -43,6 +43,7 @@ import { SettingsModule } from "./settings/settings.module.js";
 import { SiteHealthModule } from "./site-health/site-health.module.js";
 import { SubscriptionsModule } from "./subscriptions/subscriptions.module.js";
 import { UsersModule } from "./users/users.module.js";
+import { WaAgentModule } from "./wa-agent/wa-agent.module.js";
 import { WaitlistModule } from "./waitlist/waitlist.module.js";
 import { WithdrawalsModule } from "./withdrawals/withdrawals.module.js";
 
@@ -76,6 +77,7 @@ export class AppModule {
         AuthModule,
         AccessModule,
         PhoneModule,
+        WaAgentModule,
         ContactModule,
         SiteHealthModule,
         WaitlistModule,

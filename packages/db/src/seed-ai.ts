@@ -243,6 +243,11 @@ export const DEFAULT_ROUTE_SEEDS: Readonly<Record<AiTask, readonly RouteEntrySee
     { provider: G, modelId: FLASH, params: { search: true } },
     { provider: O, modelId: FLASH_OR, params: { search: true } },
   ],
+  // Mirrors the default chat route so a fresh install works; the admin tunes it under AI > Routes.
+  wa_agent: [
+    { provider: G, modelId: FLASH, params: { thinking: "low" } },
+    { provider: G, modelId: FLASH_36, params: { thinking: "low" } },
+  ],
 };
 
 export interface AiSeedResult {
