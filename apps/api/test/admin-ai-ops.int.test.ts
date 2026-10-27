@@ -551,7 +551,7 @@ describe("playground", () => {
     const value = (settings.json() as { value: Body }).value;
     const put = (patch: Body) => call("PUT", "/admin/ai/settings", boss, { ...value, ...patch });
 
-    await put({ killSwitch: { all: true, rx: false, chat: false, search: false } });
+    await put({ killSwitch: { all: true, rx: false, chat: false, search: false, wa_agent: false } });
     const stopped = playgroundResponseSchema.parse(
       (await run(boss, { task: "chat", input: "x", modelIds: [echoId] })).json(),
     );

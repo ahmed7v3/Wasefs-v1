@@ -4,6 +4,7 @@ import { newId } from "@wasfa/shared/ids";
 import {
   FILE_URL_TTL_SECONDS,
   PROCESSED_MIME,
+  UPLOAD_MAX_BYTES,
   UPLOAD_RATE_LIMIT,
   UPLOAD_URL_TTL_SECONDS,
   isHeicMime,
@@ -12,6 +13,7 @@ import {
   type CreateUploadResponse,
   type FileStatusResponse,
   type FileUrlResponse,
+  type UploadMime,
   type UploadRejectReason,
 } from "@wasfa/shared/schemas/files";
 import { isPdfObjectKey, originalObjectKey } from "@wasfa/shared/storage";
@@ -28,6 +30,9 @@ import type { FileRecord } from "@wasfa/db";
 import type { FileMime } from "@wasfa/shared/ai";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** What a server-side import may create: the two kinds of file the WhatsApp agent forwards. */
+export type ImportPurpose = "rx_page" | "payment_proof";
 
 /** A refusal the web app can explain: `details.reason` is one of `UPLOAD_REJECT_REASONS`. */
 function refusal(reason: UploadRejectReason): AppError {
@@ -102,6 +107,78 @@ export class FilesService {
       headers: put.headers,
       expiresInSeconds: UPLOAD_URL_TTL_SECONDS,
     };
+  }
+
+  /**
+   * Takes a file the api already holds in the uploads bucket (a WhatsApp attachment) in as the
+   * viewer's own file: a server-side copy to the usual `u/<owner>/<id>/original` key, a `files` row
+   * for `purpose`, and the same hand-over to the worker as a finished browser upload. The copy is
+   * checked for size; the bytes are never read here. Returns the new file id.
+   */
+  async importObject(
+    user: FileViewer,
+    input: { sourceKey: string; purpose: ImportPurpose; mime: UploadMime; bytes: number },
+  ): Promise<string> {
+    if (!this.storage.configured) {
+      throw new AppError(ErrorCode.UPSTREAM_UNAVAILABLE, {
+        details: { reason: "storage_not_configured" },
+      });
+    }
+    if (input.bytes < 1 || input.bytes > UPLOAD_MAX_BYTES) throw refusal("size_mismatch");
+    const fileId = newId();
+    const isPdf = input.mime === "application/pdf";
+    const key = originalObjectKey(user.id, fileId, isPdf);
+    if (!(await this.storage.copy(input.sourceKey, key, input.mime))) {
+      throw new AppError(ErrorCode.NOT_FOUND, { details: { reason: "source_missing" } });
+    }
+    const head = await this.storage.head(key);
+    if (head === null || head.bytes < 1 || head.bytes > UPLOAD_MAX_BYTES) {
+      await this.storage.remove(key);
+      throw refusal("size_mismatch");
+    }
+    const retentionDays =
+      input.purpose === "payment_proof"
+        ? (await this.settings.get("billing")).proofRetentionDays
+        : (await this.settings.get("uploads")).retentionDays;
+    const file = await this.repo.insert({
+      id: fileId,
+      ownerUserId: user.id,
+      createdBy: user.id,
+      purpose: input.purpose,
+      r2Key: key,
+      mime: isPdf ? PROCESSED_MIME : (input.mime as FileMime),
+      bytes: head.bytes,
+      expiresAt: new Date(Date.now() + retentionDays * DAY_MS),
+    });
+    if (await this.repo.markUploaded(file)) await this.images.process(file.id);
+    return fileId;
+  }
+
+  /**
+   * Waits for the worker to finish (or reject) one of the viewer's files. Returns its status; still
+   * `uploaded` after `timeoutMs` means the worker is busy, not that the file is bad.
+   */
+  async awaitProcessed(
+    user: FileViewer,
+    fileId: string,
+    options: { timeoutMs: number; pollMs: number; sleep?: (ms: number) => Promise<void> },
+  ): Promise<FileRecord["status"]> {
+    const sleep =
+      options.sleep ??
+      ((ms: number) =>
+        new Promise<void>((resolve) => {
+          setTimeout(resolve, ms);
+        }));
+    let status = (await this.require(user, fileId)).status;
+    for (
+      let waited = 0;
+      status === "uploaded" && waited < options.timeoutMs;
+      waited += options.pollMs
+    ) {
+      await sleep(options.pollMs);
+      status = (await this.require(user, fileId)).status;
+    }
+    return status;
   }
 
   /**

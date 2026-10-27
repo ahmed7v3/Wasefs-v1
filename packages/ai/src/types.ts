@@ -8,10 +8,43 @@ export type MediaResolution = "low" | "medium" | "high" | "ultra_high";
 export type MessagePart =
   { type: "text"; text: string } | { type: "image"; mime: string; data: Uint8Array };
 
-export interface NormalizedMessage {
+/** A function the model may ask the caller to run. `name` follows `TOOL_NAME_PATTERN`. */
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  /** JSON Schema of the arguments (an object schema). */
+  parameters: Record<string, unknown>;
+}
+
+export const TOOL_NAME_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
+
+/** A tool call the model made. `arguments` is parsed JSON; unparseable wire JSON becomes `{ __invalid: raw }`. */
+export interface ToolCall {
+  id: string;
+  name: string;
+  arguments: unknown;
+  /** Provider-owned opaque token (Gemini thought signature) that must be echoed back unchanged. */
+  opaque?: string;
+}
+
+export type ToolChoice = "auto" | "none" | { name: string };
+
+export interface ChatMessage {
   role: "user" | "assistant";
   parts: MessagePart[];
+  /** Assistant turns only: the tool calls that turn made. */
+  toolCalls?: ToolCall[];
 }
+
+/** The result of one tool call, answering the `ToolCall` with the same id. */
+export interface ToolResultMessage {
+  role: "tool";
+  toolCallId: string;
+  name: string;
+  content: string;
+}
+
+export type NormalizedMessage = ChatMessage | ToolResultMessage;
 
 export interface NormalizedRequest {
   /** The provider's own model id (free text, discovered live). */
@@ -24,6 +57,9 @@ export interface NormalizedRequest {
   includeThoughts?: boolean;
   mediaResolution?: MediaResolution;
   search?: boolean;
+  /** Tool calling (non-streaming agents). Search is never sent together with tools. */
+  tools?: ToolDefinition[];
+  toolChoice?: ToolChoice;
   maxOutputTokens: number;
   temperature?: number;
 }
@@ -46,8 +82,20 @@ export type NormalizedEvent =
   | { type: "thinking"; text: string }
   | { type: "text"; text: string }
   | { type: "search"; sources: { url: string; title?: string }[] }
+  | { type: "tool_calls"; toolCalls: ToolCall[] }
   | { type: "usage"; usage: Usage }
   | { type: "done"; finishReason: "stop" | "length" | "safety" | "other" };
+
+/** One finished model call with the stream collected: what a non-streaming caller sees. */
+export interface CompletionResult {
+  text: string;
+  /** Possibly empty. */
+  toolCalls: ToolCall[];
+  usage: Usage | undefined;
+  /** Provider cost of the call, failed fallback attempts included. Integer USD micros. */
+  costUsdMicros: number;
+  finishReason: "stop" | "length" | "safety" | "other";
+}
 
 export const AI_ERROR_CODES = [
   "auth",

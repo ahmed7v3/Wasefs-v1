@@ -14,6 +14,7 @@ export const arAdminBilling = {
   "admin.ai.task.classify": "التصنيف",
   "admin.ai.task.summarize": "التلخيص",
   "admin.ai.task.web_search": "البحث في الويب",
+  "admin.ai.task.wa_agent": "وكيل واتساب",
   "admin.ai.mode.fast": "سريع",
   "admin.ai.mode.balanced": "متوازن",
   "admin.ai.mode.deep": "عميق",

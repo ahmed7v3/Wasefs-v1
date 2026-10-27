@@ -24,4 +24,9 @@ regexes = [
   # Fake IndexNow key of the worker sender tests in commit 959edbe (since replaced by a
   # low-entropy value); IndexNow keys are public by protocol anyway (served at /indexnow.txt).
   '''abcdef0123456789''',
+  # Fake ElevenLabs keys of the WhatsApp agent voice/admin tests: the tests prove the key is
+  # never returned, logged or audited, so it must look like a key.
+  '''xi-(secret|test)-key-0123456789-?abcdef(ghij)?''',
+  # Fake R2 object key of the WhatsApp agent outbound-part tests (not a credential).
+  '''wa/2026/10/abcdefgh''',
 ]

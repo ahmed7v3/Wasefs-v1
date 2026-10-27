@@ -1,3 +1,4 @@
+import { isAiSwitchedOff } from "@wasfa/shared/settings";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -13,6 +14,7 @@ import { FakeRedis } from "./fake-redis.js";
 import type {
   AIProviderAdapter,
   NormalizedEvent,
+  NormalizedRequest,
   ResolvedRoute,
   RouterEvent,
   RouterInput,
@@ -462,5 +464,74 @@ describe("router: cancellation", () => {
     expect(error).toBeUndefined();
     expect(h.usage.map((row) => row.outcome)).toEqual(["cancelled"]);
     expect(events.filter((e) => e.type === "text")).toHaveLength(1);
+  });
+});
+
+describe("router: tool calling (wa_agent)", () => {
+  const TOOLS = [
+    {
+      name: "get_catalog",
+      description: "Plans and prices",
+      parameters: { type: "object", properties: {} },
+    },
+  ];
+  const toolCallsScript: Script = [
+    { type: "tool_calls", toolCalls: [{ id: "c1", name: "get_catalog", arguments: {} }] },
+    { type: "usage", usage: USAGE },
+    { type: "done", finishReason: "stop" },
+  ];
+
+  function capturing(script: Script, seen: NormalizedRequest[]): AIProviderAdapter {
+    return {
+      async *stream(req) {
+        seen.push(req);
+        for (const step of script) {
+          if (step instanceof Error) throw step;
+          yield step;
+        }
+      },
+      listModels: () => Promise.resolve([]),
+      testConnection: () => Promise.resolve({ ok: true, latencyMs: 0 }),
+    };
+  }
+
+  it("accepts the wa_agent task, passes tools through and drops web search next to them", async () => {
+    const h = harness({ m1: toolCallsScript }, { params: { m1: { search: true } } });
+    const seen: NormalizedRequest[] = [];
+    h.ports.adapterFor = () => capturing(toolCallsScript, seen);
+    const { events, error } = await drain(
+      h,
+      input({
+        task: "wa_agent",
+        request: {
+          messages: [{ role: "user", parts: [{ type: "text", text: "hi" }] }],
+          maxOutputTokens: 500,
+          search: true,
+          tools: TOOLS,
+          toolChoice: "auto",
+        },
+      }),
+    );
+    expect(error).toBeUndefined();
+    expect(events.some((e) => e.type === "tool_calls")).toBe(true);
+    expect(seen[0]?.tools).toEqual(TOOLS);
+    expect(seen[0]?.toolChoice).toBe("auto");
+    expect(seen[0]?.search).toBeUndefined();
+    expect(h.usage[0]?.task).toBe("wa_agent");
+  });
+
+  it("noFallback tries only the first model, even on a retryable error", async () => {
+    const h = harness({ m1: [retryable()], m2: okScript });
+    const { error } = await drain(h, input({ task: "wa_agent", noFallback: true }));
+    expect(error).toBeInstanceOf(AiProviderError);
+    expect(h.calls).toEqual(["m1"]);
+  });
+
+  it("the wa_agent kill switch is its own group and all still covers it", () => {
+    const off = { all: false, rx: false, chat: false, search: false, wa_agent: false };
+    expect(isAiSwitchedOff({ ...off, wa_agent: true }, "wa_agent", { search: false })).toBe(true);
+    expect(isAiSwitchedOff({ ...off, chat: true }, "wa_agent", { search: false })).toBe(false);
+    expect(isAiSwitchedOff({ ...off, all: true }, "wa_agent", { search: false })).toBe(true);
+    expect(isAiSwitchedOff({ ...off, wa_agent: true }, "chat", { search: false })).toBe(false);
   });
 });

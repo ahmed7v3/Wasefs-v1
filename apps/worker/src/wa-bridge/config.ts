@@ -1,33 +1,45 @@
 import { parseEnv } from "@wasfa/shared/env";
+import { mediaEnvShape, refineUploadsEnv, uploadsEnvShape } from "@wasfa/shared/storage";
 import { z } from "zod";
 
 /** Environment of the `wa-bridge` process: Redis (streams), Postgres (auth state) and the encryption key. */
-export const bridgeEnvSchema = z.object({
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  REDIS_URL: z.url({ protocol: /^rediss?$/ }),
-  DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
-  ENCRYPTION_KEY: z
-    .string()
-    .refine(
-      (value) => /^[A-Za-z0-9+/]+={0,2}$/.test(value) && Buffer.from(value, "base64").length === 32,
-      "must be 32 bytes, base64-encoded",
-    ),
-  LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
-  WA_ALERTS_ENABLED: z
-    .preprocess((value) => value === "true" || value === true, z.boolean())
-    .default(false),
-  /** The web app origin: the only site customer messages may link to. Unset = no links allowed. */
-  WEB_ORIGIN: z
-    .string()
-    .transform((value) => value.split(",")[0]?.trim() ?? "")
-    .pipe(z.url({ protocol: /^https?$/ }))
-    .optional(),
-  /** One linked number per session name. */
-  WA_SESSION: z
-    .string()
-    .regex(/^[a-z][a-z0-9_-]{0,31}$/)
-    .default("default"),
-});
+export const bridgeEnvSchema = z
+  .object({
+    NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+    REDIS_URL: z.url({ protocol: /^rediss?$/ }),
+    DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
+    ENCRYPTION_KEY: z
+      .string()
+      .refine(
+        (value) =>
+          /^[A-Za-z0-9+/]+={0,2}$/.test(value) && Buffer.from(value, "base64").length === 32,
+        "must be 32 bytes, base64-encoded",
+      ),
+    LOG_LEVEL: z
+      .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
+      .default("info"),
+    WA_ALERTS_ENABLED: z
+      .preprocess((value) => value === "true" || value === true, z.boolean())
+      .default(false),
+    /** The web app origin: the only site customer messages may link to. Unset = no links allowed. */
+    WEB_ORIGIN: z
+      .string()
+      .transform((value) => value.split(",")[0]?.trim() ?? "")
+      .pipe(z.url({ protocol: /^https?$/ }))
+      .optional(),
+    /** One linked number per session name. */
+    WA_SESSION: z
+      .string()
+      .regex(/^[a-z][a-z0-9_-]{0,31}$/)
+      .default("default"),
+    /** The private uploads bucket: inbound media for the agent and the files it sends. All four keys or none. */
+    ...uploadsEnvShape,
+    /** Where the public media library is served: the only origin the agent may send files from by url. */
+    MEDIA_PUBLIC_ORIGIN: mediaEnvShape.MEDIA_PUBLIC_ORIGIN,
+  })
+  .superRefine((env, ctx) => {
+    refineUploadsEnv(env, ctx);
+  });
 
 export type BridgeEnv = z.output<typeof bridgeEnvSchema>;
 

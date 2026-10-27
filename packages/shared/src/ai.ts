@@ -15,6 +15,8 @@ export const AI_TASKS = [
   "classify",
   "summarize",
   "web_search",
+  // The WhatsApp sales/support agent (tool calling). Not medical: medical work goes through rx/chat tools.
+  "wa_agent",
 ] as const;
 export type AiTask = (typeof AI_TASKS)[number];
 

@@ -82,7 +82,9 @@ export async function* runWithFallbacks(
         // Nothing may reach the caller after an abort, even if the adapter had it buffered.
         if (signal.aborted) break;
         if (event.type === "usage") usage = event.usage;
-        if (event.type === "text" || event.type === "thinking") outputSeen = true;
+        if (event.type === "text" || event.type === "thinking" || event.type === "tool_calls") {
+          outputSeen = true;
+        }
         yield { ...event, candidate: candidate.key };
       }
       if (signal.aborted) {

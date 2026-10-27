@@ -1,4 +1,4 @@
-import { siteSettings, type Database } from "@wasfa/db";
+import { siteSettings, type Database, type Transaction } from "@wasfa/db";
 import {
   SETTINGS_REGISTRY,
   settingDefault,
@@ -13,7 +13,7 @@ import { eq } from "drizzle-orm";
  * two settings per job, and an admin's change (a kill switch above all) must apply to the next job.
  */
 export async function readSetting<K extends SettingKey>(
-  db: Database,
+  db: Database | Transaction,
   key: K,
 ): Promise<SettingValue<K>> {
   const [row] = await db.select().from(siteSettings).where(eq(siteSettings.key, key)).limit(1);

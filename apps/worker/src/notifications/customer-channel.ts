@@ -48,6 +48,15 @@ export interface CustomerChannelDeps {
   now?: () => Date;
 }
 
+/**
+ * Whether the customer-message path puts WhatsApp on the wire for this person (now, or deferred to
+ * the sending hours; a full budget falls back to email, which is still not the agent's business).
+ * The WhatsApp agent follows up a payment decision only when this is false, so nobody is told twice.
+ */
+export function customerWhatsappOn(enabled: boolean, jid: string | null): boolean {
+  return enabled && jid !== null;
+}
+
 /** A uuid derived from the notification key: the same notification is always the same message. */
 export function messageIdFor(key: string): string {
   const hex = createHash("sha256").update(`customer-message:${key}`).digest("hex");
@@ -201,7 +210,7 @@ export async function deliverCustomerMessage(
 
   const settings = (await readSetting(deps.db, "whatsapp")).customerMessages;
   const jid = contact.whatsappJid;
-  if (!settings.enabled || !jid) {
+  if (!customerWhatsappOn(settings.enabled, jid) || !jid) {
     if (emailAlready) return "email";
     return (await sendEmail(deps, payload.key, payload.email)) ? "email" : "none";
   }

@@ -8,7 +8,16 @@ import type { AIProviderAdapter, ProviderConfig } from "./types.js";
 
 export * from "./types.js";
 export { SKILL_REGISTRY, getSkill, skillVersion, type SkillEntry } from "./skills/index.js";
-export { FakeAdapter, type FakeReply, type FakeScript } from "./adapters/fake.js";
+export { FakeAdapter, scriptQueue, type FakeReply, type FakeScript } from "./adapters/fake.js";
+export { addUsage, collectCompletion } from "./completion.js";
+export {
+  ToolLoopError,
+  runToolLoop,
+  type ToolHandler,
+  type ToolLoopCallInput,
+  type ToolLoopOptions,
+  type ToolLoopResult,
+} from "./tool-loop.js";
 export { costUsdMicros, creditsFor, usdPerTokenToMicrosPerM, usdToMicros } from "./pricing.js";
 export { runWithFallbacks } from "./runner.js";
 export {

@@ -23,6 +23,7 @@ import { AdminSearchModule } from "./search/admin-search.module.js";
 import { AdminSettingsModule } from "./settings/admin-settings.module.js";
 import { AdminStatsModule } from "./stats/admin-stats.module.js";
 import { AdminUsersModule } from "./users/admin-users.module.js";
+import { AdminWaAgentModule } from "./wa-agent/admin-wa-agent.module.js";
 import { AdminWhatsappModule } from "./whatsapp/admin-whatsapp.module.js";
 
 /**
@@ -42,6 +43,7 @@ import { AdminWhatsappModule } from "./whatsapp/admin-whatsapp.module.js";
     AdminAuditModule,
     AdminIssuesModule,
     AdminWhatsappModule,
+    AdminWaAgentModule,
     AdminPlansModule,
     AdminCreditsModule,
     AdminAiModule,

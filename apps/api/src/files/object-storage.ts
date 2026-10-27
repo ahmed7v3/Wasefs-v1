@@ -121,8 +121,12 @@ export class ObjectStorage implements OnApplicationShutdown {
     }
   }
 
-  /** Server-side copy inside the bucket. Returns false when the source does not exist. */
-  async copy(fromKey: string, toKey: string): Promise<boolean> {
+  /**
+   * Server-side copy inside the bucket. Returns false when the source does not exist. With
+   * `contentType` the copy is stored as that type whatever the source said (the file check that
+   * follows compares it with the declared type).
+   */
+  async copy(fromKey: string, toKey: string, contentType?: string): Promise<boolean> {
     const { s3, bucket } = this.connect();
     try {
       await s3.send(
@@ -130,6 +134,9 @@ export class ObjectStorage implements OnApplicationShutdown {
           Bucket: bucket,
           Key: toKey,
           CopySource: `${bucket}/${encodeURIComponent(fromKey).replaceAll("%2F", "/")}`,
+          ...(contentType === undefined
+            ? {}
+            : { ContentType: contentType, MetadataDirective: "REPLACE" as const }),
         }),
       );
       return true;

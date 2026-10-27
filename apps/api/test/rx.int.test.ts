@@ -220,7 +220,7 @@ async function rowOf(id: string) {
 const kill = (rx: boolean) =>
   settings.set(
     "ai",
-    { killSwitch: { all: false, rx, chat: false, search: false } },
+    { killSwitch: { all: false, rx, chat: false, search: false, wa_agent: false } },
     { actorId: null },
   );
 

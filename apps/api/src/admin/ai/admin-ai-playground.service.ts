@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import {
   AiProviderError,
   getSkill,
+  type ChatMessage,
   type NormalizedMessage,
   type RouterEvent,
   type RouterInput,
@@ -81,7 +82,7 @@ function systemFor(task: AiTask): string | undefined {
 
 /** The input as one user message: text in a data block, then every picture in its own block. */
 function messagesFor(input: string, images: readonly ChatImage[]): NormalizedMessage[] {
-  const parts: NormalizedMessage["parts"] = [];
+  const parts: ChatMessage["parts"] = [];
   if (input.trim() !== "") {
     parts.push({ type: "text", text: `<user_data>\n${input}\n</user_data>` });
   }

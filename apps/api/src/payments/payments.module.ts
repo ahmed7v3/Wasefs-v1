@@ -30,6 +30,14 @@ import { WebhooksController } from "./webhooks.controller.js";
     // Activation and refunds create, extend, switch or shorten the subscription period.
     { provide: PAYMENT_HOOKS, useValue: SUBSCRIPTION_HOOKS },
   ],
-  exports: [GatewayRegistry, PaymentsRepo, PaymentsService, PAYMENT_HOOKS],
+  // Orders and manual proofs are also driven by the WhatsApp agent (WA-AGENT.md).
+  exports: [
+    GatewayRegistry,
+    PaymentsRepo,
+    PaymentsService,
+    OrdersService,
+    ManualPaymentsService,
+    PAYMENT_HOOKS,
+  ],
 })
 export class PaymentsModule {}

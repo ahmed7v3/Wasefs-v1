@@ -129,6 +129,11 @@ export interface RouterInput {
   /** Prompt size, for the worst-case spend estimate booked before the call. */
   estimateInputTokens?: number;
   attemptTimeoutMs?: number;
+  /**
+   * Try only the first eligible model. A tool loop sets it once a tool has run: the side effects
+   * are done, so a different model must not take over the half-finished conversation.
+   */
+  noFallback?: boolean;
 }
 
 export interface RouterResult {
@@ -186,7 +191,9 @@ function shapeRequest(
 ): NormalizedRequest {
   const { jsonSchema, search, ...rest } = base;
   const useSchema = jsonSchema !== undefined && params.jsonSchema !== false;
-  const useSearch = params.search ?? search;
+  // Web search and function declarations do not mix on every provider: tools win.
+  const withTools = base.tools !== undefined && base.tools.length > 0;
+  const useSearch = withTools ? undefined : (params.search ?? search);
   return {
     ...rest,
     model: model.modelId,
@@ -201,7 +208,11 @@ function shapeRequest(
 
 function requiredCapabilities(request: NormalizedRequest): AiCapability[] {
   const needs: AiCapability[] = [];
-  if (request.messages.some((message) => message.parts.some((part) => part.type === "image"))) {
+  if (
+    request.messages.some(
+      (message) => message.role !== "tool" && message.parts.some((part) => part.type === "image"),
+    )
+  ) {
     needs.push("vision");
   }
   if (request.jsonSchema !== undefined) needs.push("json");
@@ -307,6 +318,7 @@ export function createRouter(ports: RouterPorts): Router {
       candidates.push({ key: item.model.id, adapter, request: item.request });
       byKey.set(item.model.id, item);
     }
+    if (input.noFallback === true) candidates.length = Math.min(candidates.length, 1);
     const first = candidates[0] ? byKey.get(candidates[0].key) : undefined;
     if (!first) throw noModelError("no_model");
 

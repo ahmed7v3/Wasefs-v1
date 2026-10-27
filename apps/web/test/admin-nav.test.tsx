@@ -84,6 +84,7 @@ describe("visibleNavGroups", () => {
       "/admin/alerts",
       "/admin/notifications",
       "/admin/whatsapp",
+      "/admin/whatsapp/agent",
       "/admin/content?type=article",
       "/admin/content?type=guide",
       "/admin/content?type=glossary",
@@ -153,6 +154,14 @@ describe("visibleNavGroups", () => {
     expect(hrefs(["content.read", "settings.read"])).toContain("/admin/settings#group-content");
     expect(visibleNavGroups(["content.read"]).map((group) => group.id)).toContain("content");
     expect(visibleNavGroups(["users.read"]).map((group) => group.id)).not.toContain("content");
+  });
+
+  it("shows the WhatsApp agent page to wa_agent.read, and only the longest entry is active there", () => {
+    expect(hrefs(["wa_agent.read"])).toEqual(["/admin", "/admin/whatsapp/agent"]);
+    expect(hrefs(["settings.read"])).not.toContain("/admin/whatsapp/agent");
+    expect(isNavActive("/admin/whatsapp", "/admin/whatsapp/agent")).toBe(false);
+    expect(isNavActive("/admin/whatsapp/agent", "/admin/whatsapp/agent")).toBe(true);
+    expect(navItemFor("/admin/whatsapp/agent")?.href).toBe("/admin/whatsapp/agent");
   });
 
   it("canAccess treats a missing permission as denied and null as open", () => {

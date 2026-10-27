@@ -220,6 +220,11 @@
       "import": "./dist/rx.js",
       "default": "./dist/rx.js"
     },
+    "./schemas/admin-wa-agent": {
+      "types": "./dist/schemas/admin-wa-agent.d.ts",
+      "import": "./dist/schemas/admin-wa-agent.js",
+      "default": "./dist/schemas/admin-wa-agent.js"
+    },
     "./schemas/admin-ai": {
       "types": "./dist/schemas/admin-ai.d.ts",
       "import": "./dist/schemas/admin-ai.js",
@@ -309,6 +314,11 @@
       "types": "./dist/schemas/admin-user-360.d.ts",
       "import": "./dist/schemas/admin-user-360.js",
       "default": "./dist/schemas/admin-user-360.js"
+    },
+    "./schemas/wa-agent": {
+      "types": "./dist/schemas/wa-agent.d.ts",
+      "import": "./dist/schemas/wa-agent.js",
+      "default": "./dist/schemas/wa-agent.js"
     },
     "./schemas/wa-alert": {
       "types": "./dist/schemas/wa-alert.d.ts",

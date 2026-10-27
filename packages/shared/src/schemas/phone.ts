@@ -16,6 +16,13 @@ export const PHONE_VERIFY_TTL_SECONDS = 10 * 60;
 /** Redis stream the bridge appends inbound codes to (`MAXLEN ~ 10000`) and the api consumes. */
 export const WA_INBOUND_STREAM = "wa:inbound";
 export const WA_INBOUND_MAXLEN = 10_000;
+/** WhatsApp AI agent streams (docs/WA-AGENT.md): bridge to api, api to bridge, bridge to api (delivery result). */
+export const WA_AGENT_IN_STREAM = "wa:agent:in";
+export const WA_AGENT_OUT_STREAM = "wa:agent:out";
+export const WA_AGENT_SENT_STREAM = "wa:agent:sent";
+/** Worker to api: payment decisions and finished prescription readings the agent follows up on. */
+export const WA_AGENT_EVENTS_STREAM = "wa:agent:events";
+export const WA_AGENT_STREAM_MAXLEN = 10_000;
 /** Redis stream the api appends outcomes to; the bridge turns each into at most one short reply. */
 export const WA_REPLY_STREAM = "wa:replies";
 /** `{ at, state }` written by the bridge every 30 s; absent or old means the bridge is down. */

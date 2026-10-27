@@ -384,7 +384,7 @@ describe("ProviderForm (add, OpenAI-compatible)", () => {
 });
 
 describe("KillSwitchCard", () => {
-  const off = { all: false, rx: false, chat: false, search: false };
+  const off = { all: false, rx: false, chat: false, search: false, wa_agent: false };
 
   it("turning a switch on needs the typed word", async () => {
     const onChange = vi.fn().mockResolvedValue(undefined);

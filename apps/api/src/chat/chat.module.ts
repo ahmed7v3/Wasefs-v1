@@ -40,6 +40,6 @@ import { ChatService } from "./chat.service.js";
     ChatTurnService,
     { provide: CHAT_HEARTBEAT_MS_TOKEN, useValue: CHAT_HEARTBEAT_MS },
   ],
-  exports: [ChatBackground],
+  exports: [ChatBackground, ChatTurnService],
 })
 export class ChatModule {}

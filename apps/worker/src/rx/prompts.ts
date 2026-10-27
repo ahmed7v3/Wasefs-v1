@@ -1,7 +1,7 @@
 import { getSkill } from "@wasfa/ai";
 import { RX_SKILL_NAME } from "@wasfa/shared/rx";
 
-import type { NormalizedMessage } from "@wasfa/ai";
+import type { ChatMessage, NormalizedMessage } from "@wasfa/ai";
 import type { DrugMatchCandidate } from "@wasfa/shared/drugs";
 
 /*
@@ -40,7 +40,7 @@ export function readMessages(pages: readonly PageImage[]): NormalizedMessage[] {
           type: "text",
           text: `Read this prescription. It has ${pages.length} page(s); "page" is the 0-based index of the image in this message.`,
         },
-        ...pages.flatMap((page, index): NormalizedMessage["parts"] => [
+        ...pages.flatMap((page, index): ChatMessage["parts"] => [
           { type: "text", text: `<user_data page="${index}">` },
           { type: "image", mime: "image/jpeg", data: page.jpeg },
           { type: "text", text: "</user_data>" },
@@ -114,7 +114,7 @@ export function verifyMessages(items: readonly VerifyItem[]): NormalizedMessage[
           type: "text",
           text: `Re-read these unclear prescription lines. For each item answer with exactly one of: kind "candidate" with the id of one listed candidate, kind "other" with the text you read, or kind "unreadable". Prefer "unreadable" over a guess.`,
         },
-        ...items.flatMap((item): NormalizedMessage["parts"] => [
+        ...items.flatMap((item): ChatMessage["parts"] => [
           { type: "text", text: `<user_data item="${item.index}">` },
           { type: "image", mime: "image/jpeg", data: item.crop },
           {

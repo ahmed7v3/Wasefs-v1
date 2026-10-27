@@ -45,6 +45,10 @@ export class AdminSettingsService {
     if (key === "ai" || key === "skills") {
       throw new AppError(ErrorCode.FORBIDDEN, { details: { reason: "use_admin_ai" } });
     }
+    // The WhatsApp agent is `wa_agent.write` on `/admin/wa-agent`, which also checks its media list.
+    if (key === "waAgent") {
+      throw new AppError(ErrorCode.FORBIDDEN, { details: { reason: "use_admin_wa_agent" } });
+    }
     await this.settings.set(key, value, { actorId, request });
     return this.item(key, (await this.repo.meta()).get(key));
   }

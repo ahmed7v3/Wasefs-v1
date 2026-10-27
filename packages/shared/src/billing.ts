@@ -175,6 +175,8 @@ export const ALERT_KINDS = [
   "payment_method.account_change_requested",
   "payment_method.account_change_canceled",
   "payment_method.account_change_applied",
+  /** The WhatsApp agent asks the owner to take a chat over (WA-AGENT.md). */
+  "wa_agent.handoff",
   /** An admin's own "send me a test alert": delivered to that admin only, never muted or batched. */
   "system.test",
 ] as const;

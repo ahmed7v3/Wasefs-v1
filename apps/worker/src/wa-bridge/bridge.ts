@@ -8,6 +8,7 @@ import {
   type WaPairingError,
 } from "@wasfa/shared/schemas/phone";
 
+import type { AgentSocket } from "./agent-outbound.js";
 import type { ReplySocket } from "./replies.js";
 import type { Redis } from "ioredis";
 import type { Logger } from "pino";
@@ -25,7 +26,7 @@ export type ConnectionEvent =
   { type: "qr" } | { type: "open" } | { type: "close"; kind: DisconnectKind };
 
 /** What the lifecycle needs from a live WhatsApp socket. */
-export interface SocketHandle extends ReplySocketMethods {
+export interface SocketHandle extends ReplySocketMethods, AgentSocketMethods {
   requestPairingCode: (digits: string) => Promise<string>;
   logout: () => Promise<void>;
   /** Closes the socket for good: after this it must not save credentials or report events. */
@@ -33,6 +34,8 @@ export interface SocketHandle extends ReplySocketMethods {
 }
 
 type ReplySocketMethods = Omit<ReplySocket, "isConnected">;
+/** Typing presence is shared with the reply socket; the rest is what only the agent sends. */
+type AgentSocketMethods = Omit<AgentSocket, "isConnected" | "composing" | "paused">;
 
 /** The stored credentials, opened once; `connect` turns them into a socket. */
 export interface BridgeSession {
@@ -93,6 +96,33 @@ export class WaBridge {
       await this.handle?.sendText(jid, text);
     },
   };
+
+  /** What the agent's outbound loop may use: same connection rule as `replySocket`. */
+  readonly agentSocket: AgentSocket = {
+    isConnected: () => this.state === "connected" && this.handle !== undefined,
+    composing: async (jid) => {
+      await this.handle?.composing(jid);
+    },
+    paused: async (jid) => {
+      await this.handle?.paused(jid);
+    },
+    sendAgentText: (jid, text) => this.live().sendAgentText(jid, text),
+    sendImage: (jid, data, caption) => this.live().sendImage(jid, data, caption),
+    sendDocument: (jid, data, fileName, mimetype) =>
+      this.live().sendDocument(jid, data, fileName, mimetype),
+    sendVoice: (jid, data) => this.live().sendVoice(jid, data),
+    sendImageUrl: (jid, url, caption) => this.live().sendImageUrl(jid, url, caption),
+    sendDocumentUrl: (jid, url, fileName, mimetype) =>
+      this.live().sendDocumentUrl(jid, url, fileName, mimetype),
+  };
+
+  /** The socket, or an error: an agent send must fail loudly (its verdict is reported), never vanish. */
+  private live(): SocketHandle {
+    if (this.state !== "connected" || this.handle === undefined) {
+      throw new Error("WhatsApp is not connected");
+    }
+    return this.handle;
+  }
 
   get connection(): WaConnectionState {
     return this.state;

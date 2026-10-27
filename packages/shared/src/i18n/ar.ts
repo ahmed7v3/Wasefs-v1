@@ -12,6 +12,7 @@ import { arAdminRevenue } from "./ar.admin-revenue.js";
 import { arAdminSeo } from "./ar.admin-seo.js";
 import { arAdminSettings } from "./ar.admin-settings.js";
 import { arAdminSiteHealth } from "./ar.admin-site-health.js";
+import { arAdminWaAgent } from "./ar.admin-wa-agent.js";
 import { arAdmin } from "./ar.admin.js";
 import { arBilling } from "./ar.billing.js";
 import { arCapture } from "./ar.capture.js";
@@ -47,6 +48,7 @@ export const ar = {
   ...arAdminSettings,
   ...arAdminSeo,
   ...arAdminSiteHealth,
+  ...arAdminWaAgent,
   ...arAdminBrand,
   ...arAdminDrugs,
   ...arAdminEvals,
