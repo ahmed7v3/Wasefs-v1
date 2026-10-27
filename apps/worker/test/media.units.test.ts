@@ -111,8 +111,10 @@ describe("processMedia", () => {
 
   it("builds the spec widths for a large noisy photo and holds the 1600 AVIF to its budget or warns", async () => {
     // 1700 px wide is the smallest source that still yields the 1600 variant; a bigger one only makes
-    // every variant re-decode more pixels (the AVIF encode of incompressible noise is the slow part).
-    const result = await processMedia(await noisyJpeg(1700, 1100), "image/jpeg");
+    // every variant re-decode more pixels (the AVIF encode of incompressible noise is the slow part,
+    // repeated at each quality step). 360 px high keeps the noise far over budget, so the step-down and
+    // the warning are still exercised, at about a third of the work: 1100 px timed out on CI runners.
+    const result = await processMedia(await noisyJpeg(1700, 360), "image/jpeg");
     const widths = [...new Set(result.variants.map((variant) => variant.width))];
     expect(widths).toEqual(MEDIA_VARIANT_WIDTHS.filter((width) => width <= 1600));
     expect(widths).toEqual([320, 480, 640, 960, 1280, 1600]);
