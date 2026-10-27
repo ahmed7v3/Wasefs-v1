@@ -230,6 +230,15 @@ services:
       WA_ALERTS_ENABLED: ${WA_ALERTS_ENABLED:-false}
       # Customer messages may link to this site only (first entry of the web origins).
       WEB_ORIGIN: ${WEB_ORIGIN:-https://wasfa.online}
+      # WhatsApp agent media (docs/WA-AGENT.md): customer images, PDFs and voice notes are stored in the
+      # private uploads bucket; without it they reach the agent as "unsupported". Agent replies may
+      # send images from the public media library by URL only.
+      R2_UPLOADS_ENDPOINT: ${R2_UPLOADS_ENDPOINT:-}
+      R2_UPLOADS_BUCKET: ${R2_UPLOADS_BUCKET:-}
+      R2_UPLOADS_ACCESS_KEY_ID: ${R2_UPLOADS_ACCESS_KEY_ID:-}
+      R2_UPLOADS_SECRET_ACCESS_KEY: ${R2_UPLOADS_SECRET_ACCESS_KEY:-}
+      R2_UPLOADS_REGION: ${R2_UPLOADS_REGION:-auto}
+      MEDIA_PUBLIC_ORIGIN: ${MEDIA_PUBLIC_ORIGIN:-}
     networks: [internal, egress]
     depends_on:
       postgres:
