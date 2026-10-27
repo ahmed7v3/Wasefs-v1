@@ -26,7 +26,7 @@ export function sanitizeFileName(raw: string): string {
   const cleaned = raw
     .normalize("NFKC")
     // eslint-disable-next-line no-control-regex -- stripping control characters is the point
-    .replace(/[\u0000-\u001f\u007f‎‏‪-‮⁦-⁩<>:"/\|?*]/g, " ")
+    .replace(/[\u0000-\u001f\u007f‎‏‪-‮⁦-⁩<>:"/|?*]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
     .replace(/\.(pdf|png)$/i, "")
