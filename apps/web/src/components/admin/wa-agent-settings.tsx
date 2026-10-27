@@ -4,9 +4,12 @@ import { t } from "@wasfa/shared/i18n";
 import {
   voiceKeyStateSchema,
   voiceTestResultSchema,
+  VOICE_TEST_FIXABLE_REASONS,
+  VOICE_TEST_OUTAGE_REASONS,
   WA_AGENT_VOICE_TEST_MAX_CHARS,
   waAgentAdminSettingsSchema,
   type VoiceKeyState,
+  type VoiceTestReason,
   type VoiceTestResult,
   type WaAgentAdminSettings,
 } from "@wasfa/shared/schemas/admin-wa-agent";
@@ -29,6 +32,7 @@ import Link from "next/link";
 import { useState, type FormEvent, type ReactNode } from "react";
 
 import { api } from "../../lib/api-client";
+import { errorReason, extractErrorRef } from "../../lib/api-error";
 import { useReauth } from "../../lib/reauth";
 import { useResource } from "../../lib/use-admin-data";
 import { mediaKeyFrom, microsFromUsdText, usdTextFromMicros } from "../../lib/wa-agent-format";
@@ -512,6 +516,38 @@ function VoiceKeyCard({
   );
 }
 
+const VOICE_TEST_REASONS: readonly string[] = [
+  ...VOICE_TEST_FIXABLE_REASONS,
+  ...VOICE_TEST_OUTAGE_REASONS,
+];
+const isVoiceTestReason = (reason: string | undefined): reason is VoiceTestReason =>
+  reason !== undefined && VOICE_TEST_REASONS.includes(reason);
+
+/**
+ * Why the voice test failed, in words that say what to fix. The support reference is shown only for an
+ * outage: the other reasons are the admin's to fix and have no reference.
+ */
+function VoiceTestFailure({ error }: { error: unknown }) {
+  const reason = errorReason(error);
+  if (!isVoiceTestReason(reason)) return <ErrorNotice error={error} supportHref={null} />;
+  const ref = (VOICE_TEST_OUTAGE_REASONS as readonly string[]).includes(reason)
+    ? extractErrorRef(error)
+    : undefined;
+  return (
+    <div
+      role="alert"
+      className="flex flex-col gap-3 rounded-md border border-danger/30 bg-danger-soft p-4"
+    >
+      <p className="text-base text-text">{t(`admin.waAgent.voice.error.${reason}`)}</p>
+      {ref ? (
+        <p className="w-fit rounded-md bg-surface px-3 py-1 text-sm font-semibold text-danger">
+          {t("common.errorRef", { ref })}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 /**
  * "Test voice": speaks a short text with the SAVED settings and plays the returned 60 second link.
  * Not a <form> (it sits inside the settings form).
@@ -581,7 +617,7 @@ function VoiceTestBox({ keySet, voiceId }: { keySet: boolean; voiceId: string })
           />
         )}
       </Field>
-      {failure ? <ErrorNotice error={failure} supportHref={null} /> : null}
+      {failure ? <VoiceTestFailure error={failure} /> : null}
       <div className="flex flex-wrap items-center justify-end gap-3">
         {clip ? (
           <audio
@@ -1079,7 +1115,11 @@ function SettingsForm({
           1_000_000,
           t("admin.waAgent.voice.dailyCharCapHint"),
         )}
-        <Field label={t("admin.waAgent.voice.voiceId")} error={err("voice.voiceId")}>
+        <Field
+          label={t("admin.waAgent.voice.voiceId")}
+          hint={t("admin.waAgent.voice.voiceIdHint")}
+          error={err("voice.voiceId")}
+        >
           {(control) => (
             <Input
               {...control}
@@ -1093,7 +1133,11 @@ function SettingsForm({
             />
           )}
         </Field>
-        <Field label={t("admin.waAgent.voice.modelId")} error={err("voice.modelId")}>
+        <Field
+          label={t("admin.waAgent.voice.modelId")}
+          hint={t("admin.waAgent.voice.modelIdHint")}
+          error={err("voice.modelId")}
+        >
           {(control) => (
             <Input
               {...control}

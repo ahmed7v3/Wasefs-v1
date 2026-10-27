@@ -36,8 +36,8 @@ export interface TestClip {
   chars: number;
 }
 
-const objectKey = (area: "out" | "test", at: Date) =>
-  `wa/${area}/${String(at.getUTCFullYear())}/${String(at.getUTCMonth() + 1).padStart(2, "0")}/${randomUUID()}.ogg`;
+const objectKey = (area: "out" | "test", at: Date, extension: "ogg" | "mp3") =>
+  `wa/${area}/${String(at.getUTCFullYear())}/${String(at.getUTCMonth() + 1).padStart(2, "0")}/${randomUUID()}.${extension}`;
 
 /**
  * Voice for the WhatsApp agent: speech to text for customers' voice notes and text to speech for the
@@ -95,15 +95,22 @@ export class WaAgentVoiceService {
       return { mediaKey: clip.mediaKey, chars };
     } catch (error) {
       if (reserved) await this.refund(key, chars);
-      this.logger.warn(
-        { reason: error instanceof VoiceError ? error.code : "storage_failed" },
-        "Voice reply not made",
-      );
+      // A reply must be an Ogg/Opus voice note; an account that only gets mp3 stays on text.
+      const reason =
+        error instanceof VoiceError
+          ? error.code === "format_not_allowed"
+            ? "voice_format_unavailable"
+            : error.code
+          : "storage_failed";
+      this.logger.warn({ reason }, "Voice reply not made");
       return null;
     }
   }
 
-  /** The admin's "Test voice": same settings, not counted against the daily cap. Throws `VoiceError`. */
+  /**
+   * The admin's "Test voice": same settings, not counted against the daily cap, and an mp3 clip is fine
+   * for listening. Throws `VoiceError` (`storage_failed` when the clip could not be saved).
+   */
   async test(text: string, config: VoiceConfig, now: Date): Promise<TestClip> {
     if (config.voiceId === "") throw new VoiceError("failed");
     const spoken = speechText(text);
@@ -129,9 +136,15 @@ export class WaAgentVoiceService {
       modelId: config.modelId,
       stability: config.stability,
       similarityBoost: config.similarityBoost,
+      // WhatsApp plays only Ogg/Opus as a voice note (the bridge labels every clip that way).
+      requireVoiceNote: area === "out",
     });
-    const mediaKey = objectKey(area, now);
-    await this.storage.put(mediaKey, synthesis.audio, synthesis.mime);
+    const mediaKey = objectKey(area, now, synthesis.voiceNote ? "ogg" : "mp3");
+    try {
+      await this.storage.put(mediaKey, synthesis.audio, synthesis.mime);
+    } catch {
+      throw new VoiceError("storage_failed");
+    }
     return { mediaKey, mime: synthesis.mime };
   }
 

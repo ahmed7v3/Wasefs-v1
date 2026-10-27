@@ -43,6 +43,36 @@ const VOICE_TEST_URL_SECONDS = 60;
 const notFound = (reason?: string) =>
   new AppError(ErrorCode.NOT_FOUND, reason === undefined ? {} : { details: { reason } });
 const conflict = (reason: string) => new AppError(ErrorCode.CONFLICT, { details: { reason } });
+
+/**
+ * A voice test failure as the admin sees it. What the admin can fix (key, voice, plan, quota...) is a
+ * 409 / 400 / 429 with a `reason` and no support reference; only outages stay 503 (which carries one).
+ */
+function voiceTestError(code: VoiceError["code"]): AppError {
+  const fixable = {
+    no_key: "voice_key_missing",
+    unauthorized: "voice_key_rejected",
+    voice_not_found: "voice_not_found",
+    model_not_found: "voice_model_not_found",
+    plan_required: "voice_plan_required",
+    format_not_allowed: "voice_format_not_allowed",
+    quota_exceeded: "voice_quota_exceeded",
+  } as const;
+  if (code === "rate_limited") {
+    return new AppError(ErrorCode.RATE_LIMITED, { details: { reason: "voice_rate_limited" } });
+  }
+  if (code === "bad_request") {
+    return new AppError(ErrorCode.VALIDATION_FAILED, { details: { reason: "voice_bad_request" } });
+  }
+  if (code in fixable) return conflict(fixable[code as keyof typeof fixable]);
+  const outage = {
+    timeout: "voice_timeout",
+    network: "voice_network",
+    storage_failed: "voice_storage_failed",
+  } as const;
+  const reason = outage[code as keyof typeof outage] ?? "voice_failed";
+  return new AppError(ErrorCode.UPSTREAM_UNAVAILABLE, { details: { reason } });
+}
 const invalid = (reason: string, field: string) =>
   new AppError(ErrorCode.VALIDATION_FAILED, { details: { reason, fields: [field] } });
 
@@ -138,27 +168,35 @@ export class AdminWaAgentService {
   async voiceTest(actorId: string, text: string): Promise<VoiceTestResult> {
     await this.limitVoiceTests(actorId);
     const settings = await this.settings.get("waAgent");
-    if (!(await this.voiceKey.isSet())) throw conflict("voice_key_missing");
+    await this.requireReadableKey();
     if (settings.voice.voiceId === "") throw conflict("voice_id_missing");
+    let clip: Awaited<ReturnType<WaAgentVoiceService["test"]>>;
     try {
-      const clip = await this.voice.test(text, settings.voice, new Date());
+      clip = await this.voice.test(text, settings.voice, new Date());
+    } catch (error) {
+      throw voiceTestError(error instanceof VoiceError ? error.code : "failed");
+    }
+    try {
       const url = await this.storage.presignGet(clip.mediaKey, VOICE_TEST_URL_SECONDS);
       return { url, mime: clip.mime, chars: clip.chars, expiresInSeconds: VOICE_TEST_URL_SECONDS };
-    } catch (error) {
-      if (error instanceof AppError) throw error;
-      const reason =
-        error instanceof VoiceError
-          ? (
-              {
-                no_key: "voice_key_missing",
-                unauthorized: "voice_key_rejected",
-                rate_limited: "voice_rate_limited",
-                failed: "voice_failed",
-              } as const
-            )[error.code]
-          : "voice_failed";
-      throw new AppError(ErrorCode.UPSTREAM_UNAVAILABLE, { details: { reason } });
+    } catch {
+      throw voiceTestError("storage_failed");
     }
+  }
+
+  /**
+   * A stored key that does not decrypt reads as "unset" (the secret store swallows the failure), so the
+   * stored row decides: a row without a readable key means the encryption key changed.
+   */
+  private async requireReadableKey(): Promise<void> {
+    let set: boolean;
+    try {
+      set = await this.voiceKey.isSet();
+    } catch {
+      throw conflict("voice_key_unreadable");
+    }
+    if (set) return;
+    throw conflict((await this.repo.voiceKeyMeta()) ? "voice_key_unreadable" : "voice_key_missing");
   }
 
   private async limitVoiceTests(actorId: string): Promise<void> {
