@@ -32,7 +32,7 @@
   },
   "devDependencies": {
     "@testcontainers/postgresql": "^12.2.0",
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.6.5",
     "@wasfa/config": "workspace:*",
     "drizzle-kit": "^0.31.11",
     "eslint": "^10.12.0",

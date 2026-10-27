@@ -440,7 +440,7 @@
   "devDependencies": {
     "@types/hast": "3.0.5",
     "@types/mdast": "4.0.4",
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.6.5",
     "@types/unist": "3.0.3",
     "@wasfa/config": "workspace:*",
     "eslint": "^10.12.0",
