@@ -141,7 +141,7 @@ campaign `wa_agent`), audited, and visible in the admin coupon list.
   `packages/shared/src/schemas/wa-document.ts`); the api checks the caps in Redis (guest: `report`/`table`, one per
   conversation per hour; linked: 5 per conversation per day; all chats: 500 per day; free) and queues
   `wa-agent.render-document` on the `documents` queue, answering `{ creating: true }`. The worker renders with
-  **Typst** (Alpine package `typst` in the worker image; `TYPST_BIN`, default `typst`) from fixed templates in
+  **Typst** (official Typst 0.15.1 binary, sha-pinned, in the worker image, with a build-time render of every template; `TYPST_BIN`, default `typst`) from fixed templates in
   `apps/worker/src/documents/templates` (brand header, Cairo date, RTL by default, A4 or a 1080x1350 PNG card),
   with the bundled IBM Plex Sans Arabic only. Content is passed as `data.json` and shown as text, never evaluated;
   each render runs in a fresh temp dir holding only `main.typ` + `data.json` (`--root` = that dir), with a 20 s

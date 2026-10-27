@@ -34,17 +34,29 @@ FROM ${NODE_IMAGE} AS node-slim
 RUN apk add --no-cache binutils \
  && strip --strip-unneeded -o /node /usr/local/bin/node
 
+# The official Typst release binary, not the Alpine package: that one (0.14.2) is built with
+# rust-openssl 0.10.72 and thin-vec 0.2.13, which Trivy fails on (HIGH); 0.15.1 ships 0.10.80 / 0.2.18.
+# To bump: set TYPST_VERSION and TYPST_SHA256 (the release asset's sha256 digest for
+# typst-x86_64-unknown-linux-musl.tar.xz on https://github.com/typst/typst/releases).
+FROM ${ALPINE_IMAGE} AS typst
+ARG TYPST_VERSION=0.15.1
+ARG TYPST_SHA256=a6d077d0a95eed5a2eba715b2dae06be954f624ccbf85758a03f389ded33118c
+RUN apk add --no-cache xz  && wget -q -O /typst.tar.xz "https://github.com/typst/typst/releases/download/v${TYPST_VERSION}/typst-x86_64-unknown-linux-musl.tar.xz"  && echo "${TYPST_SHA256}  /typst.tar.xz" | sha256sum -c -  && tar -xJf /typst.tar.xz -C / --strip-components=1 typst-x86_64-unknown-linux-musl/typst  && chmod 0755 /typst
+
 FROM ${ALPINE_IMAGE} AS runtime
 # typst renders the PDFs and cards the WhatsApp agent sends (apps/worker/src/documents); the worker
-# points it at the bundled fonts only. From the Alpine community repository (0.14.2 on 3.24).
-RUN apk add --no-cache libstdc++ typst \
+# points it at the bundled fonts only.
+RUN apk add --no-cache libstdc++ \
  && addgroup -g 1000 node && adduser -u 1000 -G node -s /sbin/nologin -D node \
  && rm -rf /sbin/apk /etc/apk /lib/apk /usr/share/apk /var/cache/apk
 COPY --from=node-slim /node /usr/local/bin/node
+COPY --from=typst /typst /usr/local/bin/typst
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build --chown=node:node /out ./
 USER node
+# Fails the build if any document template does not compile with the installed Typst.
+RUN node dist/documents/smoke.js
 # No HTTP port: healthy = the heartbeat the worker writes every 5 minutes is fresh.
 HEALTHCHECK --interval=60s --timeout=5s --start-period=30s --retries=3 \
   CMD ["node", "dist/healthcheck.js"]
