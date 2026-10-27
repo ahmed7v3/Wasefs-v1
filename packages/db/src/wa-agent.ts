@@ -112,7 +112,7 @@ export async function insertInbound(
     await db
       .update(waConversations)
       .set({
-        lastInboundAt: sql`greatest(coalesce(${waConversations.lastInboundAt}, ${at}), ${at})`,
+        lastInboundAt: sql`greatest(coalesce(${waConversations.lastInboundAt}, ${at.toISOString()}::timestamptz), ${at.toISOString()}::timestamptz)`,
         updatedAt: new Date(),
       })
       .where(eq(waConversations.id, input.conversationId));
@@ -202,7 +202,7 @@ export async function pauseConversation(
     .update(waConversations)
     .set({
       status: sql`case when ${waConversations.status} = 'blocked' then 'blocked' else 'paused' end`,
-      pausedUntil: sql`greatest(coalesce(${waConversations.pausedUntil}, ${until}), ${until})`,
+      pausedUntil: sql`greatest(coalesce(${waConversations.pausedUntil}, ${until.toISOString()}::timestamptz), ${until.toISOString()}::timestamptz)`,
       updatedAt: new Date(),
     })
     .where(eq(waConversations.id, conversationId))

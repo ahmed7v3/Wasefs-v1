@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { AiProviderError, type AIProviderAdapter, type DiscoveredModel } from "@wasfa/ai";
 import { aiModels, aiProviders, auditLogs } from "@wasfa/db";
+import { AI_MODES, AI_TASKS } from "@wasfa/shared/ai";
 import { decryptSecret, maskSecret } from "@wasfa/shared/crypto";
 import {
   aiSettingsResponseSchema,
@@ -32,6 +33,9 @@ import { expectRateLimited } from "./support/identity-fixtures.js";
 
 import type { Permission } from "@wasfa/shared/permissions";
 import type { LightMyRequestResponse } from "fastify";
+
+/** One default route per task and mode. */
+const ROUTE_COUNT = AI_TASKS.length * AI_MODES.length;
 
 const ctx = new AdminTestContext();
 let gateway: AiGatewayFactory;
@@ -1292,8 +1296,8 @@ describe("routes", () => {
     expect(res.statusCode, res.body).toBe(200);
     const list = routeListResponseSchema.parse(res.json());
     const defaults = list.items.filter((item) => item.planId === null);
-    expect(defaults.length).toBeGreaterThanOrEqual(24);
-    expect(list.matrix).toHaveLength(24);
+    expect(defaults.length).toBeGreaterThanOrEqual(ROUTE_COUNT);
+    expect(list.matrix).toHaveLength(ROUTE_COUNT);
     expect(list.matrix.every((cell) => cell.routeId !== null)).toBe(true);
 
     const extract = defaults.find((item) => item.task === "rx_extract" && item.mode === "fast");
@@ -1604,7 +1608,7 @@ describe("routes", () => {
     const after = routeListResponseSchema.parse(
       (await call("GET", "/admin/ai/routes", boss)).json(),
     );
-    expect(after.matrix).toHaveLength(24);
+    expect(after.matrix).toHaveLength(ROUTE_COUNT);
     expect(
       after.items.filter(
         (item) => item.planId === null && item.task === "title_gen" && item.mode === "fast",
@@ -1688,6 +1692,7 @@ describe("AI settings", () => {
         rx: false,
         chat: true,
         search: false,
+        wa_agent: false,
       });
 
       // Switching it back off needs the right too.

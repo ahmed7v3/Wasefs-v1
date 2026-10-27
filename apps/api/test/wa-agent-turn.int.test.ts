@@ -331,6 +331,11 @@ describe("spend cap and failures", () => {
       t("whatsapp.agent.busy"),
     ]);
     expect(Number(await ctx.redis.get(`wa:agent:spend:${today()}`))).toBeGreaterThanOrEqual(300);
+    // The deferred pause waits for the bridge's "sent" report, which no bridge sends here.
+    await ctx.owner.db
+      .update(waMessages)
+      .set({ status: "sent" })
+      .where(eq(waMessages.conversationId, conversation.id));
     await handoff.drain();
   });
 });

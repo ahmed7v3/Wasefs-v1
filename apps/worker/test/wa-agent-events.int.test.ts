@@ -63,7 +63,7 @@ async function customer(options: { hoursAgo?: number; optedOut?: boolean } = {})
   if (options.optedOut) {
     await owner.db
       .insert(notificationPrefs)
-      .values({ userId: row.id, whatsappOptedOutAt: new Date() });
+      .values({ userId: row.id, whatsappOptedOutAt: new Date(), whatsappOptedOutVia: "whatsapp" });
   }
   return row.id;
 }

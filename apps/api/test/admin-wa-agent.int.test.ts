@@ -53,7 +53,13 @@ let inbox: Admin;
 const KEY = "xi-test-key-0123456789-abcdefghij";
 
 beforeAll(async () => {
-  await ctx.start();
+  // Links are signed locally and `put` is stubbed, so no object store has to answer.
+  await ctx.start([], {
+    R2_UPLOADS_ENDPOINT: "http://127.0.0.1:9",
+    R2_UPLOADS_BUCKET: "wasfa-test-wa-agent",
+    R2_UPLOADS_ACCESS_KEY_ID: "test-access-key",
+    R2_UPLOADS_SECRET_ACCESS_KEY: "test-secret-key",
+  });
   boss = await ctx.admin("super_admin");
   reader = await ctx.admin(await ctx.customRole(["wa_agent.read"]));
   writer = await ctx.admin(await ctx.customRole(["wa_agent.read", "wa_agent.write"]));
@@ -145,7 +151,9 @@ describe("permissions", () => {
     expectError(await call("GET", "/admin/wa-agent/settings", inbox), 403, "FORBIDDEN");
     expectError(await call("GET", "/admin/wa-agent/usage", inbox), 403, "FORBIDDEN");
     // A holder of settings.write cannot reach the agent through the generic settings route either.
-    const generic = await call("PUT", "/admin/settings/waAgent", boss, { enabled: true });
+    const generic = await call("PUT", "/admin/settings/waAgent", boss, {
+      value: { enabled: true },
+    });
     expectError(generic, 403, "FORBIDDEN", "use_admin_wa_agent");
   });
 
@@ -306,8 +314,16 @@ describe("the voice test", () => {
   };
 
   it("needs wa_agent.write: a reader and an inbox-only admin are refused", async () => {
-    expectError(await call("POST", "/admin/wa-agent/voice-test", reader, { text: "hi" }), 403, "FORBIDDEN");
-    expectError(await call("POST", "/admin/wa-agent/voice-test", inbox, { text: "hi" }), 403, "FORBIDDEN");
+    expectError(
+      await call("POST", "/admin/wa-agent/voice-test", reader, { text: "hi" }),
+      403,
+      "FORBIDDEN",
+    );
+    expectError(
+      await call("POST", "/admin/wa-agent/voice-test", inbox, { text: "hi" }),
+      403,
+      "FORBIDDEN",
+    );
   });
 
   it("validates the text, and explains a missing key or voice id", async () => {
@@ -583,14 +599,12 @@ describe("usage", () => {
     await markOutbound(db(), sent ?? "", "sent", { waMessageId: `wamid-${randomUUID()}` });
     const [late] = await insertOutbound(db(), conversation.id, [{ kind: "text", text: "late" }]);
     await markOutbound(db(), late ?? "", "dropped", { reason: "cap_chat_hour" });
-    await db()
-      .insert(aiUsage)
-      .values({
-        task: "wa_agent",
-        modelKey: "test-model",
-        outcome: "ok",
-        costUsdMicros: 1_250_000,
-      });
+    await db().insert(aiUsage).values({
+      task: "wa_agent",
+      modelKey: "test-model",
+      outcome: "ok",
+      costUsdMicros: 1_250_000,
+    });
     await call("PUT", "/admin/wa-agent/settings", writer, {
       ...waAgentSettingsSchema.parse({}),
       spendCapUsdMicros: 5_000_000,

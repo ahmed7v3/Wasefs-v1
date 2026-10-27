@@ -20,7 +20,7 @@ import {
   type WaConversation,
   WA_AGENT_COUPON_CAMPAIGN,
 } from "@wasfa/db";
-import { and, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, gte, inArray, sql } from "drizzle-orm";
 
 import { DB, type DbHandle } from "../../common/database.js";
 
@@ -151,7 +151,7 @@ export class WaAgentCommerceRepo {
           eq(orders.months, months),
           eq(payments.methodKey, methodKey),
           eq(payments.status, "awaiting_customer"),
-          sql`${orders.expiresAt} > ${now}`,
+          gt(orders.expiresAt, now),
         ),
       )
       .orderBy(desc(orders.createdAt));
@@ -181,7 +181,7 @@ export class WaAgentCommerceRepo {
           eq(orders.ownerUserId, userId),
           eq(orders.status, "pending_payment"),
           inArray(payments.status, ["awaiting_customer", "rejected"]),
-          sql`${orders.expiresAt} > ${now}`,
+          gt(orders.expiresAt, now),
         ),
       )
       .orderBy(desc(payments.createdAt))

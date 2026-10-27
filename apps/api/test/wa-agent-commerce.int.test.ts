@@ -248,7 +248,7 @@ describe("offer_discount against the database", () => {
     expect(first).toMatchObject({ offered: true });
     await ctx.owner.db
       .update(coupons)
-      .set({ endsAt: new Date(Date.now() - 1_000) })
+      .set({ startsAt: new Date(Date.now() - 2_000), endsAt: new Date(Date.now() - 1_000) })
       .where(eq(coupons.code, String(first["code"])));
     await expect(
       service.offer(callFor(person.userId, undefined, { dailyCap: 100 }), "plus", 1),

@@ -1,3 +1,4 @@
+import { AI_MODES, AI_TASKS } from "@wasfa/shared/ai";
 import { routeModelsSchema } from "@wasfa/shared/schemas/admin-ai";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -25,6 +26,9 @@ import {
 import { seedDefaults } from "../src/seed-data.js";
 
 import { startTestDb, violatedConstraint, type TestDb } from "./db-fixture.js";
+
+/** One default route per task and mode. */
+const ROUTE_COUNT = AI_TASKS.length * AI_MODES.length;
 
 /*
  * Constraint names are part of the contract (the API maps a violated name to an error), so they are
@@ -1154,7 +1158,7 @@ describe("seed", () => {
     expect(first).toMatchObject({
       aiProviders: 2,
       aiModels: 6,
-      aiTaskRoutes: 24,
+      aiTaskRoutes: ROUTE_COUNT,
     });
     // `free` only: the paid plans (plus, pro, clinic) are seeded with their prices by seedBilling (Phase 3).
     expect(first.plans).toBe(1);
@@ -1211,7 +1215,7 @@ describe("seed", () => {
     const proEntitlements = await db().execute<Record<string, unknown>>(
       sql`select e.* from plan_entitlements e join plans p on p.id = e.plan_id where p.key = 'pro'`,
     );
-    expect(proEntitlements).toHaveLength(8);
+    expect(proEntitlements).toHaveLength(AI_TASKS.length);
     expect(proEntitlements.every((row) => row.allowed === true && row.web_search === true)).toBe(
       true,
     );
@@ -1251,15 +1255,15 @@ describe("seed", () => {
           jsonb_array_length(r.models) as total
         from ai_task_routes r where r.plan_id is null`,
     );
-    expect(routes).toHaveLength(24);
+    expect(routes).toHaveLength(ROUTE_COUNT);
     expect(routes.every((row) => row.plan_id === null && row.resolved === row.total)).toBe(true);
-    expect(new Set(routes.map((row) => `${row.task}/${row.mode}`)).size).toBe(24);
+    expect(new Set(routes.map((row) => `${row.task}/${row.mode}`)).size).toBe(ROUTE_COUNT);
 
     // The seeded params are the admin API's own vocabulary: an admin can open and re-save any route.
     const stored = await db().execute<{ models: unknown }>(
       sql`select models from ai_task_routes where plan_id is null`,
     );
-    expect(stored).toHaveLength(24);
+    expect(stored).toHaveLength(ROUTE_COUNT);
     for (const row of stored) expect(routeModelsSchema.safeParse(row.models).success).toBe(true);
     const webSearch = await db().execute<{ models: { params: unknown }[] }>(
       sql`select models from ai_task_routes where task = 'web_search' and mode = 'fast'`,

@@ -184,7 +184,9 @@ describe("outbound service", () => {
       .select()
       .from(waMessages)
       .where(eq(waMessages.conversationId, id));
-    expect(queued.filter((row) => row.direction === "out").map((row) => row.status)).toEqual([
+    // The inbound message also started a turn, which queued its own busy line (no model is configured
+    // here), so only the two rows enqueued above are checked.
+    expect(queued.filter((row) => ids.includes(row.id)).map((row) => row.status)).toEqual([
       "queued",
       "queued",
     ]);
