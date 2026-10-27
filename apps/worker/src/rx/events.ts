@@ -5,6 +5,7 @@ import {
   rxLastEventKey,
   rxSeqKey,
   type RxEvent,
+  type RxResult,
 } from "@wasfa/shared/schemas/rx";
 import { waAgentRxKey } from "@wasfa/shared/schemas/wa-agent";
 
@@ -15,9 +16,16 @@ import type { Logger } from "pino";
 
 type Step = Extract<RxEvent, { type: "step" }>["step"];
 
+/** Makes the PDF of a finished reading for the WhatsApp agent; `render` gives the stored key or null. */
+export interface RxPdfPort {
+  render(result: RxResult): Promise<string | null>;
+  /** Removes a PDF that no event points to. */
+  discard(key: string): Promise<void>;
+}
+
 export interface RxPublisher {
   step(step: Step): Promise<void>;
-  done(status: "done" | "refunded"): Promise<void>;
+  done(status: "done" | "refunded", result?: RxResult): Promise<void>;
   failed(errorRef: string): Promise<void>;
 }
 
@@ -27,7 +35,12 @@ export interface RxPublisher {
  * that connects late starts from the current step. Progress is a courtesy: a Redis hiccup is logged
  * and never fails the analysis.
  */
-export function createRxPublisher(redis: Redis, analysisId: string, logger: Logger): RxPublisher {
+export function createRxPublisher(
+  redis: Redis,
+  analysisId: string,
+  logger: Logger,
+  pdf?: RxPdfPort,
+): RxPublisher {
   async function publish(event: (seq: number) => RxEvent): Promise<void> {
     try {
       const seq = await redis.incr(rxSeqKey(analysisId));
@@ -47,12 +60,24 @@ export function createRxPublisher(redis: Redis, analysisId: string, logger: Logg
    * Tells the WhatsApp agent a reading it started has ended (`wa:agent:rx:<id>` exists only for
    * those). Nothing is sent for web analyses, and a failure here never touches the analysis.
    */
-  async function followUp(type: "rx_done" | "rx_failed"): Promise<void> {
+  async function followUp(type: "rx_done" | "rx_failed", result?: RxResult): Promise<void> {
+    let pdfKey: string | null = null;
     try {
       if ((await redis.exists(waAgentRxKey(analysisId))) === 1) {
-        await pushWaAgentEvent(redis, { type, rxId: analysisId });
+        // The PDF is a courtesy on top of the text result: any problem leaves it out and the text still goes.
+        if (type === "rx_done" && result !== undefined && pdf !== undefined) {
+          pdfKey = await pdf.render(result).catch(() => null);
+        }
+        await pushWaAgentEvent(
+          redis,
+          type === "rx_done"
+            ? { type, rxId: analysisId, ...(pdfKey === null ? {} : { pdfKey }) }
+            : { type, rxId: analysisId },
+        );
       }
     } catch (error) {
+      // Nothing points to the PDF any more.
+      if (pdfKey !== null && pdf !== undefined) await pdf.discard(pdfKey);
       logger.warn(
         { analysisId, reason: error instanceof Error ? error.message : "unknown" },
         "WhatsApp agent rx event not queued",
@@ -62,10 +87,10 @@ export function createRxPublisher(redis: Redis, analysisId: string, logger: Logg
 
   return {
     step: (step) => publish((seq) => ({ type: "step", step, seq })),
-    done: async (status) => {
+    done: async (status, result) => {
       await publish((seq) => ({ type: "done", status, seq }));
       // A refunded analysis found nothing readable: the customer hears "could not read".
-      await followUp(status === "done" ? "rx_done" : "rx_failed");
+      await followUp(status === "done" ? "rx_done" : "rx_failed", result);
     },
     failed: async (errorRef) => {
       await publish((seq) => ({ type: "failed", errorRef, seq }));

@@ -295,6 +295,66 @@ describe("the Settings tab", () => {
     expect(player.getAttribute("src")).toBe("https://files.example/clip.ogg");
   });
 
+  describe("a failed voice test", () => {
+    const REF = "WSF-5T00-7GA5";
+    const failWith = (status: number, code: string, reason: string, withRef: boolean) => {
+      const base = fetchMock.getMockImplementation();
+      fetchMock.mockImplementation((url, init) =>
+        String(url).includes("/admin/wa-agent/voice-test") && init?.method === "POST"
+          ? Promise.resolve(
+              json(
+                { code, message: "x", details: { reason }, ...(withRef ? { ref: REF } : {}) },
+                status,
+              ),
+            )
+          : (base?.(url, init) ?? Promise.reject(new Error("no mock"))),
+      );
+    };
+    const runTest = async () => {
+      adminSettings = {
+        ...adminSettings,
+        settings: waAgentSettingsSchema.parse({ voice: { voiceId: "voice123" } }),
+        voiceKey: { set: true, hint: "xi-…cdef", updatedAt: "2026-10-26T10:00:00.000Z" },
+      };
+      renderView();
+      await screen.findByRole("form", { name: t("admin.waAgent.settings.title") });
+      await userEvent.type(screen.getByLabelText(t("admin.waAgent.voice.test.text")), "hi");
+      await userEvent.click(
+        screen.getByRole("button", { name: t("admin.waAgent.voice.test.run") }),
+      );
+    };
+
+    it.each([
+      ["voice_not_found", "CONFLICT", 409],
+      ["voice_plan_required", "CONFLICT", 409],
+      ["voice_quota_exceeded", "CONFLICT", 409],
+      ["voice_key_rejected", "CONFLICT", 409],
+      ["voice_key_unreadable", "CONFLICT", 409],
+      ["voice_rate_limited", "RATE_LIMITED", 429],
+    ] as const)("shows the specific reason %s and no reference", async (reason, code, status) => {
+      failWith(status, code, reason, false);
+      await runTest();
+      const alert = await screen.findByRole("alert");
+      expect(alert.textContent).toContain(t(`admin.waAgent.voice.error.${reason}`));
+      expect(alert.textContent).not.toContain("WSF-");
+    });
+
+    it("shows the reference only for an outage, next to its reason", async () => {
+      failWith(503, "UPSTREAM_UNAVAILABLE", "voice_storage_failed", true);
+      await runTest();
+      const alert = await screen.findByRole("alert");
+      expect(alert.textContent).toContain(t("admin.waAgent.voice.error.voice_storage_failed"));
+      expect(alert.textContent).toContain(REF);
+    });
+  });
+
+  it("tells where the voice and the model must come from", async () => {
+    renderView();
+    await screen.findByRole("form", { name: t("admin.waAgent.settings.title") });
+    expect(screen.getByText(t("admin.waAgent.voice.voiceIdHint"))).toBeTruthy();
+    expect(screen.getByText(t("admin.waAgent.voice.modelIdHint"))).toBeTruthy();
+  });
+
   it("sends the optional voice numbers only when they are filled in", async () => {
     renderView();
     await screen.findByRole("form", { name: t("admin.waAgent.settings.title") });

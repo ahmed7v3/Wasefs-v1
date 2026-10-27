@@ -1,4 +1,5 @@
 import type { Market } from "../../../catalog/market.js";
+import type { DocumentCall } from "../../documents/agent-document.service.js";
 import type { ToolDefinition } from "@wasfa/ai";
 import type { CatalogResponse } from "@wasfa/shared/schemas/billing";
 import type { MediaAsset } from "@wasfa/shared/schemas/media";
@@ -64,6 +65,8 @@ export interface AgentToolDeps {
     ) => Promise<AgentToolResult>;
     attachReceipt: (call: AgentCall) => Promise<AgentToolResult>;
   };
+  /** Files the agent makes (create_document): free, capped, rendered by the worker. */
+  documents: { create: (call: DocumentCall) => Promise<AgentToolResult> };
   /** The two tools that charge the linked account (prescription reading, medical answers). */
   usage: {
     analyzePrescription: (call: AgentCall) => Promise<AgentToolResult>;

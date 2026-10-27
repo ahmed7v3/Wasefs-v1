@@ -91,6 +91,14 @@ export class MemoryRedis {
     return Promise.resolve(this.values.has(key) ? 1 : 0);
   }
 
+  incr(key: string): Promise<number> {
+    return this.incrby(key, 1);
+  }
+
+  decr(key: string): Promise<number> {
+    return this.incrby(key, -1);
+  }
+
   incrby(key: string, by: number): Promise<number> {
     const next = Number(this.values.get(key) ?? 0) + by;
     this.values.set(key, String(next));

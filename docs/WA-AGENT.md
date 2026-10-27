@@ -78,14 +78,15 @@ notes. Fixed in code and appended after the persona (cannot be removed from admi
 | `analyze_prescription(fileIds)` | linked | starts the normal rx pipeline (`RxService.create`, origin `whatsapp`); credits reserved/settled as on the web; result arrives as an event | rx credits |
 | `ask_medical(question)` | linked | one answer from the existing chat engine (chat task, its prompts, its credit hold/settle) in a per-user WhatsApp chat | chat credits |
 | `send_media(key)` | all | sends an image/PDF the admin put in the agent media list (screenshots, bank details card) | free |
+| `create_document(template, fileName, content, language?)` | all (guest: `report`/`table` only) | makes a PDF (`report`, `table`, `schedule`) or a PNG `card` with Typst and sends it in the chat when ready (§8a) | free |
 | `handoff_to_owner(reason)` | all | pauses the agent for this chat, alerts the owner (existing admin WhatsApp alerts) | free |
 
 Sales/support turns are **not charged** to the user; they are a business cost bounded by the agent's own daily
 spend cap and per-chat caps. Only `analyze_prescription` and `ask_medical` charge the account, through the
 existing pipelines (insufficient balance → the agent says so and offers a plan or a pack).
 
-**Results:** rx → short text summary in the chat + link to the result page on the site (signed in) ; PDF and
-image renditions are phase C (§8). Quick answers stay in the chat.
+**Results:** rx → short text summary in the chat + link to the result page on the site (signed in) + a PDF of the result
+(§8a); other file renditions are made on request by `create_document`. Quick answers stay in the chat.
 
 ## 5. Owner takeover
 
@@ -134,7 +135,24 @@ campaign `wa_agent`), audited, and visible in the admin coupon list.
 ## 8a. Implementation notes (as built, 2026-10-27)
 
 - **Streams:** `wa:agent:in` (bridge → api), `wa:agent:out` (api → bridge), `wa:agent:sent` (bridge → api),
-  `wa:agent:events` (worker → api: order_paid, payment_rejected, payment_resubmit, rx_done, rx_failed).
+  `wa:agent:events` (worker → api: order_paid, payment_rejected, payment_resubmit, rx_done (optional `pdfKey`),
+  rx_failed, document_ready, document_failed).
+- **Files (`create_document`):** the model sends data only (zod limits per template in
+  `packages/shared/src/schemas/wa-document.ts`); the api checks the caps in Redis (guest: `report`/`table`, one per
+  conversation per hour; linked: 5 per conversation per day; all chats: 500 per day; free) and queues
+  `wa-agent.render-document` on the `documents` queue, answering `{ creating: true }`. The worker renders with
+  **Typst** (Alpine package `typst` in the worker image; `TYPST_BIN`, default `typst`) from fixed templates in
+  `apps/worker/src/documents/templates` (brand header, Cairo date, RTL by default, A4 or a 1080x1350 PNG card),
+  with the bundled IBM Plex Sans Arabic only. Content is passed as `data.json` and shown as text, never evaluated;
+  each render runs in a fresh temp dir holding only `main.typ` + `data.json` (`--root` = that dir), with a 20 s
+  timeout, 5 MB and 30 page limits. The file goes to the uploads bucket as `wa/out/<yyyy>/<mm>/<uuid>.<pdf|png>`
+  and `document_ready` (or `document_failed`) is pushed; the events consumer queues a document / image part (or
+  a fixed i18n line) under the turn lock. The `wa_messages` row carries the `media_key`, so retention deletes the
+  file with the conversation; a file no message points to is deleted at once. `schedule` and the rx PDF always
+  print the standard medical notice from i18n; medical content in files comes only from tool results or the
+  customer's own words.
+- **Rx PDF:** the worker renders the `rx_result` template before it pushes `rx_done` and adds `pdfKey`; the
+  consumer sends the text summary and then the PDF. A render failure only leaves the PDF out.
 - **Tables:** `wa_conversations`, `wa_messages` (0025), `integration_secrets` (0026), alert kind
   `wa_agent.handoff` (0027).
 - **Handoff:** the tool alerts at once and holds the agent silent; the pause is applied after the reply that

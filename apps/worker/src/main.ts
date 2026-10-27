@@ -4,9 +4,11 @@ import { Redis } from "ioredis";
 import { createAiRuntime } from "./ai/runtime.js";
 import { runAlertOptInLoop } from "./alerts/wa-optins.loop.js";
 import { loadEnv, queueConcurrency } from "./config/env.js";
+import { TypstRenderer } from "./documents/renderer.js";
 import { createLogger } from "./logger.js";
 import { runCustomerPrefLoop } from "./notifications/customer-prefs.loop.js";
 import { createEmailRuntime } from "./notifications/email.js";
+import { FONT_DIR } from "./og/fonts.js";
 import { createPaymentsRuntime } from "./payments/runtime.js";
 import { closeWorkers, registerSchedules, startWorkers } from "./queues.js";
 import { createMediaStore, createObjectStore } from "./storage/object-store.js";
@@ -45,6 +47,7 @@ const { workers, queues } = startWorkers(connection, queueConcurrency(env), {
   media,
   ai,
   payments,
+  documents: new TypstRenderer({ bin: env.TYPST_BIN, fontDir: FONT_DIR }),
   env,
 });
 await registerSchedules(queues);

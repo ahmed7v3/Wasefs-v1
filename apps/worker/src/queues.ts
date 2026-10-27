@@ -15,6 +15,7 @@ import { pendingDeliverySweepJob } from "./alerts/pending-delivery-sweep.job.js"
 import { brandingIconsJob } from "./branding/branding.job.js";
 import { publishDueJob } from "./content/publish-due.job.js";
 import { DeferJob } from "./defer.js";
+import { waAgentRenderDocumentJob } from "./documents/document.job.js";
 import { anonymizeDueJob, purgeExpiredJob } from "./jobs/accounts.job.js";
 import { spendRollupJob } from "./jobs/ai.spend-rollup.job.js";
 import { alertsRetentionJob } from "./jobs/alerts-retention.job.js";
@@ -50,6 +51,7 @@ import { emailSendJob, type EmailRuntime } from "./notifications/email.js";
 import { ogRenderJob } from "./og/og.job.js";
 
 import type { AiRuntime } from "./ai/runtime.js";
+import type { DocumentRenderer } from "./documents/renderer.js";
 import type { PaymentsRuntime } from "./payments/runtime.js";
 import type { ObjectStore } from "./storage/object-store.js";
 import type { Database } from "@wasfa/db";
@@ -69,6 +71,8 @@ export interface JobContext {
   ai?: AiRuntime | undefined;
   /** Provider adapters, hooks and mail for the `payments` queue. */
   payments?: PaymentsRuntime | undefined;
+  /** The Typst renderer of the WhatsApp agent files; the `documents` queue and the rx PDF need it. */
+  documents?: DocumentRenderer | undefined;
   env?: import("./config/env.js").WorkerEnv | undefined;
 }
 
@@ -112,6 +116,9 @@ export const HANDLERS: Handlers = {
   },
   rx: {
     "rx.analyze": rxAnalyzeJob,
+  },
+  documents: {
+    "wa-agent.render-document": waAgentRenderDocumentJob,
   },
   seo: {
     "seo.indexnow": indexNowJob,

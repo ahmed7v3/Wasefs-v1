@@ -113,6 +113,36 @@ export const arAdminWaAgent = {
   "admin.waAgent.voice.test.noKey": "اضبط مفتاح ElevenLabs أولًا لتجربة الصوت.",
   "admin.waAgent.voice.test.noVoiceId": "احفظ معرّف الصوت أولًا لتجربة الصوت.",
   "admin.waAgent.voice.test.player": "مقطع التجربة",
+  "admin.waAgent.voice.error.voice_key_missing": "لم يُضبط مفتاح ElevenLabs. احفظ المفتاح أولًا.",
+  "admin.waAgent.voice.error.voice_id_missing": "لم يُحفظ معرّف صوت. احفظ Voice ID أولًا.",
+  "admin.waAgent.voice.error.voice_key_unreadable":
+    "تعذّر قراءة المفتاح المحفوظ (تغيّر مفتاح التشفير في الخادم). أعد إدخال مفتاح ElevenLabs واحفظه.",
+  "admin.waAgent.voice.error.voice_key_rejected":
+    "المفتاح مرفوض من ElevenLabs. تأكد أنه صحيح وغير ملغى ثم أعد إدخاله.",
+  "admin.waAgent.voice.error.voice_not_found":
+    "الصوت غير موجود: تأكد من Voice ID وأن الصوت مضاف إلى حسابك (My Voices).",
+  "admin.waAgent.voice.error.voice_model_not_found":
+    "النموذج غير موجود أو غير مسموح. استخدم eleven_multilingual_v2 أو eleven_v3 للعربية.",
+  "admin.waAgent.voice.error.voice_plan_required":
+    "خطة ElevenLabs الحالية لا تسمح بهذا الصوت/الصيغة عبر الـ API. رقّ الخطة أو اختر صوتًا آخر.",
+  "admin.waAgent.voice.error.voice_format_not_allowed":
+    "خطة ElevenLabs الحالية لا تسمح بصيغة الصوت اللازمة لرسائل واتساب الصوتية. رقّ الخطة.",
+  "admin.waAgent.voice.error.voice_quota_exceeded":
+    "رصيد الحروف في ElevenLabs انتهى. اشحن الرصيد أو انتظر تجديده الشهري.",
+  "admin.waAgent.voice.error.voice_rate_limited":
+    "ElevenLabs يحدّ الطلبات الآن. انتظر دقيقة ثم أعد المحاولة.",
+  "admin.waAgent.voice.error.voice_bad_request":
+    "رفض ElevenLabs الطلب. راجع معرّف الصوت والنموذج وأرقام الصوت في الإعدادات.",
+  "admin.waAgent.voice.error.voice_timeout": "تأخر ElevenLabs في الرد. أعد المحاولة بعد قليل.",
+  "admin.waAgent.voice.error.voice_network": "تعذّر الوصول إلى ElevenLabs. أعد المحاولة بعد قليل.",
+  "admin.waAgent.voice.error.voice_storage_failed":
+    "تم توليد الصوت لكن تعذّر حفظ المقطع في التخزين. أعد المحاولة، وإن استمر أرسل الرمز للدعم.",
+  "admin.waAgent.voice.error.voice_failed":
+    "فشلت تجربة الصوت لسبب غير معروف. أعد المحاولة، وإن استمر أرسل الرمز للدعم.",
+  "admin.waAgent.voice.voiceIdHint":
+    "يجب أن يكون الصوت ضمن My Voices في حساب ElevenLabs: أضف أي صوت من المكتبة هناك أولًا.",
+  "admin.waAgent.voice.modelIdHint":
+    "يجب أن يدعم النموذج العربية: eleven_multilingual_v2 (الافتراضي) أو eleven_v3.",
   "admin.waAgent.voiceKey.title": "مفتاح ElevenLabs",
   "admin.waAgent.voiceKey.set": "تم ضبط المفتاح",
   "admin.waAgent.voiceKey.notSet": "لم يُضبط مفتاح",

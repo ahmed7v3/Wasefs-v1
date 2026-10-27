@@ -312,6 +312,7 @@ describe("tools", () => {
     expect(toolsFor(false).map((tool) => tool.definition.name)).toEqual([
       "get_catalog",
       "send_media",
+      "create_document",
       "handoff_to_owner",
     ]);
     expect(toolsFor(true).map((tool) => tool.definition.name)).toEqual([
@@ -323,6 +324,7 @@ describe("tools", () => {
       "analyze_prescription",
       "ask_medical",
       "send_media",
+      "create_document",
       "handoff_to_owner",
     ]);
   });

@@ -68,6 +68,7 @@ beforeAll(async () => {
       payments: 1,
       seo: 1,
       content: 1,
+      documents: 1,
     },
     { redis: connection, db: database.db, logger, email },
   );

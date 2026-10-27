@@ -155,6 +155,7 @@ describe("a guest", () => {
     expect(ai.adapter.requests[0]?.tools?.map((tool) => tool.name)).toEqual([
       "get_catalog",
       "send_media",
+      "create_document",
       "handoff_to_owner",
     ]);
     const rows = await outRows(conversation.id);

@@ -72,6 +72,7 @@ async function startWith(runtime: EmailRuntime): Promise<void> {
       payments: 1,
       seo: 1,
       content: 1,
+      documents: 1,
     },
     {
       redis: connection,

@@ -95,6 +95,7 @@ export const replyOutcomeSchema = z.enum([
   "alerts_off",
   "messages_off",
   "messages_on",
+  "wa_unresolved",
 ]);
 export type ReplyOutcome = z.output<typeof replyOutcomeSchema>;
 
@@ -104,6 +105,7 @@ export function replyText(outcome: ReplyOutcome): string {
   if (outcome === "alerts_off") return t("phone.reply.alertsOff");
   if (outcome === "messages_off") return t("phone.reply.messagesOff");
   if (outcome === "messages_on") return t("phone.reply.messagesOn");
+  if (outcome === "wa_unresolved") return t("phone.verify.waUnresolved");
   return t(outcome === "verified" ? "phone.reply.verified" : "phone.reply.invalid");
 }
 

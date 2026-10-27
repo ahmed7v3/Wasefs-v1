@@ -10,6 +10,7 @@ import { brandingIconsPayloadSchema } from "./schemas/branding.js";
 import { imageProcessPayloadSchema } from "./schemas/files.js";
 import { ogRenderPayloadSchema } from "./schemas/og.js";
 import { rxAnalyzePayloadSchema } from "./schemas/rx.js";
+import { waRenderDocumentPayloadSchema } from "./schemas/wa-document.js";
 
 /**
  * Queue registry shared by `apps/api` (producers) and `apps/worker` (consumers).
@@ -144,6 +145,10 @@ export const QUEUE_REGISTRY = {
     // Withdrawals (Task 3.12): overdue reminders every 30 minutes, nightly paid-out vs ledger check.
     "withdrawals.overdue": paymentsMaintenancePayloadSchema,
     "withdrawals.reconcile": paymentsMaintenancePayloadSchema,
+  },
+  /** Files the WhatsApp agent creates (Typst renders; CPU heavy and slow enough to deserve their own queue). */
+  documents: {
+    "wa-agent.render-document": waRenderDocumentPayloadSchema,
   },
   /** Search discoverability (Phase 4): IndexNow pings. BullMQ names cannot contain ":", hence queue `seo`, job `seo.indexnow`. */
   seo: {

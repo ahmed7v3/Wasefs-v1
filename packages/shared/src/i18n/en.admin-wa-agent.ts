@@ -118,6 +118,37 @@ export const enAdminWaAgent = {
   "admin.waAgent.voice.test.noKey": "Set the ElevenLabs key first to test the voice.",
   "admin.waAgent.voice.test.noVoiceId": "Save a voice ID first to test the voice.",
   "admin.waAgent.voice.test.player": "Test clip",
+  "admin.waAgent.voice.error.voice_key_missing": "No ElevenLabs key is set. Save the key first.",
+  "admin.waAgent.voice.error.voice_id_missing": "No voice ID is saved. Save a voice ID first.",
+  "admin.waAgent.voice.error.voice_key_unreadable":
+    "The saved key cannot be read (the server encryption key changed). Enter the ElevenLabs key again and save it.",
+  "admin.waAgent.voice.error.voice_key_rejected":
+    "ElevenLabs rejected the key. Check that it is correct and not revoked, then enter it again.",
+  "admin.waAgent.voice.error.voice_not_found":
+    "Voice not found. Check the Voice ID and make sure the voice is added to your account (My Voices).",
+  "admin.waAgent.voice.error.voice_model_not_found":
+    "Model not found or not allowed. Use eleven_multilingual_v2 or eleven_v3 for Arabic.",
+  "admin.waAgent.voice.error.voice_plan_required":
+    "Your current ElevenLabs plan does not allow this voice or format through the API. Upgrade the plan or pick another voice.",
+  "admin.waAgent.voice.error.voice_format_not_allowed":
+    "Your ElevenLabs plan does not allow the audio format WhatsApp voice replies need. Upgrade the plan.",
+  "admin.waAgent.voice.error.voice_quota_exceeded":
+    "The ElevenLabs character balance is used up. Top up or wait for the monthly reset.",
+  "admin.waAgent.voice.error.voice_rate_limited":
+    "ElevenLabs is limiting requests right now. Wait a minute and try again.",
+  "admin.waAgent.voice.error.voice_bad_request":
+    "ElevenLabs refused the request. Check the voice ID, model and voice numbers in the settings.",
+  "admin.waAgent.voice.error.voice_timeout":
+    "ElevenLabs took too long to answer. Try again in a moment.",
+  "admin.waAgent.voice.error.voice_network": "Could not reach ElevenLabs. Try again in a moment.",
+  "admin.waAgent.voice.error.voice_storage_failed":
+    "The voice was made but the clip could not be saved to storage. Try again; if it persists, send the reference to support.",
+  "admin.waAgent.voice.error.voice_failed":
+    "The voice test failed for an unknown reason. Try again; if it persists, send the reference to support.",
+  "admin.waAgent.voice.voiceIdHint":
+    "The voice must be in the My Voices of your ElevenLabs account: add a library voice there first.",
+  "admin.waAgent.voice.modelIdHint":
+    "The model must support Arabic: eleven_multilingual_v2 (default) or eleven_v3.",
   "admin.waAgent.voiceKey.title": "ElevenLabs key",
   "admin.waAgent.voiceKey.set": "Key is set",
   "admin.waAgent.voiceKey.notSet": "No key set",

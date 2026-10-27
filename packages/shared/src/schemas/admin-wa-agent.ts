@@ -58,6 +58,32 @@ export const voiceTestResultSchema = z.object({
 });
 export type VoiceTestResult = z.output<typeof voiceTestResultSchema>;
 
+/**
+ * Why a voice test failed (`details.reason` of the error). The first group is the admin's to fix and
+ * comes without a support reference; the second is a genuine outage (503) and carries one.
+ */
+export const VOICE_TEST_FIXABLE_REASONS = [
+  "voice_key_missing",
+  "voice_id_missing",
+  "voice_key_unreadable",
+  "voice_key_rejected",
+  "voice_not_found",
+  "voice_model_not_found",
+  "voice_plan_required",
+  "voice_format_not_allowed",
+  "voice_quota_exceeded",
+  "voice_rate_limited",
+  "voice_bad_request",
+] as const;
+export const VOICE_TEST_OUTAGE_REASONS = [
+  "voice_timeout",
+  "voice_network",
+  "voice_storage_failed",
+  "voice_failed",
+] as const;
+export type VoiceTestReason =
+  (typeof VOICE_TEST_FIXABLE_REASONS)[number] | (typeof VOICE_TEST_OUTAGE_REASONS)[number];
+
 // --- Inbox --------------------------------------------------------------------------------------
 
 export const waAgentConversationListQuerySchema = cursorQuerySchema.extend({

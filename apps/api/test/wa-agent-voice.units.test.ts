@@ -71,6 +71,8 @@ function clientWith(responses: Response[], key: string | null = KEY) {
 
 const audioResponse = () => new Response(new Uint8Array([1, 2, 3, 4]), { status: 200 });
 const status = (code: number) => new Response("{}", { status: code });
+const failure = (code: number, detail: unknown) =>
+  new Response(JSON.stringify({ detail }), { status: code });
 
 describe("the ElevenLabs client", () => {
   it("transcribes with Scribe: key header, multipart file, no audio-event tags", async () => {
@@ -179,8 +181,176 @@ describe("the ElevenLabs client", () => {
   it("a network failure is a typed failure, not a thrown fetch error", async () => {
     const { client } = clientWith([]);
     await expect(client.synthesize("hi", { voiceId: "v" })).rejects.toMatchObject({
-      code: "failed",
+      code: "network",
     });
+  });
+
+  it("tells a timeout from a network failure", async () => {
+    const { client } = clientWith([]);
+    client.fetchImpl = () => Promise.reject(new DOMException("timed out", "TimeoutError"));
+    await expect(client.synthesize("hi", { voiceId: "v" })).rejects.toMatchObject({
+      code: "timeout",
+    });
+  });
+
+  it.each([
+    [401, { status: "invalid_api_key", message: "no" }, "unauthorized"],
+    [401, { status: "quota_exceeded", message: "no" }, "quota_exceeded"],
+    [400, { status: "voice_not_found", message: "no" }, "voice_not_found"],
+    [404, { status: "voice_not_found" }, "voice_not_found"],
+    [404, "plain text detail", "voice_not_found"],
+    [400, { status: "model_not_found" }, "model_not_found"],
+    [422, { code: "unsupported_model" }, "model_not_found"],
+    [402, { status: "payment_required" }, "plan_required"],
+    [402, {}, "plan_required"],
+    [403, { status: "paid_plan_required" }, "plan_required"],
+    [
+      403,
+      { message: "Free users cannot use library voices via the API. Upgrade." },
+      "plan_required",
+    ],
+    [403, {}, "unauthorized"],
+    [400, { status: "output_format_not_allowed" }, "format_not_allowed"],
+    [403, { message: "The output format mp3_44100_192 requires Creator" }, "format_not_allowed"],
+    [422, { code: "invalid_output_format" }, "format_not_allowed"],
+    [400, { status: "max_character_limit_exceeded" }, "bad_request"],
+    [422, [{ loc: ["body"] }], "bad_request"],
+    [422, {}, "bad_request"],
+    [429, { code: "concurrent_limit_exceeded" }, "rate_limited"],
+  ] as const)("maps %s %j to %s", async (code, detail, expected) => {
+    // 429 is retried once, so give it a second answer.
+    const { client } = clientWith([failure(code, detail), failure(code, detail)]);
+    await expect(
+      client.synthesize("hi", { voiceId: "v", requireVoiceNote: true }),
+    ).rejects.toMatchObject({ code: expected, status: code });
+  });
+
+  it("logs only a short lowercase token of the error body, never its message", async () => {
+    const { client, logs } = clientWith([
+      failure(400, { status: "voice_not_found", message: "secret words " + KEY }),
+    ]);
+    await expect(client.synthesize("سر", { voiceId: "v" })).rejects.toMatchObject({
+      detail: "voice_not_found",
+    });
+    const text = JSON.stringify(logs);
+    expect(text).toContain("voice_not_found");
+    expect(text).not.toContain("secret words");
+    expect(text).not.toContain(KEY);
+    expect(text).not.toContain("سر");
+
+    const odd = clientWith([failure(400, { status: "Not A Token! <script>", message: "x" })]);
+    await expect(odd.client.synthesize("hi", { voiceId: "v" })).rejects.toMatchObject({
+      code: "bad_request",
+      detail: undefined,
+    });
+  });
+
+  it("reads at most 4 KB of an error body and survives a body that is not JSON", async () => {
+    const { client } = clientWith([new Response("x".repeat(100_000), { status: 400 })]);
+    await expect(client.synthesize("hi", { voiceId: "v" })).rejects.toMatchObject({
+      code: "bad_request",
+    });
+  });
+
+  it("retries once as mp3 when the account refuses the Opus format", async () => {
+    const { client, seen } = clientWith([
+      failure(400, { status: "output_format_not_allowed" }),
+      audioResponse(),
+    ]);
+    const result = await client.synthesize("hi", { voiceId: "v" });
+    expect(result).toMatchObject({ mime: "audio/mpeg", voiceNote: false });
+    expect(seen[0]?.url).toContain("output_format=opus_48000_64");
+    expect(seen[1]?.url).toContain("output_format=mp3_44100_128");
+  });
+
+  it("does not fall back to mp3 for a clip that must be a voice note", async () => {
+    const { client, seen } = clientWith([
+      failure(400, { status: "output_format_not_allowed" }),
+      audioResponse(),
+    ]);
+    await expect(
+      client.synthesize("hi", { voiceId: "v", requireVoiceNote: true }),
+    ).rejects.toMatchObject({ code: "format_not_allowed" });
+    expect(seen).toHaveLength(1);
+  });
+
+  it("marks an Opus clip as a voice note", async () => {
+    const { client } = clientWith([audioResponse()]);
+    expect(await client.synthesize("hi", { voiceId: "v" })).toMatchObject({ voiceNote: true });
+  });
+});
+
+describe("the voice service around ElevenLabs", () => {
+  const config: WaAgentSettings["voice"] = {
+    ...settingDefault("waAgent").voice,
+    enabled: true,
+    voiceId: "voice-1",
+  };
+
+  function service(options: { synthesis?: Synthesis | VoiceError; putFails?: boolean }) {
+    const asked: Array<{ requireVoiceNote?: boolean }> = [];
+    const warnings: unknown[] = [];
+    const stored: string[] = [];
+    const client = {
+      synthesize: (_text: string, opts: { requireVoiceNote?: boolean }) => {
+        asked.push(opts);
+        const result = options.synthesis ?? {
+          audio: new Uint8Array([1]),
+          mime: "audio/ogg",
+          voiceNote: true,
+        };
+        return result instanceof VoiceError ? Promise.reject(result) : Promise.resolve(result);
+      },
+    } as unknown as ElevenLabsClient;
+    const storage = {
+      put: (key: string) => {
+        if (options.putFails) return Promise.reject(new Error("bucket down"));
+        stored.push(key);
+        return Promise.resolve();
+      },
+      remove: () => Promise.resolve(),
+    } as unknown as ObjectStorage;
+    const logger = {
+      setContext: () => undefined,
+      info: () => undefined,
+      warn: (...args: unknown[]) => warnings.push(args),
+    };
+    const voice = new WaAgentVoiceService(
+      { isSet: () => Promise.resolve(true) } as unknown as VoiceKeyService,
+      client,
+      storage,
+      new MemoryRedis() as unknown as Redis,
+      logger as never,
+    );
+    voice.scheduleRemoval = () => undefined;
+    return { voice, asked, warnings, stored };
+  }
+
+  it("a storage failure is its own typed error for the test and quiet for a reply", async () => {
+    const { voice, warnings } = service({ putFails: true });
+    await expect(voice.test("hi", config, new Date(START))).rejects.toMatchObject({
+      code: "storage_failed",
+    });
+    expect(await voice.speak("hi there", config, new Date(START))).toBeNull();
+    expect(JSON.stringify(warnings)).toContain("storage_failed");
+  });
+
+  it("the test accepts an mp3 clip; a real reply insists on a voice note", async () => {
+    const { voice, asked, stored } = service({
+      synthesis: { audio: new Uint8Array([1]), mime: "audio/mpeg", voiceNote: false },
+    });
+    const clip = await voice.test("hi", config, new Date(START));
+    expect(clip.mime).toBe("audio/mpeg");
+    expect(stored[0]).toMatch(/\.mp3$/);
+    expect(asked[0]?.requireVoiceNote).toBe(false);
+    await voice.speak("hi there", config, new Date(START));
+    expect(asked[1]?.requireVoiceNote).toBe(true);
+  });
+
+  it("a reply stays text and logs voice_format_unavailable when only mp3 is allowed", async () => {
+    const { voice, warnings } = service({ synthesis: new VoiceError("format_not_allowed", 400) });
+    expect(await voice.speak("hi there", config, new Date(START))).toBeNull();
+    expect(JSON.stringify(warnings)).toContain("voice_format_unavailable");
   });
 });
 
@@ -312,7 +482,8 @@ function harness(options: HarnessOptions = {}) {
       spoken.push(text);
       return (
         options.synthesize ??
-        (() => Promise.resolve({ audio: new Uint8Array([7, 7]), mime: "audio/ogg" }))
+        (() =>
+          Promise.resolve({ audio: new Uint8Array([7, 7]), mime: "audio/ogg", voiceNote: true }))
       )();
     },
   } as unknown as ElevenLabsClient;

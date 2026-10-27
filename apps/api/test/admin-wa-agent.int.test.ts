@@ -32,6 +32,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { encryptionKey } from "../src/config/env.js";
 import { ObjectStorage } from "../src/files/object-storage.js";
 import { ElevenLabsClient } from "../src/wa-agent/voice/elevenlabs.client.js";
+import { VoiceKeyService } from "../src/wa-agent/voice/voice-key.service.js";
 import { WaAgentVoiceService } from "../src/wa-agent/voice/voice.service.js";
 
 import { AdminTestContext, MISSING_ID, type Admin } from "./support/admin-context.js";
@@ -385,6 +386,82 @@ describe("the voice test", () => {
     expect(audits.length).toBeGreaterThan(0);
     expect(JSON.stringify(audits)).not.toContain(KEY);
     put.mockRestore();
+    await call("DELETE", "/admin/wa-agent/voice-key", writer);
+  });
+
+  it("says why a test failed: the admin's problems are 4xx without a reference, outages keep one", async () => {
+    const tester = await ctx.admin(await ctx.customRole(["wa_agent.read", "wa_agent.write"]));
+    await call("PUT", "/admin/wa-agent/voice-key", writer, { apiKey: KEY });
+    await settingsWithVoice("voice-test-1");
+    const client = ctx.app.get(ElevenLabsClient);
+    const storage = ctx.app.get(ObjectStorage);
+    const voice = ctx.app.get(WaAgentVoiceService);
+    voice.scheduleRemoval = () => undefined;
+    const answer = (status: number, detail: Record<string, string>) => {
+      client.fetchImpl = () =>
+        Promise.resolve(new Response(JSON.stringify({ detail }), { status }));
+    };
+    const test = () => call("POST", "/admin/wa-agent/voice-test", tester, { text: "hi" });
+    const fixable: Array<[number, Record<string, string>, number, string, string]> = [
+      [401, { status: "invalid_api_key" }, 409, "CONFLICT", "voice_key_rejected"],
+      [404, { status: "voice_not_found" }, 409, "CONFLICT", "voice_not_found"],
+      [400, { status: "model_not_found" }, 409, "CONFLICT", "voice_model_not_found"],
+      [402, { status: "payment_required" }, 409, "CONFLICT", "voice_plan_required"],
+      [401, { status: "quota_exceeded" }, 409, "CONFLICT", "voice_quota_exceeded"],
+      [422, { status: "invalid_parameters" }, 400, "VALIDATION_FAILED", "voice_bad_request"],
+    ];
+    for (const [upstream, detail, status, code, reason] of fixable) {
+      answer(upstream, detail);
+      const res = await test();
+      expectError(res, status, code, reason);
+      expect(res.json()).not.toHaveProperty("ref");
+    }
+
+    // An account that refuses Opus still gets an mp3 test clip.
+    const formats: string[] = [];
+    client.fetchImpl = (input) => {
+      formats.push(new URL(String(input)).searchParams.get("output_format") ?? "");
+      return Promise.resolve(
+        formats.length === 1
+          ? new Response(JSON.stringify({ detail: { status: "output_format_not_allowed" } }), {
+              status: 400,
+            })
+          : new Response(new Uint8Array([1, 2]), { status: 200 }),
+      );
+    };
+    const put = vi.spyOn(storage, "put").mockResolvedValue();
+    const mp3 = await test();
+    expect(mp3.statusCode, mp3.body).toBe(200);
+    expect(voiceTestResultSchema.parse(mp3.json()).mime).toBe("audio/mpeg");
+    expect(formats).toEqual(["opus_48000_64", "mp3_44100_128"]);
+
+    // Storage down: an outage with a reference and its own reason.
+    client.fetchImpl = () => Promise.resolve(new Response(new Uint8Array([1]), { status: 200 }));
+    put.mockRejectedValue(new Error("bucket down"));
+    const stored = await test();
+    expectError(stored, 503, "UPSTREAM_UNAVAILABLE", "voice_storage_failed");
+    expect(stored.json()).toHaveProperty("ref");
+    put.mockRestore();
+
+    // A timeout is an outage too.
+    client.fetchImpl = () => Promise.reject(new DOMException("slow", "TimeoutError"));
+    const slow = await test();
+    expectError(slow, 503, "UPSTREAM_UNAVAILABLE", "voice_timeout");
+    expect(slow.json()).toHaveProperty("ref");
+    await call("DELETE", "/admin/wa-agent/voice-key", writer);
+  });
+
+  it("tells an unreadable stored key (the encryption key changed) from a missing one", async () => {
+    const tester = await ctx.admin(await ctx.customRole(["wa_agent.read", "wa_agent.write"]));
+    await call("PUT", "/admin/wa-agent/voice-key", writer, { apiKey: KEY });
+    await settingsWithVoice("voice-test-1");
+    const keys = ctx.app.get(VoiceKeyService);
+    // The secret store reads a value that no longer decrypts as "unset"; the stored row still exists.
+    const unset = vi.spyOn(keys, "isSet").mockResolvedValue(false);
+    const res = await call("POST", "/admin/wa-agent/voice-test", tester, { text: "hi" });
+    expectError(res, 409, "CONFLICT", "voice_key_unreadable");
+    expect(res.json()).not.toHaveProperty("ref");
+    unset.mockRestore();
     await call("DELETE", "/admin/wa-agent/voice-key", writer);
   });
 

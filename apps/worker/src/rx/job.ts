@@ -5,6 +5,7 @@ import { isAppError } from "@wasfa/shared/errors";
 import { newErrorRef } from "@wasfa/shared/ids";
 import { UPLOAD_MAX_BYTES } from "@wasfa/shared/schemas/files";
 
+import { createRxPdf } from "../documents/rx-pdf.js";
 import { readSetting } from "../settings.js";
 
 import { analyzeImages } from "./analyze.js";
@@ -29,7 +30,10 @@ import {
 import type { JobContext } from "../queues.js";
 import type { JobPayload } from "@wasfa/shared/queues";
 
-type RxContext = Pick<JobContext, "db" | "redis" | "logger" | "storage" | "ai">;
+type RxContext = Pick<
+  JobContext,
+  "db" | "redis" | "logger" | "storage" | "ai" | "documents" | "env"
+>;
 
 /** The whole analysis, pages to settled credits. Task 2.8 planned 60 s; reasoning models on hard handwriting need more, and a longer wait is fine because the person can leave the page. */
 export const RX_BUDGET_MS = 90_000;
@@ -50,7 +54,7 @@ const walletOf = (row: { ownerUserId: string | null; ownerOrgId: string | null }
  */
 export async function rxAnalyzeJob(
   { analysisId, planOrgId, routePlanId }: JobPayload<"rx", "rx.analyze">,
-  { db, redis, logger, storage, ai }: RxContext,
+  { db, redis, logger, storage, ai, documents, env }: RxContext,
 ): Promise<void> {
   if (storage === undefined) {
     throw new Error("Uploads storage is not configured (R2_UPLOADS_* are not set)");
@@ -68,7 +72,22 @@ export async function rxAnalyzeJob(
   }
   if (!(await claimForProcessing(db, analysisId))) return;
 
-  const events = createRxPublisher(redis, analysisId, logger);
+  // The PDF of the result goes to the WhatsApp agent only (see `createRxPublisher`).
+  const events = createRxPublisher(
+    redis,
+    analysisId,
+    logger,
+    documents === undefined
+      ? undefined
+      : createRxPdf(analysisId, {
+          documents,
+          storage,
+          logger,
+          language: async () =>
+            (await readSetting(db, "waAgent")).language === "en" ? "en" : "ar",
+          link: (id) => (env === undefined ? null : `${env.WEB_ORIGIN}/analyze/${id}`),
+        }),
+  );
   const wallet = walletOf(row);
   const actingUserId = row.createdBy ?? row.ownerUserId;
   const budget = AbortSignal.timeout(RX_BUDGET_MS);
@@ -142,7 +161,7 @@ export async function rxAnalyzeJob(
       routeVersion,
       skillVersion: skill,
     });
-    if (finished) await events.done(status);
+    if (finished) await events.done(status, result);
     // A first finished analysis can complete a referred person's sign-up conditions (Task 3.11).
     if (finished && status === "done" && row.ownerUserId !== null) {
       await requestSignupCheck(db, row.ownerUserId, "usage").catch(() => {

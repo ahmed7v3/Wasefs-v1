@@ -23,6 +23,8 @@ import { AgentMedicalService } from "./commerce/agent-medical.service.js";
 import { AgentRxService } from "./commerce/agent-rx.service.js";
 import { AgentSubscriptionService } from "./commerce/agent-subscription.service.js";
 import { WaAgentEventsConsumer } from "./commerce/wa-agent-events.consumer.js";
+import { AgentDocumentService } from "./documents/agent-document.service.js";
+import { WaDocumentQueue } from "./documents/wa-document-queue.js";
 import { ElevenLabsClient } from "./voice/elevenlabs.client.js";
 import { VoiceKeyService } from "./voice/voice-key.service.js";
 import { WaAgentVoiceService } from "./voice/voice.service.js";
@@ -65,6 +67,8 @@ import { WaOutboundService } from "./wa-outbound.service.js";
     AgentSubscriptionService,
     AgentRxService,
     AgentMedicalService,
+    WaDocumentQueue,
+    AgentDocumentService,
     WaAgentToolDeps,
     VoiceKeyService,
     ElevenLabsClient,

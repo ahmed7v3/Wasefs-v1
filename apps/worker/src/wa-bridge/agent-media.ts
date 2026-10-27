@@ -12,7 +12,7 @@ import {
   type WaAgentKind,
 } from "@wasfa/shared/schemas/wa-agent";
 
-import type { RawMessage } from "./inbound.js";
+import { unwrapContent, type RawMessage } from "./inbound.js";
 
 /*
  * What the agent reads from a WhatsApp message and what of it may be stored. Media is downloaded
@@ -20,8 +20,6 @@ import type { RawMessage } from "./inbound.js";
  * anything over a limit, of another type, or that fails to download becomes kind `other` without
  * media, and the agent says it could not open it. Nothing here logs content.
  */
-
-type Message = NonNullable<RawMessage["message"]>;
 
 export type AgentContent =
   | { kind: "text"; text: string }
@@ -57,7 +55,9 @@ function caption(value: string | null | undefined): string | null {
  * Classifies one message. `null` = nothing to answer (a reaction, a protocol message, an empty
  * text); content the agent cannot read (video, sticker, location, contact) is kind `other`.
  */
-export function agentContentOf(message: RawMessage["message"]): AgentContent | null {
+export function agentContentOf(raw: RawMessage["message"]): AgentContent | null {
+  // Wrapped content (disappearing, view-once, edited, ...) is read like plain content.
+  const message = unwrapContent(raw);
   if (!message) return null;
   const text = message.conversation ?? message.extendedTextMessage?.text;
   if (typeof text === "string") {
@@ -103,15 +103,12 @@ export function agentContentOf(message: RawMessage["message"]): AgentContent | n
   ) {
     return { kind: "other", text: null };
   }
-  // Disappearing-message chats wrap the content one level down.
-  return message.ephemeralMessage ? agentContentOf(message.ephemeralMessage.message) : null;
+  return null;
 }
 
 /** The raw message with its disappearing-message wrapper removed (what Baileys downloads from). */
 export function unwrapped(raw: RawMessage): RawMessage {
-  let message: Message | null = raw.message ?? null;
-  while (message?.ephemeralMessage?.message) message = message.ephemeralMessage.message;
-  return { ...raw, message };
+  return { ...raw, message: unwrapContent(raw.message) };
 }
 
 export function mediaAllowed(

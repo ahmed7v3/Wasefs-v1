@@ -2,6 +2,8 @@ import { z } from "zod";
 
 import { E164_PATTERN } from "../identity.js";
 
+import { waDocumentKeySchema } from "./wa-document.js";
+
 /*
  * The three Redis streams of the WhatsApp AI agent (docs/WA-AGENT.md; names in `./phone.ts` next to
  * `wa:inbound`). The bridge appends what customers and the owner wrote to `wa:agent:in`, the api
@@ -142,7 +144,10 @@ export function waAgentOutboundFor(
   caps: { maxReplyChars: number; maxMessagesPerTurn: number },
   mediaOrigin?: string,
 ) {
-  return z.array(waAgentPartSchema(caps.maxReplyChars, mediaOrigin)).min(1).max(caps.maxMessagesPerTurn);
+  return z
+    .array(waAgentPartSchema(caps.maxReplyChars, mediaOrigin))
+    .min(1)
+    .max(caps.maxMessagesPerTurn);
 }
 
 /** The parts at the hard code limits; the service narrows them to the admin caps. */
@@ -209,7 +214,17 @@ export const waAgentEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("order_paid"), userId: z.uuid(), orderId: z.uuid() }),
   z.object({ type: z.literal("payment_rejected"), userId: z.uuid(), orderId: z.uuid() }),
   z.object({ type: z.literal("payment_resubmit"), userId: z.uuid(), orderId: z.uuid() }),
-  z.object({ type: z.literal("rx_done"), rxId: z.uuid() }),
+  // `pdfKey`: the PDF of the result the worker rendered (absent when rendering failed or is off).
+  z.object({ type: z.literal("rx_done"), rxId: z.uuid(), pdfKey: waDocumentKeySchema.optional() }),
   z.object({ type: z.literal("rx_failed"), rxId: z.uuid() }),
+  // A file the agent asked for (`create_document`) is stored and ready to send, or could not be made.
+  z.object({
+    type: z.literal("document_ready"),
+    conversationId: z.uuid(),
+    mediaKey: waDocumentKeySchema,
+    fileName: z.string().min(1).max(120),
+    kind: z.enum(["document", "image"]),
+  }),
+  z.object({ type: z.literal("document_failed"), conversationId: z.uuid() }),
 ]);
 export type WaAgentEvent = z.output<typeof waAgentEventSchema>;
