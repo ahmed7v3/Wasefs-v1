@@ -53,6 +53,10 @@ export const workerEnvSchema = z
     WORKER_CONCURRENCY_SEO: concurrency,
     /** ... and on the `content` queue (scheduled publishing; one run at a time keeps the daily cap exact). */
     WORKER_CONCURRENCY_CONTENT: concurrency,
+    /** ... and on the `documents` queue (Typst renders of the WhatsApp agent files; 2 at a time, each is capped at 20 s). */
+    WORKER_CONCURRENCY_DOCUMENTS: concurrency.default(2),
+    /** The `typst` binary the agent files are rendered with (on PATH in the image). */
+    TYPST_BIN: z.string().min(1).max(300).default("typst"),
     /** Where the web app answers inside the network (`http://web:3000`); unset = no cache purge (dev). */
     WEB_INTERNAL_URL: optional(z.url()),
     /** Signs the cache purge call to the web (`/api/revalidate`); unset = no cache purge (dev). */
@@ -126,5 +130,6 @@ export function queueConcurrency(env: WorkerEnv): Record<QueueName, number> {
     payments: env.WORKER_CONCURRENCY_PAYMENTS,
     seo: env.WORKER_CONCURRENCY_SEO,
     content: env.WORKER_CONCURRENCY_CONTENT,
+    documents: env.WORKER_CONCURRENCY_DOCUMENTS,
   };
 }

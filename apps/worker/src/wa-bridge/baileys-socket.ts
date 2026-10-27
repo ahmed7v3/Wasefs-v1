@@ -19,12 +19,17 @@ import { routeInbound, type InboundRouterDeps } from "./agent-inbound.js";
 import { type MediaIo } from "./agent-media.js";
 import { type AgentSettingsSource } from "./agent-settings.js";
 import { usePostgresAuthState } from "./auth-state.js";
+import { recordIgnored } from "./inbound-diagnostics.js";
 import {
+  addressingOf,
   extractAlertOptInCommand,
   extractCustomerPrefCommand,
   isDirectJid,
+  splitJid,
+  type LidResolver,
   type RawMessage,
 } from "./inbound.js";
+import { createLidResolver } from "./lid-cache.js";
 
 import type { BridgeSession, DisconnectKind, SocketHandle } from "./bridge.js";
 import type { ReplyGuard } from "./guard.js";
@@ -66,10 +71,11 @@ export function createBaileysSessionOpener(
     socket: WASocket,
     messages: WAMessage[],
     router: InboundRouterDeps,
+    resolver: LidResolver,
   ): Promise<void> {
     for (const message of messages) {
       const raw = message as unknown as RawMessage;
-      const optIn = await extractAlertOptInCommand(raw, socket.signalRepository.lidMapping);
+      const optIn = await extractAlertOptInCommand(raw, resolver);
       if (optIn) {
         const command = waAlertOptInSchema.parse(optIn);
         const messageId = raw.key.id;
@@ -90,7 +96,7 @@ export function createBaileysSessionOpener(
         logger.info("WhatsApp alert preference command queued");
         continue;
       }
-      const preference = await extractCustomerPrefCommand(raw, socket.signalRepository.lidMapping);
+      const preference = await extractCustomerPrefCommand(raw, resolver);
       if (preference) {
         const command = waCustomerPrefCommandSchema.parse(preference);
         const messageId = raw.key.id;
@@ -120,7 +126,7 @@ export function createBaileysSessionOpener(
           await socket.readMessages([message.key]);
         });
         if (outcome.route === "ignored") {
-          logger.debug({ reason: outcome.reason }, "Inbound message ignored");
+          await recordIgnored({ redis, logger }, outcome.reason, raw);
         }
       } catch (error) {
         logger.error(
@@ -153,8 +159,25 @@ export function createBaileysSessionOpener(
           shouldSyncHistoryMessage: () => false,
           generateHighQualityLinkPreview: false,
           // Groups, statuses, broadcasts and newsletters never reach our handlers.
-          shouldIgnoreJid: (jid) => !isDirectJid(jid),
+          shouldIgnoreJid: (jid) => {
+            const direct = isDirectJid(jid);
+            // A new kind of server (never the number) is worth one log line: it is how a sender
+            // type that never reaches us would show up.
+            const server = splitJid(jid)?.server ?? "none";
+            if (!direct && !ignoredServers.has(server)) {
+              ignoredServers.add(server);
+              logger.info({ server }, "Inbound jid server ignored");
+            }
+            return !direct;
+          },
           getMessage: () => Promise.resolve(undefined),
+        });
+
+        const ignoredServers = new Set<string>(["g.us", "broadcast", "newsletter", "call"]);
+        const resolver = createLidResolver({
+          redis,
+          baileys: socket.signalRepository.lidMapping,
+          logger,
         });
 
         const baileysDownload: MediaIo["download"] = async (raw) => {
@@ -170,7 +193,7 @@ export function createBaileysSessionOpener(
           redis,
           guard,
           settings: agentSettings,
-          resolver: socket.signalRepository.lidMapping,
+          resolver,
           media: mediaStore === null ? null : { download: baileysDownload, put: mediaStore.put },
           logger,
         };
@@ -184,11 +207,39 @@ export function createBaileysSessionOpener(
           });
         });
         socket.ev.on("messages.upsert", ({ messages, type }) => {
-          if (ended || type !== "notify") return;
-          handleMessages(socket, messages, router).catch((error: Error) => {
+          if (ended) return;
+          if (type !== "notify") {
+            // Our own sends come back as "append"; anything from someone else is worth a count.
+            for (const message of messages) {
+              if (message.key.fromMe) continue;
+              void recordIgnored({ redis, logger }, "not_notify", message as unknown as RawMessage);
+            }
+            return;
+          }
+          handleMessages(socket, messages, router, resolver).catch((error: Error) => {
             logger.error({ reason: error.message }, "Handling inbound messages failed");
           });
         });
+        // WhatsApp tells us `lid <-> phone` pairs in several events; Baileys cannot look a LID up
+        // later, so keep every pair (never anything from a message's text).
+        socket.ev.on("lid-mapping.update", ({ lid, pn }) => {
+          if (ended) return;
+          void resolver.learn?.(lid, pn);
+        });
+        const learnFromContacts = (
+          contacts: { id?: string; lid?: string; phoneNumber?: string }[],
+        ) => {
+          if (ended) return;
+          for (const contact of contacts) {
+            const lid =
+              contact.lid ?? (addressingOf(contact.id) === "lid" ? contact.id : undefined);
+            const pn =
+              contact.phoneNumber ?? (addressingOf(contact.id) === "pn" ? contact.id : undefined);
+            if (lid && pn) void resolver.learn?.(lid, pn);
+          }
+        };
+        socket.ev.on("contacts.upsert", learnFromContacts);
+        socket.ev.on("contacts.update", learnFromContacts);
         socket.ev.on("connection.update", (update) => {
           if (ended) return;
           if (update.qr) onEvent({ type: "qr" });

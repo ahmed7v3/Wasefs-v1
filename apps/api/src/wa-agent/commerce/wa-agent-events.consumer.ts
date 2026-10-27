@@ -1,4 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { t } from "@wasfa/shared/i18n";
 import { newId } from "@wasfa/shared/ids";
 import { WA_AGENT_EVENTS_STREAM } from "@wasfa/shared/schemas/phone";
 import {
@@ -13,6 +14,7 @@ import { PinoLogger } from "nestjs-pino";
 
 import { REDIS } from "../../common/redis.js";
 import { API_ENV } from "../../config/config.module.js";
+import { ObjectStorage } from "../../files/object-storage.js";
 import { RxService } from "../../rx/rx.service.js";
 import { SettingsService } from "../../settings/settings.service.js";
 import { StreamConsumer } from "../stream-consumer.js";
@@ -20,7 +22,12 @@ import { WaAgentRepo } from "../wa-agent.repo.js";
 import { WaOutboundService } from "../wa-outbound.service.js";
 
 import { WaAgentCommerceRepo } from "./agent-commerce.repo.js";
-import { paymentMessage, rxDoneParts, rxFailedText } from "./agent-event-messages.js";
+import {
+  documentFailedText,
+  paymentMessage,
+  rxDoneParts,
+  rxFailedText,
+} from "./agent-event-messages.js";
 import { agentUser } from "./agent-user.js";
 
 import type { ApiEnv } from "../../config/env.js";
@@ -38,11 +45,12 @@ const RELEASE_LOCK =
   "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) end return 0";
 
 type PaymentEvent = Extract<WaAgentEvent, { orderId: string }>;
+type DocumentEvent = Extract<WaAgentEvent, { type: "document_ready" | "document_failed" }>;
 type RxEvent = Extract<WaAgentEvent, { rxId: string }>;
 
 /**
- * Reads `wa:agent:events` (written by the worker): a payment decision on an order, or a prescription
- * reading that ended. Each becomes a fixed message in the customer's WhatsApp chat, queued through
+ * Reads `wa:agent:events` (written by the worker): a payment decision on an order, a prescription
+ * reading that ended, or a file the agent asked for (ready, or failed). Each becomes a fixed message in the customer's WhatsApp chat, queued through
  * `WaOutboundService` (so the pause, block, switch and 24 h rules apply). No model is involved: the
  * words are i18n, the facts are read for the account the chat belongs to. Logs ids only.
  */
@@ -67,6 +75,7 @@ export class WaAgentEventsConsumer extends StreamConsumer {
     private readonly rx: RxService,
     private readonly settings: SettingsService,
     @Inject(REDIS) private readonly redis: Redis,
+    private readonly storage: ObjectStorage,
   ) {
     super(apiEnv, logger, WA_AGENT_EVENTS_STREAM, GROUP);
     this.logger.setContext("WaAgentEvents");
@@ -79,26 +88,85 @@ export class WaAgentEventsConsumer extends StreamConsumer {
       return;
     }
     const event = parsed.data;
+    // A file the worker stored is deleted unless a queued message points to it (entries are never retried).
+    const stored =
+      event.type === "document_ready"
+        ? event.mediaKey
+        : event.type === "rx_done"
+          ? event.pdfKey
+          : undefined;
+    let sentKeys: string[] = [];
+    try {
+      sentKeys = await this.deliver(event);
+    } finally {
+      if (stored !== undefined && !sentKeys.includes(stored)) {
+        await this.storage.remove(stored).catch(() => undefined);
+      }
+    }
+  }
+
+  /** Queues the follow-up of one event; returns the stored files its messages point to (none when nothing was queued). */
+  private async deliver(event: WaAgentEvent): Promise<string[]> {
     const config = await this.settings.get("waAgent");
-    if (!config.enabled) return;
+    if (!config.enabled) return [];
     const locale: Locale = config.language === "en" ? "en" : "ar";
 
     const conversation = await this.target(event);
-    if (conversation === null) return;
-    const texts =
-      "rxId" in event
-        ? await this.rxTexts(event, conversation, config.caps, locale)
-        : await this.paymentTexts(event, locale);
-    if (texts === null || texts.length === 0) return;
-    await this.send(
-      conversation.id,
-      texts.map((text): WaAgentOutboundPart => ({ kind: "text", text })),
-    );
+    if (conversation === null) return [];
+    const parts = await this.partsFor(event, conversation, config.caps, locale);
+    if (parts === null || parts.length === 0) return [];
+    if (!(await this.send(conversation.id, parts))) return [];
     this.logger.info({ conversationId: conversation.id, type: event.type }, "Agent follow-up sent");
+    return parts.flatMap((part) => ("mediaKey" in part && part.mediaKey ? [part.mediaKey] : []));
   }
 
-  /** The chat to tell: the rx request's own chat, or the user's chat with a message in the last 24 h. */
+  private async partsFor(
+    event: WaAgentEvent,
+    conversation: WaConversation,
+    caps: { maxReplyChars: number; maxMessagesPerTurn: number },
+    locale: Locale,
+  ): Promise<WaAgentOutboundPart[] | null> {
+    if (event.type === "document_ready" || event.type === "document_failed") {
+      return this.documentParts(event, locale);
+    }
+    // The PDF of a result takes one of the allowed messages; with only one allowed the text wins.
+    const withPdf =
+      event.type === "rx_done" && event.pdfKey !== undefined && caps.maxMessagesPerTurn >= 2;
+    const textCaps = withPdf ? { ...caps, maxMessagesPerTurn: caps.maxMessagesPerTurn - 1 } : caps;
+    const texts =
+      "rxId" in event
+        ? await this.rxTexts(event, conversation, textCaps, locale)
+        : await this.paymentTexts(event, locale);
+    if (texts === null) return null;
+    const parts = texts.map((text): WaAgentOutboundPart => ({ kind: "text", text }));
+    // A result that turned out to be missing is the failure line: no PDF goes with it.
+    const failed = texts.length === 1 && texts[0] === rxFailedText(locale);
+    if (withPdf && !failed && event.type === "rx_done" && event.pdfKey !== undefined) {
+      parts.push({
+        kind: "document",
+        mediaKey: event.pdfKey,
+        fileName: `${t("whatsapp.agent.event.rxPdfName", {}, locale)}.pdf`,
+      });
+    }
+    return parts;
+  }
+
+  private documentParts(event: DocumentEvent, locale: Locale): WaAgentOutboundPart[] {
+    if (event.type === "document_failed") {
+      return [{ kind: "text", text: documentFailedText(locale) }];
+    }
+    return [
+      event.kind === "image"
+        ? { kind: "image", mediaKey: event.mediaKey }
+        : { kind: "document", mediaKey: event.mediaKey, fileName: event.fileName },
+    ];
+  }
+
+  /** The chat to tell: the chat that asked, the rx request's own chat, or the user's chat with a message in the last 24 h. */
   private async target(event: WaAgentEvent): Promise<WaConversation | null> {
+    if (event.type === "document_ready" || event.type === "document_failed") {
+      return this.conversations.find(event.conversationId);
+    }
     if ("rxId" in event) {
       // Consumed once: a redelivered entry finds no key and sends nothing twice.
       const conversationId = await this.redis.getdel(waAgentRxKey(event.rxId));
@@ -109,7 +177,6 @@ export class WaAgentEventsConsumer extends StreamConsumer {
       new Date(Date.now() - WA_AGENT_FOLLOW_UP_WINDOW_MS),
     );
   }
-
   private async paymentTexts(event: PaymentEvent, locale: Locale): Promise<string[] | null> {
     // Scoped to the user in the event: an order of anyone else is simply not found.
     const row = await this.commerce.orderWithPayment(event.userId, event.orderId);
@@ -146,7 +213,7 @@ export class WaAgentEventsConsumer extends StreamConsumer {
   }
 
   /** Queues the parts while holding the chat's turn lock, so they do not land inside an agent turn. */
-  private async send(conversationId: string, parts: WaAgentOutboundPart[]): Promise<void> {
+  private async send(conversationId: string, parts: WaAgentOutboundPart[]): Promise<boolean> {
     const token = newId();
     const key = turnLockKey(conversationId);
     const { lockWaitMs, pollMs, sleep } = this.timing;
@@ -159,12 +226,14 @@ export class WaAgentEventsConsumer extends StreamConsumer {
     // A turn that outlives the wait is not worth blocking the stream for: send anyway.
     try {
       await this.outbound.enqueue(conversationId, parts);
+      return true;
     } catch (error) {
       // Paused, blocked or switched off: the customer still has the web notification.
       this.logger.info(
         { conversationId, reason: error instanceof Error ? error.name : "unknown" },
         "Agent follow-up not queued",
       );
+      return false;
     } finally {
       if (held) await this.redis.eval(RELEASE_LOCK, 1, key, token);
     }

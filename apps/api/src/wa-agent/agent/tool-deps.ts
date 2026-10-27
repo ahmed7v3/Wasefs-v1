@@ -8,6 +8,7 @@ import { AgentDiscountService } from "../commerce/agent-discount.service.js";
 import { AgentMedicalService } from "../commerce/agent-medical.service.js";
 import { AgentRxService } from "../commerce/agent-rx.service.js";
 import { AgentSubscriptionService } from "../commerce/agent-subscription.service.js";
+import { AgentDocumentService, type DocumentCall } from "../documents/agent-document.service.js";
 
 import { AgentAccountService } from "./account-facts.service.js";
 import { WaAgentHandoffService } from "./handoff.service.js";
@@ -32,6 +33,7 @@ export class WaAgentToolDeps implements AgentToolDeps {
     private readonly subscriptions: AgentSubscriptionService,
     private readonly prescriptions: AgentRxService,
     private readonly medical: AgentMedicalService,
+    private readonly documentService: AgentDocumentService,
     @Inject(API_ENV) env: Pick<ApiEnv, "MEDIA_PUBLIC_ORIGIN">,
   ) {
     this.mediaOrigin = env.MEDIA_PUBLIC_ORIGIN ?? "";
@@ -70,6 +72,10 @@ export class WaAgentToolDeps implements AgentToolDeps {
       input: { planKey: string; months: number; couponCode?: string | undefined },
     ) => this.subscriptions.start(call, input),
     attachReceipt: (call: AgentCall) => this.subscriptions.attachReceipt(call),
+  };
+
+  readonly documents = {
+    create: (call: DocumentCall) => this.documentService.create(call),
   };
 
   readonly usage = {

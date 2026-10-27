@@ -2,6 +2,7 @@ import { accountStatusTool } from "./account-status.js";
 import { analyzePrescriptionTool } from "./analyze-prescription.js";
 import { askMedicalTool } from "./ask-medical.js";
 import { attachReceiptTool } from "./attach-receipt.js";
+import { createDocumentTool } from "./create-document.js";
 import { getCatalogTool } from "./get-catalog.js";
 import { handoffToOwnerTool } from "./handoff-to-owner.js";
 import { offerDiscountTool } from "./offer-discount.js";
@@ -30,6 +31,7 @@ export const AGENT_TOOLS: readonly AgentTool[] = [
   analyzePrescriptionTool,
   askMedicalTool,
   sendMediaTool,
+  createDocumentTool,
   handoffToOwnerTool,
 ];
 

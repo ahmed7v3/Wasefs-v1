@@ -320,6 +320,11 @@
       "import": "./dist/schemas/wa-agent.js",
       "default": "./dist/schemas/wa-agent.js"
     },
+    "./schemas/wa-document": {
+      "types": "./dist/schemas/wa-document.d.ts",
+      "import": "./dist/schemas/wa-document.js",
+      "default": "./dist/schemas/wa-document.js"
+    },
     "./schemas/wa-alert": {
       "types": "./dist/schemas/wa-alert.d.ts",
       "import": "./dist/schemas/wa-alert.js",

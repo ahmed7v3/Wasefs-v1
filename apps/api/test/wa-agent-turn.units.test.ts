@@ -292,7 +292,12 @@ describe("who gets which tools", () => {
   it("a guest gets the guest tools only; the call is a balanced wa_agent request on the default plan", async () => {
     const h = harness();
     await h.ask("hi");
-    expect(toolNames(h)).toEqual(["get_catalog", "send_media", "handoff_to_owner"]);
+    expect(toolNames(h)).toEqual([
+      "get_catalog",
+      "send_media",
+      "create_document",
+      "handoff_to_owner",
+    ]);
     expect(h.ai.inputs[0]).toMatchObject({ task: "wa_agent", mode: "balanced", planId: null });
     expect(h.sent).toEqual([{ parts: [{ kind: "text", text: "تمام" }] }]);
   });
@@ -309,6 +314,7 @@ describe("who gets which tools", () => {
       "analyze_prescription",
       "ask_medical",
       "send_media",
+      "create_document",
       "handoff_to_owner",
     ]);
     expect(h.ai.inputs[0]).toMatchObject({

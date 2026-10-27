@@ -104,3 +104,6 @@ export function rxDoneParts(
 
 export const rxFailedText = (locale: Locale): string =>
   t("whatsapp.agent.event.rxFailed", {}, locale);
+
+export const documentFailedText = (locale: Locale): string =>
+  t("whatsapp.agent.event.documentFailed", {}, locale);

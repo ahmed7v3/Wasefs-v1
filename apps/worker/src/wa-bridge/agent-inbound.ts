@@ -1,8 +1,11 @@
+import { createHash } from "node:crypto";
+
 import {
   WA_AGENT_IN_STREAM,
   WA_AGENT_STREAM_MAXLEN,
   WA_INBOUND_MAXLEN,
   WA_INBOUND_STREAM,
+  WA_REPLY_STREAM,
 } from "@wasfa/shared/schemas/phone";
 import {
   waAgentInboundSchema,
@@ -33,6 +36,7 @@ import type { Logger } from "pino";
  * START) had their turn. The two switches are independent (docs/WA-AGENT.md section 7):
  *
  *   code, verification on         -> wa:inbound   (unchanged; with the agent off this is the only path)
+ *   code, sender not resolvable   -> nothing verified; one wa_unresolved reply on wa:replies
  *   anything else, agent on       -> wa:agent:in  (text, image, voice note, PDF, other)
  *   the owner typing (fromMe)     -> wa:agent:in as `owner` unless the bridge itself sent it
  *   otherwise                     -> ignored
@@ -91,8 +95,50 @@ export async function routeInbound(
     deps.logger.info("Inbound verification message queued");
     return { route: "verification" };
   }
+  // A code whose sender we cannot place: verify nothing, but tell them once (the guard still
+  // applies: one reply per inbound, 24 h window, caps).
+  const { id, remoteJid } = raw.key;
+  if (
+    !verification.ok &&
+    verification.reason === "unresolved_sender" &&
+    id &&
+    remoteJid &&
+    (!agentOn || verificationOn)
+  ) {
+    await replyUnresolved(deps, { id, jid: remoteJid });
+    return ignored(verification.reason);
+  }
   if (!agentOn) return ignored(verification.ok ? "verification_off" : verification.reason);
   return routeToAgent(raw, deps, now, markRead);
+}
+
+const UNRESOLVED_REPLY_TTL_SECONDS = 60 * 60;
+
+async function replyUnresolved(
+  deps: InboundRouterDeps,
+  target: { id: string; jid: string },
+): Promise<void> {
+  // At most one such reply per chat and hour, so a loop of codes cannot make us chatty.
+  const chat = createHash("sha256").update(target.jid).digest("hex").slice(0, 24);
+  const first = await deps.redis.set(
+    `wa:unresolved:${chat}`,
+    "1",
+    "EX",
+    UNRESOLVED_REPLY_TTL_SECONDS,
+    "NX",
+  );
+  if (first !== "OK") return;
+  await deps.guard.noteInbound(target.jid, target.id);
+  await deps.redis.xadd(
+    WA_REPLY_STREAM,
+    "MAXLEN",
+    "~",
+    1_000,
+    "*",
+    "data",
+    JSON.stringify({ inboundId: target.id, jid: target.jid, outcome: "wa_unresolved" }),
+  );
+  deps.logger.info("Inbound code from an unresolved sender; told the sender once");
 }
 
 async function firstSight(deps: InboundRouterDeps, id: string): Promise<boolean> {

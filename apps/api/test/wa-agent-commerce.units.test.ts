@@ -9,6 +9,7 @@ import {
 } from "../src/wa-agent/agent/tools/index.js";
 import { AgentDiscountService } from "../src/wa-agent/commerce/agent-discount.service.js";
 import {
+  documentFailedText,
   paymentMessage,
   rxDoneParts,
   rxFailedText,
@@ -982,16 +983,24 @@ function conversation(): WaConversation {
 }
 
 function eventsConsumer(
-  options: { enabled?: boolean; rxView?: unknown; enqueueError?: Error } = {},
+  options: {
+    enabled?: boolean;
+    rxView?: unknown;
+    enqueueError?: Error;
+    noConversation?: boolean;
+    maxMessagesPerTurn?: number;
+  } = {},
 ) {
-  const sent: Array<{ id: string; parts: Array<{ text: string }> }> = [];
+  type SentPart = { kind: string; text?: string; mediaKey?: string; fileName?: string };
+  const sent: Array<{ id: string; parts: SentPart[] }> = [];
+  const removed: string[] = [];
   const redis = new MemoryRedis();
   redis.values.set(`wa:agent:rx:${RX_ID}`, COMMERCE_CONVERSATION_ID);
   const config = settingDefault("waAgent");
   const consumer = new WaAgentEventsConsumer(
     fake({ WEB_ORIGIN: ["https://wasfa.online"], REDIS_URL: "redis://unused" }),
     quietLogger,
-    fake({ find: () => Promise.resolve(conversation()) }),
+    fake({ find: () => Promise.resolve(options.noConversation ? null : conversation()) }),
     fake({
       recentConversation: (userId: string) =>
         Promise.resolve(userId === EVENT_USER ? conversation() : null),
@@ -1016,19 +1025,33 @@ function eventsConsumer(
         }),
     }),
     fake({
-      enqueue: (id: string, parts: Array<{ text: string }>) => {
+      enqueue: (id: string, parts: SentPart[]) => {
         sent.push({ id, parts });
         return options.enqueueError ? Promise.reject(options.enqueueError) : Promise.resolve(["m"]);
       },
     }),
     fake({ get: () => Promise.resolve(options.rxView) }),
     fake({
-      get: () => Promise.resolve({ ...config, enabled: options.enabled ?? true }),
+      get: () =>
+        Promise.resolve({
+          ...config,
+          enabled: options.enabled ?? true,
+          caps: {
+            ...config.caps,
+            maxMessagesPerTurn: options.maxMessagesPerTurn ?? config.caps.maxMessagesPerTurn,
+          },
+        }),
     }),
     fake(redis),
+    fake({
+      remove: (key: string) => {
+        removed.push(key);
+        return Promise.resolve();
+      },
+    }),
   );
   consumer.timing.lockWaitMs = 0;
-  return { consumer, sent, redis };
+  return { consumer, sent, redis, removed };
 }
 
 describe("WaAgentEventsConsumer", () => {
@@ -1091,5 +1114,103 @@ describe("WaAgentEventsConsumer", () => {
     await expect(
       consumer.process({ type: "order_paid", userId: EVENT_USER, orderId: ORDER_ID }),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe("WaAgentEventsConsumer files", () => {
+  const KEY = "wa/out/2026/10/018f0000-0000-7000-8000-0000000000e1.pdf";
+  const PNG = "wa/out/2026/10/018f0000-0000-7000-8000-0000000000e2.png";
+  const ready = (mediaKey: string, kind: "document" | "image", fileName: string) => ({
+    type: "document_ready",
+    conversationId: COMMERCE_CONVERSATION_ID,
+    mediaKey,
+    fileName,
+    kind,
+  });
+
+  it("sends a document part for a ready PDF", async () => {
+    const { consumer, sent, removed } = eventsConsumer();
+    await consumer.process(ready(KEY, "document", "report.pdf"));
+    expect(sent).toEqual([
+      {
+        id: COMMERCE_CONVERSATION_ID,
+        parts: [{ kind: "document", mediaKey: KEY, fileName: "report.pdf" }],
+      },
+    ]);
+    expect(removed).toEqual([]);
+  });
+
+  it("sends an image part for a ready card", async () => {
+    const { consumer, sent } = eventsConsumer();
+    await consumer.process(ready(PNG, "image", "card.png"));
+    expect(sent[0]?.parts).toEqual([{ kind: "image", mediaKey: PNG }]);
+  });
+
+  it("sends the fixed line when the file could not be made", async () => {
+    const { consumer, sent } = eventsConsumer();
+    await consumer.process({ type: "document_failed", conversationId: COMMERCE_CONVERSATION_ID });
+    expect(sent[0]?.parts).toEqual([{ kind: "text", text: documentFailedText("ar") }]);
+    expect(documentFailedText("ar")).toContain("تعذّر إنشاء الملف");
+  });
+
+  it("deletes the stored file when nothing can be queued for it", async () => {
+    const paused = eventsConsumer({ enqueueError: appError("CONFLICT", "conversation_paused") });
+    await paused.consumer.process(ready(KEY, "document", "report.pdf"));
+    expect(paused.removed).toEqual([KEY]);
+
+    const off = eventsConsumer({ enabled: false });
+    await off.consumer.process(ready(KEY, "document", "report.pdf"));
+    expect(off.removed).toEqual([KEY]);
+
+    const gone = eventsConsumer({ noConversation: true });
+    await gone.consumer.process(ready(PNG, "image", "card.png"));
+    expect(gone.removed).toEqual([PNG]);
+  });
+
+  it("sends the text summary and then the PDF of a finished reading", async () => {
+    const { consumer, sent, removed } = eventsConsumer({ rxView: { result: result([item()]) } });
+    await consumer.process({ type: "rx_done", rxId: RX_ID, pdfKey: KEY });
+    expect(sent).toHaveLength(1);
+    const parts = sent[0]?.parts ?? [];
+    expect(parts.at(-1)).toEqual({
+      kind: "document",
+      mediaKey: KEY,
+      fileName: "نتيجة-قراءة-الروشتة.pdf",
+    });
+    expect(parts.slice(0, -1).every((part) => part.kind === "text")).toBe(true);
+    expect(
+      parts
+        .slice(0, -1)
+        .map((part) => part.text)
+        .join(" "),
+    ).toContain("Panadol 500 mg");
+    expect(removed).toEqual([]);
+  });
+
+  it("keeps the PDF inside the message cap, and the text wins when only one is allowed", async () => {
+    const view = { result: result([item()]) };
+    const capped = eventsConsumer({ rxView: view, maxMessagesPerTurn: 3 });
+    await capped.consumer.process({ type: "rx_done", rxId: RX_ID, pdfKey: KEY });
+    expect(capped.sent[0]?.parts.length).toBeLessThanOrEqual(3);
+    expect(capped.sent[0]?.parts.at(-1)?.kind).toBe("document");
+
+    const single = eventsConsumer({ rxView: view, maxMessagesPerTurn: 1 });
+    await single.consumer.process({ type: "rx_done", rxId: RX_ID, pdfKey: KEY });
+    expect(single.sent[0]?.parts.every((part) => part.kind === "text")).toBe(true);
+    expect(single.removed).toEqual([KEY]);
+  });
+
+  it("sends only the text when the reading has no PDF", async () => {
+    const { consumer, sent } = eventsConsumer({ rxView: { result: result([item()]) } });
+    await consumer.process({ type: "rx_done", rxId: RX_ID });
+    expect(sent[0]?.parts.every((part) => part.kind === "text")).toBe(true);
+  });
+
+  it("deletes the PDF of a reading nobody is told about", async () => {
+    const { consumer, sent, removed } = eventsConsumer({ rxView: { result: null } });
+    await consumer.process({ type: "rx_done", rxId: RX_ID, pdfKey: KEY });
+    // The result is gone: the customer hears the failure line, not a PDF.
+    expect(sent[0]?.parts.every((part) => part.kind === "text")).toBe(true);
+    expect(removed).toEqual([KEY]);
   });
 });

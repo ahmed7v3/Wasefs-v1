@@ -26,6 +26,8 @@ RUN pnpm --filter @wasfa/worker deploy --legacy --prod /out \
  && cp -r apps/worker/assets /out/assets \
  && mkdir -p /out/src/og \
  && cp -r apps/worker/src/og/assets /out/src/og/assets \
+ && mkdir -p /out/src/documents \
+ && cp -r apps/worker/src/documents/templates /out/src/documents/templates \
  && find /out -type f \( -name '*.map' -o -name '*.d.ts' -o -name '*.d.cts' -o -name '*.d.mts' -o -iname '*.md' \) -delete
 
 FROM ${NODE_IMAGE} AS node-slim
@@ -33,7 +35,9 @@ RUN apk add --no-cache binutils \
  && strip --strip-unneeded -o /node /usr/local/bin/node
 
 FROM ${ALPINE_IMAGE} AS runtime
-RUN apk add --no-cache libstdc++ \
+# typst renders the PDFs and cards the WhatsApp agent sends (apps/worker/src/documents); the worker
+# points it at the bundled fonts only. From the Alpine community repository (0.14.2 on 3.24).
+RUN apk add --no-cache libstdc++ typst \
  && addgroup -g 1000 node && adduser -u 1000 -G node -s /sbin/nologin -D node \
  && rm -rf /sbin/apk /etc/apk /lib/apk /usr/share/apk /var/cache/apk
 COPY --from=node-slim /node /usr/local/bin/node
