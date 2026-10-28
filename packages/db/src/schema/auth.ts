@@ -37,6 +37,9 @@ export const sessions = pgTable(
     // Set when the session was created by a completed two-factor challenge (sign-in with a TOTP or
     // backup code, or the code that switched 2FA on). `/admin/*` requires it.
     mfaVerifiedAt: timestamp({ withTimezone: true }),
+    // How the session was born when that matters later: `whatsapp` for "Continue with WhatsApp", so
+    // the chat's one-word undo can revoke exactly those sessions. Null for every other sign-in.
+    loginMethod: text(),
     ...timestamps(),
   },
   (table) => [index("sessions_user_id_idx").on(table.userId)],

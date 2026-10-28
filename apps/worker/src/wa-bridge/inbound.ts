@@ -1,5 +1,6 @@
 import { E164_PATTERN } from "@wasfa/shared/identity";
 import { parseVerificationCode, type InboundMessage } from "@wasfa/shared/schemas/phone";
+import { cleanPushName, parseLoginToken, type WaLoginEntry } from "@wasfa/shared/schemas/wa-login";
 
 /** Messages older than this are history replayed after a reconnect, not a user waiting for a result. */
 export const MAX_INBOUND_AGE_MS = 15 * 60_000;
@@ -280,6 +281,49 @@ function replyJidOf(remoteJid: string, phone: string): string {
   return server === HOSTED_PN_SERVER || server === HOSTED_LID_SERVER
     ? `${phone.slice(1)}@${PN_SERVER}`
     : remoteJid;
+}
+
+const LOGOUT_WORDS = new Set(["خروج", "LOGOUT"]);
+
+export type LoginCommand =
+  | { ok: true; entry: WaLoginEntry }
+  | { ok: false; reason: "unresolved_sender"; id: string; jid: string };
+
+/**
+ * "Continue with WhatsApp" (docs/WA-SIGNUP.md): a fresh 1:1 text that carries a `WASFA-XXXX-XXXX`
+ * token is a sign-in claim; the whole message `خروج` / `LOGOUT` (any case) is the undo. The sender's
+ * phone comes from the jid or its LID mapping, never from the text. Null when the message is
+ * neither (or too old to be a user waiting).
+ */
+export async function extractLoginCommand(
+  raw: RawMessage,
+  resolver: LidResolver,
+  now: number = Date.now(),
+): Promise<LoginCommand | null> {
+  const { key } = raw;
+  if (key.fromMe || !isDirectJid(key.remoteJid) || !key.id) return null;
+  const text = textOf(raw.message);
+  if (text === null) return null;
+  const trimmed = text.trim();
+  const logout = LOGOUT_WORDS.has(trimmed.toLocaleUpperCase());
+  const token = logout ? null : parseLoginToken(trimmed);
+  if (!logout && token === null) return null;
+
+  const seconds = secondsOf(raw.messageTimestamp);
+  const receivedAt = seconds === null ? now : seconds * 1000;
+  if (now - receivedAt > MAX_INBOUND_AGE_MS) return null;
+
+  const phone = await resolveSenderPhone(raw, resolver);
+  if (phone === null)
+    return { ok: false, reason: "unresolved_sender", id: key.id, jid: key.remoteJid };
+
+  const base = { id: key.id, phone, jid: replyJidOf(key.remoteJid, phone), receivedAt };
+  if (token === null) return { ok: true, entry: { kind: "logout", ...base } };
+  const pushName = cleanPushName(raw.pushName);
+  return {
+    ok: true,
+    entry: { kind: "login", ...base, token, ...(pushName ? { pushName } : {}) },
+  };
 }
 
 /**

@@ -99,8 +99,8 @@ function settingsWith(overrides: Partial<WaAgentSettings> = {}): WaAgentSettings
   return { ...settingDefault("waAgent"), enabled: true, ...overrides };
 }
 
-function switches(agent: Partial<WaAgentSettings>, verificationOn = true) {
-  const value: AgentSwitches = { agent: settingsWith(agent), verificationOn };
+function switches(agent: Partial<WaAgentSettings>, verificationOn = true, whatsappLoginOn = true) {
+  const value: AgentSwitches = { agent: settingsWith(agent), verificationOn, whatsappLoginOn };
   return { current: () => Promise.resolve(value) };
 }
 
@@ -409,7 +409,11 @@ describe("agent settings cache", () => {
       () => {
         reads++;
         if (fail) return Promise.reject(new Error("db down"));
-        return Promise.resolve({ agent: settingsWith(), verificationOn: false });
+        return Promise.resolve({
+          agent: settingsWith(),
+          verificationOn: false,
+          whatsappLoginOn: true,
+        });
       },
     );
     expect((await cache.current()).agent.enabled).toBe(true);

@@ -19,6 +19,8 @@ const REASON_MESSAGES: Record<string, MessageKey> = {
   invalid_token: "auth.error.invalidToken",
   provider_unavailable: "auth.error.providerUnavailable",
   social_failed: "auth.error.socialFailed",
+  whatsapp_login_disabled: "auth.whatsapp.startFailed",
+  whatsapp_login_unavailable: "auth.whatsapp.startFailed",
   // AI limits (Task 2.2).
   ai_paused: "ai.reason.ai_paused",
   plan_feature: "ai.reason.plan_feature",

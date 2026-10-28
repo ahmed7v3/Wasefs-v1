@@ -335,6 +335,11 @@
       "import": "./dist/schemas/wa-document.js",
       "default": "./dist/schemas/wa-document.js"
     },
+    "./schemas/wa-login": {
+      "types": "./dist/schemas/wa-login.d.ts",
+      "import": "./dist/schemas/wa-login.js",
+      "default": "./dist/schemas/wa-login.js"
+    },
     "./schemas/wa-alert": {
       "types": "./dist/schemas/wa-alert.d.ts",
       "import": "./dist/schemas/wa-alert.js",

@@ -260,7 +260,12 @@ describe("a code from a sender that cannot be resolved", () => {
         },
       },
       settings: {
-        current: () => Promise.resolve({ agent: settingDefault("waAgent"), verificationOn: true }),
+        current: () =>
+          Promise.resolve({
+            agent: settingDefault("waAgent"),
+            verificationOn: true,
+            whatsappLoginOn: true,
+          }),
       },
       resolver: noLid,
       media: null,

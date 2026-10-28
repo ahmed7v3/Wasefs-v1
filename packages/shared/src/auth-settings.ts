@@ -33,6 +33,10 @@ export const authSettingsSchema = z.object({
   blockedEmailDomains: z.array(emailDomain).max(5_000).default([]),
   /** Kill switch for phone verification (SECURITY.md §8). */
   phoneVerification: z.enum(PHONE_VERIFICATION_MODES).default("whatsapp_inbound"),
+  /** "Continue with WhatsApp" on the web and the bridge's sign-in claims (docs/WA-SIGNUP.md). */
+  whatsappLogin: z.boolean().default(true),
+  /** The agent may create an account from a chat (docs/WA-SIGNUP.md section 3). */
+  whatsappAgentSignup: z.boolean().default(true),
 });
 
 export type AuthSettings = z.output<typeof authSettingsSchema>;
