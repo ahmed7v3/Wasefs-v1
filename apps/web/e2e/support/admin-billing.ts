@@ -33,14 +33,12 @@ export interface AdminLogin {
   account: Account;
   userId: string;
   secret: string;
-  /** TOTP steps already spent (a code can be used once). */
-  used: Set<number>;
   /**
-   * The current window's code, never spent before. If the current window is spent, it waits for the
-   * next one: a code for the current window is accepted whichever side of a 30 s edge the server
-   * checks it, a code for a neighbouring window is not.
+   * The code of the current window. The server accepts the window before and after too and does not
+   * refuse a code it has seen, so the current window is the one code that is valid whichever side of
+   * a 30 s edge the server checks it.
    */
-  code: () => Promise<string>;
+  code: () => string;
 }
 
 const originHeader = (urls: StackUrls) => ({ Origin: urls.web });
@@ -62,13 +60,12 @@ async function prepareAccount(
   await page.close();
   const me = await context.request.get(`${urls.api}/me`);
   const userId = ((await me.json()) as { id: string }).id;
-  const enabledAt = Date.now();
   const secret = await enableTwoFactor(context, urls, account);
   await signOutContext(context, urls);
-  return { account, userId, secret, used: new Set([stepOf(enabledAt)]) };
+  return { account, userId, secret };
 }
 
-/** Signs in through the login form: password, then the code of a step that is free. */
+/** Signs in through the login form: password, then the current code. */
 export async function signInThroughUi(page: Page, login: AdminLogin): Promise<void> {
   await page.goto("/login");
   const form = page.getByRole("form", { name: t("auth.tab.email") });
@@ -76,7 +73,7 @@ export async function signInThroughUi(page: Page, login: AdminLogin): Promise<vo
   await form.locator("input[name=password]").fill(login.account.password);
   await form.getByRole("button", { name: t("auth.login.submit") }).click();
   await page.waitForURL(/\/login\/two-factor/);
-  await page.locator("input[name=code]").fill(await login.code());
+  await page.locator("input[name=code]").fill(login.code());
   await page.getByRole("button", { name: t("auth.twoFactor.submit") }).click();
   await page.waitForURL(/\/dashboard$/);
 }
@@ -90,17 +87,7 @@ export async function createAdminLogin(
   const base = await prepareAccount(context, urls, redis, options.label, options.superAdmin);
   const login: AdminLogin = {
     ...base,
-    code: async () => {
-      let step = stepOf(Date.now());
-      if (login.used.has(step)) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, (step + 1) * STEP_MS - Date.now() + 1_000),
-        );
-        step = stepOf(Date.now());
-      }
-      login.used.add(step);
-      return totp(base.secret, step * STEP_MS);
-    },
+    code: () => totp(base.secret, stepOf(Date.now()) * STEP_MS),
   };
   return login;
 }

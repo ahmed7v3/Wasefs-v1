@@ -191,7 +191,7 @@ test.describe("admin billing console", () => {
     await expect(card).toBeVisible();
     await card.getByLabel(t("admin.pricing.account.newNumber")).fill("01099999999");
     await card.getByLabel(t("admin.pricing.account.holder")).first().fill("E2E Holder");
-    await card.getByLabel(t("admin.pricing.account.totp")).fill(await login.code());
+    await card.getByLabel(t("admin.pricing.account.totp")).fill(login.code());
     await card.getByLabel(/^السبب/).fill("E2E: number rotation");
     await card.getByRole("button", { name: t("admin.pricing.account.submit") }).click();
 
