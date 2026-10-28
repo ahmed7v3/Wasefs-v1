@@ -29,6 +29,7 @@ import { FlagsModule } from "./flags/flags.module.js";
 import { GrowthModule } from "./growth/growth.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { MediaModule } from "./media/media.module.js";
+import { MedicationsModule } from "./medications/medications.module.js";
 import { NotificationsModule } from "./notifications/notifications.module.js";
 import { OnboardingModule } from "./onboarding/onboarding.module.js";
 import { OrgBillingModule } from "./orgs/org-billing.module.js";
@@ -96,6 +97,7 @@ export class AppModule {
         FilesModule,
         ChatModule,
         RxModule,
+        MedicationsModule,
         AdminModule,
         AlertsModule,
         SubscriptionsModule,

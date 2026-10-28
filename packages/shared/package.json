@@ -45,6 +45,11 @@
       "import": "./dist/evals.js",
       "default": "./dist/evals.js"
     },
+    "./drug-decision": {
+      "types": "./dist/drug-decision.d.ts",
+      "import": "./dist/drug-decision.js",
+      "default": "./dist/drug-decision.js"
+    },
     "./drugs": {
       "types": "./dist/drugs.d.ts",
       "import": "./dist/drugs.js",
@@ -59,6 +64,11 @@
       "types": "./dist/schemas/admin-evals.d.ts",
       "import": "./dist/schemas/admin-evals.js",
       "default": "./dist/schemas/admin-evals.js"
+    },
+    "./schemas/medications": {
+      "types": "./dist/schemas/medications.d.ts",
+      "import": "./dist/schemas/medications.js",
+      "default": "./dist/schemas/medications.js"
     },
     "./schemas/admin-drugs": {
       "types": "./dist/schemas/admin-drugs.d.ts",

@@ -26,7 +26,6 @@ import { WaAgentRepo } from "../wa-agent.repo.js";
 import { type WaAgentTurnHandler } from "../wa-agent.tokens.js";
 import { WaOutboundService } from "../wa-outbound.service.js";
 
-
 import { phoneMarket } from "./agent-market.js";
 import { splitReply, toWhatsappText } from "./agent-output.js";
 import {
@@ -227,7 +226,10 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
     const heard = await this.transcribePending(rows, pending, config);
     const images = await this.loadImages(pending);
     const market = phoneMarket(conversation.phone, await this.settings.get("currency"));
+    const medications = await this.settings.get("medications");
+    const medicationTools = medications.enabled && medications.waTools;
     const system = buildSystemPrompt({
+      medications: medicationTools,
       persona: config.persona,
       language: config.language,
       emojiLevel: config.emojiLevel,
@@ -249,7 +251,11 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
       mediaParts: [],
       handoffReason: null,
     };
-    const { definitions, handlers } = bindTools(toolsFor(user !== null), ctx, records);
+    const { definitions, handlers } = bindTools(
+      toolsFor(user !== null, { medications: medicationTools }),
+      ctx,
+      records,
+    );
     const signal = AbortSignal.timeout(MODEL_TIMEOUT_MS);
 
     let result: ToolLoopResult;

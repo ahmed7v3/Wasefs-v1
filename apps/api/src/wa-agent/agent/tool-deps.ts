@@ -1,9 +1,12 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { medicationAlternatives, searchMedications } from "@wasfa/db";
 import { isAppError } from "@wasfa/shared/errors";
 
 import { CatalogService } from "../../catalog/catalog.service.js";
+import { DB, type DbHandle } from "../../common/database.js";
 import { API_ENV } from "../../config/config.module.js";
 import { MediaService } from "../../media/media.service.js";
+import { SettingsService } from "../../settings/settings.service.js";
 import { AgentDiscountService } from "../commerce/agent-discount.service.js";
 import { AgentMedicalService } from "../commerce/agent-medical.service.js";
 import { AgentRxService } from "../commerce/agent-rx.service.js";
@@ -34,6 +37,8 @@ export class WaAgentToolDeps implements AgentToolDeps {
     private readonly prescriptions: AgentRxService,
     private readonly medical: AgentMedicalService,
     private readonly documentService: AgentDocumentService,
+    @Inject(DB) private readonly dbHandle: DbHandle,
+    private readonly settings: SettingsService,
     @Inject(API_ENV) env: Pick<ApiEnv, "MEDIA_PUBLIC_ORIGIN">,
   ) {
     this.mediaOrigin = env.MEDIA_PUBLIC_ORIGIN ?? "";
@@ -81,5 +86,13 @@ export class WaAgentToolDeps implements AgentToolDeps {
   readonly usage = {
     analyzePrescription: (call: AgentCall) => this.prescriptions.analyze(call),
     askMedical: (call: AgentCall, question: string) => this.medical.ask(call, question),
+  };
+
+  readonly medications = {
+    search: async (query: string, limit: number) =>
+      (await searchMedications(this.dbHandle.db, { q: query, limit })).items,
+    alternatives: (drugId: string, limit: number) =>
+      medicationAlternatives(this.dbHandle.db, drugId, limit),
+    showPrices: async () => (await this.settings.get("medications")).search.showPrices,
   };
 }

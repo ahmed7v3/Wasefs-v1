@@ -202,6 +202,44 @@ describe("matchDrug accuracy", () => {
     expect(top?.explanation.matchedOn).toBe("alias");
   });
 
+  it("returns the brand family key of every candidate", async () => {
+    const [top] = await matchDrug(fixture.handle.db, "Panadol Extra");
+    expect(top?.brandKey).toBe("panadol extra");
+  });
+
+  it("finds a learned or admin alias exactly, but not a source-less one", async () => {
+    const db = fixture.handle.db;
+    await db.insert(drugAliases).values([
+      {
+        drugId: ids.panadolJoint ?? "",
+        alias: "Zzfoo",
+        normalized: "zzfoo",
+        lang: "en",
+        source: "learned",
+      },
+      { drugId: ids.panadol ?? "", alias: "Zzbar", normalized: "zzbar", lang: "en" },
+    ]);
+    const [exact] = await matchDrug(db, "Zzfoo");
+    expect(exact).toMatchObject({ drugId: ids.panadolJoint, score: 1 });
+    expect(exact?.explanation.matchedOn).toBe("alias_exact");
+    const [plain] = await matchDrug(db, "Zzbar");
+    expect(plain?.explanation.matchedOn).toBe("alias");
+  });
+
+  it("takes the score adjustments from the options", async () => {
+    const db = fixture.handle.db;
+    // A typo keeps the name score under 1, so the clamp at 1 cannot hide the bonus.
+    const base = await matchDrug(db, "Panadl 500 mg");
+    const raised = await matchDrug(db, "Panadl 500 mg", { strengthBonus: 0 });
+    expect(base.find((c) => c.drugId === ids.panadol)?.score).toBeLessThan(1);
+    expect(raised.find((c) => c.drugId === ids.panadol)?.score).toBeLessThan(
+      base.find((c) => c.drugId === ids.panadol)?.score ?? 0,
+    );
+    const limited = await matchDrug(db, "Panadol", { limit: 2 });
+    expect(limited.length).toBeLessThanOrEqual(2);
+    expect(await matchDrug(db, "Pandol", { similarityFloor: 1 })).toEqual([]);
+  });
+
   it("puts a typo in the verify zone but still first", async () => {
     const candidates = await matchDrug(fixture.handle.db, "Augmentn");
     expect(candidates[0]?.brandEn).toBe("Augmentin");

@@ -12,6 +12,7 @@ import { SettingsModule } from "../settings/settings.module.js";
 
 import { ChatBackground } from "./chat-background.js";
 import { ChatImages } from "./chat-images.js";
+import { ChatMedicationCards } from "./chat-medications.js";
 import { ChatSkillGate } from "./chat-skills.js";
 import { ChatTurnService } from "./chat-turn.service.js";
 import { CHAT_HEARTBEAT_MS_TOKEN, ChatController } from "./chat.controller.js";
@@ -36,6 +37,7 @@ import { ChatService } from "./chat.service.js";
     ChatService,
     ChatImages,
     ChatSkillGate,
+    ChatMedicationCards,
     ChatBackground,
     ChatTurnService,
     { provide: CHAT_HEARTBEAT_MS_TOKEN, useValue: CHAT_HEARTBEAT_MS },

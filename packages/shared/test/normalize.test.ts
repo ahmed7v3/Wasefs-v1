@@ -216,7 +216,7 @@ describe("presetMapping", () => {
   });
 
   it("has a preset for every source", () => {
-    for (const source of ["eda", "sfda", "manual", "other"] as const) {
+    for (const source of ["eda", "sfda", "dwaprices", "manual", "other"] as const) {
       expect(Object.keys(DRUG_IMPORT_PRESETS[source]).length).toBeGreaterThan(0);
     }
   });
@@ -229,6 +229,7 @@ describe("drugColumns", () => {
       brandAr: "بنادول أقراص",
       normalizedEn: "panadol",
       normalizedAr: "بنادول",
+      brandKey: "panadol",
       form: "tablet",
       strengthText: "500 mg",
       strengthValueMicro: 500_000_000,

@@ -57,6 +57,17 @@ const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 const NAMES_IN_LIST = 3;
 
+/**
+ * What the model read for a line before any correction: `reading` when the result keeps it, else the
+ * name of a line that was never matched to a database drug. A name that is a database brand carries no
+ * information about what was written.
+ */
+function originalReading(item: RxResult["items"][number] | undefined): string | null {
+  if (item === undefined) return null;
+  const reading = item.reading ?? (item.matchedDrugId === null ? item.name : null);
+  return reading === null || reading.trim() === "" ? null : reading;
+}
+
 const invalid = (details: Record<string, string | number>): AppError =>
   new AppError(ErrorCode.VALIDATION_FAILED, { httpStatus: 422, details });
 
@@ -309,6 +320,7 @@ export class RxService {
       if (drug === null)
         throw new AppError(ErrorCode.VALIDATION_FAILED, { details: { fields: ["after"] } });
     }
+    let reading: string | null = null;
     const result = await this.repo.applyCorrection(
       user.id,
       id,
@@ -318,14 +330,36 @@ export class RxService {
         after: input.after,
         consentForEval: input.consentForEval,
       },
-      (current) =>
-        applyCorrection(
+      (current) => {
+        reading = originalReading(current.items[input.itemIndex]);
+        return applyCorrection(
           current,
           { itemIndex: input.itemIndex, field: input.field, after: input.after },
           drug,
-        ),
+        );
+      },
     );
+    if (drug !== null && reading !== null) await this.learnFrom(user.id, reading, drug.id);
     return { result };
+  }
+
+  /**
+   * A correction to a database drug is a vote that the line's reading means that drug. Learning never
+   * fails the correction: the user's fix is already stored.
+   */
+  private async learnFrom(userId: string, reading: string, drugId: string): Promise<void> {
+    try {
+      const medications = await this.settings.get("medications");
+      if (!medications.enabled) return;
+      await this.repo.learnFromCorrection({
+        normalized: reading,
+        drugId,
+        userId,
+        autoApproveAt: medications.learnAutoApproveAt,
+      });
+    } catch (error) {
+      this.logger.warn({ err: error }, "learning vote could not be recorded");
+    }
   }
 
   /** The five best drugs for one line, so the user can pick the right one. */

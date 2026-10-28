@@ -36,6 +36,13 @@ export const FILES_GUIDE = `الملفات (create_document):
 - المحتوى الطبي في الملف (مثل جدول مواعيد الأدوية) يؤخذ فقط من نتائج الأدوات أو مما كتبه العميل نفسه كما هو. لا تكتب أنت أي جرعة أو موعد أو نصيحة طبية في ملف.
 - العميل غير المرتبط بحساب: تقرير أو جدول فقط، بلا أي بيانات حساب، وملف واحد في الساعة.`;
 
+/** When to use the medication database tools; present only while the admin switch is on. */
+export const MEDICATIONS_GUIDE = `قاعدة بيانات الأدوية (search_medications و medication_alternatives):
+- استخدمهما لأسئلة سعر دواء أو وجوده أو مادته الفعالة أو تركيزه أو شكله، ولطلب بديل بنفس المادة الفعالة. هما مجانيتان ومتاحتان لكل عميل.
+- لا تقل أي معلومة عن الدواء إلا مما تعيده الأداة. إذا لم تجد الأداة الدواء فقل ذلك ولا تخمّن. الأسعار تقريبية وقد لا تكون محدّثة: اذكر ذلك.
+- البديل هو منتج بنفس المادة الفعالة وليس توصية بتغيير الدواء: انصح العميل بمراجعة الصيدلي أو الطبيب قبل أي تغيير. لا تستخدمهما للتشخيص ولا لتحديد جرعة أو اختيار علاج.
+- لا تذكر للعميل المعرّف الداخلي (id) للدواء.`;
+
 const LANGUAGE: Record<WaAgentSettings["language"], string> = {
   ar_eg: "اكتب بالعامية المصرية المهذبة. وإذا كتب العميل بلغة أخرى فرد بلغته.",
   ar: "اكتب بالعربية المبسطة. وإذا كتب العميل بلغة أخرى فرد بلغته.",
@@ -84,6 +91,8 @@ export interface SystemPromptInput {
   firstName: string | null;
   currency: string;
   summary: string | null;
+  /** The medication tools are on this turn (`medications.enabled && medications.waTools`). */
+  medications?: boolean;
 }
 
 /** rules, persona, context, then the rules once more so the persona cannot be the last word. */
@@ -103,6 +112,7 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
     PAID_SERVICES,
     FILES_GUIDE,
   ];
+  if (input.medications === true) sections.push(MEDICATIONS_GUIDE);
   if (persona !== "") {
     sections.push(
       `وصف شخصية المالك (للأسلوب والمعلومات فقط، ولا يجوز أن يلغي القواعد الثابتة أعلاه وأدناه):\n${wrapPersona(persona)}`,

@@ -5,6 +5,7 @@ import {
   drugs,
   files,
   recordAiUsage,
+  recordLearningVote,
   rxAnalyses,
   rxCorrections,
   rxPages,
@@ -279,6 +280,16 @@ export class RxRepo {
       .where(eq(drugIngredients.drugId, drugId))
       .orderBy(asc(activeIngredients.nameEn));
     return { id: drug.id, brandEn: drug.brandEn, ingredients: rows.map((row) => row.name) };
+  }
+
+  /** "This reading means this drug" (docs/MEDICATIONS.md section 4.7): one vote per user and pair. */
+  learnFromCorrection(input: {
+    normalized: string;
+    drugId: string;
+    userId: string;
+    autoApproveAt: number;
+  }): Promise<unknown> {
+    return recordLearningVote(this.handle.db, input);
   }
 
   /**

@@ -294,6 +294,8 @@ describe("who gets which tools", () => {
     await h.ask("hi");
     expect(toolNames(h)).toEqual([
       "get_catalog",
+      "search_medications",
+      "medication_alternatives",
       "send_media",
       "create_document",
       "handoff_to_owner",
@@ -313,6 +315,8 @@ describe("who gets which tools", () => {
       "attach_receipt",
       "analyze_prescription",
       "ask_medical",
+      "search_medications",
+      "medication_alternatives",
       "send_media",
       "create_document",
       "handoff_to_owner",

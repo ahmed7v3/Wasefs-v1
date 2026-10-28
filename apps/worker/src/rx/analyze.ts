@@ -1,4 +1,4 @@
-import { LedgerError, type Database } from "@wasfa/db";
+import { LedgerError, recordUnmatchedNames, type Database } from "@wasfa/db";
 import { isAppError } from "@wasfa/shared/errors";
 import {
   rxDetailsAnswerSchema,
@@ -23,6 +23,7 @@ import {
   matchItems,
   modelItems,
   pickForVerification,
+  unmatchedReadings,
   withDetails,
   type WorkItem,
 } from "./pipeline.js";
@@ -36,6 +37,7 @@ import {
 import { ingredientsOf } from "./repo.js";
 
 import type { Router, RouterInput } from "@wasfa/ai";
+import type { MedicationSettings } from "@wasfa/shared/settings";
 
 export type RxStep = (typeof RX_STEPS)[number];
 
@@ -78,8 +80,11 @@ export interface AnalyzeArgs {
   base: AnalyzeBase;
   /** `rx.verifyMaxItems`: how many flagged lines the verification step may re-read. */
   verifyMaxItems: number;
-  /** `rx.drugMatching`: match lines to the drug database and re-read doubtful ones. Off: the model alone. */
-  drugMatching: boolean;
+  /**
+   * The `medications` settings. Recognition uses the drug database iff `enabled && mode === "hybrid"`;
+   * otherwise the model's reading stands alone.
+   */
+  medications: MedicationSettings;
   /** `rx.details`: add purpose, side effects, precautions and an overview from a text-only call. */
   details: boolean;
   /** The whole-analysis budget. */
@@ -110,7 +115,8 @@ interface Reading {
  */
 export async function analyzeImages(args: AnalyzeArgs): Promise<AnalyzeOutput> {
   const { db, router, images, base, verifyMaxItems, signal: budget } = args;
-  const matching = args.drugMatching ? "database" : "model";
+  const { medications } = args;
+  const matching = medications.enabled && medications.mode === "hybrid" ? "database" : "model";
   const step = args.onStep ?? (() => Promise.resolve());
   const system = systemPrompt();
 
@@ -145,7 +151,7 @@ export async function analyzeImages(args: AnalyzeArgs): Promise<AnalyzeOutput> {
     items = modelItems(reading.extraction);
   } else {
     await step("match", { verifying: false });
-    items = await withRetry(() => matchItems(db, reading.extraction), budget);
+    items = await withRetry(() => matchItems(db, reading.extraction, medications), budget);
 
     const chosenForVerify = pickForVerification(items, verifyMaxItems).filter((index) => {
       const item = items[index];
@@ -187,7 +193,13 @@ export async function analyzeImages(args: AnalyzeArgs): Promise<AnalyzeOutput> {
         });
       }, budget);
       cost += verification.costUsdMicros;
-      await applyVerification(db, items, offered, verification.value as RxVerifyAnswer);
+      await applyVerification(
+        db,
+        items,
+        offered,
+        verification.value as RxVerifyAnswer,
+        medications,
+      );
     }
     markSkipped(items, new Set(chosenForVerify));
   }
@@ -200,6 +212,12 @@ export async function analyzeImages(args: AnalyzeArgs): Promise<AnalyzeOutput> {
       matching === "model" ? new Map() : await ingredientsOf(db, [...new Set(drugIds)]);
     return buildResult(reading.extraction, items, ingredients, matching);
   }, budget);
+
+  // The unmatched-names queue: best effort, and only the reading itself (no user, image or other text).
+  if (matching === "database" && medications.logUnmatched) {
+    const readings = unmatchedReadings(items, result);
+    if (readings.length > 0) await recordUnmatchedNames(db, readings).catch(() => undefined);
+  }
 
   // The general information: best effort, never the reason an analysis fails.
   if (args.details) {

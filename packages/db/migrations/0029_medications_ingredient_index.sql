@@ -1,0 +1,1 @@
+CREATE INDEX "drug_ingredients_ingredient_idx" ON "drug_ingredients" USING btree ("ingredient_id");

@@ -11,6 +11,7 @@ export const enRx: Partial<Record<keyof typeof arRx, string>> = {
     "We could not read the prescription. Try a clearer photo. You were not charged.",
   "rx.failed": "The analysis could not be completed. You were not charged.",
   "rx.unmatched": "Unconfirmed",
+  "rx.source.ai": "AI reading, not confirmed in the database",
   "rx.rating.title": "Was the analysis good?",
   "rx.rating.lead": "Your rating helps us improve accuracy.",
   "rx.rating.saved": "Thank you for rating",

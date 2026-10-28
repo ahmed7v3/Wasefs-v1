@@ -93,6 +93,13 @@ export const SETTING_UNITS: Record<string, SettingUnit> = {
   "alerts.businessHours.endHour": "hourOfDay",
 };
 
+/**
+ * Fields the form leaves out, as `key.path`. `rx.drugMatching` is retired (the worker ignores it, the
+ * `medications` settings decide); it stays in the schema so stored values keep parsing, and saving the
+ * form lets it fall back to its default.
+ */
+export const HIDDEN_SETTING_FIELDS: ReadonlySet<string> = new Set(["rx.drugMatching"]);
+
 /** A titled block of one key's fields (top-level paths, in display order). */
 export interface SettingSection {
   id: string;
@@ -336,6 +343,45 @@ export const SETTING_LAYOUTS: Partial<Record<SettingKey, readonly SettingSection
       paths: ["apps"],
     },
   ],
+  medications: [
+    {
+      id: "status",
+      title: "admin.settings.section.medications.status",
+      description: "admin.settings.section.medications.status.description",
+      paths: ["enabled", "mode"],
+    },
+    {
+      id: "decision",
+      title: "admin.settings.section.medications.decision",
+      description: "admin.settings.section.medications.decision.description",
+      paths: ["acceptScore", "reviewScore", "minMargin"],
+    },
+    {
+      id: "scoring",
+      title: "admin.settings.section.medications.scoring",
+      description: "admin.settings.section.medications.scoring.description",
+      paths: [
+        "similarityFloor",
+        "strengthBonus",
+        "strengthConflictPenalty",
+        "formBonus",
+        "maxCandidates",
+        "useAlternatives",
+      ],
+    },
+    {
+      id: "learning",
+      title: "admin.settings.section.medications.learning",
+      description: "admin.settings.section.medications.learning.description",
+      paths: ["learnAutoApproveAt", "logUnmatched"],
+    },
+    {
+      id: "features",
+      title: "admin.settings.section.medications.features",
+      description: "admin.settings.section.medications.features.description",
+      paths: ["chatCards", "waTools", "search"],
+    },
+  ],
   alerts: [
     {
       id: "whatsapp",
@@ -364,7 +410,7 @@ export interface SettingsPageGroup {
  * The general settings page (`/admin/settings`). The other keys live with their feature:
  * `branding` on /admin/branding, `whatsapp` on /admin/whatsapp, `waAgent` on /admin/whatsapp/agent, `billing` on
  * /admin/billing/settings, `rewards` and `growth` on /admin/growth/settings, `alerts` on
- * /admin/alerts, `ai` and `skills` under /admin/ai.
+ * /admin/alerts, `medications` on /admin/drugs/recognition, `ai` and `skills` under /admin/ai.
  */
 export const GENERAL_SETTINGS_GROUPS: readonly SettingsPageGroup[] = [
   {

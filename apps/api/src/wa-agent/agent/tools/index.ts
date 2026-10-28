@@ -5,10 +5,11 @@ import { attachReceiptTool } from "./attach-receipt.js";
 import { createDocumentTool } from "./create-document.js";
 import { getCatalogTool } from "./get-catalog.js";
 import { handoffToOwnerTool } from "./handoff-to-owner.js";
+import { medicationAlternativesTool, searchMedicationsTool } from "./medications.js";
 import { offerDiscountTool } from "./offer-discount.js";
 import { sendMediaTool } from "./send-media.js";
 import { startSubscriptionTool } from "./start-subscription.js";
-import { toolError, type AgentTool, type AgentToolContext } from "./tool.js";
+import { toolError, type AgentTool, type AgentToolContext, type AgentToolFeature } from "./tool.js";
 
 import type { ToolDefinition, ToolHandler } from "@wasfa/ai";
 
@@ -30,14 +31,26 @@ export const AGENT_TOOLS: readonly AgentTool[] = [
   attachReceiptTool,
   analyzePrescriptionTool,
   askMedicalTool,
+  searchMedicationsTool,
+  medicationAlternativesTool,
   sendMediaTool,
   createDocumentTool,
   handoffToOwnerTool,
 ];
 
-/** The tools a sender may use: a guest never even sees the linked-only ones. */
-export function toolsFor(linked: boolean): AgentTool[] {
-  return AGENT_TOOLS.filter((tool) => linked || !tool.linkedOnly);
+/** Which feature-gated tools are on this turn (admin switches); every one is off unless named. */
+export type AgentToolFeatures = Partial<Record<AgentToolFeature, boolean>>;
+
+/**
+ * The tools a sender may use: a guest never even sees the linked-only ones, and a tool behind a
+ * switch is offered only while its switch is on.
+ */
+export function toolsFor(linked: boolean, features: AgentToolFeatures = {}): AgentTool[] {
+  return AGENT_TOOLS.filter(
+    (tool) =>
+      (linked || !tool.linkedOnly) &&
+      (tool.feature === undefined || features[tool.feature] === true),
+  );
 }
 
 /** What a turn records per tool call: the tool and how it ended, never its arguments or result. */

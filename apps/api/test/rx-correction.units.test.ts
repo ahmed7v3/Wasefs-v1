@@ -147,4 +147,19 @@ describe("applyCorrection", () => {
     );
     expect(strength?.result.findings).toEqual([]);
   });
+
+  it("labels the source of a corrected drug line", () => {
+    const picked = applyCorrection(
+      result([item({ matchedDrugId: null })]),
+      { itemIndex: 0, field: "drug", after: drug.id },
+      drug,
+    );
+    expect(picked?.result.items[0]?.source).toBe("database");
+    const typed = applyCorrection(
+      result([item()]),
+      { itemIndex: 0, field: "drug", after: "Something" },
+      null,
+    );
+    expect(typed?.result.items[0]?.source).toBe("ai");
+  });
 });

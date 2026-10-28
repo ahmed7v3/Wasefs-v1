@@ -22,6 +22,7 @@ import { arDashboard } from "./ar.dashboard.js";
 import { arErrors } from "./ar.errors.js";
 import { arGrowthConsole } from "./ar.growth-console.js";
 import { arGrowth } from "./ar.growth.js";
+import { arMedications } from "./ar.medications.js";
 import { arOrg } from "./ar.org.js";
 import { arPublicContent } from "./ar.public-content.js";
 import { arPublic } from "./ar.public.js";
@@ -53,6 +54,7 @@ export const ar = {
   ...arAdminDrugs,
   ...arAdminEvals,
   ...arRx,
+  ...arMedications,
   ...arRewards,
   ...arReferralsWeb,
   ...arOrg,

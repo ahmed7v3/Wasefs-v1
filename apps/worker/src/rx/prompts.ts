@@ -112,7 +112,7 @@ export function verifyMessages(items: readonly VerifyItem[]): NormalizedMessage[
       parts: [
         {
           type: "text",
-          text: `Re-read these unclear prescription lines. For each item answer with exactly one of: kind "candidate" with the id of one listed candidate, kind "other" with the text you read, or kind "unreadable". Prefer "unreadable" over a guess.`,
+          text: `Re-read these unclear prescription lines. For each item answer with exactly one of: kind "candidate" with the id of one listed candidate, kind "none" when you can read the name but it is none of the listed candidates (the candidates are only suggestions and may all be wrong), kind "other" with the text you read, or kind "unreadable". Never pick the closest candidate just to pick one. Prefer "unreadable" over a guess.`,
         },
         ...items.flatMap((item): ChatMessage["parts"] => [
           { type: "text", text: `<user_data item="${item.index}">` },

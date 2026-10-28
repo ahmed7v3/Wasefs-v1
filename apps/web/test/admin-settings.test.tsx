@@ -15,6 +15,7 @@ import { ApiRequestError } from "../src/lib/api-error";
 import { fromDraft, settingFields, toDraft, type SettingField } from "../src/lib/setting-fields";
 import {
   GENERAL_SETTINGS_GROUPS,
+  HIDDEN_SETTING_FIELDS,
   SETTING_LAYOUTS,
   SETTING_UNITS,
   UNIT_SCALE,
@@ -78,7 +79,11 @@ describe("SettingForm", () => {
         (total, field) => total + (field.kind === "group" ? count(field.fields) : 1),
         0,
       );
-    })(settingFields(SETTINGS_REGISTRY[key].schema));
+    })(
+      settingFields(SETTINGS_REGISTRY[key].schema).filter(
+        (field) => !HIDDEN_SETTING_FIELDS.has(`${key}.${field.path}`),
+      ),
+    );
     expect(form.querySelectorAll("input, select, textarea")).toHaveLength(leaves);
 
     await userEvent.click(screen.getByRole("button", { name: t("common.save") }));
@@ -194,6 +199,7 @@ describe("settings presentation", () => {
     "rewards",
     "growth",
     "alerts",
+    "medications",
   ];
 
   it("gives every settings key exactly one home", () => {
@@ -215,6 +221,42 @@ describe("settings presentation", () => {
         ).toBeTruthy();
       }
     }
+  });
+
+  it("keeps medications off the general page: it lives on /admin/drugs/recognition", () => {
+    const general = GENERAL_SETTINGS_GROUPS.flatMap((group) => group.keys);
+    expect(general).not.toContain("medications");
+    expect(Object.hasOwn(SETTING_LAYOUTS, "medications")).toBe(true);
+  });
+
+  it("explains every medications field in plain words", () => {
+    const dictionary = ar as Record<string, string>;
+    for (const field of leafPaths(settingFields(SETTINGS_REGISTRY.medications.schema))) {
+      expect(dictionary[`admin.settings.help.medications.${field.path}`], field.path).toBeTruthy();
+    }
+  });
+
+  it("puts the two medications switches first, before any threshold", () => {
+    renderForm("medications");
+    const form = screen.getByRole("form", { name: t("admin.settings.medications.title") });
+    const controls = [...form.querySelectorAll("input, select")].map((control) =>
+      control.getAttribute("name"),
+    );
+    expect(controls.slice(0, 2)).toEqual(["enabled", "mode"]);
+    expect(
+      screen.getByRole("heading", { name: t("admin.settings.section.medications.status") }),
+    ).toBeTruthy();
+    expect(screen.getByText(t("admin.settings.help.medications.enabled"))).toBeTruthy();
+  });
+
+  it("no longer shows the retired rx.drugMatching switch, and saving the form still works", async () => {
+    const onSave = renderForm("rx");
+    expect(screen.queryByLabelText(t("admin.settings.field.rx.drugMatching"))).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: t("common.save") }));
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledTimes(1);
+    });
+    expect(onSave.mock.calls[0]?.[0]).toMatchObject({ drugMatching: false });
   });
 
   it("places every field of a laid-out key in exactly one section", () => {

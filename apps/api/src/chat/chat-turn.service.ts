@@ -25,6 +25,7 @@ import { ChatBackground } from "./chat-background.js";
 import { buildPrompt, recentHistory, type BuiltPrompt } from "./chat-context.js";
 import { reserveCredits, settleCredits } from "./chat-credits.js";
 import { ChatImages, type ChatImage } from "./chat-images.js";
+import { ChatMedicationCards } from "./chat-medications.js";
 import { CHAT_SYSTEM_PROMPT } from "./chat-prompts.js";
 import { ChatSkillGate, skillBody } from "./chat-skills.js";
 import { ChatRepo } from "./chat.repo.js";
@@ -94,6 +95,7 @@ export class ChatTurnService {
     private readonly images: ChatImages,
     private readonly background: ChatBackground,
     private readonly skills: ChatSkillGate,
+    private readonly medicationCards: ChatMedicationCards,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext("ChatTurn");
@@ -245,6 +247,7 @@ export class ChatTurnService {
       history: recentHistory(history, summary?.throughMessageId ?? null),
       userText: question,
       images,
+      medicationReference: await this.medicationCards.blockFor(question),
     });
     const route = await this.ai.route(task, plan.id, input.mode);
     if (!route) throw noModelError("no_route");

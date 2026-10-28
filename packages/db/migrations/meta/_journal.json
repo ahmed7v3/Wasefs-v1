@@ -197,6 +197,20 @@
       "when": 1793043001797,
       "tag": "0027_wa_agent_handoff_alert",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1793213055303,
+      "tag": "0028_medications",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1793215771763,
+      "tag": "0029_medications_ingredient_index",
+      "breakpoints": true
     }
   ]
 }

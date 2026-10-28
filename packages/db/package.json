@@ -21,7 +21,8 @@
     "test": "vitest run --passWithNoTests",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx --env-file-if-exists=../../.env src/migrate.ts",
-    "db:seed": "tsx --env-file-if-exists=../../.env src/seed.ts"
+    "db:seed": "tsx --env-file-if-exists=../../.env src/seed.ts",
+    "drug:backfill-brand-keys": "tsx --env-file-if-exists=../../.env src/drug-backfill-brand-keys.ts"
   },
   "dependencies": {
     "@wasfa/shared": "workspace:*",
