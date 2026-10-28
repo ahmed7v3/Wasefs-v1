@@ -35,8 +35,12 @@ export interface AdminLogin {
   secret: string;
   /** TOTP steps already spent (a code can be used once). */
   used: Set<number>;
-  /** A code for a step that is still accepted and not spent. */
-  code: () => string;
+  /**
+   * The current window's code, never spent before. If the current window is spent, it waits for the
+   * next one: a code for the current window is accepted whichever side of a 30 s edge the server
+   * checks it, a code for a neighbouring window is not.
+   */
+  code: () => Promise<string>;
 }
 
 const originHeader = (urls: StackUrls) => ({ Origin: urls.web });
@@ -72,7 +76,7 @@ export async function signInThroughUi(page: Page, login: AdminLogin): Promise<vo
   await form.locator("input[name=password]").fill(login.account.password);
   await form.getByRole("button", { name: t("auth.login.submit") }).click();
   await page.waitForURL(/\/login\/two-factor/);
-  await page.locator("input[name=code]").fill(login.code());
+  await page.locator("input[name=code]").fill(await login.code());
   await page.getByRole("button", { name: t("auth.twoFactor.submit") }).click();
   await page.waitForURL(/\/dashboard$/);
 }
@@ -86,12 +90,14 @@ export async function createAdminLogin(
   const base = await prepareAccount(context, urls, redis, options.label, options.superAdmin);
   const login: AdminLogin = {
     ...base,
-    code: () => {
-      const now = Date.now();
-      const step = [1, 0, -1]
-        .map((offset) => stepOf(now) + offset)
-        .find((candidate) => !login.used.has(candidate));
-      if (step === undefined) throw new Error("no free TOTP step; wait for the next window");
+    code: async () => {
+      let step = stepOf(Date.now());
+      if (login.used.has(step)) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, (step + 1) * STEP_MS - Date.now() + 1_000),
+        );
+        step = stepOf(Date.now());
+      }
       login.used.add(step);
       return totp(base.secret, step * STEP_MS);
     },
