@@ -228,8 +228,10 @@ describe("matchDrug accuracy", () => {
 
   it("takes the score adjustments from the options", async () => {
     const db = fixture.handle.db;
-    const base = await matchDrug(db, "Panadol 500 mg");
-    const raised = await matchDrug(db, "Panadol 500 mg", { strengthBonus: 0 });
+    // A typo keeps the name score under 1, so the clamp at 1 cannot hide the bonus.
+    const base = await matchDrug(db, "Panadl 500 mg");
+    const raised = await matchDrug(db, "Panadl 500 mg", { strengthBonus: 0 });
+    expect(base.find((c) => c.drugId === ids.panadol)?.score).toBeLessThan(1);
     expect(raised.find((c) => c.drugId === ids.panadol)?.score).toBeLessThan(
       base.find((c) => c.drugId === ids.panadol)?.score ?? 0,
     );
