@@ -814,6 +814,36 @@
   pointer-events: none;
 }
 
+/* The WhatsApp section's message order, from position: an inline style attribute would break the
+   CSP (style-src has no 'unsafe-inline'). */
+.chat-seq:nth-child(2) {
+  --i: 1;
+}
+.chat-seq:nth-child(3) {
+  --i: 2;
+}
+.chat-seq:nth-child(4) {
+  --i: 3;
+}
+.chat-seq:nth-child(5) {
+  --i: 4;
+}
+.chat-seq:nth-child(6) {
+  --i: 5;
+}
+.chat-seq:nth-child(7) {
+  --i: 6;
+}
+.chat-seq:nth-child(8) {
+  --i: 7;
+}
+.chat-seq:nth-child(9) {
+  --i: 8;
+}
+.chat-seq:nth-child(10) {
+  --i: 9;
+}
+
 /* Hero scene box: fixed size, so the staged entrance can never move the layout. */
 .hero-scene {
   block-size: 39rem;

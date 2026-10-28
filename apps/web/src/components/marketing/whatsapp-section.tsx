@@ -19,7 +19,6 @@ import { QrSvg } from "./qr-svg";
 import { SectionHeading } from "./section-heading";
 
 import type { Locale } from "../../lib/locale";
-import type { CSSProperties } from "react";
 
 const TILE_ICONS = {
   photo: Camera,
@@ -124,11 +123,10 @@ export function WhatsAppSection({
                 <div aria-hidden="true">
                   <ChatHeader name={scene.agentName} status={scene.agentStatus} />
                   <div className="flex flex-col gap-2 p-2.5">
-                    {whatsapp.chat.map((message, index) => (
+                    {whatsapp.chat.map((message) => (
                       <div
                         key={`${message.kind}-${message.text}`}
                         className="chat-seq flex flex-col"
-                        style={{ "--i": index } as CSSProperties}
                       >
                         {message.kind === "photo" ? (
                           <Bubble from={message.from} className="w-40">
