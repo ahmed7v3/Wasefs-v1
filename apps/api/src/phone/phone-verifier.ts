@@ -5,6 +5,7 @@ import {
   PHONE_VERIFY_TTL_SECONDS,
   WA_REPLY_STREAM,
   verificationMessage,
+  waLidClaimKey,
   type InboundMessage,
   type PhoneVerifyStatus,
   type ReplyOutcome,
@@ -106,6 +107,9 @@ export class WhatsAppInboundVerifier implements PhoneVerifier {
         .multi()
         .set(`phone:ch:${userId}`, JSON.stringify(challenge), "EX", PHONE_VERIFY_TTL_SECONDS)
         .del(`phone:result:${userId}`)
+        // For a sender WhatsApp shows only as a LID: the bridge checks this number's LID.
+        .sadd(waLidClaimKey(code), phone.slice(1))
+        .expire(waLidClaimKey(code), PHONE_VERIFY_TTL_SECONDS)
         .exec();
       return { code, expiresAt, text: verificationMessage(code, locale) };
     }
@@ -171,7 +175,12 @@ export class WhatsAppInboundVerifier implements PhoneVerifier {
 
   private async cancel(userId: string): Promise<void> {
     const previous = await this.challenge(userId);
-    if (previous) await this.redis.del(this.codeKey(previous.phone, previous.code));
+    if (!previous) return;
+    await this.redis
+      .multi()
+      .del(this.codeKey(previous.phone, previous.code))
+      .srem(waLidClaimKey(previous.code), previous.phone.slice(1))
+      .exec();
   }
 
   private async challenge(userId: string): Promise<Challenge | null> {

@@ -1,3 +1,5 @@
+import { WA_LID_CLAIM_LOOKUP_MAX, waLidClaimKey } from "@wasfa/shared/schemas/phone";
+
 import { splitJid, type LidResolver } from "./inbound.js";
 
 import type { Redis } from "ioredis";
@@ -26,8 +28,12 @@ function digitsOf(pn: string): string | null {
 
 /** Wraps Baileys' mapping with the Redis cache; also the sink for mappings it learns from events. */
 export function createLidResolver(options: {
-  redis: Pick<Redis, "get" | "set">;
-  baileys: { getPNForLID: (lid: string) => Promise<string | null> };
+  redis: Pick<Redis, "get" | "set" | "srandmember">;
+  baileys: {
+    getPNForLID: (lid: string) => Promise<string | null>;
+    /** Asks WhatsApp (usync) when the mapping is not stored yet. */
+    getLIDForPN: (pn: string) => Promise<string | null>;
+  };
   logger: Logger;
 }): LidResolver {
   const { redis, baileys, logger } = options;
@@ -57,6 +63,21 @@ export function createLidResolver(options: {
       const pn = await baileys.getPNForLID(lid);
       if (pn) await learn(lid, pn);
       return pn;
+    },
+    async resolveClaimed(lid, code) {
+      const lidUser = lidUserOf(lid);
+      if (!lidUser) return null;
+      const claimed = await redis.srandmember(waLidClaimKey(code), WA_LID_CLAIM_LOOKUP_MAX);
+      for (const digits of claimed) {
+        if (!/^\d{6,15}$/.test(digits)) continue;
+        const pn = `${digits}@s.whatsapp.net`;
+        const theirs = await baileys.getLIDForPN(pn).catch(() => null);
+        if (theirs && lidUserOf(theirs) === lidUser) {
+          await learn(lid, pn);
+          return pn;
+        }
+      }
+      return null;
     },
   };
 }

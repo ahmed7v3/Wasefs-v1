@@ -15,6 +15,15 @@ export const PHONE_VERIFY_TTL_SECONDS = 10 * 60;
 
 /** Redis stream the bridge appends inbound codes to (`MAXLEN ~ 10000`) and the api consumes. */
 export const WA_INBOUND_STREAM = "wa:inbound";
+
+/**
+ * The phone digits that claimed a pending `code` (a set, same TTL as the challenge). A sender
+ * WhatsApp shows only as a LID is matched against these: the bridge asks WhatsApp for each claimed
+ * number's LID and accepts the code only when it is the sender's.
+ */
+export const waLidClaimKey = (code: string): string => `wa:lidclaim:${code}`;
+/** At most this many claimed numbers are looked up for one code. */
+export const WA_LID_CLAIM_LOOKUP_MAX = 5;
 export const WA_INBOUND_MAXLEN = 10_000;
 /** WhatsApp AI agent streams (docs/WA-AGENT.md): bridge to api, api to bridge, bridge to api (delivery result). */
 export const WA_AGENT_IN_STREAM = "wa:agent:in";

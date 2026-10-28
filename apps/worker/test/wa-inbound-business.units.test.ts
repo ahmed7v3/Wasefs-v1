@@ -42,6 +42,11 @@ class FakeRedis {
   readonly streams = new Map<string, unknown[]>();
   readonly hashes = new Map<string, Map<string, number>>();
   readonly ttls = new Map<string, number>();
+  readonly sets = new Map<string, string[]>();
+
+  srandmember(key: string, count: number): Promise<string[]> {
+    return Promise.resolve((this.sets.get(key) ?? []).slice(0, count));
+  }
 
   set(key: string, value: string, ...rest: Array<string | number>): Promise<"OK" | null> {
     if (rest.includes("NX") && this.values.has(key)) return Promise.resolve(null);
@@ -145,6 +150,7 @@ describe("the Redis lid -> phone cache", () => {
           calls.push(lid);
           return Promise.resolve(null);
         },
+        getLIDForPN: () => Promise.resolve(null),
       },
       logger: pino({ level: "silent" }),
     });
@@ -161,7 +167,7 @@ describe("the Redis lid -> phone cache", () => {
     const redis = new FakeRedis();
     const resolver = createLidResolver({
       redis: redis as never,
-      baileys: { getPNForLID: () => Promise.resolve(PN) },
+      baileys: { getPNForLID: () => Promise.resolve(PN), getLIDForPN: () => Promise.resolve(null) },
       logger: pino({ level: "silent" }),
     });
     expect(await resolver.getPNForLID(LID)).toBe(PN);
@@ -169,6 +175,75 @@ describe("the Redis lid -> phone cache", () => {
     await resolver.learn?.("nonsense", PN);
     await resolver.learn?.(LID, "abc@s.whatsapp.net");
     expect(redis.values.size).toBe(1);
+  });
+});
+
+describe("a LID sender WhatsApp never paired with a number (WhatsApp Business)", () => {
+  function resolverWith(claimed: string[], lidOf: Record<string, string>) {
+    const redis = new FakeRedis();
+    redis.sets.set("wa:lidclaim:482913", claimed);
+    const asked: string[] = [];
+    const resolver = createLidResolver({
+      redis: redis as never,
+      baileys: {
+        getPNForLID: () => Promise.resolve(null),
+        getLIDForPN: (pn) => {
+          asked.push(pn);
+          return Promise.resolve(lidOf[pn] ?? null);
+        },
+      },
+      logger: pino({ level: "silent" }),
+    });
+    return { redis, asked, resolver };
+  }
+
+  it("accepts the code when WhatsApp says the claimed number's LID is the sender's, and learns it", async () => {
+    const { redis, resolver } = resolverWith(["201012345678"], { [PN]: "123456789012345:3@lid" });
+    const result = await extractInbound(lidMessage(), resolver, NOW);
+    expect(result).toMatchObject({ ok: true, message: { phone: "+201012345678", jid: LID } });
+    expect(redis.values.get("wa:lid:123456789012345")).toBe("201012345678");
+  });
+
+  it("refuses when the claimed number belongs to another LID", async () => {
+    const { resolver } = resolverWith(["201012345678"], { [PN]: "999999999999999@lid" });
+    expect(await extractInbound(lidMessage(), resolver, NOW)).toEqual({
+      ok: false,
+      reason: "unresolved_sender",
+    });
+  });
+
+  it("picks the matching number among several claims and skips junk", async () => {
+    const other = "201099999999@s.whatsapp.net";
+    const { resolver, asked } = resolverWith(["nope", "201099999999", "201012345678"], {
+      [other]: "555555555555555@lid",
+      [PN]: "123456789012345@lid",
+    });
+    const result = await extractInbound(lidMessage(), resolver, NOW);
+    expect(result).toMatchObject({ ok: true, message: { phone: "+201012345678" } });
+    expect(asked).toEqual([other, PN]);
+  });
+
+  it("does nothing without a claim for that code", async () => {
+    const { resolver, asked } = resolverWith([], {});
+    expect(await extractInbound(lidMessage(), resolver, NOW)).toMatchObject({ ok: false });
+    expect(asked).toEqual([]);
+  });
+
+  it("treats a failing WhatsApp lookup as unresolved", async () => {
+    const redis = new FakeRedis();
+    redis.sets.set("wa:lidclaim:482913", ["201012345678"]);
+    const resolver = createLidResolver({
+      redis: redis as never,
+      baileys: {
+        getPNForLID: () => Promise.resolve(null),
+        getLIDForPN: () => Promise.reject(new Error("usync timeout")),
+      },
+      logger: pino({ level: "silent" }),
+    });
+    expect(await extractInbound(lidMessage(), resolver, NOW)).toEqual({
+      ok: false,
+      reason: "unresolved_sender",
+    });
   });
 });
 

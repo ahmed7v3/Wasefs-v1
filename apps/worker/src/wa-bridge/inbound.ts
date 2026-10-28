@@ -93,6 +93,11 @@ export interface LidResolver {
   getPNForLID: (lid: string) => Promise<string | null>;
   /** Remembers a `lid -> phone-number jid` pair that WhatsApp handed over with a message. */
   learn?: (lid: string, pn: string) => Promise<void>;
+  /**
+   * The phone-number jid of the number that claimed `code` whose LID WhatsApp says is `lid`, or
+   * null. The pairing comes from WhatsApp (phone to LID lookup), never from the message.
+   */
+  resolveClaimed?: (lid: string, code: string) => Promise<string | null>;
 }
 
 export type IgnoreReason =
@@ -196,6 +201,23 @@ export async function resolveSenderPhone(
   }
 }
 
+/**
+ * A LID sender WhatsApp did not pair with a number (common for WhatsApp Business): the number that
+ * claimed this code, if WhatsApp says that number's LID is the sender's.
+ */
+async function claimedPhone(
+  remoteJid: string,
+  code: string,
+  resolver: LidResolver,
+): Promise<string | null> {
+  if (addressingOf(remoteJid) !== "lid" || !resolver.resolveClaimed) return null;
+  try {
+    return phoneFromPnJid(await resolver.resolveClaimed(remoteJid, code));
+  } catch {
+    return null;
+  }
+}
+
 /** The text and the sender's phone of a fresh 1:1 message, for the bridge's keyword commands. */
 async function commandOf(
   raw: RawMessage,
@@ -284,7 +306,9 @@ export async function extractInbound(
   const receivedAt = seconds === null ? now : seconds * 1000;
   if (now - receivedAt > MAX_INBOUND_AGE_MS) return { ok: false, reason: "stale" };
 
-  const phone = await resolveSenderPhone(raw, resolver);
+  const phone =
+    (await resolveSenderPhone(raw, resolver)) ??
+    (await claimedPhone(key.remoteJid, code, resolver));
   if (phone === null) {
     return { ok: false, reason: "unresolved_sender" };
   }
