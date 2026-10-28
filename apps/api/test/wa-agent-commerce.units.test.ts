@@ -936,14 +936,115 @@ describe("follow-up messages", () => {
       "ar",
     );
     const all = parts.join("\n");
-    expect(all).toContain("1. Panadol 500 mg أقراص — قرص، كل 8 ساعات");
-    expect(all).toContain("2. Augmentin 1 g أقراص — قرص، كل 8 ساعات (قراءة غير مؤكدة");
-    expect(all).not.toMatch(/1\. .*\(قراءة غير مؤكدة/);
+    expect(all).toContain("💊 *Panadol* 500 mg أقراص\n• الجرعة: قرص\n• عدد المرات: كل 8 ساعات");
+    expect(all).toContain("💊 *Augmentin* 1 g أقراص");
+    // Only the doubtful medicine carries the doubt line.
+    expect(all.match(/قراءة غير مؤكدة/g)).toHaveLength(1);
     expect(all).toContain("لم نستطع قراءتها");
     // The last message always carries the disclaimer and the link.
     expect(parts.at(-1)).toContain("هذه قراءة آلية");
     expect(parts.at(-1)).toContain("https://wasfa.online/analyze/rx-1");
     expect(parts.length).toBeLessThanOrEqual(3);
+  });
+
+  describe("the full reading of three medicines", () => {
+    const three = (): RxResult => ({
+      ...result([
+        item({
+          name: "Augmentin",
+          strength: "1 g",
+          dose: "قرص",
+          frequency: "مرتين يوميًا",
+          duration: "7 أيام",
+          route: "فموي",
+          notes: "بعد الأكل مباشرة",
+          details: {
+            purpose: "مضاد حيوي لعلاج العدوى",
+            sideEffects: [],
+            precautions: ["أخبر الطبيب عن حساسية البنسلين", "يؤخذ مع الطعام", "ثالث"],
+          },
+        }),
+        item({ name: "Lipitor", strength: "20 mg", frequency: "قبل النوم", duration: "شهر" }),
+        item({ name: "Panadol", frequency: null, dose: null }),
+      ]),
+      date: "2026-10-20",
+      overview: { summary: "أدوية لعلاج عدوى وارتفاع الكوليسترول.", likelyConditions: [] },
+      findings: [{ kind: "duplicate_ingredient", itemIndexes: [0, 2], ingredient: "x" }],
+    });
+    const caps = { maxReplyChars: 1500, maxMessagesPerTurn: 6 };
+
+    it("gives dose, how often with the meal, duration, route, instructions, use, precautions and times", () => {
+      const parts = rxDoneParts(three(), "https://x.test/a/1", caps, "ar", true);
+      const text = parts.join("\n\n");
+      expect(text).toContain("📋 قرأت الروشتة — عدد الأدوية: 3\n📅 تاريخ الروشتة: 2026-10-20");
+      expect(text).toContain(
+        [
+          "💊 *Augmentin* 1 g أقراص",
+          "• الجرعة: قرص",
+          "• عدد المرات: مرتين يوميًا بعد الأكل",
+          "• المدة: 7 أيام",
+          "• طريقة الاستخدام: فموي",
+          "• تعليمات الطبيب: بعد الأكل مباشرة",
+          "• بيستخدم لـ: مضاد حيوي لعلاج العدوى",
+          "• ⚠️ أخبر الطبيب عن حساسية البنسلين",
+          "• ⚠️ يؤخذ مع الطعام",
+          "• 🕗 مواعيد مقترحة: 8 ص · 8 م",
+        ].join("\n"),
+      );
+      // Two precautions at most.
+      expect(text).not.toContain("ثالث");
+      expect(text).toContain("💊 *Lipitor* 20 mg");
+      expect(text).toContain("• 🕗 مواعيد مقترحة: 10 م");
+      // No readable frequency: no times are invented, and the empty lines are left out.
+      expect(text).toMatch(/💊 \*Panadol\* 500 mg أقراص\n(?!• عدد المرات)/);
+      expect(text.match(/مواعيد مقترحة/g)).toHaveLength(2);
+      expect(text).toContain("🩺 الخلاصة: أدوية لعلاج عدوى وارتفاع الكوليسترول.");
+      expect(text).toContain("⚠️ مادة فعالة مكررة بين أكثر من دواء");
+      expect(text).toContain("البنود: Augmentin، Panadol");
+      expect(parts.at(-1)).toContain("📄 بعتلك ملف PDF فيه كل التفاصيل وجدول المواعيد");
+      expect(parts.at(-1)).toContain("https://x.test/a/1");
+      expect(parts.length).toBeLessThanOrEqual(6);
+    });
+
+    it("mentions the PDF only when one follows", () => {
+      const text = rxDoneParts(three(), "https://x.test/a/1", caps, "ar").join("\n");
+      expect(text).not.toContain("PDF");
+    });
+
+    it("adds a meal found in the doctor's notes to the frequency", () => {
+      const parts = rxDoneParts(
+        result([item({ frequency: "3 مرات يوميًا", notes: "يؤخذ قبل الأكل" })]),
+        "l",
+        caps,
+        "ar",
+      );
+      expect(parts.join("\n")).toContain("• عدد المرات: 3 مرات يوميًا قبل الأكل");
+      expect(parts.join("\n")).toContain("8 ص · 2 م · 8 م");
+    });
+
+    it("reads the same in English", () => {
+      const parts = rxDoneParts(three(), "https://x.test/a/1", caps, "en", true);
+      const text = parts.join("\n\n");
+      expect(text).toContain("📋 I read the prescription — medicines: 3");
+      expect(text).toContain("• Dose: قرص");
+      expect(text).toContain("• Doctor's instructions: بعد الأكل مباشرة");
+      expect(text).toContain("• 🕗 Suggested times: 8 AM · 8 PM");
+      expect(text).toContain("🩺 Summary: ");
+      expect(text).toContain("I sent you a PDF");
+    });
+
+    it("falls back to the short list when the full reading does not fit, keeping disclaimer and link", () => {
+      const parts = rxDoneParts(
+        three(),
+        "https://x.test/a/1",
+        { maxReplyChars: 200, maxMessagesPerTurn: 2 },
+        "ar",
+      );
+      expect(parts).toHaveLength(2);
+      expect(parts[0]).toContain("1. Augmentin 1 g");
+      expect(parts[0]).not.toContain("• الجرعة");
+      expect(parts.at(-1)).toContain("https://x.test/a/1");
+    });
   });
 
   it("keeps the disclaimer and link when the list is long or only one message is allowed", () => {
@@ -1086,7 +1187,7 @@ describe("WaAgentEventsConsumer", () => {
     await consumer.process({ type: "rx_done", rxId: RX_ID });
     expect(sent).toHaveLength(1);
     const all = (sent[0]?.parts ?? []).map((part) => part.text).join("\n");
-    expect(all).toContain("Panadol 500 mg");
+    expect(all).toContain("*Panadol* 500 mg");
     expect(all).toContain("(قراءة غير مؤكدة");
     expect(all).toContain("هذه قراءة آلية");
     expect(all).toContain(`https://wasfa.online/analyze/${RX_ID}`);
@@ -1183,7 +1284,7 @@ describe("WaAgentEventsConsumer files", () => {
         .slice(0, -1)
         .map((part) => part.text)
         .join(" "),
-    ).toContain("Panadol 500 mg");
+    ).toContain("*Panadol* 500 mg");
     expect(removed).toEqual([]);
   });
 

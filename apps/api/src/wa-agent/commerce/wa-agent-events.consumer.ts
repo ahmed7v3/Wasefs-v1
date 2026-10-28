@@ -135,7 +135,7 @@ export class WaAgentEventsConsumer extends StreamConsumer {
     const textCaps = withPdf ? { ...caps, maxMessagesPerTurn: caps.maxMessagesPerTurn - 1 } : caps;
     const texts =
       "rxId" in event
-        ? await this.rxTexts(event, conversation, textCaps, locale)
+        ? await this.rxTexts(event, conversation, textCaps, locale, withPdf)
         : await this.paymentTexts(event, locale);
     if (texts === null) return null;
     const parts = texts.map((text): WaAgentOutboundPart => ({ kind: "text", text }));
@@ -200,6 +200,7 @@ export class WaAgentEventsConsumer extends StreamConsumer {
     conversation: WaConversation,
     caps: { maxReplyChars: number; maxMessagesPerTurn: number },
     locale: Locale,
+    withPdf: boolean,
   ): Promise<string[] | null> {
     if (event.type === "rx_failed") return [rxFailedText(locale)];
     if (conversation.userId === null) return null;
@@ -209,7 +210,7 @@ export class WaAgentEventsConsumer extends StreamConsumer {
     const view = await this.rx.get(agentUser(row, new Date()), event.rxId);
     if (view.result === null) return [rxFailedText(locale)];
     const origin = this.apiEnv.WEB_ORIGIN[0] ?? "";
-    return rxDoneParts(view.result, `${origin}/analyze/${event.rxId}`, caps, locale);
+    return rxDoneParts(view.result, `${origin}/analyze/${event.rxId}`, caps, locale, withPdf);
   }
 
   /** Queues the parts while holding the chat's turn lock, so they do not land inside an agent turn. */
