@@ -228,7 +228,7 @@ function PhoneRegistration({ nonce, initialReferralCode = "" }: RegisterFormProp
         throw error;
       }
       // Phone sign-up signs the person in; the number itself is verified during onboarding.
-      router.replace("/onboarding");
+      router.replace("/welcome");
     },
   });
 

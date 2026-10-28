@@ -16,7 +16,7 @@ import {
   twoFactorVerifyBackupCodeSchema,
   twoFactorVerifyTotpSchema,
 } from "@wasfa/shared/schemas/auth";
-import { waLoginStartRequestSchema } from "@wasfa/shared/schemas/wa-login";
+import { waLoginStartRequestSchema, waMagicRequestSchema } from "@wasfa/shared/schemas/wa-login";
 
 import { API_ENV } from "../config/config.module.js";
 import { SettingsService } from "../settings/settings.service.js";
@@ -208,6 +208,15 @@ export const AUTH_ROUTES: readonly AuthRoute[] = [
     bucket: "wa-login-status",
     perIp: { max: 60, windowSeconds: MINUTE },
     query: ["token"],
+  },
+  {
+    // The agent's one-time link (docs/WA-SIGNUP.md section 3): the token is a bearer secret, so it is
+    // limited per IP and travels in the body, never in a URL.
+    method: "POST",
+    pattern: "/whatsapp/magic",
+    bucket: "wa-login-magic",
+    body: waMagicRequestSchema,
+    perIp: IP_LINK,
   },
   {
     method: "POST",

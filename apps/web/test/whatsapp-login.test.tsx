@@ -143,7 +143,7 @@ describe("WhatsAppLogin", () => {
     render(<WhatsAppLogin available next="/account/security" />);
     await open();
     await tick(2_000);
-    expect(replace).toHaveBeenCalledWith("/onboarding");
+    expect(replace).toHaveBeenCalledWith("/welcome");
   });
 
   it("does not poll while the tab is hidden, and polls at once when it returns", async () => {
@@ -218,7 +218,7 @@ describe("whatsapp login rules", () => {
   it("picks the destination", () => {
     expect(signedInTarget("/billing", false)).toBe("/billing");
     expect(signedInTarget("/billing", undefined)).toBe("/billing");
-    expect(signedInTarget("/billing", true)).toBe("/onboarding");
+    expect(signedInTarget("/billing", true)).toBe("/welcome");
   });
 
   it("only turns wa.me links into WhatsApp Web links", () => {

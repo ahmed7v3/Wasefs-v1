@@ -61,6 +61,26 @@ export const ONBOARDING_STEP_SCHEMAS = {
   social_follow: z.object({ followed: z.boolean() }),
 } as const satisfies Record<OnboardingInputStep, z.ZodType>;
 
+/**
+ * `PUT /onboarding/welcome` (docs/WA-SIGNUP.md section 4): the whole wizard on one screen. It answers
+ * account_type, name, organization (only for an organization) and, if chosen, the profession; the
+ * server fills in the rest (social follow skipped, free plan intent) through the normal step rules.
+ */
+export const onboardingWelcomeSchema = z
+  .object({
+    accountType: z.enum(ACCOUNT_TYPES),
+    name: personNameSchema,
+    organization: orgDetailsSchema.optional(),
+    profession: z.enum(PROFESSIONS).optional(),
+  })
+  .superRefine((value, context) => {
+    const wantsOrganization = value.accountType === "organization";
+    if (wantsOrganization !== (value.organization !== undefined)) {
+      context.addIssue({ code: "custom", path: ["organization"], message: "organization" });
+    }
+  });
+export type OnboardingWelcomeInput = z.output<typeof onboardingWelcomeSchema>;
+
 export type OnboardingStepInput<S extends OnboardingInputStep> = z.input<
   (typeof ONBOARDING_STEP_SCHEMAS)[S]
 >;

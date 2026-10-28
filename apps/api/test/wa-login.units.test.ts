@@ -251,9 +251,13 @@ describe("auth routes", () => {
     const status = matchAuthRoute("GET", "/whatsapp/status")?.route;
     expect(status).toMatchObject({ perIp: { max: 60, windowSeconds: 60 }, query: ["token"] });
     expect(status?.turnstile).toBeUndefined();
+    const magic = matchAuthRoute("POST", "/whatsapp/magic")?.route;
+    expect(magic).toMatchObject({ perIp: { max: 20, windowSeconds: 900 } });
+    expect(magic?.body).toBeDefined();
+    expect(matchAuthRoute("GET", "/whatsapp/magic")).toBeUndefined();
     expect(matchAuthRoute("GET", "/whatsapp/start")).toBeUndefined();
     expect(matchAuthRoute("POST", "/whatsapp/status")).toBeUndefined();
-    expect(AUTH_ROUTES.filter((route) => route.pattern.startsWith("/whatsapp"))).toHaveLength(2);
+    expect(AUTH_ROUTES.filter((route) => route.pattern.startsWith("/whatsapp"))).toHaveLength(3);
   });
 });
 

@@ -15,6 +15,7 @@ import { AUTH_MAILER, UnconfiguredMailer, type AuthMailer } from "./mailer.js";
 import { PASSWORD_HASHER, createPasswordHasher, type PasswordHasher } from "./password.js";
 import { AuthRateLimiter } from "./rate-limiter.js";
 import { TurnstileService } from "./turnstile.js";
+import { MagicLinkService } from "./whatsapp-login/magic-link.service.js";
 import { WaLoginConsumer } from "./whatsapp-login/wa-login.consumer.js";
 import { WaLoginStore } from "./whatsapp-login/wa-login.store.js";
 import { WhatsAppLoginRepo } from "./whatsapp-login/whatsapp-login.repo.js";
@@ -42,6 +43,7 @@ import type { Redis } from "ioredis";
       useFactory: (redis: Redis) => new WaLoginStore(redis),
     },
     WhatsAppLoginService,
+    MagicLinkService,
     WaLoginConsumer,
     {
       provide: PASSWORD_HASHER,
@@ -57,6 +59,7 @@ import type { Redis } from "ioredis";
         PinoLogger,
         PASSWORD_HASHER,
         WhatsAppLoginService,
+        MagicLinkService,
         { token: AUTH_MAILER, optional: true },
       ],
       useFactory: (
@@ -66,6 +69,7 @@ import type { Redis } from "ioredis";
         logger: PinoLogger,
         passwords: PasswordHasher,
         whatsappLogin: WhatsAppLoginService,
+        magicLinks: MagicLinkService,
         mailer: AuthMailer | null,
       ) => {
         logger.setContext("Auth");
@@ -76,11 +80,20 @@ import type { Redis } from "ioredis";
           mailer: mailer ?? new UnconfiguredMailer(logger),
           passwords,
           whatsappLogin,
+          magicLinks,
           log: (level, message) => logger[level](message),
         });
       },
     },
   ],
-  exports: [AUTH, AuthService, AuthRateLimiter, TurnstileService, WhatsAppLoginService],
+  exports: [
+    AUTH,
+    AuthService,
+    AuthRateLimiter,
+    TurnstileService,
+    WhatsAppLoginService,
+    MagicLinkService,
+    WhatsAppLoginRepo,
+  ],
 })
 export class AuthModule {}

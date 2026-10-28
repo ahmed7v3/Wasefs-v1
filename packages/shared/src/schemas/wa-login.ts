@@ -95,6 +95,9 @@ export const waLoginStatusResponseSchema = z.object({
 });
 export type WaLoginStatusResponse = z.output<typeof waLoginStatusResponseSchema>;
 
+/** `POST /auth/whatsapp/magic`: the one-time token from the agent's link (base64url, 32 bytes). */
+export const waMagicRequestSchema = z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{43}$/) });
+
 /** `GET /auth/whatsapp/availability`: whether the web draws the button. */
 export const waLoginAvailabilityResponseSchema = z.object({ available: z.boolean() });
 

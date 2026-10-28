@@ -8,6 +8,7 @@
 export const PROTECTED_PREFIXES = [
   "/dashboard",
   "/onboarding",
+  "/welcome",
   "/account",
   "/admin",
   "/analyze",

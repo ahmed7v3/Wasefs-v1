@@ -2,6 +2,7 @@ import {
   WA_LOGIN_COOKIE,
   WA_LOGIN_COOKIE_PATH,
   WA_LOGIN_TTL_SECONDS,
+  waMagicRequestSchema,
 } from "@wasfa/shared/schemas/wa-login";
 import { APIError, createAuthEndpoint } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
@@ -11,7 +12,8 @@ import { AuthCode } from "../auth-errors.js";
 
 import { WaLoginUnavailableError, type WhatsAppLoginService } from "./whatsapp-login.service.js";
 
-import type { BetterAuthPlugin } from "better-auth";
+import type { MagicLinkService } from "./magic-link.service.js";
+import type { BetterAuthPlugin, GenericEndpointContext } from "better-auth";
 
 const cookieOptions = {
   httpOnly: true,
@@ -31,12 +33,33 @@ const cookieOptions = {
  *   Auth's own `createSession`, so the `session.create` hook (suspended users, admin session cap)
  *   applies, and it is tagged `login_method = 'whatsapp'` so the chat's "logout" can undo it.
  */
-export function whatsappLoginPlugin(service: WhatsAppLoginService): BetterAuthPlugin {
+export function whatsappLoginPlugin(
+  service: WhatsAppLoginService,
+  magic: MagicLinkService,
+): BetterAuthPlugin {
   const invalid = () =>
     APIError.from("UNAUTHORIZED", {
       code: AuthCode.INVALID_CREDENTIALS,
       message: "Invalid credentials",
     });
+
+  /** A session through Better Auth (so its hooks apply), tagged for the chat's undo, with its cookie. */
+  async function mintSession(ctx: GenericEndpointContext, userId: string): Promise<void> {
+    const session = await ctx.context.internalAdapter.createSession(userId);
+    try {
+      await service.tagSession(session.id);
+    } catch (error) {
+      // An untagged session could not be undone from the chat: do not hand it out.
+      await service.discardSession(session.id).catch(() => undefined);
+      throw error;
+    }
+    const user = await ctx.context.internalAdapter.findUserById(userId);
+    if (!user) {
+      await service.discardSession(session.id).catch(() => undefined);
+      throw invalid();
+    }
+    await setSessionCookie(ctx, { session, user });
+  }
 
   return {
     id: "wasfa-whatsapp-login",
@@ -78,22 +101,22 @@ export function whatsappLoginPlugin(service: WhatsAppLoginService): BetterAuthPl
           if (result.status !== "approved") return ctx.json({ status: result.status });
 
           // The result was consumed by the poll above: from here on there is exactly one session.
-          const session = await ctx.context.internalAdapter.createSession(result.userId);
-          try {
-            await service.tagSession(session.id);
-          } catch (error) {
-            // An untagged session could not be undone from the chat: do not hand it out.
-            await service.discardSession(session.id).catch(() => undefined);
-            throw error;
-          }
-          const user = await ctx.context.internalAdapter.findUserById(result.userId);
-          if (!user) {
-            await service.discardSession(session.id).catch(() => undefined);
-            throw invalid();
-          }
-          await setSessionCookie(ctx, { session, user });
+          await mintSession(ctx, result.userId);
           ctx.setCookie(WA_LOGIN_COOKIE, "", { ...cookieOptions, maxAge: 0 });
           return ctx.json({ status: "signed_in" as const, isNew: result.isNew });
+        },
+      ),
+
+      // The agent's one-time link: same session, same tag, bearer token instead of the cookie.
+      whatsappMagic: createAuthEndpoint(
+        "/whatsapp/magic",
+        { method: "POST", body: waMagicRequestSchema },
+        async (ctx) => {
+          const redeemed = await magic.redeem(ctx.body.token);
+          // Expired, unknown, used and refused all look the same.
+          if (redeemed === null) throw invalid();
+          await mintSession(ctx, redeemed.userId);
+          return ctx.json({ status: "signed_in" as const, isNew: redeemed.isNew });
         },
       ),
     },

@@ -10,6 +10,7 @@ import { setupServer } from "msw/node";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { TURNSTILE_VERIFY_URL } from "../src/auth/turnstile.js";
+import { MagicLinkService } from "../src/auth/whatsapp-login/magic-link.service.js";
 import { createApp } from "../src/bootstrap.js";
 import { SettingsService } from "../src/settings/settings.service.js";
 
@@ -248,5 +249,42 @@ describe("availability", () => {
     expect((await harness.call("GET", "/auth/whatsapp/availability")).json()).toEqual({
       available: false,
     });
+  });
+});
+
+describe("agent magic link", () => {
+  it("signs in once through POST /auth/whatsapp/magic, tags the session, and refuses a replay", async () => {
+    const phone = newPhone();
+    const [user] = await handle.db
+      .insert(users)
+      .values({
+        name: "Linked",
+        email: `${randomUUID()}@example.com`,
+        phone,
+        phoneVerified: true,
+        phoneVerifiedAt: new Date(),
+      })
+      .returning({ id: users.id });
+    const link = await app.get(MagicLinkService).issue(user?.id ?? "");
+    const token = link.url.split("#t=")[1] ?? "";
+
+    const jar: Jar = new Map();
+    const first = await harness.call("POST", "/auth/whatsapp/magic", { jar, body: { token } });
+    expect(first.statusCode).toBe(200);
+    expect(first.json()).toEqual({ status: "signed_in", isNew: false });
+    expect((await harness.call("GET", "/me", { jar })).statusCode).toBe(200);
+    const rows = await handle.db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.userId, user?.id ?? ""));
+    expect(rows[0]?.loginMethod).toBe(WA_LOGIN_METHOD);
+
+    const replay = await harness.call("POST", "/auth/whatsapp/magic", { body: { token } });
+    expect(replay.statusCode).toBe(401);
+    const unknown = await harness.call("POST", "/auth/whatsapp/magic", {
+      body: { token: "A".repeat(43) },
+    });
+    expect(unknown.statusCode).toBe(401);
+    expect(unknown.json()).toEqual(replay.json());
   });
 });

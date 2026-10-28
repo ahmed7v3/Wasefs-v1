@@ -209,7 +209,10 @@ export class WhatsAppLoginService {
     await this.reply(entry, "logout_ok");
   }
 
-  private async recordSignup(userId: string): Promise<void> {
+  async recordSignup(
+    userId: string,
+    method: "whatsapp" | "whatsapp_agent" = "whatsapp",
+  ): Promise<void> {
     try {
       await this.audit.record(
         {
@@ -217,7 +220,7 @@ export class WhatsAppLoginService {
           action: "auth.signup",
           targetType: "user",
           targetId: userId,
-          after: { signupMethod: "whatsapp" },
+          after: { signupMethod: method },
         },
         { verbatim: true },
       );

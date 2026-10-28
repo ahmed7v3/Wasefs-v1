@@ -158,6 +158,7 @@ describe("a guest", () => {
       "medication_alternatives",
       "send_media",
       "create_document",
+      "create_account",
       "handoff_to_owner",
     ]);
     const rows = await outRows(conversation.id);

@@ -102,9 +102,9 @@ export async function requireMe(nextPath: string): Promise<MeResponse> {
   return me;
 }
 
-/** Like `requireMe`, and sends people who have not finished onboarding there first. */
+/** Like `requireMe`, and sends people who have not finished onboarding to the one-screen welcome first. */
 export async function requireOnboarded(nextPath: string): Promise<MeResponse> {
   const me = await requireMe(nextPath);
-  if (!me.onboarding.done) redirect("/onboarding");
+  if (!me.onboarding.done) redirect("/welcome");
   return me;
 }

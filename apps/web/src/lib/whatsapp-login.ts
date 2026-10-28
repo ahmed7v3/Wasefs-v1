@@ -5,8 +5,16 @@ import type { WaLoginStatusResponse } from "@wasfa/shared/schemas/wa-login";
  * can be unit-tested without a DOM.
  */
 
-/** Where a brand-new account lands. `/welcome` replaces it when the one-screen onboarding ships. */
-export const NEW_ACCOUNT_PATH = "/onboarding";
+/** Where a brand-new account lands: the one-screen onboarding. */
+export const NEW_ACCOUNT_PATH = "/welcome";
+
+const MAGIC_TOKEN = /^[A-Za-z0-9_-]{43}$/;
+
+/** The token of `#t=<token>` (a `location.hash`), or null when it is missing or malformed. */
+export function magicTokenFromHash(hash: string): string | null {
+  const value = new URLSearchParams(hash.replace(/^#/, "")).get("t");
+  return value !== null && MAGIC_TOKEN.test(value) ? value : null;
+}
 
 export type WhatsAppPhase =
   | { kind: "idle" }
