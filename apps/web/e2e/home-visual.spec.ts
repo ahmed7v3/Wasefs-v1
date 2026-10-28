@@ -109,7 +109,10 @@ test("hero on a phone: pill, headline, lead, full-width action, chips, illustrat
   const cta = await page
     .locator('#main section[aria-labelledby="hero-title"] a[href="/register"]')
     .boundingBox();
-  const container = await page.locator('section[aria-labelledby="hero-title"] > div').boundingBox();
+  // The content column, not the decorative dot grid beside it.
+  const container = await page
+    .locator('section[aria-labelledby="hero-title"] > div:not([aria-hidden="true"])')
+    .boundingBox();
   expect(cta && container).toBeTruthy();
   if (cta && container) {
     expect(cta.height).toBeGreaterThanOrEqual(48);
