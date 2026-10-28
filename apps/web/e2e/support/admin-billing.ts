@@ -33,9 +33,11 @@ export interface AdminLogin {
   account: Account;
   userId: string;
   secret: string;
-  /** TOTP steps already spent (a code can be used once). */
-  used: Set<number>;
-  /** A code for a step that is still accepted and not spent. */
+  /**
+   * The code of the current window. The server accepts the window before and after too and does not
+   * refuse a code it has seen, so the current window is the one code that is valid whichever side of
+   * a 30 s edge the server checks it.
+   */
   code: () => string;
 }
 
@@ -58,13 +60,12 @@ async function prepareAccount(
   await page.close();
   const me = await context.request.get(`${urls.api}/me`);
   const userId = ((await me.json()) as { id: string }).id;
-  const enabledAt = Date.now();
   const secret = await enableTwoFactor(context, urls, account);
   await signOutContext(context, urls);
-  return { account, userId, secret, used: new Set([stepOf(enabledAt)]) };
+  return { account, userId, secret };
 }
 
-/** Signs in through the login form: password, then the code of a step that is free. */
+/** Signs in through the login form: password, then the current code. */
 export async function signInThroughUi(page: Page, login: AdminLogin): Promise<void> {
   await page.goto("/login");
   const form = page.getByRole("form", { name: t("auth.tab.email") });
@@ -86,15 +87,7 @@ export async function createAdminLogin(
   const base = await prepareAccount(context, urls, redis, options.label, options.superAdmin);
   const login: AdminLogin = {
     ...base,
-    code: () => {
-      const now = Date.now();
-      const step = [1, 0, -1]
-        .map((offset) => stepOf(now) + offset)
-        .find((candidate) => !login.used.has(candidate));
-      if (step === undefined) throw new Error("no free TOTP step; wait for the next window");
-      login.used.add(step);
-      return totp(base.secret, step * STEP_MS);
-    },
+    code: () => totp(base.secret, stepOf(Date.now()) * STEP_MS),
   };
   return login;
 }
