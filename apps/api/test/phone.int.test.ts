@@ -5,6 +5,7 @@ import {
   WA_HEARTBEAT_KEY,
   WA_INBOUND_STREAM,
   WA_REPLY_STREAM,
+  waLidClaimKey,
   type InboundMessage,
 } from "@wasfa/shared/schemas/phone";
 import { eq } from "drizzle-orm";
@@ -232,6 +233,20 @@ describe("the happy path", () => {
     expect(row).toMatchObject({ phone, phoneVerified: true });
     expect(row.phoneVerifiedAt).toBeInstanceOf(Date);
     expect(await replyFor(inbound.id)).toMatchObject({ outcome: "verified", jid: inbound.jid });
+  });
+
+  it("records the claimed number per code for LID-only senders, and forgets it on a restart", async () => {
+    const { jar } = await harness.signedInUser();
+    const phone = newPhone();
+    const first = (await start(jar, phone)).json<{ code: string }>();
+    expect(await redis.smembers(waLidClaimKey(first.code))).toContain(phone.slice(1));
+    const ttl = await redis.ttl(waLidClaimKey(first.code));
+    expect(ttl).toBeGreaterThan(9 * 60);
+    expect(ttl).toBeLessThanOrEqual(10 * 60);
+
+    const second = (await start(jar, phone)).json<{ code: string }>();
+    expect(await redis.smembers(waLidClaimKey(first.code))).not.toContain(phone.slice(1));
+    expect(await redis.smembers(waLidClaimKey(second.code))).toContain(phone.slice(1));
   });
 
   it("starting again for the same verified number answers verified without a new code", async () => {

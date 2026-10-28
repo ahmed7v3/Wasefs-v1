@@ -171,6 +171,10 @@ campaign `wa_agent`), audited, and visible in the admin coupon list.
   cap in Redis.
 - **Ops:** the `wa-bridge` service needs `R2_UPLOADS_*` and `MEDIA_PUBLIC_ORIGIN` in `compose.prod.yml`;
   add a 1-day lifecycle rule on the `wa/test/` prefix of the uploads bucket (voice-test clips).
+- **LID-only senders (WhatsApp Business):** some chats arrive as `@lid` with no phone-number alternate and
+  no stored mapping. `start` puts the claimed digits in `wa:lidclaim:<code>` (a set, challenge TTL); for a code
+  from such a LID the bridge asks WhatsApp (usync, `getLIDForPN`) for the LID of up to 5 claimed numbers and
+  uses the one equal to the sender's, caching the pair. The pairing comes from WhatsApp, never the message.
 - **Emergency stop:** AI → kill switch `wa_agent` stops the agent instantly; `waAgent.enabled` stops routing
   to the agent; codes are unaffected by both.
 
