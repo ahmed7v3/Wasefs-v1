@@ -50,10 +50,7 @@ for (const { name: pageName, path } of PAGES) {
           return [...document.querySelectorAll("main *")]
             .filter((el) => {
               const box = el.getBoundingClientRect();
-              return (
-                box.width > 0 &&
-                (box.right > width + 1 || box.left < -1)
-              );
+              return box.width > 0 && (box.right > width + 1 || box.left < -1);
             })
             .map((el) => `${el.tagName}.${String(el.getAttribute("class")).slice(0, 50)}`);
         });
@@ -135,16 +132,16 @@ test("journey section: a horizontal stepper on desktop, a vertical one on a phon
   page,
 }) => {
   await open(page, "/", 1440, "no-preference");
-  const rows = await page.locator("#precision ol > li").evaluateAll((items) =>
-    items.map((item) => Math.round(item.getBoundingClientRect().top)),
-  );
+  const rows = await page
+    .locator("#precision ol > li")
+    .evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().top)));
   expect(rows).toHaveLength(4);
   expect(new Set(rows).size, "all four stages share one row").toBe(1);
 
   await open(page, "/", 390, "no-preference");
-  const stack = await page.locator("#precision ol > li").evaluateAll((items) =>
-    items.map((item) => Math.round(item.getBoundingClientRect().top)),
-  );
+  const stack = await page
+    .locator("#precision ol > li")
+    .evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().top)));
   expect(stack).toEqual([...stack].sort((a, b) => a - b));
   expect(new Set(stack).size, "four stages stacked").toBe(4);
 });
