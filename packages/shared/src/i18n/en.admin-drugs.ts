@@ -31,6 +31,7 @@ export const enAdminDrugs: Partial<Record<keyof typeof arAdminDrugs, string>> = 
   "admin.drugs.match.unmatched": "Weak",
   "admin.drugs.matchedOn.brand": "Brand name",
   "admin.drugs.matchedOn.alias": "Alias",
+  "admin.drugs.matchedOn.alias_exact": "Exact alias",
   "admin.drugs.matchedOn.ingredient": "Active ingredient",
   "admin.drugs.strengthState.match": "Strength matches",
   "admin.drugs.strengthState.conflict": "Strength differs",

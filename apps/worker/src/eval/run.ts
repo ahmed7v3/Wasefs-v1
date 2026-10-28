@@ -114,6 +114,7 @@ export async function runEval(deps: EvalRunDeps, runId: string): Promise<void> {
   );
 
   const rx = await readSetting(db, "rx");
+  const medications = await readSetting(db, "medications");
   const items = await loadSetItems(db, run.setId);
   const finished = await doneItemIds(db, runId);
   const queue = items.filter((item) => !finished.has(item.id));
@@ -168,7 +169,7 @@ export async function runEval(deps: EvalRunDeps, runId: string): Promise<void> {
           requestId: runId,
         },
         verifyMaxItems: rx.verifyMaxItems,
-        drugMatching: rx.drugMatching,
+        medications,
         details: false,
         signal: AbortSignal.timeout(EVAL_ITEM_BUDGET_MS),
       });

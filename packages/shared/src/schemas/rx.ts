@@ -5,7 +5,14 @@
 import { z } from "zod";
 
 import { AI_MODES } from "../ai.js";
-import { RX_FIELDS, RX_MAX_PAGES, RX_RATING_NOTE_MAX, RX_RATINGS, RX_STATUSES } from "../rx.js";
+import {
+  RX_FIELDS,
+  RX_LEGIBILITIES,
+  RX_MAX_PAGES,
+  RX_RATING_NOTE_MAX,
+  RX_RATINGS,
+  RX_STATUSES,
+} from "../rx.js";
 
 export const RX_SCHEMA_VERSION = 1;
 
@@ -34,6 +41,17 @@ export const rxExtractItemSchema = z.object({
   duration: text,
   route: text,
   notes: text,
+  /**
+   * Other plausible readings of the NAME exactly as written (0-3). Extra ones are dropped, not an
+   * error; absent in older stored results.
+   */
+  alternatives: z
+    .array(clip(80))
+    .transform((names) => names.filter((name) => name !== "").slice(0, 3))
+    .optional()
+    .default([]),
+  /** How well the name could be read; absent (older results) counts as `partial`. */
+  legibility: z.enum(RX_LEGIBILITIES).optional().default("partial"),
   confidence: z.number().min(0).max(1),
   box_2d: box2dSchema.nullable(),
   page: z
@@ -62,7 +80,7 @@ export const rxExtractionSchema = z.object({
 });
 export type RxExtraction = z.infer<typeof rxExtractionSchema>;
 
-/** `rx_verify` answer per flagged item: a candidate id, free text, or unreadable. */
+/** `rx_verify` answer per flagged item: a candidate id, none of them, free text, or unreadable. */
 export const rxVerifyAnswerSchema = z.object({
   answers: z
     .array(
@@ -77,6 +95,8 @@ export const rxVerifyAnswerSchema = z.object({
           kind: z.literal("other"),
           text: z.string().trim().min(1).max(200),
         }),
+        // The line is readable but is none of the offered candidates: the AI reading stands.
+        z.object({ index: z.number().int().min(0), kind: z.literal("none") }),
         z.object({ index: z.number().int().min(0), kind: z.literal("unreadable") }),
       ]),
     )
@@ -126,6 +146,10 @@ export const rxResultItemSchema = z.object({
   confidence: z.number().min(0).max(1),
   badge: z.enum(RX_CONFIDENCE_BADGES),
   verified: z.enum(["not_needed", "confirmed", "corrected", "unreadable", "skipped"]),
+  /** `ai`: the name is the model's reading, not confirmed in the database. Absent on older results. */
+  source: z.enum(["database", "ai"]).optional(),
+  /** The model's own reading of the name, kept when the name shown is a database brand (feeds learning from corrections). */
+  reading: text.optional(),
   /** Added after the reading by the details step; absent on older results and when it failed. */
   details: rxItemDetailsSchema.nullable().optional(),
   box_2d: box2dSchema.nullable(),
@@ -235,6 +259,8 @@ export const rxExtractionJsonSchema = {
           "duration",
           "route",
           "notes",
+          "alternatives",
+          "legibility",
           "confidence",
           "box_2d",
           "page",
@@ -250,6 +276,18 @@ export const rxExtractionJsonSchema = {
           duration: nullableText,
           route: nullableText,
           notes: nullableText,
+          alternatives: {
+            type: "array",
+            maxItems: 3,
+            items: { type: "string", maxLength: 80 },
+            description:
+              "Other plausible readings of the drug NAME exactly as written; empty when the letters are not ambiguous",
+          },
+          legibility: {
+            type: "string",
+            enum: RX_LEGIBILITIES,
+            description: "How well the drug name could be read",
+          },
           confidence: { type: "number", minimum: 0, maximum: 1 },
           box_2d: { ...box2dJson, type: ["array", "null"] },
           page: pageJson,
@@ -271,7 +309,7 @@ export const rxExtractionJsonSchema = {
   },
 } as const;
 
-/** JSON schema for `rx_verify` (mirrors `rxVerifyAnswerSchema`): one of three closed shapes per item. */
+/** JSON schema for `rx_verify` (mirrors `rxVerifyAnswerSchema`): one of four closed shapes per item. */
 export const rxVerifyJsonSchema = {
   type: "object",
   additionalProperties: false,
@@ -300,6 +338,15 @@ export const rxVerifyJsonSchema = {
               index: { type: "integer", minimum: 0 },
               kind: { type: "string", enum: ["other"] },
               text: { type: "string", maxLength: 200, description: "the text you read" },
+            },
+          },
+          {
+            type: "object",
+            additionalProperties: false,
+            required: ["index", "kind"],
+            properties: {
+              index: { type: "integer", minimum: 0 },
+              kind: { type: "string", enum: ["none"] },
             },
           },
           {

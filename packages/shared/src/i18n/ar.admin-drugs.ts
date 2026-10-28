@@ -37,6 +37,7 @@ export const arAdminDrugs = {
   "admin.drugs.match.score": "{score}%",
   "admin.drugs.matchedOn.brand": "الاسم التجاري",
   "admin.drugs.matchedOn.alias": "اسم بديل",
+  "admin.drugs.matchedOn.alias_exact": "اسم بديل مطابق تمامًا",
   "admin.drugs.matchedOn.ingredient": "مادة فعالة",
   "admin.drugs.strengthState.match": "التركيز مطابق",
   "admin.drugs.strengthState.conflict": "التركيز مختلف",

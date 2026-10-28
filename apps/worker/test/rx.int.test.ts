@@ -92,7 +92,7 @@ beforeAll(async () => {
   worker = createDb({ url: postgres.apiUrl, max: 4 });
   await seedDefaults(owner.db);
   // The suite below exercises the database-matching pipeline; the model-only mode has its own describe.
-  await setRx({ drugMatching: true, details: false });
+  await setRx({ details: false });
   redis = new Redis(redisServer.url, { maxRetriesPerRequest: null });
   subscriber = redis.duplicate();
   subscriber.on("pmessage", (_pattern, channel, message) => {
@@ -171,6 +171,8 @@ const line = (
   duration: "x 5 days",
   route: null,
   notes: null,
+  alternatives: [],
+  legibility: "clear",
   confidence: 0.95,
   box_2d: [100, 100, 200, 600],
   page: 0,
@@ -217,6 +219,18 @@ async function setRx(value: Record<string, unknown> | null): Promise<void> {
     .insert(siteSettings)
     .values({ key: "rx", value: full })
     .onConflictDoUpdate({ target: siteSettings.key, set: { value: full } });
+}
+
+/** The `medications` setting for the next analyses: `null` removes the row, so the defaults apply. */
+async function setMedications(value: Record<string, unknown> | null): Promise<void> {
+  if (value === null) {
+    await owner.db.delete(siteSettings).where(eq(siteSettings.key, "medications"));
+    return;
+  }
+  await owner.db
+    .insert(siteSettings)
+    .values({ key: "medications", value })
+    .onConflictDoUpdate({ target: siteSettings.key, set: { value } });
 }
 
 /** Scripts a provider that reads `extraction` and, when asked to verify, answers with `verify(candidateIds)`. */
@@ -763,9 +777,11 @@ describe("rx.analyze", () => {
 describe("rx.analyze without the drug database (the model reads on its own)", () => {
   beforeAll(async () => {
     await setRx(null);
+    await setMedications({ mode: "ai_only" });
   });
   afterAll(async () => {
-    await setRx({ drugMatching: true, details: false });
+    await setRx({ details: false });
+    await setMedications(null);
   });
 
   it("skips matching and verification, trusts the model's confidence and flags duplicates by generic name", async () => {

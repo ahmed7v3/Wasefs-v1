@@ -11,9 +11,13 @@ import type { PinoLogger } from "nestjs-pino";
 
 const unused = () => Promise.reject(new Error("unused in this test"));
 
-/** `commerce`, `usage` and `documents` ports for tests that never reach them. */
-export const unusedCommerceDeps: Pick<AgentToolDeps, "commerce" | "usage" | "documents"> = {
+/** `commerce`, `usage`, `documents` and `medications` ports for tests that never reach them. */
+export const unusedCommerceDeps: Pick<
+  AgentToolDeps,
+  "commerce" | "usage" | "documents" | "medications"
+> = {
   documents: { create: unused },
+  medications: { search: unused, alternatives: unused, showPrices: unused },
   commerce: { offerDiscount: unused, startSubscription: unused, attachReceipt: unused },
   usage: { analyzePrescription: unused, askMedical: unused },
 };

@@ -160,6 +160,8 @@ export const drugIngredients = pgTable(
   },
   (table) => [
     primaryKey({ columns: [table.drugId, table.ingredientId], name: "drug_ingredients_pkey" }),
+    // Alternatives and ingredient search go from an ingredient to its drugs.
+    index("drug_ingredients_ingredient_idx").on(table.ingredientId),
     check(
       "drug_ingredients_strength_check",
       sql`${table.strengthValueMicro} is null or ${table.strengthValueMicro} >= 0`,

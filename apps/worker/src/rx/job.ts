@@ -96,6 +96,7 @@ export async function rxAnalyzeJob(
 
   try {
     const rx = await readSetting(db, "rx");
+    const medications = await readSetting(db, "medications");
     const pages = await loadPages(db, analysisId);
     const images: Buffer[] = [];
     for (const page of pages) {
@@ -133,7 +134,7 @@ export async function rxAnalyzeJob(
       images,
       base,
       verifyMaxItems: rx.verifyMaxItems,
-      drugMatching: rx.drugMatching,
+      medications,
       details: rx.details,
       signal: budget,
       onStep: async (step, { verifying }) => {

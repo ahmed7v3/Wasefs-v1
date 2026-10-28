@@ -80,6 +80,8 @@ export interface PromptInput {
   history: ChatMessage[];
   userText: string;
   images: { mime: string; data: Uint8Array }[];
+  /** Medication reference cards for the medicines named in the message (`chat-medications.ts`). */
+  medicationReference?: string | null;
 }
 
 export interface BuiltPrompt {
@@ -93,6 +95,8 @@ export function buildPrompt(input: PromptInput): BuiltPrompt {
   const sections = [input.systemPrompt];
   if (input.skillBody !== null && input.skillBody.trim() !== "")
     sections.push(input.skillBody.trim());
+  const reference = input.medicationReference?.trim() ?? "";
+  if (reference !== "") sections.push(reference);
   if (input.summary !== null && input.summary.trim() !== "") {
     sections.push(
       `Summary of the earlier part of this chat:\n${wrapSummary(input.summary.trim())}`,

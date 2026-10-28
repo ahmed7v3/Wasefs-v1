@@ -65,6 +65,7 @@ export function applyCorrection(
       next = {
         ...next,
         name: after,
+        source: "ai",
         matchedDrugId: null,
         matchScore: null,
         activeIngredients: [],
@@ -76,6 +77,7 @@ export function applyCorrection(
       next = {
         ...next,
         name: clamp(drug.brandEn),
+        source: "database",
         matchedDrugId: drug.id,
         matchScore: 1,
         details: null,

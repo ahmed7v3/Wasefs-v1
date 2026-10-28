@@ -141,6 +141,8 @@ const extraction: RxExtraction = {
       duration: "x 5 days",
       route: null,
       notes: null,
+      alternatives: [],
+      legibility: "clear",
       confidence: 0.95,
       box_2d: [100, 100, 200, 600],
       page: 0,

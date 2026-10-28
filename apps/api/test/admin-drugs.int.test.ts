@@ -5,6 +5,8 @@ import {
   drugAliases,
   drugImportBatches,
   drugIngredients,
+  drugLearned,
+  drugUnmatchedNames,
   drugs,
 } from "@wasfa/db";
 import { drugColumns, drugImportKeys } from "@wasfa/shared/drugs";
@@ -41,7 +43,7 @@ afterAll(async () => {
   await ctx.stop();
 });
 
-type Method = "GET" | "POST" | "PATCH";
+type Method = "GET" | "POST" | "PATCH" | "DELETE";
 const call = (
   method: Method,
   url: string,
@@ -460,6 +462,218 @@ describe("merge", () => {
     ).toBe(200);
     expectError(
       await call("POST", "/admin/drugs/merge", boss, { keepId: a, mergeId: b }),
+      404,
+      "NOT_FOUND",
+    );
+  });
+});
+
+// --- Catalog management and review queues (docs/MEDICATIONS.md section 7) ---
+
+describe("catalog management", () => {
+  it("creates a manual entry with ingredients, price and brand family", async () => {
+    const brand = unique("Createx");
+    const created = view(
+      await call("POST", "/admin/drugs", boss, {
+        brandEn: `${brand} 500mg 20 caps`,
+        category: "Antibiotics",
+        priceMinor: 4250,
+        barcode: "6221000012345",
+        ingredients: [{ name: "Createxillin", strength: "500 mg" }],
+      }),
+    );
+    expect(created).toMatchObject({
+      source: "manual",
+      brandKey: brand.toLowerCase(),
+      category: "Antibiotics",
+      priceMinor: 4250,
+      currency: "EGP",
+      ingredients: [{ nameEn: "Createxillin", strengthText: "500 mg" }],
+    });
+    expect(created.adminEditedAt).not.toBeNull();
+    expect(created.priceUpdatedAt).not.toBeNull();
+    const [audit] = await ctx.auditRowsFor("drug.create", created.id);
+    expect(audit?.after).toMatchObject({ category: "Antibiotics" });
+    expectError(
+      await call("POST", "/admin/drugs", boss, { brandEn: "" }),
+      400,
+      "VALIDATION_FAILED",
+    );
+    expectError(
+      await call("POST", "/admin/drugs", boss, { brandEn: "Zzz", priceMinor: 1.5 }),
+      400,
+      "VALIDATION_FAILED",
+    );
+  });
+
+  it("replaces ingredients and re-derives the brand key on edit", async () => {
+    const id = await seed({ brandEn: unique("Editfam"), ingredients: ["Oldingredient"] });
+    const renamed = unique("Newfam");
+    const edited = view(
+      await call("PATCH", `/admin/drugs/${id}`, boss, {
+        brandEn: `${renamed} 10mg`,
+        priceMinor: 900,
+        ingredients: [{ name: "Freshingredient" }],
+      }),
+    );
+    expect(edited.brandKey).toBe(renamed.toLowerCase());
+    expect(edited.priceMinor).toBe(900);
+    expect(edited.ingredients.map((i) => i.nameEn)).toEqual(["Freshingredient"]);
+  });
+
+  it("withdraws, restores and deletes", async () => {
+    const id = await seed({ brandEn: unique("Statusol") });
+    expect(
+      view(await call("POST", `/admin/drugs/${id}/status`, boss, { status: "withdrawn" })).status,
+    ).toBe("withdrawn");
+    expect(
+      view(await call("POST", `/admin/drugs/${id}/status`, boss, { status: "active" })).status,
+    ).toBe("active");
+    expectError(
+      await call("POST", `/admin/drugs/${id}/status`, boss, { status: "gone" }),
+      400,
+      "VALIDATION_FAILED",
+    );
+    const removed = await call("DELETE", `/admin/drugs/${id}`, boss);
+    expect(removed.statusCode, removed.body).toBe(200);
+    expect(removed.json()).toEqual({ deleted: true });
+    expectError(await call("GET", `/admin/drugs/${id}`, boss), 404, "NOT_FOUND");
+    expectError(await call("DELETE", `/admin/drugs/${id}`, boss), 404, "NOT_FOUND");
+    expect(await ctx.auditRowsFor("drug.delete", id)).toHaveLength(1);
+  });
+
+  it("lists by brand with filters and pages", async () => {
+    const category = unique("Cat");
+    for (const suffix of ["a", "b", "c"]) {
+      await call("POST", "/admin/drugs", boss, { brandEn: unique(`List${suffix}`), category });
+    }
+    const first = drugSearchResponseSchema.parse(
+      (await call("GET", `/admin/drugs?category=${category}&limit=2&missing=price`, boss)).json(),
+    );
+    expect(first.items).toHaveLength(2);
+    expect(first.nextCursor).not.toBeNull();
+    const second = drugSearchResponseSchema.parse(
+      (
+        await call(
+          "GET",
+          `/admin/drugs?category=${category}&limit=2&missing=price&cursor=${first.nextCursor ?? ""}`,
+          boss,
+        )
+      ).json(),
+    );
+    expect(second.items).toHaveLength(1);
+    expect(second.nextCursor).toBeNull();
+
+    const categories = (await call("GET", "/admin/drugs/categories", boss)).json() as {
+      items: { category: string; count: number }[];
+    };
+    expect(categories.items).toContainEqual({ category, count: 3 });
+  });
+});
+
+describe("review queues", () => {
+  const reading = () => unique("reading").toLowerCase();
+
+  it("maps an unmatched reading to a drug as an admin alias", async () => {
+    const id = await seed({ brandEn: unique("Mapped") });
+    const normalized = reading();
+    await ctx.owner.db
+      .insert(drugUnmatchedNames)
+      .values({ normalized, sample: normalized.toUpperCase(), hits: 7 });
+
+    const list = (await call("GET", "/admin/drugs/unmatched?status=open", boss)).json() as {
+      items: { normalized: string; hits: number }[];
+    };
+    expect(list.items.find((item) => item.normalized === normalized)?.hits).toBe(7);
+
+    const mapped = await call(
+      "POST",
+      `/admin/drugs/unmatched/${encodeURIComponent(normalized)}/map`,
+      boss,
+      { drugId: id },
+    );
+    expect(mapped.statusCode, mapped.body).toBe(200);
+    const [alias] = await ctx.owner.db.select().from(drugAliases).where(eq(drugAliases.drugId, id));
+    expect(alias).toMatchObject({ normalized, source: "admin" });
+    const [entry] = await ctx.owner.db
+      .select()
+      .from(drugUnmatchedNames)
+      .where(eq(drugUnmatchedNames.normalized, normalized));
+    expect(entry).toMatchObject({ status: "mapped", mappedDrugId: id });
+    expect(await ctx.auditRowsFor("drug.unmatched_map", id)).toHaveLength(1);
+
+    expectError(
+      await call("POST", `/admin/drugs/unmatched/${normalized}/map`, boss, { drugId: MISSING_ID }),
+      404,
+      "NOT_FOUND",
+    );
+  });
+
+  it("ignores an unmatched reading", async () => {
+    const normalized = reading();
+    await ctx.owner.db.insert(drugUnmatchedNames).values({ normalized, sample: normalized });
+    expect(
+      (await call("POST", `/admin/drugs/unmatched/${normalized}/ignore`, boss)).statusCode,
+    ).toBe(200);
+    const [entry] = await ctx.owner.db
+      .select()
+      .from(drugUnmatchedNames)
+      .where(eq(drugUnmatchedNames.normalized, normalized));
+    expect(entry?.status).toBe("ignored");
+    expectError(
+      await call("POST", `/admin/drugs/unmatched/${reading()}/ignore`, boss),
+      404,
+      "NOT_FOUND",
+    );
+  });
+
+  it("approves and rejects learned aliases", async () => {
+    const id = await seed({ brandEn: unique("Learned") });
+    const approved = reading();
+    const rejected = reading();
+    await ctx.owner.db.insert(drugLearned).values([
+      { normalized: approved, drugId: id, votes: 2 },
+      { normalized: rejected, drugId: id, votes: 1 },
+    ]);
+    const list = (await call("GET", "/admin/drugs/learned?status=pending", boss)).json() as {
+      items: { normalized: string; votes: number }[];
+    };
+    expect(list.items.map((item) => item.normalized)).toEqual(
+      expect.arrayContaining([approved, rejected]),
+    );
+
+    expect(
+      (
+        await call("POST", "/admin/drugs/learned/approve", boss, {
+          normalized: approved,
+          drugId: id,
+        })
+      ).statusCode,
+    ).toBe(200);
+    const [alias] = await ctx.owner.db
+      .select()
+      .from(drugAliases)
+      .where(eq(drugAliases.normalized, approved));
+    expect(alias).toMatchObject({ drugId: id, source: "learned" });
+
+    expect(
+      (
+        await call("POST", "/admin/drugs/learned/reject", boss, {
+          normalized: rejected,
+          drugId: id,
+        })
+      ).statusCode,
+    ).toBe(200);
+    const [pair] = await ctx.owner.db
+      .select()
+      .from(drugLearned)
+      .where(eq(drugLearned.normalized, rejected));
+    expect(pair?.status).toBe("rejected");
+    expectError(
+      await call("POST", "/admin/drugs/learned/reject", boss, {
+        normalized: reading(),
+        drugId: id,
+      }),
       404,
       "NOT_FOUND",
     );

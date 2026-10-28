@@ -229,8 +229,9 @@ export const rxSettingsSchema = z.object({
   /** Items re-read by the verification pass. */
   verifyMaxItems: z.number().int().min(0).max(20).default(5),
   /**
-   * Match every line to the drug database and re-read doubtful ones against it. Off by default: the
-   * model reads on its own (with the strong skill prompt) and confidence comes from the model alone.
+   * Retired (docs/MEDICATIONS.md section 3): the worker ignores it. Recognition uses the drug database
+   * iff `medications.enabled && medications.mode === "hybrid"`. The key stays so stored settings and
+   * the admin form keep parsing.
    */
   drugMatching: z.boolean().default(false),
   /** Add the general information (purpose, side effects, precautions, overview) to every result. */

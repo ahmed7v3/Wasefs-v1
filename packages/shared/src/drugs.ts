@@ -21,7 +21,8 @@ export const DRUG_MATCH_ACCEPT = 0.85;
 export const DRUG_MATCH_VERIFY = 0.5;
 export const DRUG_MATCH_LIMIT = 5;
 
-export type DrugMatchedOn = "brand" | "alias" | "ingredient";
+/** `alias_exact`: the normalized text equals a learned or admin alias exactly (score 1.0). */
+export type DrugMatchedOn = "brand" | "alias" | "ingredient" | "alias_exact";
 export type DrugStrengthState = "match" | "conflict" | "unknown";
 export type DrugFormState = "match" | "mismatch" | "unknown";
 export type DrugMatchClass = "accept" | "verify" | "unmatched";
@@ -42,12 +43,19 @@ export interface DrugMatchCandidate {
   strengthText: string | null;
   manufacturer: string | null;
   status: "active" | "withdrawn";
+  /** The brand family (`brandKeyOf`): variants of one brand share it. Empty until backfilled. */
+  brandKey: string;
   /** Final score, 0-1: name similarity plus the strength and form adjustments. */
   score: number;
   explanation: DrugMatchExplanation;
 }
 
-/** What to do with a candidate: the only place the three zones are decided. */
+/**
+ * What to do with ONE candidate by the fixed default thresholds. Kept for callers that have a single
+ * candidate and no reading context (admin search, the correction picker). Prescription recognition
+ * uses `decideMatch` (drug-decision.ts), which also weighs the brand-family margin, the legibility
+ * and the origin of the reading, with thresholds from the `medications` settings.
+ */
 export function classifyMatch(
   candidate: Pick<DrugMatchCandidate, "score" | "explanation"> | undefined,
 ): DrugMatchClass {

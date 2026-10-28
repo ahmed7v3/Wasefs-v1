@@ -3,6 +3,7 @@ import type { DocumentCall } from "../../documents/agent-document.service.js";
 import type { ToolDefinition } from "@wasfa/ai";
 import type { CatalogResponse } from "@wasfa/shared/schemas/billing";
 import type { MediaAsset } from "@wasfa/shared/schemas/media";
+import type { MedicationSummary } from "@wasfa/shared/schemas/medications";
 import type { WaAgentOutboundPart } from "@wasfa/shared/schemas/wa-agent";
 import type { WaAgentSettings } from "@wasfa/shared/settings";
 import type { z } from "zod";
@@ -72,7 +73,18 @@ export interface AgentToolDeps {
     analyzePrescription: (call: AgentCall) => Promise<AgentToolResult>;
     askMedical: (call: AgentCall, question: string) => Promise<AgentToolResult>;
   };
+  /** The medication database (docs/MEDICATIONS.md section 5): free for guests and linked chats. */
+  medications: {
+    search: (query: string, limit: number) => Promise<MedicationSummary[]>;
+    /** Same active-ingredient set, cheapest first. */
+    alternatives: (drugId: string, limit: number) => Promise<MedicationSummary[]>;
+    /** `medications.search.showPrices`: when false the tools leave prices out. */
+    showPrices: () => Promise<boolean>;
+  };
 }
+
+/** Admin switches that gate a whole tool (checked when the turn's tools are chosen). */
+export type AgentToolFeature = "medications";
 
 /** One turn's state, bound to one conversation. Tools read the account from here, never from the model. */
 export interface AgentToolContext {
@@ -95,6 +107,8 @@ export interface AgentTool {
   schema: z.ZodType;
   /** Not offered to (and refused for) a guest. */
   linkedOnly: boolean;
+  /** Offered only while this admin switch is on. */
+  feature?: AgentToolFeature;
   handler: (ctx: AgentToolContext, args: unknown) => Promise<unknown> | unknown;
 }
 
@@ -103,12 +117,14 @@ export function defineTool<S extends z.ZodType>(tool: {
   definition: ToolDefinition;
   schema: S;
   linkedOnly: boolean;
+  feature?: AgentToolFeature;
   handler: (ctx: AgentToolContext, args: z.output<S>) => Promise<unknown> | unknown;
 }): AgentTool {
   return {
     definition: tool.definition,
     schema: tool.schema,
     linkedOnly: tool.linkedOnly,
+    ...(tool.feature === undefined ? {} : { feature: tool.feature }),
     // The registry parses with `schema` before it calls, so the cast only restores the known type.
     handler: (ctx, args) => tool.handler(ctx, args as z.output<S>),
   };

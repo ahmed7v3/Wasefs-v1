@@ -31,12 +31,19 @@ export interface MatchDrugOptions {
   form?: string | null;
   /** Candidates to return; default 5. */
   limit?: number;
+  /** Trigram floor for a candidate; default `DRUG_SIMILARITY_THRESHOLD`. The `medications` settings override it. */
+  similarityFloor?: number;
+  /** Score adjustments; default to the constants in `@wasfa/shared/drugs`. */
+  strengthBonus?: number;
+  strengthConflictPenalty?: number;
+  formBonus?: number;
 }
 
 type MatchRow = {
   drug_id: string;
   brand_en: string;
   brand_ar: string | null;
+  brand_key: string;
   form: string | null;
   strength_text: string | null;
   manufacturer: string | null;
@@ -91,12 +98,17 @@ export function prepareMatch(text: string, options: MatchDrugOptions): Prepared 
   };
 }
 
+const clamp01 = (value: number): number =>
+  Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
+
 const round4 = (value: number): number => Math.round(value * 10_000) / 10_000;
 
 /**
  * The best candidates for a name as printed on a prescription, a box or a list.
  * Score = name similarity, +0.10 for an equal strength, -0.15 for a conflicting one (a strength was
- * given and the drug has strengths, none equal), +0.05 for the same form, clamped to 0-1.
+ * given and the drug has strengths, none equal), +0.05 for the same form, clamped to 0-1 (the numbers
+ * are the defaults of `options`). A text equal to a learned or admin alias is an `alias_exact` hit with
+ * name score 1.
  */
 export async function matchDrug(
   db: Database,
@@ -107,6 +119,12 @@ export async function matchDrug(
   if (prepared.name === "") return [];
   const limit = Math.max(1, Math.min(options.limit ?? DRUG_MATCH_LIMIT, 100));
   const { name, micro, unit, form } = prepared;
+  const floor = clamp01(options.similarityFloor ?? DRUG_SIMILARITY_THRESHOLD);
+  const strengthBonus = clamp01(options.strengthBonus ?? DRUG_STRENGTH_BONUS);
+  const strengthPenalty = clamp01(
+    options.strengthConflictPenalty ?? DRUG_STRENGTH_CONFLICT_PENALTY,
+  );
+  const formBonus = clamp01(options.formBonus ?? DRUG_FORM_BONUS);
 
   // Latin text shares no trigram with an Arabic name: skip scanning that index for it.
   const arabicBrands = ARABIC_LETTER.test(name)
@@ -117,16 +135,18 @@ export async function matchDrug(
     : sql``;
 
   const rows = await db.transaction(async (tx) => {
-    // SET LOCAL takes no parameters; the value is a constant of ours, never input.
-    await tx.execute(
-      sql.raw(`set local pg_trgm.similarity_threshold = ${DRUG_SIMILARITY_THRESHOLD}`),
-    );
+    // SET LOCAL takes no parameters; the value is a finite number clamped to 0-1 above, never raw input.
+    await tx.execute(sql.raw(`set local pg_trgm.similarity_threshold = ${floor}`));
     return await tx.execute<MatchRow>(sql`
       with hits as (
         select d.id as drug_id, similarity(d.normalized_en, ${name}::text) as s, 'brand' as src
         from drugs d
         where d.normalized_en % ${name}::text
         ${arabicBrands}
+        union all
+        select a.drug_id, 1::float4, 'alias_exact'
+        from drug_aliases a
+        where a.normalized = ${name}::text and a.source in ('learned', 'admin')
         union all
         select a.drug_id, similarity(a.normalized, ${name}::text), 'alias'
         from drug_aliases a
@@ -140,11 +160,12 @@ export async function matchDrug(
       best as (
         select distinct on (drug_id) drug_id, s, src
         from hits
-        order by drug_id, s desc, (case src when 'brand' then 0 when 'alias' then 1 else 2 end)
+        order by drug_id, s desc,
+          (case src when 'alias_exact' then 0 when 'brand' then 1 when 'alias' then 2 else 3 end)
       ),
       judged as (
         select
-          d.id, d.brand_en, d.brand_ar, d.form, d.strength_text, d.manufacturer, d.status,
+          d.id, d.brand_en, d.brand_ar, d.brand_key, d.form, d.strength_text, d.manufacturer, d.status,
           b.s, b.src,
           case
             when ${micro}::bigint is null then 'unknown'
@@ -175,20 +196,21 @@ export async function matchDrug(
         select
           judged.*,
           s
-          + (case strength_state when 'match' then ${DRUG_STRENGTH_BONUS}::float8
-                                 when 'conflict' then -${DRUG_STRENGTH_CONFLICT_PENALTY}::float8
+          + (case strength_state when 'match' then ${strengthBonus}::float8
+                                 when 'conflict' then -${strengthPenalty}::float8
                                  else 0 end)
-          + (case form_state when 'match' then ${DRUG_FORM_BONUS}::float8 else 0 end) as raw
+          + (case form_state when 'match' then ${formBonus}::float8 else 0 end) as raw
         from judged
       )
       select
-        id as drug_id, brand_en, brand_ar, form, strength_text, manufacturer, status,
+        id as drug_id, brand_en, brand_ar, brand_key, form, strength_text, manufacturer, status,
         round(s::numeric, 4)::float8 as name_score,
         round(least(1, greatest(0, raw))::numeric, 4)::float8 as score,
         src as matched_on, strength_state, form_state
       from scored
       -- The clamp would tie everything above 1; the raw sum still ranks a form match first.
-      order by raw desc, (case src when 'brand' then 0 when 'alias' then 1 else 2 end),
+      order by raw desc,
+               (case src when 'alias_exact' then 0 when 'brand' then 1 when 'alias' then 2 else 3 end),
                brand_en, id
       limit ${limit}
     `);
@@ -198,6 +220,7 @@ export async function matchDrug(
     drugId: row.drug_id,
     brandEn: row.brand_en,
     brandAr: row.brand_ar,
+    brandKey: row.brand_key,
     form: row.form,
     strengthText: row.strength_text,
     manufacturer: row.manufacturer,

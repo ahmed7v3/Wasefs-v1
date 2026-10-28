@@ -33,6 +33,10 @@ export const RX_FIELDS = [
 ] as const;
 export type RxField = (typeof RX_FIELDS)[number];
 
+/** How well the model could read the NAME of a line (docs/MEDICATIONS.md section 4). */
+export const RX_LEGIBILITIES = ["clear", "partial", "unclear"] as const;
+export type RxLegibility = (typeof RX_LEGIBILITIES)[number];
+
 /** A prescription has one to four pages (one file each). */
 export const RX_MAX_PAGES = 4;
 

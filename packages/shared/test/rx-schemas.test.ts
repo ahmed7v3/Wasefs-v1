@@ -88,6 +88,8 @@ const item = {
   duration: "x 7 days",
   route: null,
   notes: null,
+  alternatives: ["Amoxil"],
+  legibility: "partial",
   confidence: 0.92,
   box_2d: [100, 50, 160, 900],
   page: 0,
@@ -108,6 +110,8 @@ const extractionCases: [name: string, value: unknown, valid: boolean][] = [
     { ...extraction, items: [{ ...item, name: null, activeIngredient: null, box_2d: null }] },
     true,
   ],
+  ["no alternatives", { ...extraction, items: [{ ...item, alternatives: [] }] }, true],
+  ["unknown legibility", { ...extraction, items: [{ ...item, legibility: "perfect" }] }, false],
   ["confidence above 1", { ...extraction, items: [{ ...item, confidence: 1.4 }] }, false],
   ["negative confidence", { ...extraction, items: [{ ...item, confidence: -0.1 }] }, false],
   ["page out of range", { ...extraction, items: [{ ...item, page: 4 }] }, false],
@@ -335,5 +339,23 @@ describe("model-only results and the details step", () => {
   it("finalConfidence keeps the model's own number without the database", () => {
     expect(finalConfidence({ model: 0.92, match: null, modelOnly: true })).toBe(0.92);
     expect(finalConfidence({ model: 0.92, match: null })).toBe(RX_UNMATCHED_CONFIDENCE_CAP);
+  });
+});
+
+describe("rxExtractionSchema alternatives and legibility", () => {
+  it("trims a long list instead of failing the reading", () => {
+    const parsed = rxExtractionSchema.parse({
+      ...extraction,
+      items: [{ ...item, alternatives: ["a", " ", "b", "c", "d"] }],
+    });
+    expect(parsed.items[0]?.alternatives).toEqual(["a", "b", "c"]);
+  });
+
+  it("defaults for results stored before the fields existed", () => {
+    const old: Record<string, unknown> = { ...item };
+    delete old.alternatives;
+    delete old.legibility;
+    const parsed = rxExtractionSchema.parse({ ...extraction, items: [old] });
+    expect(parsed.items[0]).toMatchObject({ alternatives: [], legibility: "partial" });
   });
 });
