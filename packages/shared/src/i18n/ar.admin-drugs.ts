@@ -222,5 +222,200 @@ export const arAdminDrugs = {
   "admin.drugs.imports.rerunStarted": "بدأت إعادة الفحص.",
   "admin.drugs.imports.noWrite": "ليست لديك صلاحية تعديل قاعدة الأدوية: يمكنك المعاينة فقط.",
 
-  // API reasons
+  // Navigation (medications group)
+  "admin.nav.drugReview": "مراجعة الأسماء",
+  "admin.nav.drugReview.description": "الأسماء التي لم تُطابق وما تعلّمه النظام من المستخدمين.",
+  "admin.nav.drugRecognition": "إعدادات التعرّف",
+  "admin.nav.drugRecognition.description": "تشغيل التعرّف على الأدوية وضبط صرامته وتجربته.",
+
+  // Browser: filters, columns, actions
+  "admin.drugs.filter.category": "التصنيف",
+  "admin.drugs.filter.all": "الكل",
+  "admin.drugs.filter.missing": "بيانات ناقصة",
+  "admin.drugs.filter.missing.ingredient": "بلا مادة فعالة",
+  "admin.drugs.filter.missing.price": "بلا سعر",
+  "admin.drugs.filter.missing.category": "بلا تصنيف",
+  "admin.drugs.filter.status": "الحالة",
+  "admin.drugs.filter.edited": "التعديل",
+  "admin.drugs.filter.edited.true": "عدّله مشرف",
+  "admin.drugs.filter.edited.false": "لم يُعدَّل",
+  "admin.drugs.col.pack": "العبوة",
+  "admin.drugs.col.price": "السعر",
+  "admin.drugs.col.category": "التصنيف",
+  "admin.drugs.col.actions": "الإجراءات",
+  "admin.drugs.edited": "معدَّل",
+  "admin.drugs.action.edit": "فتح وتعديل",
+  "admin.drugs.action.withdraw": "سحب من التداول",
+  "admin.drugs.action.restore": "إعادة للتداول",
+  "admin.drugs.action.delete": "حذف نهائي",
+  "admin.drugs.withdrawn": "سُحب {name} من التداول.",
+  "admin.drugs.restored": "أُعيد {name} للتداول.",
+  "admin.drugs.statusFailed": "تعذّر تغيير الحالة. أعد المحاولة.",
+  "admin.drugs.deleted": "حُذف {name}.",
+  "admin.drugs.delete.title": "حذف {name} نهائيًا؟",
+  "admin.drugs.delete.body":
+    "يُحذف الدواء مع أسمائه البديلة ومواده الفعالة ولا يمكن التراجع. إن كان الدواء مسحوبًا من السوق فاسحبه بدل حذفه.",
+  "admin.drugs.delete.confirm": "احذف الدواء",
+
+  // Entry form
+  "admin.drugs.create.button": "دواء جديد",
+  "admin.drugs.create.title": "دواء جديد",
+  "admin.drugs.create.save": "إضافة الدواء",
+  "admin.drugs.create.saved": "أُضيف {name} إلى القاعدة.",
+  "admin.drugs.field.packText": "العبوة",
+  "admin.drugs.field.unitsCount": "عدد الوحدات في العبوة",
+  "admin.drugs.field.category": "التصنيف",
+  "admin.drugs.field.barcode": "الباركود",
+  "admin.drugs.field.barcodeHint": "من 8 إلى 14 رقمًا.",
+  "admin.drugs.field.price": "السعر (جنيه)",
+  "admin.drugs.field.oldPrice": "السعر السابق (جنيه)",
+  "admin.drugs.field.priceHint": "بالجنيه ورقمان بعد الفاصلة، مثل 42.50.",
+  "admin.drugs.field.currency": "العملة",
+  "admin.drugs.field.ingredientsHint":
+    "المادة الفعالة وتركيزها، حتى 12 مادة. اترك التركيز فارغًا إن لم يُعرف.",
+  "admin.drugs.field.ingredientName": "المادة الفعالة {n}",
+  "admin.drugs.field.ingredientStrength": "تركيزها {n}",
+  "admin.drugs.field.ingredientRemove": "حذف المادة الفعالة {n}",
+  "admin.drugs.field.ingredientAdd": "إضافة مادة فعالة",
+  "admin.drugs.form.priceInvalid": "اكتب مبلغًا صحيحًا بحد أقصى رقمين بعد الفاصلة.",
+  "admin.drugs.form.unitsInvalid": "اكتب عددًا صحيحًا.",
+
+  // Drug picker
+  "admin.drugs.picker.search": "ابحث عن الدواء",
+  "admin.drugs.picker.pick": "اختر الدواء",
+
+  // Review queues
+  "admin.drugs.review.tab.unmatched": "أسماء لم تُطابق",
+  "admin.drugs.review.tab.learned": "أسماء تعلّمها النظام",
+  "admin.drugs.review.unmatched.lead":
+    "أسماء قُرئت من الروشتات ولم يجد لها النظام دواءً. اربط الاسم بدواء موجود أو أنشئ له دواءً جديدًا، وسيتعرّف عليه النظام مستقبلًا.",
+  "admin.drugs.review.unmatched.empty": "لا توجد أسماء بانتظار المراجعة.",
+  "admin.drugs.review.learned.lead":
+    "أسماء اختار المستخدمون لها الدواء نفسه. اعتمد الاقتران الصحيح ليصبح الاسم بديلًا معتمدًا، أو ارفضه.",
+  "admin.drugs.review.learned.empty": "لا توجد أسماء بانتظار الاعتماد.",
+  "admin.drugs.review.col.sample": "الاسم كما قُرئ",
+  "admin.drugs.review.col.normalized": "بعد التوحيد",
+  "admin.drugs.review.col.hits": "مرات الظهور",
+  "admin.drugs.review.col.lastSeen": "آخر ظهور",
+  "admin.drugs.review.col.reading": "الاسم",
+  "admin.drugs.review.col.drug": "الدواء المقترح",
+  "admin.drugs.review.col.votes": "عدد المستخدمين",
+  "admin.drugs.review.map": "ربط بدواء",
+  "admin.drugs.review.create": "إنشاء دواء",
+  "admin.drugs.review.ignore": "تجاهل",
+  "admin.drugs.review.approve": "اعتماد",
+  "admin.drugs.review.reject": "رفض",
+  "admin.drugs.review.mapFor": "ربط {name} بدواء",
+  "admin.drugs.review.createFor": "إنشاء دواء باسم {name}",
+  "admin.drugs.review.ignoreFor": "تجاهل {name}",
+  "admin.drugs.review.approveFor": "اعتماد {name}",
+  "admin.drugs.review.rejectFor": "رفض {name}",
+  "admin.drugs.review.mapTitle": "ربط «{name}» بدواء",
+  "admin.drugs.review.mapBody": "اختر الدواء الصحيح لهذا الاسم. سيُضاف الاسم كاسم بديل معتمد له.",
+  "admin.drugs.review.mapConfirm": "اربط الاسم",
+  "admin.drugs.review.mapped": "رُبط الاسم «{name}» بالدواء.",
+  "admin.drugs.review.ignored": "تم تجاهل «{name}».",
+  "admin.drugs.review.approved": "اعتُمد الاسم «{name}».",
+  "admin.drugs.review.rejected": "رُفض الاسم «{name}».",
+  "admin.drugs.review.failed": "تعذّر تنفيذ الإجراء. أعد المحاولة.",
+
+  // Recognition page and sandbox
+  "admin.drugs.recognition.noSettings":
+    "ليست لديك صلاحية عرض الإعدادات. يمكنك تجربة الأسماء أدناه.",
+  "admin.drugs.sandbox.title": "تجربة التعرّف",
+  "admin.drugs.sandbox.lead":
+    "اكتب اسمًا كما يُكتب في الروشتة لترى ما يفعله النظام به بالإعدادات المحفوظة أعلاه. غيّر إعدادًا واحفظه ثم أعد التجربة.",
+  "admin.drugs.sandbox.name": "اسم الدواء كما كُتب",
+  "admin.drugs.sandbox.legibility": "وضوح الخط",
+  "admin.drugs.sandbox.legibility.clear": "واضح",
+  "admin.drugs.sandbox.legibility.partial": "واضح جزئيًا",
+  "admin.drugs.sandbox.legibility.unclear": "غير واضح",
+  "admin.drugs.sandbox.run": "جرّب",
+  "admin.drugs.sandbox.score": "الدرجة",
+  "admin.drugs.sandbox.matchedOn": "تطابق على",
+  "admin.drugs.sandbox.family": "عائلة الماركة",
+  "admin.drugs.sandbox.engineOff":
+    "التعرّف على الأدوية مُعطَّل حاليًا أو يعمل بالذكاء الاصطناعي فقط، فلا تُستخدم القاعدة في الروشتات الآن. هذه النتيجة ما سيحدث عند تشغيله.",
+  "admin.drugs.sandbox.decision": "القرار",
+  "admin.drugs.sandbox.class.accept": "يُقبل تلقائيًا",
+  "admin.drugs.sandbox.class.verify": "يُرسل للتحقق",
+  "admin.drugs.sandbox.class.unmatched": "لا يُطابق",
+  "admin.drugs.sandbox.chosen": "الدواء المختار:",
+  "admin.drugs.sandbox.familyOnly":
+    "للماركة عدة تراكيز ولم يُكتب تركيز، فيُؤخذ الاسم والمواد الفعالة من القاعدة دون التركيز أو العبوة.",
+  "admin.drugs.sandbox.candidates": "المرشحون",
+  "admin.drugs.sandbox.noCandidates": "لم يُعثر على أي دواء قريب من هذا الاسم.",
+  "admin.drugs.sandbox.reason.accepted":
+    "أعلى مرشح بلغ درجة القبول ({accept}%) وبينه وبين أقرب ماركة أخرى فارق كافٍ، فيُقبل تلقائيًا.",
+  "admin.drugs.sandbox.reason.no_candidates": "لم يُعثر على أي دواء قريب من هذا الاسم، فلا مطابقة.",
+  "admin.drugs.sandbox.reason.below_review":
+    "أعلى درجة أقل من حد المراجعة ({review}%)، فيُعدّ الاسم غير مطابق ويبقى كما قرأه النموذج.",
+  "admin.drugs.sandbox.reason.below_accept":
+    "الدرجة بين حد المراجعة ({review}%) وحد القبول التلقائي ({accept}%)، فيُطلب التحقق.",
+  "admin.drugs.sandbox.reason.strength_conflict":
+    "التركيز المكتوب يختلف عن تركيز الدواء الأقرب، فيُطلب التحقق.",
+  "admin.drugs.sandbox.reason.ingredient_only":
+    "التطابق على المادة الفعالة فقط لا على اسم تجاري، وقد تنطبق على أدوية كثيرة، فيُطلب التحقق.",
+  "admin.drugs.sandbox.reason.via_alternative":
+    "التطابق جاء من قراءة بديلة للاسم لا من القراءة الأولى، فيُطلب التحقق.",
+  "admin.drugs.sandbox.reason.unclear_handwriting":
+    "الخط غير واضح، فلا يُقبل الاسم تلقائيًا مهما بلغت الدرجة.",
+  "admin.drugs.sandbox.reason.ambiguous_family":
+    "توجد ماركة أخرى قريبة جدًا من الأولى (الفارق أقل من {margin}%)، فيُطلب التحقق.",
+  "admin.drugs.sandbox.reason.alias_exact": "الاسم مطابق تمامًا لاسم بديل معتمد، فيُقبل مباشرة.",
+
+  // Settings page of the `medications` key
+  "admin.settings.option.hybrid": "مختلط (الذكاء الاصطناعي مع قاعدة الأدوية)",
+  "admin.settings.option.ai_only": "ذكاء اصطناعي فقط",
+  "admin.settings.section.medications.status": "التشغيل",
+  "admin.settings.section.medications.status.description":
+    "المفتاحان الرئيسيان: هل تُستخدم قاعدة الأدوية في التعرّف على الروشتات، وبأي طريقة.",
+  "admin.settings.section.medications.decision": "حدود القرار",
+  "admin.settings.section.medications.decision.description":
+    "متى يُقبل الاسم تلقائيًا ومتى يُطلب التحقق منه ومتى يُهمل. الدرجات من 0 إلى 1.",
+  "admin.settings.section.medications.scoring": "طريقة المطابقة",
+  "admin.settings.section.medications.scoring.description":
+    "كيف تُحسب درجة كل دواء مرشح وكم مرشحًا يُعرض. غيّرها بحذر وجرّب النتيجة في أداة التجربة بالأسفل.",
+  "admin.settings.section.medications.learning": "التعلّم من المستخدمين",
+  "admin.settings.section.medications.learning.description":
+    "كيف يتعلّم النظام أسماء جديدة من اختيارات المستخدمين.",
+  "admin.settings.section.medications.features": "أماكن ظهور الأدوية",
+  "admin.settings.section.medications.features.description":
+    "بطاقات المساعد وأدوات واتساب وصفحة البحث عن الأدوية.",
+  "admin.settings.help.medications.enabled":
+    "مفتاح التشغيل الرئيسي. عند إيقافه يعتمد التعرّف على الذكاء الاصطناعي وحده، وتختفي صفحة البحث والبطاقات من الموقع.",
+  "admin.settings.help.medications.mode":
+    "مختلط: يقرأ الذكاء الاصطناعي الاسم ثم يُصحَّح بقاعدة الأدوية. ذكاء اصطناعي فقط: لا تتدخل القاعدة في الروشتات، ويبقى البحث متاحًا.",
+  "admin.settings.help.medications.acceptScore":
+    "أقل درجة تُقبل بها المطابقة تلقائيًا دون مراجعة. رفعها يعني تحققًا أكثر وأخطاء أقل.",
+  "admin.settings.help.medications.reviewScore":
+    "تحت هذه الدرجة يُهمل الاسم ولا يُعرض للتحقق. يجب أن تكون أقل من درجة القبول.",
+  "admin.settings.help.medications.minMargin":
+    "الفارق المطلوب بين أفضل دواء وأقرب ماركة أخرى ليُقبل تلقائيًا، حتى لا يُخلط بين اسمين متشابهين.",
+  "admin.settings.help.medications.similarityFloor":
+    "أقل تشابه في الحروف ليدخل الدواء قائمة المرشحين أصلًا. خفضه يعطي مرشحين أكثر وضوضاء أكثر.",
+  "admin.settings.help.medications.strengthBonus":
+    "تُضاف للدرجة حين يطابق التركيز المكتوب تركيز الدواء.",
+  "admin.settings.help.medications.strengthConflictPenalty":
+    "تُخصم من الدرجة حين يختلف التركيز المكتوب عن كل تراكيز الدواء.",
+  "admin.settings.help.medications.formBonus":
+    "تُضاف للدرجة حين يطابق الشكل الدوائي المكتوب شكل الدواء.",
+  "admin.settings.help.medications.maxCandidates": "أقصى عدد أدوية مرشحة لكل سطر في الروشتة.",
+  "admin.settings.help.medications.useAlternatives":
+    "يجرّب النظام القراءات البديلة للاسم التي يقترحها الذكاء الاصطناعي إن لم تنجح القراءة الأولى.",
+  "admin.settings.help.medications.learnAutoApproveAt":
+    "عدد المستخدمين المختلفين الذين يجب أن يختاروا الدواء نفسه ليُعتمد الاسم تلقائيًا. صفر يعني أن المشرف وحده يعتمد.",
+  "admin.settings.help.medications.logUnmatched":
+    "يحفظ الأسماء التي لم تُطابق لتراجعها في صفحة مراجعة الأسماء.",
+  "admin.settings.help.medications.chatCards":
+    "بطاقات الأدوية التي يعرضها مساعد الدردشة حين يتحدث عن دواء.",
+  "admin.settings.help.medications.chatCards.enabled": "عرض بطاقة لكل دواء يذكره المساعد.",
+  "admin.settings.help.medications.chatCards.max":
+    "الحد الأقصى للبطاقات في الرسالة الواحدة. صفر يعني بلا بطاقات.",
+  "admin.settings.help.medications.waTools":
+    "يسمح لوكيل واتساب بالبحث في قاعدة الأدوية والرد بالسعر والبدائل.",
+  "admin.settings.help.medications.search": "صفحة البحث العامة عن الأدوية للمستخدمين.",
+  "admin.settings.help.medications.search.enabled": "إظهار صفحة البحث عن الأدوية للمستخدمين.",
+  "admin.settings.help.medications.search.showPrices":
+    "عرض سعر الدواء في نتائج البحث وصفحة الدواء. أوقفه إن لم تكن الأسعار محدّثة.",
 } as const;

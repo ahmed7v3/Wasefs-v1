@@ -17,6 +17,7 @@ import {
   type SettingScales,
 } from "../../lib/setting-fields";
 import {
+  HIDDEN_SETTING_FIELDS,
   SETTING_LAYOUTS,
   SETTING_UNITS,
   UNIT_SCALE,
@@ -143,7 +144,13 @@ function sameDraft(a: SettingDraft, b: SettingDraft): boolean {
  * are mapped back onto the inputs. A key the account may only read renders the same fields, disabled.
  */
 export function SettingForm({ settingKey, value, canWrite, onSave }: SettingFormProps) {
-  const fields = useMemo(() => settingFields(SETTINGS_REGISTRY[settingKey].schema), [settingKey]);
+  const fields = useMemo(
+    () =>
+      settingFields(SETTINGS_REGISTRY[settingKey].schema).filter(
+        (field) => !HIDDEN_SETTING_FIELDS.has(`${settingKey}.${field.path}`),
+      ),
+    [settingKey],
+  );
   const scales = useMemo<SettingScales>(() => {
     const result: Record<string, number> = {};
     for (const leaf of leaves(fields)) {

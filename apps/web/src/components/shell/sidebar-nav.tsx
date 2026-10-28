@@ -61,7 +61,13 @@ const ITEMS: readonly NavItem[] = [
     icon: Sparkles,
     match: (pathname) => pathname === "/ai" || pathname.startsWith("/ai/"),
   },
-  { kind: "soon", label: "nav.drugs", icon: Pill },
+  {
+    kind: "link",
+    href: "/medications",
+    label: "nav.drugs",
+    icon: Pill,
+    match: (pathname) => pathname === "/medications" || pathname.startsWith("/medications/"),
+  },
   {
     kind: "link",
     href: "/billing",

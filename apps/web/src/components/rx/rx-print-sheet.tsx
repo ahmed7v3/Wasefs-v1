@@ -124,6 +124,9 @@ export function RxPrintSheet({ result, branding, siteUrl, reportDate }: RxPrintS
                     <bdi>{item.activeIngredients.join(" + ")}</bdi>
                   </span>
                 ) : null}
+                {item.source === "ai" ? (
+                  <span className="block text-xs font-normal">{t("rx.source.ai")}</span>
+                ) : null}
                 {needsReview(item, modelOnly) ? (
                   <span className="block text-xs font-normal">⚠ {t("rx.print.review")}</span>
                 ) : null}

@@ -1,19 +1,14 @@
 "use client";
 
-import { DRUG_STATUSES } from "@wasfa/shared/ai";
 import { t } from "@wasfa/shared/i18n";
-import {
-  addAliasSchema,
-  drugViewSchema,
-  updateDrugSchema,
-  type DrugView,
-} from "@wasfa/shared/schemas/admin-drugs";
-import { Badge, Button, Field, Input, Select, Skeleton, useToast } from "@wasfa/ui";
+import { addAliasSchema, drugViewSchema, type DrugView } from "@wasfa/shared/schemas/admin-drugs";
+import { Badge, Button, Field, Input, Skeleton, useToast } from "@wasfa/ui";
 import { GitMerge, Plus } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
 import { formatDateTime } from "../../lib/admin-format";
 import { api } from "../../lib/api-client";
+import { formatMinor } from "../../lib/drug-admin";
 import { describeIssue } from "../../lib/forms";
 import { useReauth } from "../../lib/reauth";
 import { useResource } from "../../lib/use-admin-data";
@@ -22,11 +17,10 @@ import { ErrorNotice } from "../error-notice";
 import { Code } from "./badges";
 import { DetailList, DetailSection } from "./detail-list";
 import { DetailDrawer } from "./drawer";
+import { DrugForm } from "./drug-form";
 import { DrugMergeDialog } from "./drug-merge-dialog";
 
 import type { ApiRequestError } from "../../lib/api-error";
-
-type EditField = "brandEn" | "brandAr" | "form" | "strengthText" | "manufacturer" | "country";
 
 export interface DrugDrawerProps {
   drugId: string;
@@ -36,139 +30,6 @@ export interface DrugDrawerProps {
   onChanged: () => void;
   /** The drug was merged away or deleted: the drawer closes and the list refreshes. */
   onMerged: () => void;
-}
-
-/** Edit form: only the fields that changed are sent, and an emptied optional field is cleared. */
-function EditForm({ drug, onSaved }: { drug: DrugView; onSaved: () => void }) {
-  const reauth = useReauth();
-  const { toast } = useToast();
-  const [values, setValues] = useState({
-    brandEn: drug.brandEn,
-    brandAr: drug.brandAr ?? "",
-    form: drug.form ?? "",
-    strengthText: drug.strengthText ?? "",
-    manufacturer: drug.manufacturer ?? "",
-    country: drug.country ?? "",
-    status: drug.status,
-  });
-  const [errors, setErrors] = useState<Partial<Record<EditField, string>>>({});
-  const [formError, setFormError] = useState<ApiRequestError | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  const set = (name: keyof typeof values, value: string) => {
-    setValues((current) => ({ ...current, [name]: value }));
-  };
-
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (submitting) return;
-    const optional = (value: string) => (value.trim() === "" ? null : value.trim());
-    const next = {
-      brandEn: values.brandEn.trim(),
-      brandAr: optional(values.brandAr),
-      form: optional(values.form),
-      strengthText: optional(values.strengthText),
-      manufacturer: optional(values.manufacturer),
-      country: optional(values.country),
-      status: values.status,
-    };
-    const patch: Record<string, unknown> = {};
-    for (const [name, value] of Object.entries(next)) {
-      if (value !== drug[name as keyof DrugView]) patch[name] = value;
-    }
-    if (Object.keys(patch).length === 0) return;
-
-    const parsed = updateDrugSchema.safeParse(patch);
-    if (!parsed.success) {
-      const found: Partial<Record<EditField, string>> = {};
-      for (const issue of parsed.error.issues) {
-        const field = issue.path[0];
-        if (typeof field === "string" && field in values && field !== "status") {
-          found[field as EditField] ??= describeIssue(issue, values[field as keyof typeof values]);
-        }
-      }
-      setErrors(found);
-      return;
-    }
-    setErrors({});
-    setFormError(null);
-    setSubmitting(true);
-    reauth
-      .run(() =>
-        api(`/admin/drugs/${drug.id}`, {
-          method: "PATCH",
-          body: parsed.data,
-          schema: drugViewSchema,
-        }),
-      )
-      .then(
-        (saved) => {
-          setSubmitting(false);
-          toast({ tone: "success", title: t("admin.drugs.edit.saved", { name: saved.brandEn }) });
-          onSaved();
-        },
-        (failure: unknown) => {
-          setSubmitting(false);
-          setFormError(failure as ApiRequestError);
-        },
-      );
-  };
-
-  const text = (name: EditField, label: string, extra: { hint?: string; ltr?: boolean } = {}) => (
-    <Field label={label} hint={extra.hint} error={errors[name]} announceError>
-      {(control) => (
-        <Input
-          {...control}
-          name={name}
-          value={values[name]}
-          ltr={extra.ltr ?? false}
-          onChange={(event) => {
-            set(name, event.target.value);
-          }}
-        />
-      )}
-    </Field>
-  );
-
-  return (
-    <form onSubmit={submit} noValidate className="flex flex-col gap-4">
-      {text("brandEn", t("admin.drugs.field.brandEn"), { ltr: true })}
-      {text("brandAr", t("admin.drugs.field.brandAr"))}
-      {text("form", t("admin.drugs.field.form"))}
-      {text("strengthText", t("admin.drugs.field.strengthText"), {
-        hint: t("admin.drugs.field.strengthTextHint"),
-        ltr: true,
-      })}
-      {text("manufacturer", t("admin.drugs.field.manufacturer"))}
-      {text("country", t("admin.drugs.field.country"), {
-        hint: t("admin.drugs.field.countryHint"),
-        ltr: true,
-      })}
-      <Field label={t("admin.drugs.field.status")}>
-        {(control) => (
-          <Select
-            {...control}
-            value={values.status}
-            onChange={(event) => {
-              set("status", event.target.value);
-            }}
-          >
-            {DRUG_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {t(`admin.drugs.status.${status}`)}
-              </option>
-            ))}
-          </Select>
-        )}
-      </Field>
-      {formError ? <ErrorNotice error={formError} /> : null}
-      <div>
-        <Button type="submit" loading={submitting}>
-          {t("admin.drugs.edit.save")}
-        </Button>
-      </div>
-    </form>
-  );
 }
 
 function AliasForm({ drug, onAdded }: { drug: DrugView; onAdded: () => void }) {
@@ -267,7 +128,7 @@ function DrugDetail({
       <DetailSection title={t("admin.drugs.drawer.details")}>
         {canWrite ? (
           // Remounted after each save so the inputs start from what the server now holds.
-          <EditForm key={drug.updatedAt} drug={drug} onSaved={refresh} />
+          <DrugForm key={drug.updatedAt} drug={drug} onSaved={refresh} />
         ) : (
           <DetailList
             items={[
@@ -277,6 +138,15 @@ function DrugDetail({
               {
                 label: t("admin.drugs.field.strengthText"),
                 value: drug.strengthText ? <bdi dir="ltr">{drug.strengthText}</bdi> : null,
+              },
+              { label: t("admin.drugs.field.packText"), value: drug.packText },
+              { label: t("admin.drugs.field.category"), value: drug.category },
+              {
+                label: t("admin.drugs.field.price"),
+                value:
+                  drug.priceMinor === null ? null : (
+                    <bdi dir="ltr">{formatMinor(drug.priceMinor, drug.currency)}</bdi>
+                  ),
               },
               { label: t("admin.drugs.field.manufacturer"), value: drug.manufacturer },
               { label: t("admin.drugs.field.country"), value: drug.country },
@@ -394,6 +264,24 @@ export function DrugDrawer({ drugId, canWrite, onClose, onChanged, onMerged }: D
           reload={detail.reload}
         />
       ) : null}
+    </DetailDrawer>
+  );
+}
+
+export interface DrugCreateDrawerProps {
+  /** The brand name the new entry starts with. */
+  seedBrand?: string | undefined;
+  onClose: () => void;
+  onCreated: (drug: DrugView) => void;
+}
+
+/** A new entry in the same drawer as the editor; the form starts empty (or with the brand name). */
+export function DrugCreateDrawer({ seedBrand, onClose, onCreated }: DrugCreateDrawerProps) {
+  return (
+    <DetailDrawer open onClose={onClose} title={t("admin.drugs.create.title")}>
+      <div className="p-5">
+        <DrugForm drug={null} seedBrand={seedBrand} onSaved={onCreated} />
+      </div>
     </DetailDrawer>
   );
 }

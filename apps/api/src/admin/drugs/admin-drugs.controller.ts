@@ -3,6 +3,7 @@ import {
   addAliasSchema,
   adminDrugParamSchema,
   createDrugSchema,
+  drugSandboxQuerySchema,
   drugSearchQuerySchema,
   learnedDecisionSchema,
   learnedQuerySchema,
@@ -31,6 +32,7 @@ import {
 
 class ParamDto extends createZodDto(adminDrugParamSchema) {}
 class SearchQueryDto extends createZodDto(drugSearchQuerySchema) {}
+class SandboxQueryDto extends createZodDto(drugSandboxQuerySchema) {}
 class CreateDrugDto extends createZodDto(createDrugSchema) {}
 class UpdateDrugDto extends createZodDto(updateDrugSchema) {}
 class SetStatusDto extends createZodDto(setDrugStatusSchema) {}
@@ -42,7 +44,7 @@ class MapUnmatchedDto extends createZodDto(mapUnmatchedSchema) {}
 class LearnedQueryDto extends createZodDto(learnedQuerySchema) {}
 class LearnedDecisionDto extends createZodDto(learnedDecisionSchema) {}
 
-// The fixed paths (`merge`, `categories`, `unmatched`, `learned`) are declared before the `:id` routes
+// The fixed paths (`merge`, `categories`, `sandbox`, `unmatched`, `learned`) are declared before the `:id` routes
 // so they are never read as an id.
 @Controller("admin/drugs")
 export class AdminDrugsController {
@@ -68,6 +70,13 @@ export class AdminDrugsController {
   @RateLimit(120)
   categories() {
     return this.drugs.categories();
+  }
+
+  @Get("sandbox")
+  @RequirePermission("drugs.read")
+  @RateLimit(60)
+  sandbox(@Query() query: SandboxQueryDto) {
+    return this.drugs.sandbox(query);
   }
 
   @Post("merge")

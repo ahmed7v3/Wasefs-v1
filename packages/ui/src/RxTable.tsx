@@ -26,6 +26,7 @@ export type RxTableItem = Pick<
   | "badge"
   | "verified"
   | "details"
+  | "source"
 >;
 
 export interface RxTableProps {
@@ -251,6 +252,9 @@ export function RxTable({
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <ConfidenceBadge level={item.badge} unmatched={unmatched} />
+                    {item.source === "ai" ? (
+                      <span className="text-sm text-text-muted">{t("rx.source.ai")}</span>
+                    ) : null}
                     {item.verified === "corrected" ? (
                       <span className="text-sm text-text-muted">{t("rx.item.corrected")}</span>
                     ) : null}

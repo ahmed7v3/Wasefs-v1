@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { DRUG_ALIAS_LANGS, DRUG_IMPORT_STATUSES, DRUG_SOURCES, DRUG_STATUSES } from "../ai.js";
+import { DECISION_REASONS } from "../drug-decision.js";
 import {
   DRUG_IMPORT_FIELDS,
   DRUG_IMPORT_ROW_STATUSES,
@@ -9,6 +10,7 @@ import {
   DRUG_UNMATCHED_STATUSES,
 } from "../drugs.js";
 import { COUNTRY_CODE_PATTERN } from "../identity.js";
+import { RX_LEGIBILITIES } from "../rx.js";
 
 /*
  * Admin drug database contract (Phase 2, Task 2.7): browse and edit drugs, aliases, merge, and the
@@ -278,6 +280,46 @@ export const mergeDrugsResponseSchema = z.object({
   movedAliases: z.number().int(),
   movedIngredients: z.number().int(),
 });
+
+// --- Recognition sandbox (docs/MEDICATIONS.md section 7) ---
+
+/** "What would the engine do with this name?": the same input a prescription line gives the matcher. */
+export const drugSandboxQuerySchema = z.object({
+  q: z.string().trim().min(1).max(200),
+  strength: z.string().trim().max(60).optional(),
+  form: z.string().trim().max(60).optional(),
+  legibility: z.enum(RX_LEGIBILITIES).default("clear"),
+});
+export type DrugSandboxQuery = z.output<typeof drugSandboxQuerySchema>;
+
+export const drugSandboxCandidateSchema = z.object({
+  drugId: z.uuid(),
+  brandEn: z.string(),
+  brandAr: z.string().nullable(),
+  brandKey: z.string(),
+  strengthText: z.string().nullable(),
+  form: z.string().nullable(),
+  score: z.number(),
+  explanation: matchExplanationSchema,
+});
+
+export const drugSandboxResponseSchema = z.object({
+  settings: z.object({
+    acceptScore: z.number(),
+    reviewScore: z.number(),
+    minMargin: z.number(),
+    enabled: z.boolean(),
+    mode: z.enum(["hybrid", "ai_only"]),
+  }),
+  candidates: z.array(drugSandboxCandidateSchema),
+  decision: z.object({
+    matchClass: z.enum(["accept", "verify", "unmatched"]),
+    chosenDrugId: z.uuid().nullable(),
+    familyOnly: z.boolean(),
+    reason: z.enum(DECISION_REASONS),
+  }),
+});
+export type DrugSandboxResponse = z.infer<typeof drugSandboxResponseSchema>;
 
 // --- Import wizard ---
 

@@ -1,9 +1,11 @@
 import { Injectable } from "@nestjs/common";
+import { decideMatch, type RankedCandidate } from "@wasfa/shared/drug-decision";
 import { classifyMatch, drugColumns } from "@wasfa/shared/drugs";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import { normalizeDrugName, parseStrength, strengthMicro } from "@wasfa/shared/normalize";
 
 import { DrugMatcher } from "../../drugs/matcher.js";
+import { SettingsService } from "../../settings/settings.service.js";
 
 import {
   AdminDrugsRepo,
@@ -21,6 +23,8 @@ import type {
   AddAliasInput,
   CreateDrugInput,
   DrugIngredientInput,
+  DrugSandboxQuery,
+  DrugSandboxResponse,
   DrugSearchQuery,
   DrugView,
   LearnedDecisionInput,
@@ -150,7 +154,65 @@ export class AdminDrugsService {
   constructor(
     private readonly repo: AdminDrugsRepo,
     private readonly matcher: DrugMatcher,
+    private readonly settings: SettingsService,
   ) {}
+
+  /**
+   * What the recognition engine would do with a name, under the stored `medications` settings: the
+   * matcher's candidates and `decideMatch`'s verdict, exactly as a prescription line gets them
+   * (the candidates come from the primary reading). It ignores the `enabled` / `mode` switches on
+   * purpose, so an admin can tune thresholds while recognition is off; the response reports them.
+   */
+  async sandbox(query: DrugSandboxQuery): Promise<DrugSandboxResponse> {
+    const settings = await this.settings.get("medications");
+    const strength = query.strength === undefined ? null : parseStrength(query.strength);
+    const found = await this.matcher.matchDrug(query.q, {
+      strength,
+      form: query.form ?? null,
+      limit: settings.maxCandidates,
+      similarityFloor: settings.similarityFloor,
+      strengthBonus: settings.strengthBonus,
+      strengthConflictPenalty: settings.strengthConflictPenalty,
+      formBonus: settings.formBonus,
+    });
+    const candidates: RankedCandidate[] = found.map((candidate) => ({
+      ...candidate,
+      via: "primary",
+    }));
+    const decision = decideMatch(
+      {
+        candidates,
+        legibility: query.legibility,
+        strengthWritten: query.strength !== undefined && query.strength !== "",
+      },
+      settings,
+    );
+    return {
+      settings: {
+        acceptScore: settings.acceptScore,
+        reviewScore: settings.reviewScore,
+        minMargin: settings.minMargin,
+        enabled: settings.enabled,
+        mode: settings.mode,
+      },
+      candidates: candidates.map((candidate) => ({
+        drugId: candidate.drugId,
+        brandEn: candidate.brandEn,
+        brandAr: candidate.brandAr,
+        brandKey: candidate.brandKey,
+        strengthText: candidate.strengthText,
+        form: candidate.form,
+        score: candidate.score,
+        explanation: candidate.explanation,
+      })),
+      decision: {
+        matchClass: decision.matchClass,
+        chosenDrugId: decision.chosen?.drugId ?? null,
+        familyOnly: decision.familyOnly,
+        reason: decision.reason,
+      },
+    };
+  }
 
   async search(query: DrugSearchQuery) {
     const text = query.q?.trim() ?? "";

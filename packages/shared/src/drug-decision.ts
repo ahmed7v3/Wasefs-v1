@@ -22,17 +22,19 @@ export interface DecisionInput {
   strengthWritten: boolean;
 }
 
-export type DecisionReason =
-  | "accepted"
-  | "no_candidates"
-  | "below_review"
-  | "below_accept"
-  | "strength_conflict"
-  | "ingredient_only"
-  | "via_alternative"
-  | "unclear_handwriting"
-  | "ambiguous_family"
-  | "alias_exact";
+export const DECISION_REASONS = [
+  "accepted",
+  "no_candidates",
+  "below_review",
+  "below_accept",
+  "strength_conflict",
+  "ingredient_only",
+  "via_alternative",
+  "unclear_handwriting",
+  "ambiguous_family",
+  "alias_exact",
+] as const;
+export type DecisionReason = (typeof DECISION_REASONS)[number];
 
 export interface Decision {
   matchClass: "accept" | "verify" | "unmatched";

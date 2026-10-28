@@ -210,4 +210,200 @@ export const enAdminDrugs: Partial<Record<keyof typeof arAdminDrugs, string>> = 
   "admin.drugs.imports.started": "The file was uploaded and the dry run started.",
   "admin.drugs.imports.rerunStarted": "The dry run started again.",
   "admin.drugs.imports.noWrite": "You cannot edit the drug database: you can preview only.",
+
+  "admin.nav.drugReview": "Name review",
+  "admin.nav.drugReview.description": "Names nobody could match and what users taught the system.",
+  "admin.nav.drugRecognition": "Recognition settings",
+  "admin.nav.drugRecognition.description":
+    "Turn drug recognition on, tune how strict it is, and try it.",
+
+  "admin.drugs.filter.category": "Category",
+  "admin.drugs.filter.all": "All",
+  "admin.drugs.filter.missing": "Missing data",
+  "admin.drugs.filter.missing.ingredient": "No ingredient",
+  "admin.drugs.filter.missing.price": "No price",
+  "admin.drugs.filter.missing.category": "No category",
+  "admin.drugs.filter.status": "Status",
+  "admin.drugs.filter.edited": "Edited",
+  "admin.drugs.filter.edited.true": "Edited by an admin",
+  "admin.drugs.filter.edited.false": "Not edited",
+  "admin.drugs.col.pack": "Pack",
+  "admin.drugs.col.price": "Price",
+  "admin.drugs.col.category": "Category",
+  "admin.drugs.col.actions": "Actions",
+  "admin.drugs.edited": "Edited",
+  "admin.drugs.action.edit": "Open and edit",
+  "admin.drugs.action.withdraw": "Withdraw from market",
+  "admin.drugs.action.restore": "Put back on market",
+  "admin.drugs.action.delete": "Delete permanently",
+  "admin.drugs.withdrawn": "{name} was withdrawn.",
+  "admin.drugs.restored": "{name} is back on the market.",
+  "admin.drugs.statusFailed": "Could not change the status. Try again.",
+  "admin.drugs.deleted": "{name} was deleted.",
+  "admin.drugs.delete.title": "Delete {name} permanently?",
+  "admin.drugs.delete.body":
+    "The drug is deleted with its aliases and ingredients and this cannot be undone. If it was withdrawn from the market, withdraw it instead.",
+  "admin.drugs.delete.confirm": "Delete the drug",
+
+  "admin.drugs.create.button": "New drug",
+  "admin.drugs.create.title": "New drug",
+  "admin.drugs.create.save": "Add the drug",
+  "admin.drugs.create.saved": "{name} was added.",
+  "admin.drugs.field.packText": "Pack",
+  "admin.drugs.field.unitsCount": "Units per pack",
+  "admin.drugs.field.category": "Category",
+  "admin.drugs.field.barcode": "Barcode",
+  "admin.drugs.field.barcodeHint": "8 to 14 digits.",
+  "admin.drugs.field.price": "Price (pounds)",
+  "admin.drugs.field.oldPrice": "Previous price (pounds)",
+  "admin.drugs.field.priceHint": "In pounds with two decimals, like 42.50.",
+  "admin.drugs.field.currency": "Currency",
+  "admin.drugs.field.ingredientsHint":
+    "Active ingredient and strength, up to 12. Leave the strength empty if unknown.",
+  "admin.drugs.field.ingredientName": "Active ingredient {n}",
+  "admin.drugs.field.ingredientStrength": "Its strength {n}",
+  "admin.drugs.field.ingredientRemove": "Remove ingredient {n}",
+  "admin.drugs.field.ingredientAdd": "Add an ingredient",
+  "admin.drugs.form.priceInvalid": "Enter a valid amount with at most two decimals.",
+  "admin.drugs.form.unitsInvalid": "Enter a whole number.",
+
+  "admin.drugs.picker.search": "Find the drug",
+  "admin.drugs.picker.pick": "Choose the drug",
+
+  "admin.drugs.review.tab.unmatched": "Unmatched names",
+  "admin.drugs.review.tab.learned": "Learned names",
+  "admin.drugs.review.unmatched.lead":
+    "Names read from prescriptions that matched no drug. Map a name to an existing drug or create a new one, and the system will recognise it from now on.",
+  "admin.drugs.review.unmatched.empty": "No names are waiting for review.",
+  "admin.drugs.review.learned.lead":
+    "Names that users resolved to the same drug. Approve the right pairing to make the name an official alias, or reject it.",
+  "admin.drugs.review.learned.empty": "No names are waiting for approval.",
+  "admin.drugs.review.col.sample": "Name as read",
+  "admin.drugs.review.col.normalized": "Normalized",
+  "admin.drugs.review.col.hits": "Times seen",
+  "admin.drugs.review.col.lastSeen": "Last seen",
+  "admin.drugs.review.col.reading": "Name",
+  "admin.drugs.review.col.drug": "Suggested drug",
+  "admin.drugs.review.col.votes": "Users",
+  "admin.drugs.review.map": "Map to a drug",
+  "admin.drugs.review.create": "Create a drug",
+  "admin.drugs.review.ignore": "Ignore",
+  "admin.drugs.review.approve": "Approve",
+  "admin.drugs.review.reject": "Reject",
+  "admin.drugs.review.mapFor": "Map {name} to a drug",
+  "admin.drugs.review.createFor": "Create a drug named {name}",
+  "admin.drugs.review.ignoreFor": "Ignore {name}",
+  "admin.drugs.review.approveFor": "Approve {name}",
+  "admin.drugs.review.rejectFor": "Reject {name}",
+  "admin.drugs.review.mapTitle": 'Map "{name}" to a drug',
+  "admin.drugs.review.mapBody":
+    "Choose the right drug for this name. The name becomes an official alias of it.",
+  "admin.drugs.review.mapConfirm": "Map the name",
+  "admin.drugs.review.mapped": '"{name}" was mapped.',
+  "admin.drugs.review.ignored": '"{name}" was ignored.',
+  "admin.drugs.review.approved": '"{name}" was approved.',
+  "admin.drugs.review.rejected": '"{name}" was rejected.',
+  "admin.drugs.review.failed": "The action failed. Try again.",
+
+  "admin.drugs.recognition.noSettings":
+    "You cannot view the settings. You can still try names below.",
+  "admin.drugs.sandbox.title": "Try recognition",
+  "admin.drugs.sandbox.lead":
+    "Type a name as written on a prescription to see what the system does with it under the saved settings above. Change a setting, save it, then try again.",
+  "admin.drugs.sandbox.name": "Drug name as written",
+  "admin.drugs.sandbox.legibility": "Handwriting",
+  "admin.drugs.sandbox.legibility.clear": "Clear",
+  "admin.drugs.sandbox.legibility.partial": "Partly clear",
+  "admin.drugs.sandbox.legibility.unclear": "Unclear",
+  "admin.drugs.sandbox.run": "Try",
+  "admin.drugs.sandbox.score": "Score",
+  "admin.drugs.sandbox.matchedOn": "Matched on",
+  "admin.drugs.sandbox.family": "Brand family",
+  "admin.drugs.sandbox.engineOff":
+    "Drug recognition is off or AI-only right now, so the database is not used on prescriptions. This shows what would happen when it is on.",
+  "admin.drugs.sandbox.decision": "Decision",
+  "admin.drugs.sandbox.class.accept": "Accepted automatically",
+  "admin.drugs.sandbox.class.verify": "Sent for verification",
+  "admin.drugs.sandbox.class.unmatched": "No match",
+  "admin.drugs.sandbox.chosen": "Chosen drug:",
+  "admin.drugs.sandbox.familyOnly":
+    "The brand has several strengths and none was written, so the name and ingredients come from the database but not the strength or pack.",
+  "admin.drugs.sandbox.candidates": "Candidates",
+  "admin.drugs.sandbox.noCandidates": "No drug is close to this name.",
+  "admin.drugs.sandbox.reason.accepted":
+    "The top candidate reached the accept score ({accept}%) and is clearly ahead of the nearest other brand, so it is accepted automatically.",
+  "admin.drugs.sandbox.reason.no_candidates":
+    "No drug is close to this name, so there is no match.",
+  "admin.drugs.sandbox.reason.below_review":
+    "The best score is under the review score ({review}%), so the name is treated as unmatched and stays as the model read it.",
+  "admin.drugs.sandbox.reason.below_accept":
+    "The score is between the review score ({review}%) and the accept score ({accept}%), so verification is requested.",
+  "admin.drugs.sandbox.reason.strength_conflict":
+    "The written strength differs from the closest drug's, so verification is requested.",
+  "admin.drugs.sandbox.reason.ingredient_only":
+    "The match is on an active ingredient, not a brand name, and could fit many drugs, so verification is requested.",
+  "admin.drugs.sandbox.reason.via_alternative":
+    "The match came from an alternative reading of the name, not the first one, so verification is requested.",
+  "admin.drugs.sandbox.reason.unclear_handwriting":
+    "The handwriting is unclear, so the name is never accepted automatically, whatever the score.",
+  "admin.drugs.sandbox.reason.ambiguous_family":
+    "Another brand is very close to the first (less than {margin}% apart), so verification is requested.",
+  "admin.drugs.sandbox.reason.alias_exact":
+    "The name equals an approved alias exactly, so it is accepted directly.",
+
+  "admin.settings.option.hybrid": "Hybrid (AI with the drug database)",
+  "admin.settings.option.ai_only": "AI only",
+  "admin.settings.section.medications.status": "Switches",
+  "admin.settings.section.medications.status.description":
+    "The two main switches: whether the drug database is used to recognise prescriptions, and how.",
+  "admin.settings.section.medications.decision": "Decision thresholds",
+  "admin.settings.section.medications.decision.description":
+    "When a name is accepted automatically, sent for verification, or dropped. Scores run from 0 to 1.",
+  "admin.settings.section.medications.scoring": "How matching scores",
+  "admin.settings.section.medications.scoring.description":
+    "How each candidate's score is built and how many candidates are shown. Change with care and try the result in the sandbox below.",
+  "admin.settings.section.medications.learning": "Learning from users",
+  "admin.settings.section.medications.learning.description":
+    "How the system learns new names from what users choose.",
+  "admin.settings.section.medications.features": "Where drugs appear",
+  "admin.settings.section.medications.features.description":
+    "Assistant cards, WhatsApp tools and the drug search page.",
+  "admin.settings.help.medications.enabled":
+    "The master switch. When off, recognition relies on the AI alone and the search page and cards disappear from the site.",
+  "admin.settings.help.medications.mode":
+    "Hybrid: the AI reads the name and the drug database corrects it. AI only: the database stays out of prescriptions, search still works.",
+  "admin.settings.help.medications.acceptScore":
+    "The lowest score that is accepted automatically without review. Raising it means more verification and fewer mistakes.",
+  "admin.settings.help.medications.reviewScore":
+    "Under this score the name is dropped and not offered for verification. Must be lower than the accept score.",
+  "admin.settings.help.medications.minMargin":
+    "How far ahead of the nearest other brand the best drug must be to be accepted automatically, so two similar names are not mixed up.",
+  "admin.settings.help.medications.similarityFloor":
+    "The least letter similarity for a drug to become a candidate at all. Lowering it gives more candidates and more noise.",
+  "admin.settings.help.medications.strengthBonus":
+    "Added to the score when the written strength equals the drug's.",
+  "admin.settings.help.medications.strengthConflictPenalty":
+    "Taken off the score when the written strength differs from all of the drug's strengths.",
+  "admin.settings.help.medications.formBonus":
+    "Added to the score when the written dosage form equals the drug's.",
+  "admin.settings.help.medications.maxCandidates":
+    "The most candidate drugs per prescription line.",
+  "admin.settings.help.medications.useAlternatives":
+    "Also tries the alternative readings of the name that the AI suggests when the first reading fails.",
+  "admin.settings.help.medications.learnAutoApproveAt":
+    "How many different users must pick the same drug for the name to be approved automatically. Zero means only an admin approves.",
+  "admin.settings.help.medications.logUnmatched":
+    "Keeps the names that did not match so you can review them on the name review page.",
+  "admin.settings.help.medications.chatCards":
+    "The drug cards the chat assistant shows when it talks about a drug.",
+  "admin.settings.help.medications.chatCards.enabled":
+    "Show a card for each drug the assistant mentions.",
+  "admin.settings.help.medications.chatCards.max":
+    "The most cards in one message. Zero means no cards.",
+  "admin.settings.help.medications.waTools":
+    "Lets the WhatsApp agent search the drug database and answer with price and alternatives.",
+  "admin.settings.help.medications.search": "The public drug search page for users.",
+  "admin.settings.help.medications.search.enabled": "Show the drug search page to users.",
+  "admin.settings.help.medications.search.showPrices":
+    "Show the drug's price in search results and on its page. Turn it off if prices are out of date.",
 };
