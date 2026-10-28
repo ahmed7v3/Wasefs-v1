@@ -12,8 +12,10 @@ import { MascotSprite } from "../../../components/marketing/mascot";
 import { PrecisionWalkthrough } from "../../../components/marketing/precision-walkthrough";
 import { SkillsGrid } from "../../../components/marketing/skills-grid";
 import { TrustSection } from "../../../components/marketing/trust-section";
+import { WhatsAppSection } from "../../../components/marketing/whatsapp-section";
 import { Notice } from "../../../components/notice";
 import { landingEn } from "../../../content/landing.en";
+import { whatsappUrl } from "../../../lib/contact-links";
 import { publicEnv } from "../../../lib/env";
 import { getNonce } from "../../../lib/nonce";
 import { getPublicSettings } from "../../../lib/public-settings";
@@ -44,6 +46,7 @@ export default async function EnglishHomePage({
     getNonce(),
   ]);
   const siteUrl = publicEnv.NEXT_PUBLIC_SITE_URL;
+  const whatsappHref = whatsappUrl(settings.contact.whatsapp, landingEn.hero.whatsappGreeting);
 
   return (
     <>
@@ -58,19 +61,20 @@ export default async function EnglishHomePage({
         </Container>
       ) : null}
       <MascotSprite />
-      <LandingHero locale={LOCALE} />
+      <LandingHero locale={LOCALE} whatsappHref={whatsappHref} />
+      <WhatsAppSection locale={LOCALE} whatsappHref={whatsappHref} />
       <SkillsGrid locale={LOCALE} />
       <PrecisionWalkthrough
         locale={LOCALE}
         proof={settings.landing.proof}
         westernDigits={settings.locale.westernDigits}
       />
-      <HowItWorks locale={LOCALE} />
+      <HowItWorks locale={LOCALE} whatsappHref={whatsappHref} />
       <Audiences locale={LOCALE} />
       <TrustSection locale={LOCALE} />
       <FaqSection locale={LOCALE} />
       <AppsBand settings={settings} locale={LOCALE} />
-      <FinalCta locale={LOCALE} />
+      <FinalCta locale={LOCALE} whatsappHref={whatsappHref} />
     </>
   );
 }

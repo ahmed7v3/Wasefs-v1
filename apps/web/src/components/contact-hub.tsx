@@ -5,21 +5,26 @@ import { type Locale } from "../lib/locale";
 
 import { ContactHubIsland } from "./contact-hub-island";
 
+/** The site assistant (needs a login: the auth redirect brings the visitor back after sign-in). */
+const ASSISTANT_PATH = "/ai";
+
 /**
- * Floating contact button at the inline-end bottom corner (DESIGN-SYSTEM §5.3). Opens a small
- * menu of the channels the admin configured; renders nothing at all when there are none.
- * A server component on purpose: the label is translated here so the message catalogue stays out
- * of the client bundle of every public page.
+ * Floating help launcher at the inline-end bottom corner (DESIGN-SYSTEM §5.3). A labelled pill on
+ * desktop and a round button on a phone (`compact` keeps it round everywhere, for the app shell).
+ * The menu always offers the site assistant, plus WhatsApp first and the other channels the admin
+ * configured. A server component on purpose: the label is translated here so the message catalogue
+ * stays out of the client bundle of every public page.
  */
 export function ContactHub({
   contact,
   locale = "ar",
+  compact = false,
 }: {
   contact: ContactSettings;
   locale?: Locale;
+  compact?: boolean;
 }) {
   const links = contactLinks(contact);
-  if (links.length === 0) return null;
 
   return (
     // Above the layout (z-20), below drawers and dialogs (z-30); clear of the iOS home indicator.
@@ -28,6 +33,8 @@ export function ContactHub({
         label={t("contactHub.open", undefined, locale)}
         links={links}
         locale={locale}
+        compact={compact}
+        assistantHref={ASSISTANT_PATH}
       />
     </div>
   );

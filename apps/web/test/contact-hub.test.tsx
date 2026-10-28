@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { t } from "@wasfa/shared/i18n";
 import { describe, expect, it } from "vitest";
@@ -24,14 +24,32 @@ describe("contactLinks", () => {
 });
 
 describe("ContactHub", () => {
-  it("renders nothing at all when no channel is set", () => {
-    const { container } = render(
-      <ContactHub contact={{ whatsapp: null, telegram: null, phone: null }} />,
-    );
-    expect(container.innerHTML).toBe("");
+  it("is always there: with no channel set the menu holds just the site assistant", async () => {
+    render(<ContactHub contact={{ whatsapp: null, telegram: null, phone: null }} />);
+    await userEvent.click(screen.getByRole("button", { name: t("contactHub.open") }));
+    const assistant = await screen.findByRole("link", { name: t("contactHub.assistant") });
+    expect(assistant.getAttribute("href")).toBe("/ai");
+    expect(
+      screen.queryByRole("link", { name: new RegExp(t("contactHub.whatsappTitle")) }),
+    ).toBeNull();
   });
 
-  it("opens a menu of the configured channels and closes with Escape, returning focus", async () => {
+  it("shows the labelled pill, with the WhatsApp badge only when a number is set", () => {
+    const { rerender } = render(
+      <ContactHub contact={{ whatsapp: "+201012345678", telegram: null, phone: null }} />,
+    );
+    const button = screen.getByRole("button", { name: t("contactHub.open") });
+    expect(within(button).getByText(t("contactHub.open"))).toBeTruthy();
+    expect(button.querySelector("svg.size-3\\.5")).toBeTruthy();
+
+    // The app shell keeps it compact: no text label, still named for assistive technology.
+    rerender(<ContactHub contact={{ whatsapp: null, telegram: null, phone: null }} compact />);
+    const compact = screen.getByRole("button", { name: t("contactHub.open") });
+    expect(within(compact).queryByText(t("contactHub.open"))).toBeNull();
+    expect(compact.querySelector("svg.size-3\\.5")).toBeNull();
+  });
+
+  it("lists WhatsApp first, then the site assistant, then the rest; Escape returns focus", async () => {
     render(
       <ContactHub contact={{ whatsapp: "+201012345678", telegram: null, phone: "+20233334444" }} />,
     );
@@ -41,19 +59,24 @@ describe("ContactHub", () => {
     await userEvent.click(button);
     expect(button.getAttribute("aria-expanded")).toBe("true");
     // The panel is loaded on first open.
-    const whatsapp = await screen.findByRole("link", { name: t("contactHub.whatsapp") });
+    const whatsapp = await screen.findByRole("link", {
+      name: new RegExp(t("contactHub.whatsappTitle")),
+    });
     expect(whatsapp.getAttribute("href")).toBe("https://wa.me/201012345678");
     expect(whatsapp.getAttribute("target")).toBe("_blank");
     expect(screen.getByRole("link", { name: t("contactHub.phone") }).getAttribute("href")).toBe(
       "tel:+20233334444",
     );
     expect(screen.queryByRole("link", { name: t("contactHub.telegram") })).toBeNull();
-    // Focus moved into the menu.
+
+    const hrefs = screen.getAllByRole("link").map((link) => link.getAttribute("href"));
+    expect(hrefs).toEqual(["https://wa.me/201012345678", "/ai", "tel:+20233334444"]);
+    // Focus moved into the menu, onto WhatsApp.
     expect(document.activeElement).toBe(whatsapp);
 
     await userEvent.keyboard("{Escape}");
     expect(button.getAttribute("aria-expanded")).toBe("false");
-    expect(screen.queryByRole("link", { name: t("contactHub.whatsapp") })).toBeNull();
+    expect(screen.queryByRole("link", { name: /./ })).toBeNull();
     expect(document.activeElement).toBe(button);
   });
 });

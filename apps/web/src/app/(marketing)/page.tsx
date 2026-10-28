@@ -12,8 +12,10 @@ import { MascotSprite } from "../../components/marketing/mascot";
 import { PrecisionWalkthrough } from "../../components/marketing/precision-walkthrough";
 import { SkillsGrid } from "../../components/marketing/skills-grid";
 import { TrustSection } from "../../components/marketing/trust-section";
+import { WhatsAppSection } from "../../components/marketing/whatsapp-section";
 import { Notice } from "../../components/notice";
 import { landing } from "../../content/landing";
+import { whatsappUrl } from "../../lib/contact-links";
 import { publicEnv } from "../../lib/env";
 import { getNonce } from "../../lib/nonce";
 import { getPublicSettings } from "../../lib/public-settings";
@@ -43,6 +45,7 @@ export default async function HomePage({
     getNonce(),
   ]);
   const siteUrl = publicEnv.NEXT_PUBLIC_SITE_URL;
+  const whatsappHref = whatsappUrl(settings.contact.whatsapp, landing.hero.whatsappGreeting);
 
   return (
     <>
@@ -60,18 +63,19 @@ export default async function HomePage({
         </Container>
       ) : null}
       <MascotSprite />
-      <LandingHero />
+      <LandingHero whatsappHref={whatsappHref} />
+      <WhatsAppSection whatsappHref={whatsappHref} />
       <SkillsGrid />
       <PrecisionWalkthrough
         proof={settings.landing.proof}
         westernDigits={settings.locale.westernDigits}
       />
-      <HowItWorks />
+      <HowItWorks whatsappHref={whatsappHref} />
       <Audiences />
       <TrustSection />
       <FaqSection />
       <AppsBand settings={settings} />
-      <FinalCta />
+      <FinalCta whatsappHref={whatsappHref} />
     </>
   );
 }
