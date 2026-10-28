@@ -7,6 +7,7 @@ export * from "./credits-ledger.js";
 export * from "./deals.js";
 export * from "./drug-brand-keys.js";
 export * from "./drug-import-rollback.js";
+export * from "./drug-learning.js";
 export * from "./drug-matcher.js";
 export * from "./growth.js";
 export * from "./integration-secrets.js";
