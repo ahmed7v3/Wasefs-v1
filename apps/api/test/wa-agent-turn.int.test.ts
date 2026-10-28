@@ -154,6 +154,8 @@ describe("a guest", () => {
     expect(ai.inputs[0]).toMatchObject({ task: "wa_agent", mode: "balanced", planId: null });
     expect(ai.adapter.requests[0]?.tools?.map((tool) => tool.name)).toEqual([
       "get_catalog",
+      "search_medications",
+      "medication_alternatives",
       "send_media",
       "create_document",
       "handoff_to_owner",

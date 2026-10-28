@@ -357,7 +357,11 @@ describe("browse, edit and alias", () => {
     const found = drugSearchResponseSchema.parse(
       (await call("GET", `/admin/drugs?q=${nickname}`, boss)).json(),
     );
-    expect(found.items[0]).toMatchObject({ id, match: { explanation: { matchedOn: "alias" } } });
+    // An admin alias is a name the engine knows exactly.
+    expect(found.items[0]).toMatchObject({
+      id,
+      match: { explanation: { matchedOn: "alias_exact" } },
+    });
 
     expectError(
       await call("POST", `/admin/drugs/${id}/aliases`, boss, { alias: nickname.toUpperCase() }),
