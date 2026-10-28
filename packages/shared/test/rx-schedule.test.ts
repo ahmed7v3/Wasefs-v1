@@ -48,9 +48,9 @@ describe("scheduleOf: how often", () => {
   });
 
   it("is empty for missing, empty or unreadable frequency and never throws", () => {
+    // A missing frequency is the `scheduleOf({})` case below.
     for (const frequency of [
       null,
-      undefined,
       "",
       "   ",
       "حسب الحاجة الطبيب",
