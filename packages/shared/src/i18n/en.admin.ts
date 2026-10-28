@@ -361,6 +361,7 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
   "admin.settings.ai.description":
     "Daily spend cap, kill switches and credit value. Edited from the AI page.",
   "admin.settings.rx.title": "Prescription analysis",
+  "admin.settings.medications.title": "Medications",
   "admin.settings.uploads.title": "Uploaded images",
   "admin.settings.uploads.description":
     "How long prescription images are kept before they are deleted. Analysis results stay.",
@@ -376,6 +377,8 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
     "Conversion prompts, free trials of premium modes, lifecycle offers and experiment guardrails.",
   "admin.settings.rx.description":
     "Price per page in credits and analysis limits. Shown to users before they analyse.",
+  "admin.settings.medications.description":
+    "The drug database: when it is used and how strictly names are matched.",
   "admin.settings.auth.title": "Authentication",
   "admin.settings.auth.description":
     "Social sign-in providers, blocked email domains and phone verification.",
@@ -420,6 +423,30 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
   "admin.settings.field.rx.verifyMaxItems": "Maximum items re-read by verification",
   "admin.settings.field.rx.drugMatching": "Match drugs against the database",
   "admin.settings.field.rx.details": "Add drug details and an overview to results",
+  "admin.settings.field.medications.enabled": "Use the medication database",
+  "admin.settings.field.medications.mode": "Mode (hybrid or AI only)",
+  "admin.settings.field.medications.similarityFloor":
+    "Minimum name similarity for a candidate (0-1)",
+  "admin.settings.field.medications.acceptScore": "Score to accept automatically (0-1)",
+  "admin.settings.field.medications.reviewScore":
+    "Score below which a name is not worth verifying (0-1)",
+  "admin.settings.field.medications.minMargin": "Required lead over the next brand (0-1)",
+  "admin.settings.field.medications.strengthBonus": "Bonus when the strength matches (0-1)",
+  "admin.settings.field.medications.strengthConflictPenalty":
+    "Penalty when the strength conflicts (0-1)",
+  "admin.settings.field.medications.formBonus": "Bonus when the form matches (0-1)",
+  "admin.settings.field.medications.maxCandidates": "Candidates per line",
+  "admin.settings.field.medications.useAlternatives": "Also match the alternative readings",
+  "admin.settings.field.medications.learnAutoApproveAt":
+    "Users who must agree to approve a learned name (0 = admin only)",
+  "admin.settings.field.medications.logUnmatched": "Keep a list of unmatched names",
+  "admin.settings.field.medications.chatCards": "Drug cards in the assistant",
+  "admin.settings.field.medications.search": "Medication search page",
+  "admin.settings.field.medications.chatCards.enabled": "Show drug cards in the assistant",
+  "admin.settings.field.medications.chatCards.max": "Maximum drug cards per message",
+  "admin.settings.field.medications.waTools": "Medication search for the WhatsApp agent",
+  "admin.settings.field.medications.search.enabled": "Medication search page",
+  "admin.settings.field.medications.search.showPrices": "Show prices in search",
   "admin.settings.field.auth.providers": "Sign-in providers",
   "admin.settings.field.auth.providers.google": "Google",
   "admin.settings.field.auth.providers.facebook": "Facebook",

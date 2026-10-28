@@ -389,7 +389,7 @@ export const GENERAL_SETTINGS_GROUPS: readonly SettingsPageGroup[] = [
     id: "analysis",
     title: "admin.settings.group.analysis",
     description: "admin.settings.group.analysis.description",
-    keys: ["free_tier", "rx", "uploads"],
+    keys: ["free_tier", "rx", "medications", "uploads"],
   },
   {
     id: "homepage",

@@ -15,7 +15,8 @@ import type { Database } from "./client.js";
  * because the tables keep no history:
  *  - rows it INSERTED (tagged with the batch and created at or after the commit started) are deleted,
  *    with their ingredient links and aliases (cascade);
- *  - rows it only UPDATED are un-tagged, but keep their new values;
+ *  - rows it only UPDATED are un-tagged, but keep their new values (prices and the other list
+ *    columns included: no history is kept, so they are not restored);
  *  - ingredients it created are deleted unless another drug uses them, otherwise un-tagged;
  *  - aliases it added to drugs that stay are deleted.
  * One transaction, with the batch row locked so a double click cannot run it twice.

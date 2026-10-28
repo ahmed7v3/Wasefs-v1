@@ -98,7 +98,7 @@ export type ChatRole = (typeof CHAT_ROLES)[number];
 export const CHAT_MESSAGE_STATUSES = ["streaming", "done", "stopped", "error"] as const;
 export type ChatMessageStatus = (typeof CHAT_MESSAGE_STATUSES)[number];
 
-export const DRUG_SOURCES = ["eda", "sfda", "manual", "other"] as const;
+export const DRUG_SOURCES = ["eda", "sfda", "dwaprices", "manual", "other"] as const;
 export type DrugSource = (typeof DRUG_SOURCES)[number];
 
 export const DRUG_IMPORT_STATUSES = [

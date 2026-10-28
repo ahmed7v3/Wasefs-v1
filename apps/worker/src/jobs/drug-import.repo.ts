@@ -8,11 +8,17 @@ import {
   type DrugImportBatch,
 } from "@wasfa/db";
 import { newId } from "@wasfa/shared/ids";
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 
-import { drugKey, type ExistingDrug, type ImportRow, type RowPlan } from "./drug-import.plan.js";
+import {
+  drugKey,
+  refKey,
+  type ExistingDrug,
+  type ImportRow,
+  type RowPlan,
+} from "./drug-import.plan.js";
 
-import type { DrugImportStatus } from "@wasfa/shared/ai";
+import type { DrugImportStatus, DrugSource } from "@wasfa/shared/ai";
 
 /*
  * Every database access of the drug import. The worker runs as the restricted role: it can read
@@ -63,17 +69,28 @@ export async function markCommitStarted(
   return row.committedAt;
 }
 
-/** Existing drugs by key for the normalized names of one chunk, with their ingredients and aliases. */
+/**
+ * Existing drugs of one chunk, with their ingredients and aliases: by `drugKey` for the normalized
+ * names of rows without a source id, and by `refKey` for the ids of rows that have one (matched
+ * within `source`, the batch source).
+ */
 export async function findExisting(
   db: Database,
+  source: DrugSource,
   names: readonly string[],
+  refs: readonly string[],
 ): Promise<Map<string, ExistingDrug>> {
   const found = new Map<string, ExistingDrug>();
-  if (names.length === 0) return found;
+  if (names.length === 0 && refs.length === 0) return found;
+  const byName = names.length > 0 ? inArray(drugs.normalizedEn, [...new Set(names)]) : undefined;
+  const byRef =
+    refs.length > 0
+      ? and(eq(drugs.source, source), inArray(drugs.sourceRef, [...new Set(refs)]))
+      : undefined;
   const rows = await db
     .select()
     .from(drugs)
-    .where(inArray(drugs.normalizedEn, [...new Set(names)]))
+    .where(or(byName, byRef))
     // The oldest row wins when a table already holds the same drug twice.
     .orderBy(drugs.createdAt, drugs.id);
   if (rows.length === 0) return found;
@@ -103,18 +120,37 @@ export async function findExisting(
   const aliasesByDrug = group(aliasRows);
 
   for (const row of rows) {
-    const key = drugKey(row);
-    if (found.has(key)) continue;
-    found.set(key, {
+    const existing: ExistingDrug = {
       id: row.id,
+      brandEn: row.brandEn,
+      normalizedEn: row.normalizedEn,
       brandAr: row.brandAr,
+      brandKey: row.brandKey,
+      form: row.form,
+      strengthText: row.strengthText,
+      strengthValueMicro: row.strengthValueMicro,
+      strengthUnit: row.strengthUnit,
       manufacturer: row.manufacturer,
       country: row.country,
+      category: row.category,
+      priceMinor: row.priceMinor,
+      oldPriceMinor: row.oldPriceMinor,
+      packText: row.packText,
+      unitsCount: row.unitsCount,
+      barcode: row.barcode,
+      sourceRef: row.sourceRef,
+      adminEditedAt: row.adminEditedAt,
       importBatchId: row.importBatchId,
       createdAt: row.createdAt,
       ingredients: ingredientsByDrug.get(row.id) ?? new Set<string>(),
       aliases: aliasesByDrug.get(row.id) ?? new Set<string>(),
-    });
+    };
+    if (row.source === source && row.sourceRef !== null) {
+      const refId = refKey(row.sourceRef);
+      if (!found.has(refId)) found.set(refId, existing);
+    }
+    const key = drugKey(row);
+    if (!found.has(key)) found.set(key, existing);
   }
   return found;
 }
@@ -177,7 +213,7 @@ async function ensureIngredients(
 export async function writeChunk(
   db: Database,
   batchId: string,
-  source: string,
+  source: DrugSource,
   entries: readonly { row: ImportRow; plan: RowPlan }[],
 ): Promise<WriteResult> {
   const writes = entries.filter((entry) => entry.plan.write);
@@ -205,17 +241,46 @@ export async function writeChunk(
           country: row.country,
           status: "active",
           importBatchId: batchId,
+          category: row.category ?? null,
+          priceMinor: row.priceMinor ?? null,
+          oldPriceMinor: row.oldPriceMinor ?? null,
+          packText: row.packText ?? null,
+          unitsCount: row.unitsCount ?? null,
+          barcode: row.barcode ?? null,
+          source: row.sourceRef === null ? null : source,
+          sourceRef: row.sourceRef,
+          priceUpdatedAt: row.priceMinor == null ? null : new Date(),
         });
       } else {
         updated++;
+        const changed = (field: string): boolean => plan.changes.includes(field);
+        const c = row.columns;
         await tx
           .update(drugs)
           .set({
-            ...(plan.changes.includes("brandAr")
-              ? { brandAr: row.columns.brandAr, normalizedAr: row.columns.normalizedAr }
+            ...(changed("brandAr") ? { brandAr: c.brandAr, normalizedAr: c.normalizedAr } : {}),
+            ...(changed("brandEn")
+              ? { brandEn: c.brandEn, normalizedEn: c.normalizedEn, brandKey: c.brandKey }
               : {}),
-            ...(plan.changes.includes("manufacturer") ? { manufacturer: row.manufacturer } : {}),
-            ...(plan.changes.includes("country") ? { country: row.country } : {}),
+            ...(changed("brandKey") ? { brandKey: c.brandKey } : {}),
+            ...(changed("form") ? { form: c.form } : {}),
+            ...(changed("strength")
+              ? {
+                  strengthText: c.strengthText,
+                  strengthValueMicro: c.strengthValueMicro,
+                  strengthUnit: c.strengthUnit,
+                }
+              : {}),
+            ...(changed("manufacturer") ? { manufacturer: row.manufacturer } : {}),
+            ...(changed("country") ? { country: row.country } : {}),
+            ...(changed("category") ? { category: row.category ?? null } : {}),
+            ...(changed("price")
+              ? { priceMinor: row.priceMinor ?? null, priceUpdatedAt: sql`now()` }
+              : {}),
+            ...(changed("oldPrice") ? { oldPriceMinor: row.oldPriceMinor ?? null } : {}),
+            ...(changed("packText") ? { packText: row.packText ?? null } : {}),
+            ...(changed("unitsCount") ? { unitsCount: row.unitsCount ?? null } : {}),
+            ...(changed("barcode") ? { barcode: row.barcode ?? null } : {}),
             importBatchId: batchId,
             updatedAt: sql`now()`,
           })

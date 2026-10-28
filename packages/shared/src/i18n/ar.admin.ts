@@ -364,6 +364,7 @@ export const arAdmin = {
   "admin.settings.ai.description":
     "سقف الإنفاق اليومي ومفاتيح الإيقاف وقيمة الرصيد. تُعدَّل من صفحة الذكاء الاصطناعي.",
   "admin.settings.rx.title": "تحليل الروشتات",
+  "admin.settings.medications.title": "الأدوية",
   "admin.settings.uploads.title": "الصور المرفوعة",
   "admin.settings.uploads.description":
     "المدة التي تُحفظ فيها صور الروشتات قبل حذفها. نتائج التحليل تبقى.",
@@ -378,6 +379,8 @@ export const arAdmin = {
   "admin.settings.growth.description":
     "رسائل الترقية داخل التطبيق، والتجربة المجانية للميزات المدفوعة، والعروض الشخصية، ورسائل البريد التسويقية، وتجارب النصوص.",
   "admin.settings.rx.description": "سعر الصفحة بالنقاط وحدود التحليل. ظاهر للمستخدمين قبل التحليل.",
+  "admin.settings.medications.description":
+    "قاعدة بيانات الأدوية: متى تُستخدم ومدى صرامة مطابقة الأسماء.",
   "admin.settings.auth.title": "المصادقة",
   "admin.settings.auth.description":
     "مزوّدو الدخول الاجتماعي ونطاقات البريد المحظورة والتحقق من الهاتف.",
@@ -421,6 +424,27 @@ export const arAdmin = {
   "admin.settings.field.rx.verifyMaxItems": "أقصى عدد بنود في إعادة التحقق",
   "admin.settings.field.rx.drugMatching": "مطابقة الأدوية مع قاعدة البيانات",
   "admin.settings.field.rx.details": "إضافة تفاصيل الأدوية ونظرة عامة للنتيجة",
+  "admin.settings.field.medications.enabled": "استخدام قاعدة بيانات الأدوية",
+  "admin.settings.field.medications.mode": "الوضع (مختلط أو ذكاء اصطناعي فقط)",
+  "admin.settings.field.medications.similarityFloor": "أدنى تشابه في الاسم ليصبح مرشحًا (0-1)",
+  "admin.settings.field.medications.acceptScore": "الدرجة اللازمة للقبول التلقائي (0-1)",
+  "admin.settings.field.medications.reviewScore": "الدرجة التي دونها لا يستحق الاسم التحقق (0-1)",
+  "admin.settings.field.medications.minMargin": "الفارق المطلوب عن أقرب ماركة أخرى (0-1)",
+  "admin.settings.field.medications.strengthBonus": "إضافة عند تطابق التركيز (0-1)",
+  "admin.settings.field.medications.strengthConflictPenalty": "خصم عند تعارض التركيز (0-1)",
+  "admin.settings.field.medications.formBonus": "إضافة عند تطابق الشكل الدوائي (0-1)",
+  "admin.settings.field.medications.maxCandidates": "عدد المرشحين لكل سطر",
+  "admin.settings.field.medications.useAlternatives": "مطابقة القراءات البديلة أيضًا",
+  "admin.settings.field.medications.learnAutoApproveAt":
+    "عدد المستخدمين المطلوب لاعتماد اسم متعلَّم (0 = المشرف فقط)",
+  "admin.settings.field.medications.logUnmatched": "حفظ قائمة بالأسماء غير المطابقة",
+  "admin.settings.field.medications.chatCards": "بطاقات الأدوية في المساعد",
+  "admin.settings.field.medications.search": "صفحة البحث عن الأدوية",
+  "admin.settings.field.medications.chatCards.enabled": "عرض بطاقات الأدوية في المساعد",
+  "admin.settings.field.medications.chatCards.max": "أقصى عدد بطاقات أدوية في الرسالة",
+  "admin.settings.field.medications.waTools": "البحث عن الأدوية لوكيل واتساب",
+  "admin.settings.field.medications.search.enabled": "صفحة البحث عن الأدوية",
+  "admin.settings.field.medications.search.showPrices": "عرض الأسعار في البحث",
   "admin.settings.field.auth.providers": "مزوّدو تسجيل الدخول",
   "admin.settings.field.auth.providers.google": "جوجل",
   "admin.settings.field.auth.providers.facebook": "فيسبوك",

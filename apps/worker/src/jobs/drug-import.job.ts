@@ -10,11 +10,11 @@ import { importMappingSchema, type ImportProgress } from "@wasfa/shared/schemas/
 import { ImportFileError, readImportFile, type ParsedFile } from "./drug-import.file.js";
 import {
   ReportCollector,
-  drugKey,
   fieldColumns,
   invalidResult,
   parseImportRow,
   planRow,
+  rowKey,
   rowResult,
   type ImportRow,
   type RowPlan,
@@ -121,17 +121,18 @@ export async function drugImportJob(payload: Payload, context: JobContext): Prom
       const chunk = parsed.rows.slice(start, start + DRUG_IMPORT_BATCH_SIZE);
       const valid: ImportRow[] = [];
       for (const raw of chunk) {
-        const row = parseImportRow(raw, columns);
+        const row = parseImportRow(raw, columns, batch.source);
         if (row.ok) valid.push(row.value);
         else report.add(invalidResult(row));
       }
       const existing = await findExisting(
         db,
-        valid.map((row) => row.columns.normalizedEn),
+        batch.source,
+        valid.filter((row) => row.sourceRef === null).map((row) => row.columns.normalizedEn),
+        valid.flatMap((row) => (row.sourceRef === null ? [] : [row.sourceRef])),
       );
       const entries: { row: ImportRow; plan: RowPlan }[] = valid.map((row) => {
-        const key = drugKey(row.columns);
-        const plan = planRow(row, existing.get(key), seen, { batchId, committedAt });
+        const plan = planRow(row, existing.get(rowKey(row)), seen, { batchId, committedAt });
         report.add(rowResult(row, plan));
         return { row, plan };
       });

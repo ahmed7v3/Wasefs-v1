@@ -680,6 +680,50 @@ export const waAgentSettingsSchema = z.object({
 });
 export type WaAgentSettings = z.output<typeof waAgentSettingsSchema>;
 
+const medicationsChatCardsSchema = z.object({
+  enabled: z.boolean().default(true),
+  max: z.number().int().min(0).max(5).default(3),
+});
+
+const medicationsSearchSchema = z.object({
+  enabled: z.boolean().default(true),
+  showPrices: z.boolean().default(true),
+});
+
+/**
+ * The medication database and recognition engine (docs/MEDICATIONS.md §3). The defaults equal the
+ * matcher constants in `drugs.ts`. `reviewScore` stays under `acceptScore`, or nothing could be
+ * verified between the two.
+ */
+export const medicationsSettingsSchema = z
+  .object({
+    /** Off: recognition is AI-only, search and cards are hidden. */
+    enabled: z.boolean().default(true),
+    /** `ai_only`: recognition ignores the database (search still works). */
+    mode: z.enum(["hybrid", "ai_only"]).default("hybrid"),
+    similarityFloor: z.number().min(0).max(1).default(0.3),
+    acceptScore: z.number().min(0).max(1).default(0.85),
+    reviewScore: z.number().min(0).max(1).default(0.5),
+    /** The top candidate must beat the best other brand family by this much to be auto-accepted. */
+    minMargin: z.number().min(0).max(1).default(0.06),
+    strengthBonus: z.number().min(0).max(1).default(0.1),
+    strengthConflictPenalty: z.number().min(0).max(1).default(0.15),
+    formBonus: z.number().min(0).max(1).default(0.05),
+    maxCandidates: z.number().int().min(1).max(10).default(5),
+    useAlternatives: z.boolean().default(true),
+    /** Distinct users that agree before a learned alias is approved; 0 = admin only. */
+    learnAutoApproveAt: z.number().int().min(0).max(20).default(3),
+    logUnmatched: z.boolean().default(true),
+    chatCards: medicationsChatCardsSchema.default(() => medicationsChatCardsSchema.parse({})),
+    waTools: z.boolean().default(true),
+    search: medicationsSearchSchema.default(() => medicationsSearchSchema.parse({})),
+  })
+  .refine((settings) => settings.reviewScore < settings.acceptScore, {
+    path: ["reviewScore"],
+    message: "must be lower than acceptScore",
+  });
+export type MedicationSettings = z.output<typeof medicationsSettingsSchema>;
+
 export const SETTING_VISIBILITIES = ["public", "admin"] as const;
 export type SettingVisibility = (typeof SETTING_VISIBILITIES)[number];
 
@@ -697,6 +741,8 @@ export const SETTINGS_REGISTRY = {
   whatsapp: { schema: whatsappSettingsSchema, visibility: "admin" },
   /** The WhatsApp AI agent: its own switch, independent from `auth.phoneVerification`. */
   waAgent: { schema: waAgentSettingsSchema, visibility: "admin" },
+  /** The medication database and recognition thresholds (admin only; WP2 retires `rx.drugMatching`). */
+  medications: { schema: medicationsSettingsSchema, visibility: "admin" },
   alerts: { schema: alertsSettingsSchema, visibility: "admin" },
   ai: { schema: aiSettingsSchema, visibility: "admin" },
   /** Public: the price per page and the page limit are shown before a prescription is analysed. */

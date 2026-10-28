@@ -133,7 +133,8 @@ export class AdminDrugsRepo {
       if (!before) return { kind: "not_found" } as const;
       const [after] = await tx
         .update(drugs)
-        .set({ ...patch, updatedAt: sql`now()` })
+        // An admin edit protects the row from a re-import (docs/MEDICATIONS.md §2).
+        .set({ ...patch, updatedAt: sql`now()`, adminEditedAt: sql`now()` })
         .where(eq(drugs.id, id))
         .returning();
       if (!after) throw new Error("Drug was not updated");
@@ -143,8 +144,16 @@ export class AdminDrugsRepo {
 
   async addAlias(values: typeof drugAliases.$inferInsert): Promise<AliasOutcome> {
     try {
-      const [alias] = await this.handle.db.insert(drugAliases).values(values).returning();
-      if (!alias) throw new Error("Alias was not stored");
+      const alias = await this.handle.db.transaction(async (tx) => {
+        const [inserted] = await tx.insert(drugAliases).values(values).returning();
+        if (!inserted) throw new Error("Alias was not stored");
+        // An alias is an admin edit too: the row is no longer the list's to overwrite.
+        await tx
+          .update(drugs)
+          .set({ adminEditedAt: sql`now()` })
+          .where(eq(drugs.id, values.drugId));
+        return inserted;
+      });
       return { kind: "added", alias };
     } catch (error) {
       if (isUniqueViolation(error, ALIAS_CONSTRAINT)) return { kind: "exists" };
@@ -223,6 +232,10 @@ export class AdminDrugsRepo {
 
       // Cascades remove the merged drug's remaining links and aliases.
       await tx.delete(drugs).where(eq(drugs.id, mergeId));
+      await tx
+        .update(drugs)
+        .set({ adminEditedAt: sql`now()` })
+        .where(eq(drugs.id, keepId));
       return {
         kind: "merged",
         kept,

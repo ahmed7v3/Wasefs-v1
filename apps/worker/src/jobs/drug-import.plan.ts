@@ -3,6 +3,11 @@ import {
   DRUG_IMPORT_PREVIEW_ROWS,
   DRUG_IMPORT_SAMPLE_ROWS,
   drugColumns,
+  isDwaPlaceholder,
+  parseBarcode,
+  parseDwaTradeName,
+  parsePriceMinor,
+  parseUnitsCount,
   type DrugColumns,
   type DrugImportField,
   type DrugImportMapping,
@@ -12,6 +17,7 @@ import {
 import { normalizeDrugName, strengthMicro } from "@wasfa/shared/normalize";
 
 import type { RawRow } from "./drug-import.file.js";
+import type { DrugSource } from "@wasfa/shared/ai";
 import type {
   ImportCounts,
   ImportReport,
@@ -51,6 +57,15 @@ export interface ImportRow {
   country: string | null;
   ingredients: ImportIngredient[];
   aliases: ImportAlias[];
+  /** The row's id in its source list; with the batch's source it identifies the drug on re-import. */
+  sourceRef: string | null;
+  /** `undefined`: the file has no such column, so an update leaves the stored value alone. */
+  category: string | null | undefined;
+  priceMinor: number | null | undefined;
+  oldPriceMinor: number | null | undefined;
+  packText: string | null | undefined;
+  unitsCount: number | null | undefined;
+  barcode: string | null | undefined;
 }
 
 export type RowParse =
@@ -91,20 +106,38 @@ function parseIngredient(piece: string): ImportIngredient | undefined {
   };
 }
 
-/** Applies the mapping to one raw row. A row without any name, or with an absurd one, is invalid. */
+/**
+ * Applies the mapping to one raw row. A row without any name, or with an absurd one, is invalid.
+ * For `dwaprices`, the form and pack are read out of the trade name, which carries all of them.
+ */
 export function parseImportRow(
   raw: RawRow,
   columns: Partial<Record<DrugImportField, string>>,
+  source: DrugSource,
 ): RowParse {
   const cell = (field: DrugImportField): string => {
     const header = columns[field];
     return header === undefined ? "" : (raw.cells[header] ?? "").trim();
   };
+  const mapped = (field: DrugImportField): boolean => columns[field] !== undefined;
   const brandEnText = cell("brandEn");
   const brandArText = cell("brandAr");
+  const traded =
+    source === "dwaprices" && brandEnText !== "" ? parseDwaTradeName(brandEnText) : null;
   // A list with Arabic names only still gets a row: the Arabic name doubles as the English one.
-  const brandEn = brandEnText !== "" ? brandEnText : brandArText;
+  const brandEn = traded?.brandEn ?? (brandEnText !== "" ? brandEnText : brandArText);
   if (brandEn === "") return { ok: false, row: raw.row, reason: "missing_name", label: "" };
+  if (
+    source === "dwaprices" &&
+    isDwaPlaceholder(brandEnText, {
+      ingredients: cell("ingredients"),
+      category: cell("category"),
+      company: cell("manufacturer"),
+      barcode: cell("barcode"),
+    })
+  ) {
+    return { ok: false, row: raw.row, reason: "placeholder", label: brandEn.slice(0, 80) };
+  }
   if (brandEn.length > NAME_MAX || brandArText.length > NAME_MAX) {
     return { ok: false, row: raw.row, reason: "name_too_long", label: brandEn.slice(0, 80) };
   }
@@ -117,7 +150,7 @@ export function parseImportRow(
   const drug = drugColumns({
     brandEn,
     brandAr: orNull(brandArText, NAME_MAX),
-    form: orNull(cell("form")),
+    form: orNull(cell("form")) ?? traded?.form ?? null,
     strengthText: orNull(strengthText),
   });
   if (drug.normalizedEn === "") {
@@ -146,6 +179,7 @@ export function parseImportRow(
     });
   }
   const country = cell("country").toUpperCase();
+  const packText = mapped("packText") ? orNull(cell("packText")) : traded?.packText;
   return {
     ok: true,
     value: {
@@ -155,6 +189,13 @@ export function parseImportRow(
       country: /^[A-Z]{2}$/.test(country) ? country : null,
       ingredients,
       aliases,
+      sourceRef: orNull(cell("sourceRef"), 100),
+      category: mapped("category") ? orNull(cell("category")) : undefined,
+      priceMinor: mapped("price") ? parsePriceMinor(cell("price")) : undefined,
+      oldPriceMinor: mapped("oldPrice") ? parsePriceMinor(cell("oldPrice")) : undefined,
+      packText,
+      unitsCount: mapped("unitsCount") ? parseUnitsCount(cell("unitsCount")) : undefined,
+      barcode: mapped("barcode") ? parseBarcode(cell("barcode")) : undefined,
     },
   };
 }
@@ -174,12 +215,33 @@ export function drugKey(columns: {
   ].join("|");
 }
 
+/** A row with a source id is identified by it; any other row by its name, strength and form. */
+export const refKey = (sourceRef: string): string => `ref|${sourceRef}`;
+export const rowKey = (row: ImportRow): string =>
+  row.sourceRef === null ? drugKey(row.columns) : refKey(row.sourceRef);
+
 /** What the database already holds for a drug. */
 export interface ExistingDrug {
   id: string;
+  brandEn: string;
+  normalizedEn: string;
   brandAr: string | null;
+  brandKey: string;
+  form: string | null;
+  strengthText: string | null;
+  strengthValueMicro: number | null;
+  strengthUnit: string | null;
   manufacturer: string | null;
   country: string | null;
+  category: string | null;
+  priceMinor: number | null;
+  oldPriceMinor: number | null;
+  packText: string | null;
+  unitsCount: number | null;
+  barcode: string | null;
+  sourceRef: string | null;
+  /** Set when an admin edited the row: an import never overwrites it. */
+  adminEditedAt: Date | null;
   importBatchId: string | null;
   createdAt: Date;
   ingredients: ReadonlySet<string>;
@@ -202,6 +264,10 @@ export interface PlanContext {
   committedAt: Date | null;
 }
 
+/** A value the file has (even an empty one) that is not what is stored. */
+const differs = <T>(next: T | undefined, stored: T): boolean =>
+  next !== undefined && next !== stored;
+
 /**
  * Decides one row. `seen` holds the keys of the rows already decided in this file, so a repeat
  * is a duplicate; it is updated here.
@@ -212,7 +278,7 @@ export function planRow(
   seen: Set<string>,
   context: PlanContext,
 ): RowPlan {
-  const key = drugKey(row.columns);
+  const key = rowKey(row);
   if (seen.has(key)) {
     return { status: "duplicate", reason: "duplicate_in_file", changes: [], write: false };
   }
@@ -231,7 +297,34 @@ export function planRow(
     };
   }
 
+  if (existing.adminEditedAt !== null) {
+    return { status: "duplicate", reason: "admin_edited", changes: [], write: false, existing };
+  }
+
   const changes: string[] = [];
+  if (row.sourceRef !== null && row.sourceRef === existing.sourceRef) {
+    // Found by its id, not by its name: the name, form and strength may have changed in the list.
+    const c = row.columns;
+    if (c.brandEn !== existing.brandEn || c.normalizedEn !== existing.normalizedEn) {
+      changes.push("brandEn");
+    }
+    if (c.form !== existing.form) changes.push("form");
+    if (
+      c.strengthText !== existing.strengthText ||
+      c.strengthValueMicro !== existing.strengthValueMicro ||
+      c.strengthUnit !== existing.strengthUnit
+    ) {
+      changes.push("strength");
+    }
+  }
+  // A row that predates `brand_key` gets it on its next import.
+  if (existing.brandKey === "" && row.columns.brandKey !== "") changes.push("brandKey");
+  if (differs(row.category, existing.category)) changes.push("category");
+  if (differs(row.priceMinor, existing.priceMinor)) changes.push("price");
+  if (differs(row.oldPriceMinor, existing.oldPriceMinor)) changes.push("oldPrice");
+  if (differs(row.packText, existing.packText)) changes.push("packText");
+  if (differs(row.unitsCount, existing.unitsCount)) changes.push("unitsCount");
+  if (differs(row.barcode, existing.barcode)) changes.push("barcode");
   if (row.columns.brandAr !== null && row.columns.brandAr !== existing.brandAr)
     changes.push("brandAr");
   if (row.manufacturer !== null && row.manufacturer !== existing.manufacturer) {
