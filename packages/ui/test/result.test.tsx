@@ -56,7 +56,7 @@ describe("RxTable", () => {
   it("is a table with column headers, row headers and scope", () => {
     table([item(), item({ name: "Panadol" })]);
     const headers = screen.getAllByRole("columnheader");
-    expect(headers).toHaveLength(8);
+    expect(headers).toHaveLength(3);
     for (const header of headers) expect(header.getAttribute("scope")).toBe("col");
     const rowHeaders = screen.getAllByRole("rowheader");
     expect(rowHeaders).toHaveLength(2);

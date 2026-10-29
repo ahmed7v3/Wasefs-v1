@@ -1,6 +1,7 @@
 "use client";
 
 import { t, type MessageKey } from "@wasfa/shared/i18n";
+import { displayName, formLabel } from "@wasfa/shared/rx-sanitize";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 
@@ -50,9 +51,8 @@ export interface RxTableProps {
   className?: string | undefined;
 }
 
+/** Strength and form sit beside the name; the columns left are the directions. A column empty on every row is not drawn. */
 const TEXT_COLUMNS = [
-  ["strength", "rx.col.strength"],
-  ["form", "rx.col.form"],
   ["dose", "rx.col.dose"],
   ["frequency", "rx.col.frequency"],
   ["duration", "rx.col.duration"],
@@ -68,7 +68,8 @@ export function drugTitle(
   modelOnly = false,
 ): string {
   const useName = modelOnly || item.matchedDrugId !== null || item.verified === "corrected";
-  return ((useName ? item.name : null) ?? item.rawText).trim();
+  // Never directions as a name: Arabic words mixed into a Latin line are cut off (see rx-sanitize).
+  return displayName((useName ? item.name : null) ?? item.rawText).trim();
 }
 
 /** Where a row needs a person's eye: an unmatched name, or anything that is not high confidence. */
@@ -100,6 +101,9 @@ export function RxTable({
   className,
 }: RxTableProps) {
   const rows = useRef(new Map<number, HTMLTableRowElement>());
+  const columns = TEXT_COLUMNS.filter(([key]) =>
+    items.some((item) => (item[key] ?? "").trim() !== ""),
+  );
   const [open, setOpen] = useState<ReadonlySet<number>>(new Set());
   const toggle = (index: number) => {
     setOpen((current) => {
@@ -128,7 +132,7 @@ export function RxTable({
           <th role="columnheader" scope="col" className="px-3 py-2 text-start font-semibold">
             {t("rx.col.drug")}
           </th>
-          {TEXT_COLUMNS.map(([key, label]) => (
+          {columns.map(([key, label]) => (
             <th
               key={key}
               role="columnheader"
@@ -149,6 +153,10 @@ export function RxTable({
           const flagged = needsReview(item, modelOnly);
           const level = shownConfidence(item.badge, unmatched);
           const title = drugTitle(item, modelOnly);
+          // "500 mg · أقراص": strength as written, the form in Arabic.
+          const beside = [item.strength, formLabel(item.form, "ar")]
+            .filter((part): part is string => part !== null && part.trim() !== "")
+            .join(" · ");
           const hasDetails = item.details !== undefined && item.details !== null;
           const expanded = hasDetails && open.has(index);
           const detailsId = `rx-details-${String(index)}`;
@@ -210,6 +218,11 @@ export function RxTable({
                   >
                     <span className="block text-base font-semibold text-text">
                       <bdi>{title}</bdi>
+                      {beside === "" ? null : (
+                        <span className="ms-2 text-sm font-normal text-text-muted">
+                          <bdi>{beside}</bdi>
+                        </span>
+                      )}
                     </span>
                     {!unmatched && item.activeIngredients.length > 0 ? (
                       <span className="block text-sm font-normal text-text-muted">
@@ -218,7 +231,7 @@ export function RxTable({
                     ) : null}
                   </button>
                 </th>
-                {TEXT_COLUMNS.map(([key, label]) => {
+                {columns.map(([key, label]) => {
                   const value = item[key];
                   const has = value !== null && value.trim() !== "";
                   return (
@@ -253,7 +266,9 @@ export function RxTable({
                   <div className="flex flex-wrap items-center gap-2">
                     <ConfidenceBadge level={item.badge} unmatched={unmatched} />
                     {item.source === "ai" ? (
-                      <span className="text-sm text-text-muted">{t("rx.source.ai")}</span>
+                      <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-text-muted">
+                        {t("rx.source.ai")}
+                      </span>
                     ) : null}
                     {item.verified === "corrected" ? (
                       <span className="text-sm text-text-muted">{t("rx.item.corrected")}</span>
@@ -303,11 +318,7 @@ export function RxTable({
                   id={detailsId}
                   className="border-b border-border bg-neutral-100 max-xl:-mt-3 max-xl:block max-xl:rounded-b-lg"
                 >
-                  <td
-                    role="cell"
-                    colSpan={TEXT_COLUMNS.length + 2}
-                    className="px-4 py-3 max-xl:block"
-                  >
+                  <td role="cell" colSpan={columns.length + 2} className="px-4 py-3 max-xl:block">
                     <RxItemDetails details={item.details} />
                   </td>
                 </tr>

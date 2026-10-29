@@ -227,7 +227,7 @@ export const rxSettingsSchema = z.object({
   /** Model-written warnings are off: warnings come from code (phase2.md, Decision 8). */
   modelWarnings: z.boolean().default(false),
   /** Items re-read by the verification pass. */
-  verifyMaxItems: z.number().int().min(0).max(20).default(5),
+  verifyMaxItems: z.number().int().min(0).max(20).default(8),
   /**
    * Retired (docs/MEDICATIONS.md section 3): the worker ignores it. Recognition uses the drug database
    * iff `medications.enabled && medications.mode === "hybrid"`. The key stays so stored settings and

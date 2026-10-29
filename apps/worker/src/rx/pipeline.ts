@@ -14,6 +14,7 @@ import {
   duplicateIngredientFindings,
   finalConfidence,
 } from "@wasfa/shared/rx-result";
+import { displayName } from "@wasfa/shared/rx-sanitize";
 import {
   RX_SCHEMA_VERSION,
   rxResultSchema,
@@ -101,7 +102,7 @@ export async function matchLine(
     strengthConflictPenalty: settings.strengthConflictPenalty,
     formBonus: settings.formBonus,
   };
-  const primary = (nameOverride ?? line.name ?? line.rawText).trim();
+  const primary = (nameOverride ?? line.name ?? displayName(line.rawText)).trim();
   const merged = new Map<string, RankedCandidate>();
   const run = async (text: string, via: MatchVia): Promise<void> => {
     if (text === "") return;

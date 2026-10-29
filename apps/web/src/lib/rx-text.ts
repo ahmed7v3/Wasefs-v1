@@ -1,4 +1,5 @@
 import { t } from "@wasfa/shared/i18n";
+import { formLabel } from "@wasfa/shared/rx-sanitize";
 import { drugTitle } from "@wasfa/ui";
 
 import type { RxResult, RxResultItem } from "@wasfa/shared/schemas/rx";
@@ -53,7 +54,7 @@ const joined = (values: readonly string[]): string =>
 
 /** Pieces of the "how to take it" line, in the order a pharmacist reads them. */
 function usageParts(item: RxTextItem): string[] {
-  return [item.form, item.dose, item.frequency, item.duration, item.route]
+  return [formLabel(item.form, "ar"), item.dose, item.frequency, item.duration, item.route]
     .map(clean)
     .filter((part) => part !== "");
 }
@@ -72,7 +73,7 @@ export function itemLine(item: RxTextItem, position: number, modelOnly = false):
   const title = drugTitle(item, modelOnly);
   const details = [
     clean(item.strength) !== "" ? t("rx.share.strength", { value: clean(item.strength) }) : "",
-    clean(item.form),
+    clean(formLabel(item.form, "ar")),
     clean(item.dose),
     clean(item.frequency),
     clean(item.duration),

@@ -1,5 +1,6 @@
 import { PAYMENT_REJECT_REASONS } from "@wasfa/shared/billing";
 import { t, type Locale, type MessageKey } from "@wasfa/shared/i18n";
+import { displayName, formLabel } from "@wasfa/shared/rx-sanitize";
 
 import { splitReply } from "../agent/agent-output.js";
 
@@ -49,8 +50,8 @@ export function paymentMessage(
 
 /** One medicine the way the result page lists it: name, strength and form, then how it is taken. */
 export function rxItemLine(item: RxResultItem, locale: Locale): string {
-  const name = (item.name ?? "").trim() !== "" ? (item.name ?? "") : item.rawText.trim();
-  const head = [name, item.strength, item.form]
+  const name = displayName((item.name ?? "").trim() !== "" ? (item.name ?? "") : item.rawText.trim());
+  const head = [name, item.strength, formLabel(item.form, locale)]
     .filter((part): part is string => part !== null && part.trim() !== "")
     .join(" ");
   const how = [item.dose, item.frequency, item.duration]
