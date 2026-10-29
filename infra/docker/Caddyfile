@@ -53,15 +53,7 @@ www.{$SITE_DOMAIN:wasfa.online} {
 	redir https://{$SITE_DOMAIN:wasfa.online}{uri} permanent
 }
 
-{$API_DOMAIN:api.wasfa.online} {
-	import /etc/caddy/tls.caddy
-	import common
-	# Uploads go straight to R2 via presigned URLs, so the API never needs a big body.
-	request_body {
-		max_size 1MB
-	}
-	# Internal endpoints (crawler hit counting) are reachable only from the Docker network.
-	respond /internal/* 404
+(api_proxy) {
 	reverse_proxy api:4000 {
 		import proxy_headers
 		# Stream server-sent events (AI answers) as they are produced instead of buffering them.
@@ -69,6 +61,33 @@ www.{$SITE_DOMAIN:wasfa.online} {
 		transport http {
 			response_header_timeout 120s
 		}
+	}
+}
+
+{$API_DOMAIN:api.wasfa.online} {
+	import /etc/caddy/tls.caddy
+	import common
+	# The drug list import is the one upload that goes through the API (an admin-only multipart
+	# file of up to 20 MB, DRUG_IMPORT_MAX_BYTES, checked again by the API); 21MB leaves room for
+	# the multipart framing.
+	@drugImport {
+		method POST
+		path /admin/drugs/imports
+	}
+	handle @drugImport {
+		request_body {
+			max_size 21MB
+		}
+		import api_proxy
+	}
+	handle {
+		# Every other upload goes straight to R2 via presigned URLs, so the API needs no big body.
+		request_body {
+			max_size 1MB
+		}
+		# Internal endpoints (crawler hit counting) are reachable only from the Docker network.
+		respond /internal/* 404
+		import api_proxy
 	}
 }
 

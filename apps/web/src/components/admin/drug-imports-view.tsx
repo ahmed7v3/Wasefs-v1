@@ -39,6 +39,8 @@ import { ConfirmDialog } from "./confirm-dialog";
 
 import type { ApiRequestError } from "../../lib/api-error";
 
+const UPLOAD_TIMEOUT_MS = 5 * 60_000;
+
 type RowGroup = "preview" | "new" | "updated" | "duplicate" | "invalid";
 const GROUPS: readonly RowGroup[] = ["preview", "new", "updated", "duplicate", "invalid"];
 
@@ -86,7 +88,15 @@ function UploadCard({ onUploaded }: { onUploaded: (id: string) => void }) {
     body.append("source", source);
     body.append("file", file);
     reauth
-      .run(() => api("/admin/drugs/imports", { method: "POST", body, schema: importViewSchema }))
+      .run(() =>
+        api("/admin/drugs/imports", {
+          method: "POST",
+          body,
+          schema: importViewSchema,
+          // A file of up to 20 MB on a slow line: give it time, but never wait forever.
+          signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
+        }),
+      )
       .then(
         (created) => {
           setSubmitting(false);
