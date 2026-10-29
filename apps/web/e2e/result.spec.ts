@@ -69,7 +69,8 @@ for (const [label, width, height] of [
       const { id } = await seeded(ctx);
       await page.goto(`/analyze/${id}`);
       await expect(page.getByRole("table")).toBeVisible();
-      await expect(page.getByRole("columnheader")).toHaveCount(8);
+      // Strength and form sit beside the name; columns no row fills are not drawn.
+      await expect(page.getByRole("columnheader")).toHaveCount(4);
       await expect(page.getByRole("rowheader")).toHaveCount(3);
       await expect(page.getByTestId("rx-disclaimer")).toBeVisible();
       await expect(page.getByTestId("rx-unreadable-note")).toBeVisible();
