@@ -21,6 +21,7 @@ import { enErrors } from "./en.errors.js";
 import { enGrowthConsole } from "./en.growth-console.js";
 import { enGrowth } from "./en.growth.js";
 import { enMedications } from "./en.medications.js";
+import { enMessaging } from "./en.messaging.js";
 import { enOrg } from "./en.org.js";
 import { enPublicContent } from "./en.public-content.js";
 import { enPublic } from "./en.public.js";
@@ -53,6 +54,7 @@ export const en: Partial<Record<MessageKey, string>> = {
   ...enAdminEvals,
   ...enRx,
   ...enMedications,
+  ...enMessaging,
   ...enRewards,
   ...enReferralsWeb,
   ...enOrg,
