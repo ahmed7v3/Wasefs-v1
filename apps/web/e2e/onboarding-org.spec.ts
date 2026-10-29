@@ -4,6 +4,7 @@ import { orgListResponseSchema } from "@wasfa/shared/schemas/org";
 import { newAccount, registerVerified, signInContext } from "./support/accounts";
 import { expect, test } from "./support/fixtures";
 import {
+  finishWelcome,
   answerAccountType,
   answerName,
   answerOrganization,
@@ -16,7 +17,7 @@ import {
 // Task 1.9 acceptance: the organization path of the wizard, with the organization fields, ends on
 // the dashboard and leaves a real organization behind with the new user as its admin.
 
-test("organization onboarding creates the organization and reaches the dashboard", async ({
+test("the welcome card's organization path creates the organization and reaches the dashboard", async ({
   page,
   context,
   urls,
@@ -27,7 +28,40 @@ test("organization onboarding creates the organization and reaches the dashboard
   await signInContext(context, urls, account);
 
   await page.goto("/dashboard");
-  await expect(page).toHaveURL(/\/onboarding$/);
+  await expect(page).toHaveURL(/\/welcome$/);
+  await finishWelcome(page, { organization: "E2E Pharmacy" });
+
+  await expect(page).toHaveURL(/\/dashboard$/);
+  const firstName = account.name.split(" ")[0] ?? "";
+  await expect(
+    page.getByRole("heading", { level: 1, name: t("dashboard.greeting", { name: firstName }) }),
+  ).toBeVisible();
+
+  const orgs = orgListResponseSchema.parse(
+    await (await page.request.get(`${urls.api}/orgs`)).json(),
+  );
+  expect(orgs.items).toHaveLength(1);
+  expect(orgs.items[0]).toMatchObject({
+    name: "E2E Pharmacy",
+    type: "pharmacy",
+    country: "EG",
+    city: "Cairo",
+    myRole: "org_admin",
+  });
+});
+
+test("the classic wizard still creates the organization and reaches the dashboard", async ({
+  page,
+  context,
+  urls,
+  redis,
+}) => {
+  const account = newAccount("Org");
+  await registerVerified(urls, redis, account);
+  await signInContext(context, urls, account);
+
+  await page.goto("/onboarding?classic=1");
+  await expect(page).toHaveURL(/\/onboarding\?classic=1$/);
 
   await answerAccountType(page, "organization");
   await answerName(page, account.name);
