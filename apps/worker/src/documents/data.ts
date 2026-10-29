@@ -1,7 +1,7 @@
 import { t, type Locale, type MessageKey } from "@wasfa/shared/i18n";
 import { normalizeArabic } from "@wasfa/shared/normalize";
-import { dayOrder, formatClock, scheduleOf, type DoseSlotKey } from "@wasfa/shared/rx-schedule";
 import { displayName, formLabel } from "@wasfa/shared/rx-sanitize";
+import { dayOrder, formatClock, scheduleOf, type DoseSlotKey } from "@wasfa/shared/rx-schedule";
 import { z } from "zod";
 
 import type { RenderRequest } from "./renderer.js";
