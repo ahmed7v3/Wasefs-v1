@@ -1,3 +1,5 @@
+import { cleanDrugQuery } from "@wasfa/shared/drug-query";
+import { arabicToLatinCandidates } from "@wasfa/shared/drug-translit";
 import { DRUG_SIMILARITY_THRESHOLD } from "@wasfa/shared/drugs";
 import { normalizeDrugName } from "@wasfa/shared/normalize";
 import { asc, eq, inArray, sql } from "drizzle-orm";
@@ -117,22 +119,55 @@ export async function medicationSummaries(
   return (await load(db, ids)).map(summaryOf);
 }
 
+/** `like` pattern for "starts with this text" (the wildcard characters of the text are literal). */
+const prefixOf = (text: string): string => `${text.replace(/[\\%_]/g, "\\$&")}%`;
+
+/**
+ * Brand-name lookup of one text, three index-friendly ways, scored like the matcher scores a brand:
+ * the family's trigram similarity, the product name's, and the word similarity (a short brand inside a
+ * long product name) discounted by how little of the name the text covers.
+ */
+const fuzzyHits = (text: string) => sql`
+  select c.id, 4 as rank,
+         greatest(
+           similarity(c.brand_key, ${text}::text),
+           similarity(c.normalized_en, ${text}::text),
+           word_similarity(${text}::text, c.normalized_en)
+             * power(least(1, length(${text}::text)::float8 / greatest(length(c.normalized_en), 1)), 0.7)
+         )::float8 as s
+  from (
+    select d.id, d.brand_key, d.normalized_en from drugs d where d.brand_key % ${text}::text
+    union
+    select d.id, d.brand_key, d.normalized_en from drugs d where d.normalized_en % ${text}::text
+    union
+    select d.id, d.brand_key, d.normalized_en from drugs d where ${text}::text <% d.normalized_en
+  ) c`;
+
+const titleOf = (text: string): string =>
+  text.replace(
+    /(^|\s)(\p{L})/gu,
+    (_match, space: string, letter: string) => `${space}${letter.toUpperCase()}`,
+  );
+
 /**
  * A page of medications for a typed name. Digits only (8-14) is a barcode lookup; anything else is
- * normalized like drug names are, then ranked: brand family, active ingredient, trigram similarity.
+ * cleaned like a prescription line (notes and directions go; an Arabic-script name is also tried as
+ * its likely Latin spellings), then ranked: brand family, brand-family prefix, active ingredient,
+ * fuzzy similarity. `didYouMean` names the brand of the top hit when it is only a fuzzy one.
  */
 export async function searchMedications(
   db: Database,
   options: MedicationSearchOptions,
-): Promise<{ items: MedicationSummary[]; nextCursor: string | null }> {
+): Promise<{ items: MedicationSummary[]; nextCursor: string | null; didYouMean: string | null }> {
   const q = options.q.trim();
   const limit = Math.max(1, Math.min(options.limit, MEDICATION_MAX_LIMIT));
   const offset = decodeCursor(options.cursor);
   const category = options.category ?? null;
-  const empty = { items: [], nextCursor: null };
+  const empty = { items: [], nextCursor: null, didYouMean: null };
   if (q === "") return empty;
 
   let ids: string[];
+  let didYouMean: string | null = null;
   if (BARCODE.test(q)) {
     const rows = await db.execute<{ id: string }>(sql`
       select d.id from drugs d
@@ -143,41 +178,62 @@ export async function searchMedications(
     `);
     ids = Array.from(rows, (row) => row.id);
   } else {
-    const key = normalizeDrugName(q).name;
+    const cleaned = cleanDrugQuery(q);
+    const key = cleaned.latin ?? cleaned.arabic ?? normalizeDrugName(q).name;
     if (key === "") return empty;
-    const prefix = `${key.replace(/[\\%_]/g, "\\$&")}%`;
-    // Latin text shares no trigram with an Arabic name: scan that index only for Arabic text.
-    const arabicBrands = ARABIC_LETTER.test(key)
+    const isArabic = ARABIC_LETTER.test(key);
+    // The Latin texts the brand columns are searched with.
+    const texts = isArabic ? arabicToLatinCandidates(key) : [key];
+    const list = sql.join(
+      [...new Set([key, ...texts])].map((text) => sql`${text}::text`),
+      sql`, `,
+    );
+    const prefixes = sql.join(
+      texts.map((text) => sql`d.brand_key like ${prefixOf(text)}`),
+      sql` or `,
+    );
+    const arabicBrands = isArabic
       ? sql`union all
-          select d.id, 3, similarity(d.normalized_ar, ${key}::text)::float8
+          select d.id, 4, similarity(d.normalized_ar, ${key}::text)::float8
           from drugs d
           where d.normalized_ar % ${key}::text`
       : sql``;
+    const fuzzy =
+      texts.length === 0
+        ? sql``
+        : sql`union all ${sql.join(
+            texts.map((text) => fuzzyHits(text)),
+            sql` union all `,
+          )}`;
     const rows = await db.transaction(async (tx) => {
       // SET LOCAL takes no parameters; the value is a constant of ours, never input.
       await tx.execute(
         sql.raw(`set local pg_trgm.similarity_threshold = ${DRUG_SIMILARITY_THRESHOLD}`),
       );
-      return await tx.execute<{ id: string }>(sql`
+      await tx.execute(
+        sql.raw(`set local pg_trgm.word_similarity_threshold = ${DRUG_SIMILARITY_THRESHOLD}`),
+      );
+      return await tx.execute<{ id: string; rank: number; brand_key: string }>(sql`
         with hits as (
-          select d.id, 1 as rank, similarity(d.normalized_en, ${key}::text)::float8 as s
+          select d.id, 1 as rank, 1::float8 as s
           from drugs d
-          where d.brand_key = ${key}::text or d.brand_key like ${prefix}
+          where d.brand_key in (${list})
           union all
-          select di.drug_id, 2, 1.0::float8
+          select d.id, 2, (1 - least(0.99, length(d.brand_key)::float8 / 100))::float8
+          from drugs d
+          where ${texts.length === 0 ? sql`false` : prefixes}
+          union all
+          select di.drug_id, 3, 1.0::float8
           from active_ingredients i
           join drug_ingredients di on di.ingredient_id = i.id
-          where i.normalized = ${key}::text
-          union all
-          select d.id, 3, similarity(d.normalized_en, ${key}::text)::float8
-          from drugs d
-          where d.normalized_en % ${key}::text
+          where i.normalized in (${list})
+          ${fuzzy}
           ${arabicBrands}
         ),
         best as (
           select distinct on (id) id, rank, s from hits order by id, rank, s desc
         )
-        select d.id
+        select d.id, b.rank, d.brand_key
         from best b
         join drugs d on d.id = b.id
         where d.status <> 'withdrawn'
@@ -187,12 +243,18 @@ export async function searchMedications(
       `);
     });
     ids = Array.from(rows, (row) => row.id);
+    const top = rows[0];
+    // Only the first page names a correction, and only when nothing matched the typed name itself.
+    if (offset === 0 && top !== undefined && top.rank === 4 && top.brand_key !== key) {
+      didYouMean = titleOf(top.brand_key);
+    }
   }
 
   const more = ids.length > limit && offset + limit < MEDICATION_MAX_OFFSET;
   return {
     items: await medicationSummaries(db, ids.slice(0, limit)),
     nextCursor: more ? encodeCursor(offset + limit) : null,
+    didYouMean,
   };
 }
 
@@ -303,8 +365,17 @@ export async function medicationCardsFor(
   if (max <= 0) return [];
   const grams = medicationNgrams(text);
   if (grams.length === 0) return [];
+  // An Arabic word ("ريوبان") is looked up exactly by its likeliest Latin spellings too; a card found
+  // that way keeps the position of the word it came from.
+  const origin = new Map<string, string>(grams.map((gram) => [gram, gram]));
+  for (const gram of grams) {
+    if (!ARABIC_LETTER.test(gram)) continue;
+    for (const spelling of arabicToLatinCandidates(gram).slice(0, 3)) {
+      if (!origin.has(spelling)) origin.set(spelling, gram);
+    }
+  }
   const list = sql.join(
-    grams.map((gram) => sql`${gram}::text`),
+    [...origin.keys()].map((gram) => sql`${gram}::text`),
     sql`, `,
   );
 
@@ -372,7 +443,10 @@ export async function medicationCardsFor(
   ];
   return found
     .filter((a) => !found.some((b) => b.key !== a.key && ` ${b.key} `.includes(` ${a.key} `)))
-    .sort((a, b) => grams.indexOf(a.key) - grams.indexOf(b.key))
+    .sort(
+      (a, b) =>
+        grams.indexOf(origin.get(a.key) ?? a.key) - grams.indexOf(origin.get(b.key) ?? b.key),
+    )
     .slice(0, max)
     .map((entry) => entry.card);
 }

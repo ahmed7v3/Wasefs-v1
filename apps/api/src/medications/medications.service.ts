@@ -60,6 +60,7 @@ export class MedicationsService {
     return {
       items: showPrices ? page.items : page.items.map((item) => withoutPrice(item)),
       nextCursor: page.nextCursor,
+      didYouMean: page.didYouMean,
     };
   }
 

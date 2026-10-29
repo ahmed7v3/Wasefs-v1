@@ -218,6 +218,13 @@
       "when": 1793227882909,
       "tag": "0030_whatsapp_login_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1793251188566,
+      "tag": "0031_drugs_brand_key_trgm",
+      "breakpoints": true
     }
   ]
 }

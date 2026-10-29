@@ -50,6 +50,16 @@
       "import": "./dist/drug-decision.js",
       "default": "./dist/drug-decision.js"
     },
+    "./drug-query": {
+      "types": "./dist/drug-query.d.ts",
+      "import": "./dist/drug-query.js",
+      "default": "./dist/drug-query.js"
+    },
+    "./drug-translit": {
+      "types": "./dist/drug-translit.d.ts",
+      "import": "./dist/drug-translit.js",
+      "default": "./dist/drug-translit.js"
+    },
     "./drugs": {
       "types": "./dist/drugs.d.ts",
       "import": "./dist/drugs.js",

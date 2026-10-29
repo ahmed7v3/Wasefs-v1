@@ -47,6 +47,8 @@ export interface DrugMatchCandidate {
   brandKey: string;
   /** Final score, 0-1: name similarity plus the strength and form adjustments. */
   score: number;
+  /** Found only through a guessed Latin spelling of an Arabic-script name: never auto-accepted. */
+  transliterated?: boolean;
   explanation: DrugMatchExplanation;
 }
 
