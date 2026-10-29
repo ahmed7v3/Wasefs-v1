@@ -105,16 +105,25 @@ export const replyOutcomeSchema = z.enum([
   "messages_off",
   "messages_on",
   "wa_unresolved",
+  // "Continue with WhatsApp" (docs/WA-SIGNUP.md): fixed sentences like the rest.
+  "login_ok",
+  "login_refused",
+  "login_expired",
+  "logout_ok",
 ]);
 export type ReplyOutcome = z.output<typeof replyOutcomeSchema>;
 
-/** The only two sentences the bridge may ever send. The api picks one by name; it cannot supply text. */
+/** The only sentences the bridge may ever send. The api picks one by name; it cannot supply text. */
 export function replyText(outcome: ReplyOutcome): string {
   if (outcome === "alerts_on") return t("phone.reply.alertsOn");
   if (outcome === "alerts_off") return t("phone.reply.alertsOff");
   if (outcome === "messages_off") return t("phone.reply.messagesOff");
   if (outcome === "messages_on") return t("phone.reply.messagesOn");
   if (outcome === "wa_unresolved") return t("phone.verify.waUnresolved");
+  if (outcome === "login_ok") return t("phone.reply.loginOk");
+  if (outcome === "login_refused") return t("phone.reply.loginRefused");
+  if (outcome === "login_expired") return t("phone.reply.loginExpired");
+  if (outcome === "logout_ok") return t("phone.reply.logoutOk");
   return t(outcome === "verified" ? "phone.reply.verified" : "phone.reply.invalid");
 }
 

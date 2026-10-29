@@ -56,6 +56,8 @@ export type MedicationDetail = z.infer<typeof medicationDetailSchema>;
 export const medicationSearchResponseSchema = z.object({
   items: z.array(medicationSummarySchema),
   nextCursor: z.string().nullable(),
+  /** The brand to try instead when the best hit is only a fuzzy one ("augmntin" -> "Augmentin"). */
+  didYouMean: z.string().nullable().optional(),
 });
 export type MedicationSearchResponse = z.infer<typeof medicationSearchResponseSchema>;
 

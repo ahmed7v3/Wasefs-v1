@@ -4,12 +4,14 @@ import { redirect } from "next/navigation";
 
 import { AuthFooter, AuthHeading } from "../../../components/auth/auth-heading";
 import { LoginForm, type LoginBanner } from "../../../components/auth/login-form";
+import { WhatsAppLogin } from "../../../components/auth/whatsapp-login";
 import { JoinCookie } from "../../../components/join/join-cookie";
 import { normalizeJoinSlug } from "../../../lib/attribution-cookies";
 import { providersResponseSchema, type ProviderStates } from "../../../lib/auth-api";
 import { getNonce } from "../../../lib/nonce";
 import { safeNext } from "../../../lib/safe-next";
 import { getMe, serverApi } from "../../../lib/session";
+import { loadWhatsAppAvailable } from "../../../lib/whatsapp-availability";
 
 import type { Metadata } from "next";
 
@@ -55,7 +57,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   // Already signed in: the login page has nothing to offer. A failing session check just shows the form.
   if (await getMe().catch(() => null)) redirect(next);
 
-  const [providers, nonce] = await Promise.all([loadProviders(), getNonce()]);
+  const [providers, nonce, whatsappAvailable] = await Promise.all([
+    loadProviders(),
+    getNonce(),
+    loadWhatsAppAvailable(),
+  ]);
   const joinSlug = normalizeJoinSlug(first(params["join"]));
   const registerParams = new URLSearchParams();
   if (next !== "/dashboard") registerParams.set("next", next);
@@ -67,6 +73,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <>
       {joinSlug ? <JoinCookie slug={joinSlug} /> : null}
       <AuthHeading title={t("auth.login.title")} lead={t("auth.login.lead")} />
+      <WhatsAppLogin available={whatsappAvailable} next={next} nonce={nonce} />
       <LoginForm nonce={nonce} next={next} providers={providers} banner={bannerFor(params)} />
       <AuthFooter>
         {t("auth.login.noAccount")}{" "}

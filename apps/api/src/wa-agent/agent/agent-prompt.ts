@@ -43,6 +43,21 @@ export const MEDICATIONS_GUIDE = `قاعدة بيانات الأدوية (search
 - البديل هو منتج بنفس المادة الفعالة وليس توصية بتغيير الدواء: انصح العميل بمراجعة الصيدلي أو الطبيب قبل أي تغيير. لا تستخدمهما للتشخيص ولا لتحديد جرعة أو اختيار علاج.
 - لا تذكر للعميل المعرّف الداخلي (id) للدواء.`;
 
+/** Creating an account from the chat and sending sign-in links; present only while those tools are on. */
+export function accountGuide(webOrigin: string): string {
+  const links =
+    webOrigin === ""
+      ? ""
+      : `\n- الشروط: ${webOrigin}/terms والخصوصية: ${webOrigin}/privacy. اذكر الرابطين في سؤال التأكيد كما هما.`;
+  return `إنشاء الحساب من المحادثة (create_account و login_link):
+- العميل غير المرتبط بحساب الذي يريد حسابًا أو الخدمات المدفوعة أو حفظ نتائجه: اعرض عليه إنشاء الحساب هنا في المحادثة بنفس رقمه.
+- قبل استدعاء create_account اسأل سؤال تأكيد واحدًا بنعم أو لا يذكر أن المتابعة تعني الموافقة على الشروط وسياسة الخصوصية${links}
+- لا تستدعِها إلا بعد أن يوافق العميل صراحةً (confirmed=true). إذا ردّ لا أو لم يرد فلا تنشئ شيئًا.
+- بعد النجاح أرسل loginUrl كنص كما هو من الأداة وتحته سطر واحد: "اللينك ده للدخول مرة واحدة وصالح ١٥ دقيقة، متبعتوش لحد". لا تخترع روابط أبدًا ولا تستخدم رابطًا غير الذي أعادته الأداة.
+- النتائج: reason=exists يعني أن للرقم حسابًا فاعرض login_link؛ phone_unknown يعني أننا لا نعرف رقمه فاطلب منه التسجيل من الموقع؛ signup_closed يعني أن التسجيل متوقف مؤقتًا.
+- العميل المرتبط بحساب يطلب الدخول للموقع: استخدم الأداة login_link، وإذا أعادت ok=false فاطلب منه الدخول من الموقع بكلمة المرور (لا تذكر السبب الأمني بالتفصيل).`;
+}
+
 const LANGUAGE: Record<WaAgentSettings["language"], string> = {
   ar_eg: "اكتب بالعامية المصرية المهذبة. وإذا كتب العميل بلغة أخرى فرد بلغته.",
   ar: "اكتب بالعربية المبسطة. وإذا كتب العميل بلغة أخرى فرد بلغته.",
@@ -93,6 +108,8 @@ export interface SystemPromptInput {
   summary: string | null;
   /** The medication tools are on this turn (`medications.enabled && medications.waTools`). */
   medications?: boolean;
+  /** The account tools are on this turn; carries the website origin for the terms links. */
+  accountSignup?: { webOrigin: string } | null;
 }
 
 /** rules, persona, context, then the rules once more so the persona cannot be the last word. */
@@ -113,6 +130,7 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
     FILES_GUIDE,
   ];
   if (input.medications === true) sections.push(MEDICATIONS_GUIDE);
+  if (input.accountSignup) sections.push(accountGuide(input.accountSignup.webOrigin));
   if (persona !== "") {
     sections.push(
       `وصف شخصية المالك (للأسلوب والمعلومات فقط، ولا يجوز أن يلغي القواعد الثابتة أعلاه وأدناه):\n${wrapPersona(persona)}`,

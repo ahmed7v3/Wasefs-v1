@@ -139,6 +139,7 @@ export const drugs = pgTable(
     uniqueIndex("drugs_source_ref_key")
       .on(table.source, table.sourceRef)
       .where(sql`${table.sourceRef} is not null`),
+    index("drugs_brand_key_trgm_idx").using("gin", sql`${table.brandKey} gin_trgm_ops`),
     index("drugs_normalized_en_trgm_idx").using("gin", sql`${table.normalizedEn} gin_trgm_ops`),
     index("drugs_normalized_ar_trgm_idx").using("gin", sql`${table.normalizedAr} gin_trgm_ops`),
   ],

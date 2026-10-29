@@ -20,6 +20,7 @@ import {
   answerProfession,
   skipSocial,
   stepHeading,
+  welcomeAccountType,
 } from "./support/onboarding-ui";
 import { bridgeConnected, bridgeGone } from "./support/whatsapp";
 
@@ -91,7 +92,8 @@ test("every onboarding step (organization path, with the phone step)", async ({
   await bridgeConnected(redis);
   const account = await signedInAccount(context, urls, redis, newAccount("A11y"));
 
-  await page.goto("/onboarding");
+  // The classic step-by-step wizard stays reachable (and checked) with ?classic=1.
+  await page.goto("/onboarding?classic=1");
   await expectAccessible(page, "onboarding: account type");
   await answerAccountType(page, "organization");
 
@@ -121,10 +123,24 @@ test("every onboarding step (organization path, with the phone step)", async ({
 
 test("onboarding steps of an individual: name step", async ({ context, page, urls, redis }) => {
   await signedInAccount(context, urls, redis, newAccount("A11y"));
-  await page.goto("/onboarding");
+  await page.goto("/onboarding?classic=1");
   await answerAccountType(page, "individual");
   await expect(stepHeading(page, "name")).toBeVisible();
   await expectAccessible(page, "onboarding: name");
+});
+
+test("the one-screen welcome card: individual, and with the organization fields", async ({
+  context,
+  page,
+  urls,
+  redis,
+}) => {
+  await signedInAccount(context, urls, redis, newAccount("A11y"));
+  await page.goto("/welcome");
+  await expectAccessible(page, "welcome: individual");
+  await welcomeAccountType(page, "organization").click();
+  await expect(page.locator("input[name=orgName]")).toBeVisible();
+  await expectAccessible(page, "welcome: organization fields");
 });
 
 test("signed-in pages: dashboard and account", async ({ context, page, urls, redis }) => {

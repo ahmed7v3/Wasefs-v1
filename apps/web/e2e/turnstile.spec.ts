@@ -68,7 +68,7 @@ test("login: after repeated failures the widget appears and the CSP raises no vi
   // The first attempt is refused with "turnstile required" and the widget is drawn.
   await expect(form.locator(widgetToken)).toHaveValue(/.+/, { timeout: 30_000 });
   await form.getByRole("button", { name: t("auth.login.submit") }).click();
-  await expect(page).toHaveURL(/\/onboarding$/);
+  await expect(page).toHaveURL(/\/welcome$/);
 
   expect(await csp.violations()).toEqual([]);
 });

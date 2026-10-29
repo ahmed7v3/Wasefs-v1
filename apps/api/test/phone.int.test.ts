@@ -365,8 +365,8 @@ describe("what must not verify", () => {
     const { code } = (await start(jar, phone)).json<{ code: string }>();
     await sendInbound(phone, code);
     await waitFor(async () => (await status(jar)).json<{ status: string }>().status === "verified");
-    const pending = await redis.xpending(WA_INBOUND_STREAM, "api");
-    expect(pending[0]).toBe(0);
+    // The entry is acknowledged after the reply is queued, a moment after the status flips.
+    await waitFor(async () => (await redis.xpending(WA_INBOUND_STREAM, "api"))[0] === 0);
   });
 });
 

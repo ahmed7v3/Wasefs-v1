@@ -14,8 +14,9 @@ const unused = () => Promise.reject(new Error("unused in this test"));
 /** `commerce`, `usage`, `documents` and `medications` ports for tests that never reach them. */
 export const unusedCommerceDeps: Pick<
   AgentToolDeps,
-  "commerce" | "usage" | "documents" | "medications"
+  "commerce" | "usage" | "documents" | "medications" | "accounts"
 > = {
+  accounts: { create: unused, loginLink: unused },
   documents: { create: unused },
   medications: { search: unused, alternatives: unused, showPrices: unused },
   commerce: { offerDiscount: unused, startSubscription: unused, attachReceipt: unused },

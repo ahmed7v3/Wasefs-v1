@@ -17,6 +17,7 @@ import { CLIENT_IP_HEADER } from "./auth.config.js";
 import { AuthPolicy, matchAuthRoute, type AuthRoute, type RouteMatch } from "./auth.policy.js";
 import { AUTH, AuthService } from "./auth.service.js";
 import { providerStates } from "./providers.js";
+import { WhatsAppLoginService } from "./whatsapp-login/whatsapp-login.service.js";
 
 import type { AuthInstance } from "./auth.config.js";
 import type { ApiEnv } from "../config/env.js";
@@ -73,6 +74,7 @@ export class AuthController {
     private readonly settings: SettingsService,
     private readonly sessions: AuthService,
     private readonly audit: AuditService,
+    private readonly whatsappLogin: WhatsAppLoginService,
   ) {
     this.trust = compileTrust(env.TRUST_PROXY);
   }
@@ -82,6 +84,13 @@ export class AuthController {
   async providers(@Res({ passthrough: true }) reply: FastifyReply) {
     reply.header("cache-control", "public, max-age=30");
     return providerStates(this.env, await this.settings.get("auth"));
+  }
+
+  /** Whether the web draws "Continue with WhatsApp": the setting is on and a bridge number exists. Public. */
+  @Get("whatsapp/availability")
+  async whatsappAvailability(@Res({ passthrough: true }) reply: FastifyReply) {
+    reply.header("cache-control", "public, max-age=30");
+    return { available: await this.whatsappLogin.available() };
   }
 
   /**

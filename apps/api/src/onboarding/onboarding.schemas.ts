@@ -1,6 +1,7 @@
 import { monthsSchema } from "@wasfa/shared/schemas/billing";
 import {
   ONBOARDING_PLANS,
+  onboardingWelcomeSchema,
   ONBOARDING_STEP_SCHEMAS,
   onboardingStepParamSchema,
   type OnboardingInputStep,
@@ -10,6 +11,7 @@ import { z } from "zod";
 import { createZodDto, parseWithSchema } from "../common/validation.js";
 
 export class OnboardingStepParamDto extends createZodDto(onboardingStepParamSchema) {}
+export class OnboardingWelcomeDto extends createZodDto(onboardingWelcomeSchema) {}
 
 /** What `PUT /onboarding/:step` carries: the step and its body, parsed with that step's own schema. */
 export type StepSubmission = {

@@ -50,6 +50,16 @@
       "import": "./dist/drug-decision.js",
       "default": "./dist/drug-decision.js"
     },
+    "./drug-query": {
+      "types": "./dist/drug-query.d.ts",
+      "import": "./dist/drug-query.js",
+      "default": "./dist/drug-query.js"
+    },
+    "./drug-translit": {
+      "types": "./dist/drug-translit.d.ts",
+      "import": "./dist/drug-translit.js",
+      "default": "./dist/drug-translit.js"
+    },
     "./drugs": {
       "types": "./dist/drugs.d.ts",
       "import": "./dist/drugs.js",
@@ -335,6 +345,11 @@
       "import": "./dist/schemas/wa-document.js",
       "default": "./dist/schemas/wa-document.js"
     },
+    "./schemas/wa-login": {
+      "types": "./dist/schemas/wa-login.d.ts",
+      "import": "./dist/schemas/wa-login.js",
+      "default": "./dist/schemas/wa-login.js"
+    },
     "./schemas/wa-alert": {
       "types": "./dist/schemas/wa-alert.d.ts",
       "import": "./dist/schemas/wa-alert.js",
@@ -379,6 +394,11 @@
       "types": "./dist/rx-result.d.ts",
       "import": "./dist/rx-result.js",
       "default": "./dist/rx-result.js"
+    },
+    "./rx-sanitize": {
+      "types": "./dist/rx-sanitize.d.ts",
+      "import": "./dist/rx-sanitize.js",
+      "default": "./dist/rx-sanitize.js"
     },
     "./schemas/rx": {
       "types": "./dist/schemas/rx.d.ts",

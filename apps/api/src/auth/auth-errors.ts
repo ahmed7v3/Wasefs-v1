@@ -10,6 +10,8 @@ export const AuthCode = {
   SIGNUP_CLOSED: "SIGNUP_CLOSED",
   EMAIL_DOMAIN_BLOCKED: "EMAIL_DOMAIN_BLOCKED",
   TWO_FACTOR_USE_PASSWORD: "TWO_FACTOR_USE_PASSWORD",
+  WHATSAPP_LOGIN_DISABLED: "WHATSAPP_LOGIN_DISABLED",
+  WHATSAPP_LOGIN_UNAVAILABLE: "WHATSAPP_LOGIN_UNAVAILABLE",
 } as const;
 
 export interface MapContext {
@@ -81,6 +83,14 @@ export function mapAuthError(
   }
   if (code === AuthCode.TWO_FACTOR_USE_PASSWORD) {
     return new AppError(ErrorCode.FORBIDDEN, { details: reason("two_factor_use_password") });
+  }
+  if (code === AuthCode.WHATSAPP_LOGIN_DISABLED) {
+    return new AppError(ErrorCode.FORBIDDEN, { details: reason("whatsapp_login_disabled") });
+  }
+  if (code === AuthCode.WHATSAPP_LOGIN_UNAVAILABLE) {
+    return new AppError(ErrorCode.UPSTREAM_UNAVAILABLE, {
+      details: reason("whatsapp_login_unavailable"),
+    });
   }
   if (/^TOO_MANY_ATTEMPTS/.test(code)) {
     return new AppError(ErrorCode.RATE_LIMITED);

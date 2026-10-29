@@ -9,6 +9,7 @@ import {
   getIntegrationSecret,
   insertInbound,
   insertOutbound,
+  linkConversationUser,
   markOutbound,
   pauseConversation,
   recentTurnMessages,
@@ -69,6 +70,10 @@ export class WaAgentRepo {
 
   find(conversationId: string): Promise<WaConversation | null> {
     return getConversation(this.handle.db, conversationId);
+  }
+
+  linkUser(conversationId: string, userId: string): Promise<void> {
+    return linkConversationUser(this.handle.db, conversationId, userId);
   }
 
   queueOutbound(conversationId: string, parts: readonly OutboundPartRow[]): Promise<string[]> {

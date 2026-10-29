@@ -2,9 +2,11 @@ import { accountStatusTool } from "./account-status.js";
 import { analyzePrescriptionTool } from "./analyze-prescription.js";
 import { askMedicalTool } from "./ask-medical.js";
 import { attachReceiptTool } from "./attach-receipt.js";
+import { createAccountTool } from "./create-account.js";
 import { createDocumentTool } from "./create-document.js";
 import { getCatalogTool } from "./get-catalog.js";
 import { handoffToOwnerTool } from "./handoff-to-owner.js";
+import { loginLinkTool } from "./login-link.js";
 import { medicationAlternativesTool, searchMedicationsTool } from "./medications.js";
 import { offerDiscountTool } from "./offer-discount.js";
 import { sendMediaTool } from "./send-media.js";
@@ -35,6 +37,8 @@ export const AGENT_TOOLS: readonly AgentTool[] = [
   medicationAlternativesTool,
   sendMediaTool,
   createDocumentTool,
+  createAccountTool,
+  loginLinkTool,
   handoffToOwnerTool,
 ];
 
@@ -49,6 +53,7 @@ export function toolsFor(linked: boolean, features: AgentToolFeatures = {}): Age
   return AGENT_TOOLS.filter(
     (tool) =>
       (linked || !tool.linkedOnly) &&
+      (!linked || tool.guestOnly !== true) &&
       (tool.feature === undefined || features[tool.feature] === true),
   );
 }
@@ -84,6 +89,7 @@ export function bindTools(
         return toolError(code);
       };
       if (tool.linkedOnly && ctx.userId === null) return fail("not_linked");
+      if (tool.guestOnly === true && ctx.userId !== null) return fail("already_linked");
       const parsed = tool.schema.safeParse(raw);
       if (!parsed.success) return fail("invalid_arguments");
       try {

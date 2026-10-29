@@ -1,6 +1,7 @@
 "use client";
 
 import { t } from "@wasfa/shared/i18n";
+import { formLabel } from "@wasfa/shared/rx-sanitize";
 import { drugTitle, needsReview } from "@wasfa/ui";
 import { Pill } from "lucide-react";
 
@@ -133,7 +134,7 @@ export function RxPrintSheet({ result, branding, siteUrl, reportDate }: RxPrintS
               </th>
               {COLUMNS.map(([key]) => (
                 <td key={key} className="border border-black px-2 py-1">
-                  <bdi>{item[key] ?? ""}</bdi>
+                  <bdi>{(key === "form" ? formLabel(item.form, "ar") : item[key]) ?? ""}</bdi>
                 </td>
               ))}
             </tr>

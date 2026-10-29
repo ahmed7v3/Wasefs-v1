@@ -14,6 +14,7 @@ import { AgentSubscriptionService } from "../commerce/agent-subscription.service
 import { AgentDocumentService, type DocumentCall } from "../documents/agent-document.service.js";
 
 import { AgentAccountService } from "./account-facts.service.js";
+import { AgentSignupService } from "./agent-signup.service.js";
 import { WaAgentHandoffService } from "./handoff.service.js";
 
 import type { AgentCall, AgentToolDeps } from "./tools/index.js";
@@ -26,6 +27,8 @@ import type { MediaAsset } from "@wasfa/shared/schemas/media";
 @Injectable()
 export class WaAgentToolDeps implements AgentToolDeps {
   readonly mediaOrigin: string;
+  /** The website's origin, for the terms and privacy links the agent mentions. */
+  readonly webOrigin: string;
 
   constructor(
     private readonly catalogService: CatalogService,
@@ -37,11 +40,13 @@ export class WaAgentToolDeps implements AgentToolDeps {
     private readonly prescriptions: AgentRxService,
     private readonly medical: AgentMedicalService,
     private readonly documentService: AgentDocumentService,
+    private readonly signup: AgentSignupService,
     @Inject(DB) private readonly dbHandle: DbHandle,
     private readonly settings: SettingsService,
-    @Inject(API_ENV) env: Pick<ApiEnv, "MEDIA_PUBLIC_ORIGIN">,
+    @Inject(API_ENV) env: Pick<ApiEnv, "MEDIA_PUBLIC_ORIGIN" | "WEB_ORIGIN">,
   ) {
     this.mediaOrigin = env.MEDIA_PUBLIC_ORIGIN ?? "";
+    this.webOrigin = env.WEB_ORIGIN[0] ?? "";
   }
 
   readonly catalog = {
@@ -77,6 +82,12 @@ export class WaAgentToolDeps implements AgentToolDeps {
       input: { planKey: string; months: number; couponCode?: string | undefined },
     ) => this.subscriptions.start(call, input),
     attachReceipt: (call: AgentCall) => this.subscriptions.attachReceipt(call),
+  };
+
+  readonly accounts = {
+    create: (input: { conversationId: string; phone: string; name?: string | undefined }) =>
+      this.signup.create(input),
+    loginLink: (userId: string) => this.signup.loginLink(userId),
   };
 
   readonly documents = {

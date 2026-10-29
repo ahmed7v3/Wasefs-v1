@@ -76,7 +76,7 @@ function StepForm({
   );
 }
 
-function OptionalLabel({ children }: { children: ReactNode }) {
+export function OptionalLabel({ children }: { children: ReactNode }) {
   return (
     <>
       {children} <span className="text-sm font-normal text-text-muted">{t("ui.optional")}</span>
@@ -215,7 +215,7 @@ const organizationForm = ONBOARDING_STEP_SCHEMAS.organization.extend({
   city: optionalCity,
 });
 
-function CountryOptions({ current }: { current: string }) {
+export function CountryOptions({ current }: { current: string }) {
   const known = (COUNTRY_CODES as readonly string[]).includes(current);
   const codes: readonly string[] =
     current === "" || known ? COUNTRY_CODES : [current, ...COUNTRY_CODES];

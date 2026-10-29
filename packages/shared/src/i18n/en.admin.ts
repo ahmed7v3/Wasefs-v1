@@ -452,6 +452,8 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
   "admin.settings.field.auth.providers.facebook": "Facebook",
   "admin.settings.field.auth.blockedEmailDomains": "Extra blocked email domains",
   "admin.settings.field.auth.phoneVerification": "Phone verification",
+  "admin.settings.field.auth.whatsappLogin": "Continue with WhatsApp",
+  "admin.settings.field.auth.whatsappAgentSignup": "Account creation from a WhatsApp chat",
   "admin.settings.option.ar": "Arabic",
   "admin.settings.option.en": "English",
   "admin.settings.option.enabled": "Enabled",

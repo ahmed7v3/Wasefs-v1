@@ -3,12 +3,49 @@ import { t, type MessageKey } from "@wasfa/shared/i18n";
 import { expect } from "./fixtures";
 
 import type { Page } from "@playwright/test";
+import type { Profession } from "@wasfa/shared/identity";
 import type { OnboardingInputStep } from "@wasfa/shared/schemas/onboarding";
 
 /** The `h1` of a wizard step, which is also where focus lands when the step changes. */
 export function stepHeading(page: Page, step: OnboardingInputStep) {
   const key = `onboarding.step.${step}.title` as MessageKey;
   return page.getByRole("heading", { level: 1, name: t(key) });
+}
+
+/** The start button of the one-screen onboarding at `/welcome`. */
+export function welcomeStart(page: Page) {
+  return page.locator("button[name=start]");
+}
+
+/** The segmented "for me / for an organization" toggle of the welcome card. */
+export function welcomeAccountType(page: Page, type: "individual" | "organization") {
+  return page.getByRole("radio", {
+    name: t(type === "individual" ? "welcome.forMe" : "welcome.forOrg"),
+  });
+}
+
+/**
+ * Answers the one-screen onboarding and presses "start": the name is prefilled (pass `name` to change
+ * it), "for me" is the default, the profession is optional and skipped unless given. For an
+ * organization the inline fields are filled and the organization is created.
+ */
+export async function finishWelcome(
+  page: Page,
+  options: { name?: string; organization?: string; profession?: Profession } = {},
+): Promise<void> {
+  await expect(welcomeStart(page)).toBeVisible();
+  if (options.name !== undefined) await page.locator("input[name=name]").fill(options.name);
+  if (options.organization !== undefined) {
+    await welcomeAccountType(page, "organization").click();
+    await page.locator("input[name=orgName]").fill(options.organization);
+    await page.locator("select[name=orgType]").selectOption("pharmacy");
+    await page.locator("select[name=orgCountry]").selectOption("EG");
+    await page.locator("input[name=orgCity]").fill("Cairo");
+  }
+  if (options.profession !== undefined) {
+    await page.locator(`button[name=profession-${options.profession}]`).click();
+  }
+  await welcomeStart(page).click();
 }
 
 /** Picks a radio card or a checkbox by its input's name and value (the real inputs are visually hidden). */

@@ -2,6 +2,7 @@ import { PAYMENT_REJECT_REASONS } from "@wasfa/shared/billing";
 import { t, type Locale, type MessageKey } from "@wasfa/shared/i18n";
 import { normalizeArabic } from "@wasfa/shared/normalize";
 import { dayOrder, formatClock, scheduleOf, type DoseSchedule } from "@wasfa/shared/rx-schedule";
+import { displayName, formLabel } from "@wasfa/shared/rx-sanitize";
 
 import { splitReply } from "../agent/agent-output.js";
 
@@ -51,8 +52,8 @@ export function paymentMessage(
 
 /** One medicine the way the result page lists it: name, strength and form, then how it is taken. */
 export function rxItemLine(item: RxResultItem, locale: Locale): string {
-  const name = (item.name ?? "").trim() !== "" ? (item.name ?? "") : item.rawText.trim();
-  const head = [name, item.strength, item.form]
+  const name = displayName((item.name ?? "").trim() !== "" ? (item.name ?? "") : item.rawText.trim());
+  const head = [name, item.strength, formLabel(item.form, locale)]
     .filter((part): part is string => part !== null && part.trim() !== "")
     .join(" ");
   const how = [item.dose, item.frequency, item.duration]
@@ -72,8 +73,9 @@ const MAX_FINDINGS = 3;
 const filled = (value: string | null | undefined): value is string =>
   value !== null && value !== undefined && value.trim() !== "";
 
+// Never the Arabic directions as a name (rx-sanitize), even when only the raw line was read.
 const itemName = (item: RxResultItem): string =>
-  filled(item.name) ? item.name.trim() : item.rawText.trim();
+  displayName(filled(item.name) ? item.name.trim() : item.rawText.trim());
 
 const MEAL_KEYS = {
   before: "document.rx.schedule.meal.before",
@@ -129,7 +131,7 @@ export function suggestedTimes(schedule: DoseSchedule, locale: Locale): string |
 export function rxMedicineBlock(item: RxResultItem, locale: Locale): string {
   const schedule = scheduleOf(item);
   const name = itemName(item);
-  const rest = [item.strength, item.form].filter(filled).join(" ");
+  const rest = [item.strength, formLabel(item.form, locale)].filter(filled).join(" ");
   const heading = [t("whatsapp.agent.event.rxDone.medicine", { name }, locale), rest]
     .filter((part) => part !== "")
     .join(" ");

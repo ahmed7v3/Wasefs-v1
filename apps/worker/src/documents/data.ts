@@ -1,6 +1,7 @@
 import { t, type Locale, type MessageKey } from "@wasfa/shared/i18n";
 import { normalizeArabic } from "@wasfa/shared/normalize";
 import { dayOrder, formatClock, scheduleOf, type DoseSlotKey } from "@wasfa/shared/rx-schedule";
+import { displayName, formLabel } from "@wasfa/shared/rx-sanitize";
 import { z } from "zod";
 
 import type { RenderRequest } from "./renderer.js";
@@ -114,8 +115,9 @@ export const rxPdfDocSchema = z.object({
 });
 export type RxPdfDoc = z.infer<typeof rxPdfDocSchema>;
 
+// Never the Arabic directions as a name (rx-sanitize), even when only the raw line was read.
 const itemName = (item: RxResult["items"][number]): string =>
-  present(item.name) ? item.name.trim() : item.rawText.trim();
+  displayName(present(item.name) ? item.name.trim() : item.rawText.trim());
 
 /** One medicine's card: title, strength and form, the facts the prescription gives, the first precautions. */
 function rxCard(item: RxResult["items"][number], language: Locale): RxPdfDoc["items"][number] {
@@ -149,7 +151,7 @@ function rxCard(item: RxResult["items"][number], language: Locale): RxPdfDoc["it
   const doubtful = item.badge === "low" || item.verified === "unreadable";
   return {
     title: itemName(item),
-    sub: [item.strength, item.form].filter(present).join(" "),
+    sub: [item.strength, formLabel(item.form, language)].filter(present).join(" "),
     flag: doubtful ? label("whatsapp.agent.event.rxDone.lowConfidence") : null,
     facts: facts.flatMap(([key, value]) =>
       present(value) ? [{ label: label(key), value: value.trim() }] : [],

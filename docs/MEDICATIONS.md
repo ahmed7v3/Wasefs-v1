@@ -77,7 +77,11 @@ edit sets `admin_edited_at`.
 2. **Retrieve** (SQL, no AI). In order: exact learned/admin alias on the normalized reading (score 1.0,
    `matchedOn = 'alias_exact'`); trigram on the primary reading; trigram on each alternative and the raw
    line (if `useAlternatives`). Merge by drug, keep the best score; a hit that came only from an
-   alternative is tagged `via = 'alternative'`.
+   alternative is tagged `via = 'alternative'`. Every reading is first cleaned (`cleanDrugQuery`:
+   bullets, "x -", Rx, numbering, Arabic directions and doses out) and scored against `brand_key` (the
+   family) and by word similarity to the product name, not by whole-string similarity. An Arabic-script
+   name is also tried through its likely Latin spellings (`arabicToLatinCandidates`); a hit found only
+   that way is `transliterated` and is treated like `via = 'alternative'`: never auto-accepted.
 3. **Decide** (pure function, one place, `decideMatch(candidates, line, settings)`):
    - `accept` only if: top score >= `acceptScore`; no strength conflict; not ingredient-only; not
      `via = 'alternative'`; `legibility !== 'unclear'`; and top beats the best candidate of a *different*

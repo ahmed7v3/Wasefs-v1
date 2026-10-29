@@ -25,9 +25,12 @@ import { AuthCode } from "./auth-errors.js";
 import { isBlockedEmailDomain } from "./disposable-domains.js";
 import { phonePasswordPlugin } from "./phone-plugin.js";
 import { providerCredentials } from "./providers.js";
+import { whatsappLoginPlugin } from "./whatsapp-login/whatsapp-login-plugin.js";
 
 import type { AuthMailer } from "./mailer.js";
 import type { PasswordHasher } from "./password.js";
+import type { MagicLinkService } from "./whatsapp-login/magic-link.service.js";
+import type { WhatsAppLoginService } from "./whatsapp-login/whatsapp-login.service.js";
 import type { ApiEnv } from "../config/env.js";
 import type { SettingsService } from "../settings/settings.service.js";
 
@@ -47,6 +50,8 @@ export interface AuthDeps {
   mailer: AuthMailer;
   settings: SettingsService;
   passwords: PasswordHasher;
+  whatsappLogin: WhatsAppLoginService;
+  magicLinks: MagicLinkService;
   log: (level: "debug" | "info" | "warn" | "error", message: string) => void;
 }
 
@@ -72,7 +77,7 @@ export async function holdsPlatformRole(db: Database, userId: string): Promise<b
  * - Only the endpoints in `AuthPolicy`'s allowlist are reachable; the plugin's other routes are not.
  */
 export function createAuth(deps: AuthDeps) {
-  const { env, db, mailer, settings, passwords, log } = deps;
+  const { env, db, mailer, settings, passwords, whatsappLogin, magicLinks, log } = deps;
   const webOrigin = env.WEB_ORIGIN[0] ?? "";
   const google = providerCredentials(env, "google");
   const facebook = providerCredentials(env, "facebook");
@@ -296,6 +301,7 @@ export function createAuth(deps: AuthDeps) {
         paths: ["/sign-up/email", "/sign-up/phone-number", "/change-password", "/reset-password"],
       }),
       phonePasswordPlugin(passwords),
+      whatsappLoginPlugin(whatsappLogin, magicLinks),
       twoFactor({ issuer: "Wasfa AI" }),
     ],
   });
