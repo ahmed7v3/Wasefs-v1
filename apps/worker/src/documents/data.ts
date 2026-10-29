@@ -1,4 +1,5 @@
 import { t, type Locale } from "@wasfa/shared/i18n";
+import { displayName, formLabel } from "@wasfa/shared/rx-sanitize";
 
 import type { RenderRequest } from "./renderer.js";
 import type { RxResult } from "@wasfa/shared/schemas/rx";
@@ -73,8 +74,8 @@ export function rxRow(
   item: RxResult["items"][number],
   language: Locale,
 ): [name: string, how: string] {
-  const name = present(item.name) ? item.name : item.rawText.trim();
-  const head = [name, item.strength, item.form].filter(present).join(" ");
+  const name = displayName(present(item.name) ? item.name : item.rawText.trim());
+  const head = [name, item.strength, formLabel(item.form, language)].filter(present).join(" ");
   const flag =
     item.badge === "low" || item.verified === "unreadable"
       ? ` ${t("whatsapp.agent.event.rxDone.lowConfidence", {}, language)}`

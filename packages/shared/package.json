@@ -380,6 +380,11 @@
       "import": "./dist/rx-result.js",
       "default": "./dist/rx-result.js"
     },
+    "./rx-sanitize": {
+      "types": "./dist/rx-sanitize.d.ts",
+      "import": "./dist/rx-sanitize.js",
+      "default": "./dist/rx-sanitize.js"
+    },
     "./schemas/rx": {
       "types": "./dist/schemas/rx.d.ts",
       "import": "./dist/schemas/rx.js",

@@ -1,5 +1,6 @@
 import { LedgerError, recordUnmatchedNames, type Database } from "@wasfa/db";
 import { isAppError } from "@wasfa/shared/errors";
+import { sanitizeExtraction } from "@wasfa/shared/rx-sanitize";
 import {
   rxDetailsAnswerSchema,
   rxDetailsJsonSchema,
@@ -140,7 +141,8 @@ export async function analyzeImages(args: AnalyzeArgs): Promise<AnalyzeOutput> {
       signal: budget,
       attemptTimeoutMs: ATTEMPT_TIMEOUT_MS,
     });
-    return { extraction: calls.value, calls };
+    // Directions and bullets the model copied into a field go where they belong before anything matches.
+    return { extraction: sanitizeExtraction(calls.value), calls };
   }, budget);
   let cost = reading.calls.costUsdMicros;
   const { routeVersion, usageId } = reading.calls;
