@@ -1,0 +1,1 @@
+CREATE INDEX "drugs_brand_key_trgm_idx" ON "drugs" USING gin ("brand_key" gin_trgm_ops);

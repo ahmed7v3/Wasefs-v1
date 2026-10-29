@@ -81,7 +81,7 @@ export function decideMatch(input: DecisionInput, settings: DecisionSettings): D
   if (top.score < settings.acceptScore) reason = "below_accept";
   else if (top.explanation.strength === "conflict") reason = "strength_conflict";
   else if (top.explanation.matchedOn === "ingredient") reason = "ingredient_only";
-  else if (top.via !== "primary") reason = "via_alternative";
+  else if (top.via !== "primary" || top.transliterated === true) reason = "via_alternative";
   else if (input.legibility === "unclear") reason = "unclear_handwriting";
   else if (margin < settings.minMargin) reason = "ambiguous_family";
   if (reason !== null) return decision("verify", reason);

@@ -95,6 +95,13 @@ describe("decideMatch", () => {
     expect(result).toMatchObject({ matchClass: "verify", reason: "ingredient_only" });
   });
 
+  it("verifies a hit found only through a guessed spelling of an Arabic name", () => {
+    expect(decideMatch(input([candidate({ transliterated: true })]), settings)).toMatchObject({
+      matchClass: "verify",
+      reason: "via_alternative",
+    });
+  });
+
   it("verifies a hit that came from an alternative or the raw line", () => {
     expect(decideMatch(input([candidate({ via: "alternative" })]), settings).reason).toBe(
       "via_alternative",
