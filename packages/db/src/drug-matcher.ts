@@ -33,6 +33,9 @@ import type { Database } from "./client.js";
  * session's `pg_trgm` thresholds, so each match runs in a short transaction with `SET LOCAL`.
  */
 
+/** Floor of the word-similarity candidate lookup (see matchDrug). */
+const WORD_LOOKUP_FLOOR = 0.6;
+
 export interface MatchDrugOptions {
   /** Strength found next to the name (already parsed). */
   strength?: Strength | null;
@@ -166,7 +169,14 @@ export async function matchDrug(
   const rows = await db.transaction(async (tx) => {
     // SET LOCAL takes no parameters; the value is a finite number clamped to 0-1 above, never raw input.
     await tx.execute(sql.raw(`set local pg_trgm.similarity_threshold = ${floor}`));
-    await tx.execute(sql.raw(`set local pg_trgm.word_similarity_threshold = ${floor}`));
+    // The word lookup is there for a brand inside a long product name, which scores high; at the
+    // similarity floor it would pull in thousands of loose neighbours (the brand_key lookup already
+    // covers short misspellings), so it starts higher.
+    await tx.execute(
+      sql.raw(
+        `set local pg_trgm.word_similarity_threshold = ${Math.max(floor, WORD_LOOKUP_FLOOR)}`,
+      ),
+    );
     return await tx.execute<MatchRow>(sql`
       with brand_candidates as (${brandCandidates}),
       hits as (
