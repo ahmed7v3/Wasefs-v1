@@ -4,6 +4,7 @@ import {
   creditLedger,
   creditReservations,
   creditWallets,
+  ensureMonthlyGrant,
   planAssignments,
   plans,
   release,
@@ -109,6 +110,38 @@ async function planByKey(key: string) {
 
 const OCTOBER = new Date("2026-10-11T00:10:00Z");
 const NOVEMBER = new Date("2026-11-01T00:10:00Z");
+
+describe("ensureMonthlyGrant (on demand, before the first analysis)", () => {
+  it("pays a new verified account its free credits at once, and only once a month", async () => {
+    const userId = await createUser();
+    expect(await ensureMonthlyGrant(worker.db, userId, OCTOBER)).toBe(true);
+    expect((await ledgerOf(userId)).balance).toBe(30);
+
+    // Again the same month, or the daily run after it: nothing more.
+    expect(await ensureMonthlyGrant(worker.db, userId, new Date("2026-10-11T09:00:00Z"))).toBe(
+      false,
+    );
+    await run(new Date("2026-10-12T00:10:00Z"));
+    const after = await ledgerOf(userId);
+    expect(after.balance).toBe(30);
+    expect(after.rows.map((row) => row.idempotencyKey)).toEqual([`grant:user:${userId}:2026-10`]);
+  });
+
+  it("pays nothing to an unverified or suspended account", async () => {
+    const unverified = await createUser({ emailVerified: false });
+    const suspended = await createUser({ status: "suspended" });
+    expect(await ensureMonthlyGrant(worker.db, unverified, OCTOBER)).toBe(false);
+    expect(await ensureMonthlyGrant(worker.db, suspended, OCTOBER)).toBe(false);
+    expect((await ledgerOf(unverified)).rows).toEqual([]);
+    expect((await ledgerOf(suspended)).rows).toEqual([]);
+  });
+
+  it("pays a phone-verified account (WhatsApp sign-up has no verified email)", async () => {
+    const userId = await createUser({ emailVerified: false, phoneVerified: true });
+    expect(await ensureMonthlyGrant(worker.db, userId, OCTOBER)).toBe(true);
+    expect((await ledgerOf(userId)).balance).toBe(30);
+  });
+});
 
 describe("credits.grant_monthly", () => {
   it("gives a verified user the default plan's credits once per month", async () => {

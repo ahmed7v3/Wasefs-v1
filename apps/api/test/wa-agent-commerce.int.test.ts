@@ -37,6 +37,7 @@ import { WaAgentRepo } from "../src/wa-agent/wa-agent.repo.js";
 
 import { AdminTestContext } from "./support/admin-context.js";
 import { buyer, insertProofFile } from "./support/billing-console-fixtures.js";
+import { useUpMonthlyGrant } from "./support/monthly-grant.js";
 import { quietLogger } from "./support/wa-agent-commerce-fakes.js";
 
 import type { FilesService } from "../src/files/files.service.js";
@@ -429,6 +430,7 @@ describe("analyze_prescription against the database", () => {
 
   it("answers insufficient_credits with the balance and the price, and gives the picture back", async () => {
     const person = await linkedCustomer();
+    await useUpMonthlyGrant(ctx.owner.db, person.userId);
     const { conversationId, messageId } = await chatWithPicture(person);
     const page = await processedPage(person.userId);
     const result = await rxServiceWith([page]).analyze(callFor(person.userId, conversationId));

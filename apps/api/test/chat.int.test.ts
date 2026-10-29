@@ -8,13 +8,14 @@ import {
   aiTaskRoutes,
   aiUsage,
   chatMessages,
-  chatSummaries,
   chats,
+  chatSummaries,
   createDb,
   creditLedger,
   creditReservations,
   creditWallets,
   files,
+  grantPeriod,
   onboardingProgress,
   planAssignments,
   plans,
@@ -35,6 +36,7 @@ import { SettingsService } from "../src/settings/settings.service.js";
 
 import { AuthHarness, WEB, pwnedHandlers, testApiEnv, type Jar } from "./support/auth-harness.js";
 import { startInfra, type TestInfra } from "./support/infra.js";
+import { useUpMonthlyGrant } from "./support/monthly-grant.js";
 import { startStorage, type TestStorage } from "./support/storage.js";
 
 import type { NestFastifyApplication } from "@nestjs/platform-fastify";
@@ -177,6 +179,7 @@ async function person(options: { pro?: boolean; credits?: number } = {}): Promis
       .values({ ownerUserId: signed.userId, planId: proPlanId, reason: "test" });
   }
   const credits = options.credits ?? 500;
+  if (credits === 0) await useUpMonthlyGrant(owner.db, signed.userId);
   if (credits > 0) {
     await owner.db
       .insert(creditWallets)
@@ -193,7 +196,8 @@ async function person(options: { pro?: boolean; credits?: number } = {}): Promis
       kind: "grant",
       amount: credits,
       balanceAfter: credits,
-      idempotencyKey: `test-grant:${signed.userId}`,
+      // The month's plan grant, so the on-demand grant (CreditsService) adds nothing on top.
+      idempotencyKey: `grant:user:${signed.userId}:${grantPeriod(new Date())}`,
     });
   }
   return { jar: signed.jar, userId: signed.userId };

@@ -3,6 +3,7 @@ import {
   adjust as adjustLedger,
   creditLedger,
   creditWallets,
+  ensureMonthlyGrant as ensureLedgerMonthlyGrant,
   ensureWallet as ensureLedgerWallet,
   grant as grantLedger,
   organizations,
@@ -118,6 +119,11 @@ export class CreditsRepo {
 
   grant(owner: WalletOwner, amount: number, period: string): Promise<LedgerWrite> {
     return grantLedger(this.handle.db, owner, amount, period);
+  }
+
+  /** This month's plan grant for an account without a subscription, if due and not paid yet. */
+  ensureMonthlyGrant(userId: string, now: Date): Promise<boolean> {
+    return ensureLedgerMonthlyGrant(this.handle.db, userId, now);
   }
 
   refund(

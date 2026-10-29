@@ -10,6 +10,7 @@ import {
   drugs,
   files,
   grant,
+  grantPeriod,
   onboardingProgress,
   rxAnalyses,
   rxCorrections,
@@ -35,6 +36,7 @@ import { SettingsService } from "../src/settings/settings.service.js";
 
 import { AuthHarness, pwnedHandlers, testApiEnv, type Jar } from "./support/auth-harness.js";
 import { startInfra, type TestInfra } from "./support/infra.js";
+import { useUpMonthlyGrant } from "./support/monthly-grant.js";
 import { wrongOwnerIsHidden } from "./support/wrong-owner.js";
 
 import type { NestFastifyApplication } from "@nestjs/platform-fastify";
@@ -111,7 +113,12 @@ async function user(credits = 30): Promise<Person> {
   await owner.db
     .insert(onboardingProgress)
     .values({ userId: person.userId, currentStep: "done", completedAt: new Date() });
-  if (credits > 0) await grant(owner.db, { type: "user", id: person.userId }, credits, "2026-10");
+  // This month's plan grant is the test's credits (or used up), so the on-demand grant adds nothing.
+  if (credits > 0) {
+    await grant(owner.db, { type: "user", id: person.userId }, credits, grantPeriod(new Date()));
+  } else {
+    await useUpMonthlyGrant(owner.db, person.userId);
+  }
   return person;
 }
 

@@ -14,6 +14,7 @@ export * from "./growth.js";
 export * from "./integration-secrets.js";
 export * from "./medication-search.js";
 export * from "./migrations.js";
+export * from "./monthly-grant.js";
 export * from "./notification-prefs.js";
 export * from "./outbox.js";
 export * from "./payments.js";
