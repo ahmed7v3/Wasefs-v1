@@ -32,16 +32,12 @@ test("phone sign-up verifies the number through the WhatsApp inbound stream", as
   // number inline and keeps its button disabled until it is verified.
   await expect(page).toHaveURL(/\/welcome$/);
   await expect(welcomeStart(page)).toBeDisabled();
+  await page.locator("input[name=phoneNumber]").fill(phone.national);
+  await page.locator("button[name=start-verification]").click();
 
-  // The page shows the code to send and the number to send it to. /welcome is the first page this
-  // browser loads, so a number typed before hydration is wiped: retry until the code appears (an
-  // empty number is stopped in the browser and never spends a verification start).
+  // The page shows the code to send and the number to send it to.
   const code = page.getByText(new RegExp(String.raw`^\d{${String(PHONE_CODE_LENGTH)}}$`));
-  await expect(async () => {
-    await page.locator("input[name=phoneNumber]").fill(phone.national);
-    await page.locator("button[name=start-verification]").click();
-    await expect(code).toBeVisible({ timeout: 3_000 });
-  }).toPass({ timeout: 30_000 });
+  await expect(code).toBeVisible();
   await expect(page.getByText(WHATSAPP_NUMBER)).toBeVisible();
   const shown = (await code.textContent()) ?? "";
 

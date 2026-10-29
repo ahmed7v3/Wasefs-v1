@@ -138,7 +138,10 @@ describe("WelcomeCard", () => {
   it("shows the phone block above a disabled button until the phone is verified", () => {
     render(<WelcomeCard initial={state({ phoneVerified: false })} />);
     expect(screen.getByText("phone-block")).toBeTruthy();
+    // The phone block brings its own form, and forms cannot nest: it must sit outside the card's.
+    expect(screen.getByText("phone-block").closest("form")).toBeNull();
     const start = screen.getByRole<HTMLButtonElement>("button", { name: t("welcome.start") });
+    expect(start.form).not.toBeNull();
     expect(start.disabled).toBe(true);
 
     fireEvent.click(screen.getByText("phone-block"));
