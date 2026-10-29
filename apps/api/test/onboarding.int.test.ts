@@ -704,7 +704,7 @@ describe("the phone step", () => {
     await setPhoneVerification("whatsapp_inbound");
     expect(state(await get(user.jar))).toMatchObject({ currentStep: "done", done: true });
     const me = meResponseSchema.parse((await harness.call("GET", "/me", { jar: user.jar })).json());
-    expect(me.onboarding).toEqual({ currentStep: "done", done: true });
+    expect(me.onboarding).toEqual({ currentStep: "done", done: true, followed: true });
   });
 });
 

@@ -12,9 +12,15 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: t("onboarding.title") };
 
-export default async function OnboardingPage() {
+export default async function OnboardingPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const me = await requireMe("/onboarding");
   if (me.onboarding.done) redirect("/dashboard");
+  // The one-screen welcome is the default; the step-by-step wizard stays reachable with ?classic=1.
+  if ((await searchParams)["classic"] !== "1") redirect("/welcome");
 
   const [state, settings, nonce, catalog] = await Promise.all([
     serverApi("/onboarding", { schema: onboardingStateSchema }),

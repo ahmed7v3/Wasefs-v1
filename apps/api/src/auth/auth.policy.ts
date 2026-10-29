@@ -16,6 +16,7 @@ import {
   twoFactorVerifyBackupCodeSchema,
   twoFactorVerifyTotpSchema,
 } from "@wasfa/shared/schemas/auth";
+import { waLoginStartRequestSchema, waMagicRequestSchema } from "@wasfa/shared/schemas/wa-login";
 
 import { API_ENV } from "../config/config.module.js";
 import { SettingsService } from "../settings/settings.service.js";
@@ -191,6 +192,31 @@ export const AUTH_ROUTES: readonly AuthRoute[] = [
     body: changePasswordSchema,
     perIp: { max: 10, windowSeconds: FIFTEEN_MINUTES },
     passwordField: "newPassword",
+  },
+  {
+    // "Continue with WhatsApp" (docs/WA-SIGNUP.md): the challenge, then the browser's poll.
+    method: "POST",
+    pattern: "/whatsapp/start",
+    bucket: "wa-login-start",
+    body: waLoginStartRequestSchema,
+    perIp: { max: 10, windowSeconds: HOUR },
+    turnstile: "always",
+  },
+  {
+    method: "GET",
+    pattern: "/whatsapp/status",
+    bucket: "wa-login-status",
+    perIp: { max: 60, windowSeconds: MINUTE },
+    query: ["token"],
+  },
+  {
+    // The agent's one-time link (docs/WA-SIGNUP.md section 3): the token is a bearer secret, so it is
+    // limited per IP and travels in the body, never in a URL.
+    method: "POST",
+    pattern: "/whatsapp/magic",
+    bucket: "wa-login-magic",
+    body: waMagicRequestSchema,
+    perIp: IP_LINK,
   },
   {
     method: "POST",

@@ -879,6 +879,8 @@ describe("provider registry", () => {
       providers: { google: "enabled", facebook: "enabled" },
       blockedEmailDomains: [],
       phoneVerification: "whatsapp_inbound",
+      whatsappLogin: true,
+      whatsappAgentSignup: true,
     });
     expect(states).toEqual([
       { id: "google", status: "disabled" },

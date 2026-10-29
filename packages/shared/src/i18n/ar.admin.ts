@@ -450,6 +450,8 @@ export const arAdmin = {
   "admin.settings.field.auth.providers.facebook": "فيسبوك",
   "admin.settings.field.auth.blockedEmailDomains": "نطاقات بريد محظورة إضافية",
   "admin.settings.field.auth.phoneVerification": "التحقق من الهاتف",
+  "admin.settings.field.auth.whatsappLogin": "الدخول عبر واتساب",
+  "admin.settings.field.auth.whatsappAgentSignup": "إنشاء الحساب من محادثة واتساب",
   "admin.settings.option.ar": "العربية",
   "admin.settings.option.en": "English",
   "admin.settings.option.enabled": "مفعّل",

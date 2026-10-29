@@ -13,6 +13,7 @@ import {
   waAgentSentIdKey,
   type WaAgentInbound,
 } from "@wasfa/shared/schemas/wa-agent";
+import { WA_LOGIN_STREAM, WA_LOGIN_STREAM_MAXLEN } from "@wasfa/shared/schemas/wa-login";
 
 import { ingestMedia, agentContentOf, type MediaIo } from "./agent-media.js";
 import { type AgentSettingsSource } from "./agent-settings.js";
@@ -22,6 +23,7 @@ import {
   agentChatJid,
   chatPhone,
   extractInbound,
+  extractLoginCommand,
   isDirectJid,
   sentAtMs,
   type LidResolver,
@@ -35,6 +37,9 @@ import type { Logger } from "pino";
  * Where an inbound 1:1 message goes, after the bridge's own keyword commands (alert opt-in, STOP /
  * START) had their turn. The two switches are independent (docs/WA-AGENT.md section 7):
  *
+ *   login token / logout word,
+ *     `auth.whatsappLogin` on     -> wa:login:in  (before everything below, whatever the agent switch)
+ *   login token, sender unresolved -> nothing signed in; one wa_unresolved reply on wa:replies
  *   code, verification on         -> wa:inbound   (unchanged; with the agent off this is the only path)
  *   code, sender not resolvable   -> nothing verified; one wa_unresolved reply on wa:replies
  *   anything else, agent on       -> wa:agent:in  (text, image, voice note, PDF, other)
@@ -44,6 +49,7 @@ import type { Logger } from "pino";
 
 export type RouteOutcome =
   | { route: "verification" }
+  | { route: "login"; kind: "login" | "logout" }
   | { route: "agent"; kind: WaAgentInbound["kind"] }
   | { route: "owner" }
   | { route: "ignored"; reason: string };
@@ -70,11 +76,17 @@ export async function routeInbound(
   markRead: () => Promise<void>,
 ): Promise<RouteOutcome> {
   const now = (deps.now ?? Date.now)();
-  const { agent, verificationOn } = await deps.settings.current();
+  const { agent, verificationOn, whatsappLoginOn } = await deps.settings.current();
   const agentOn = agent.enabled;
 
   if (raw.key.fromMe) {
     return agentOn ? routeOwner(raw, deps, now) : ignored("from_me");
+  }
+
+  // Sign-in claims and the undo word come before verification-code parsing: a token is never a code.
+  if (whatsappLoginOn) {
+    const login = await extractLoginCommand(raw, deps.resolver, now);
+    if (login) return routeLogin(login, deps, markRead);
   }
 
   const verification = await extractInbound(raw, deps.resolver, now);
@@ -110,6 +122,32 @@ export async function routeInbound(
   }
   if (!agentOn) return ignored(verification.ok ? "verification_off" : verification.reason);
   return routeToAgent(raw, deps, now, markRead);
+}
+
+async function routeLogin(
+  login: NonNullable<Awaited<ReturnType<typeof extractLoginCommand>>>,
+  deps: InboundRouterDeps,
+  markRead: () => Promise<void>,
+): Promise<RouteOutcome> {
+  if (!login.ok) {
+    await replyUnresolved(deps, { id: login.id, jid: login.jid });
+    return ignored(login.reason);
+  }
+  // The api's reply (login_ok, logout_ok, ...) is only allowed against an inbound the guard knows.
+  await deps.guard.noteInbound(login.entry.jid, login.entry.id);
+  await markRead().catch(() => undefined);
+  await deps.redis.xadd(
+    WA_LOGIN_STREAM,
+    "MAXLEN",
+    "~",
+    WA_LOGIN_STREAM_MAXLEN,
+    "*",
+    "data",
+    JSON.stringify(login.entry),
+  );
+  // Neither the phone, the token nor the name goes into the log line.
+  deps.logger.info({ kind: login.entry.kind }, "Inbound WhatsApp sign-in message queued");
+  return { route: "login", kind: login.entry.kind };
 }
 
 const UNRESOLVED_REPLY_TTL_SECONDS = 60 * 60;

@@ -61,9 +61,9 @@ test("an org admin creates a join link and a new user joins through it", async (
     await login.locator("input[name=email]").fill(account.email);
     await login.locator("input[name=password]").fill(account.password);
     await login.getByRole("button", { name: t("auth.login.submit") }).click();
-    await expect(guest).toHaveURL(/\/onboarding$/);
+    await expect(guest).toHaveURL(/\/welcome$/);
 
-    // Onboarding and the phone are covered by their own specs; here they are answered through the API.
+    // The welcome card and the phone are covered by their own specs; here they are answered through the API.
     await finishOnboarding(guest.request, urls, account.name);
     await verifyPhoneViaApi(guestContext, urls, redis);
 

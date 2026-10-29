@@ -54,6 +54,15 @@ export interface AgentToolDeps {
   catalog: { catalog: (market: Market) => Promise<CatalogResponse> };
   account: { status: (userId: string, now: Date) => Promise<AccountStatusFacts> };
   media: { find: (id: string) => Promise<MediaAsset | null> };
+  /** Account creation and sign-in links (docs/WA-SIGNUP.md section 3). */
+  accounts: {
+    create: (input: {
+      conversationId: string;
+      phone: string;
+      name?: string | undefined;
+    }) => Promise<AgentToolResult>;
+    loginLink: (userId: string) => Promise<AgentToolResult>;
+  };
   /** `MEDIA_PUBLIC_ORIGIN`; empty when the media library is not configured. */
   mediaOrigin: string;
   handoff: { raise: (conversationId: string, reason: string) => Promise<void> };
@@ -84,13 +93,15 @@ export interface AgentToolDeps {
 }
 
 /** Admin switches that gate a whole tool (checked when the turn's tools are chosen). */
-export type AgentToolFeature = "medications";
+export type AgentToolFeature = "medications" | "accountSignup";
 
 /** One turn's state, bound to one conversation. Tools read the account from here, never from the model. */
 export interface AgentToolContext {
   conversationId: string;
   /** The account this chat is linked to; null for a guest. */
   userId: string | null;
+  /** The chat's phone (E.164, resolved by the bridge); null or absent when WhatsApp did not reveal it. */
+  phone?: string | null;
   market: Market;
   config: WaAgentSettings;
   now: Date;
@@ -107,6 +118,8 @@ export interface AgentTool {
   schema: z.ZodType;
   /** Not offered to (and refused for) a guest. */
   linkedOnly: boolean;
+  /** Not offered to (and refused for) a linked chat. */
+  guestOnly?: boolean;
   /** Offered only while this admin switch is on. */
   feature?: AgentToolFeature;
   handler: (ctx: AgentToolContext, args: unknown) => Promise<unknown> | unknown;
@@ -117,6 +130,7 @@ export function defineTool<S extends z.ZodType>(tool: {
   definition: ToolDefinition;
   schema: S;
   linkedOnly: boolean;
+  guestOnly?: boolean;
   feature?: AgentToolFeature;
   handler: (ctx: AgentToolContext, args: z.output<S>) => Promise<unknown> | unknown;
 }): AgentTool {
@@ -124,6 +138,7 @@ export function defineTool<S extends z.ZodType>(tool: {
     definition: tool.definition,
     schema: tool.schema,
     linkedOnly: tool.linkedOnly,
+    ...(tool.guestOnly === true ? { guestOnly: true } : {}),
     ...(tool.feature === undefined ? {} : { feature: tool.feature }),
     // The registry parses with `schema` before it calls, so the cast only restores the known type.
     handler: (ctx, args) => tool.handler(ctx, args as z.output<S>),

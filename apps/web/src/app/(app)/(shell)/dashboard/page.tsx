@@ -2,6 +2,7 @@ import { t } from "@wasfa/shared/i18n";
 import { ANONYMIZED_USER_NAME } from "@wasfa/shared/identity";
 
 import { CreditsCard } from "../../../../components/dashboard/credits-card";
+import { FollowCard } from "../../../../components/dashboard/follow-card";
 import { MyInvites } from "../../../../components/dashboard/my-invites";
 import { PlanEndingBanner } from "../../../../components/dashboard/plan-ending-banner";
 import { QuickCapture } from "../../../../components/dashboard/quick-capture";
@@ -53,6 +54,10 @@ export default async function DashboardPage() {
             <RecentAnalyses />
             <RecentChats />
           </div>
+          <FollowCard
+            facebookUrl={settings.socials.facebook}
+            followed={me.onboarding.followed === true}
+          />
         </>
       ) : null}
       <ToolCards />

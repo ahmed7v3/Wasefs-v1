@@ -5,6 +5,7 @@ import { Redis } from "ioredis";
 
 import { AuthRateLimiter, identifierKey } from "../auth/rate-limiter.js";
 import { TurnstileService } from "../auth/turnstile.js";
+import { resolveBridgeNumber } from "../auth/whatsapp-login/bridge-number.js";
 import { REDIS } from "../common/redis.js";
 import { API_ENV } from "../config/config.module.js";
 import { SettingsService } from "../settings/settings.service.js";
@@ -124,11 +125,7 @@ export class PhoneService {
    * fallback. Digits with country code, no `+` (what `wa.me` takes).
    */
   async whatsappNumber(): Promise<{ digits: string; source: "setting" | "env" } | undefined> {
-    const configured = (await this.settings.get("whatsapp")).number;
-    if (configured !== null) return { digits: configured.replace(/^\+/, ""), source: "setting" };
-    return this.env.WHATSAPP_NUMBER === undefined
-      ? undefined
-      : { digits: this.env.WHATSAPP_NUMBER, source: "env" };
+    return resolveBridgeNumber(this.settings, this.env);
   }
 
   private async bridgeStatus(): Promise<WaStatus> {

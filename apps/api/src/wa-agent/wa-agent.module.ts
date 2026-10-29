@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 
 import { AiRuntimeModule } from "../ai-runtime/ai-runtime.module.js";
 import { AlertsModule } from "../alerts/alerts.module.js";
+import { AuthModule } from "../auth/auth.module.js";
 import { BillingModule } from "../billing/billing.module.js";
 import { CatalogModule } from "../catalog/catalog.module.js";
 import { ChatModule } from "../chat/chat.module.js";
@@ -14,6 +15,7 @@ import { RxModule } from "../rx/rx.module.js";
 import { SubscriptionsModule } from "../subscriptions/subscriptions.module.js";
 
 import { AgentAccountService } from "./agent/account-facts.service.js";
+import { AgentSignupService } from "./agent/agent-signup.service.js";
 import { WaAgentHandoffService } from "./agent/handoff.service.js";
 import { WaAgentToolDeps } from "./agent/tool-deps.js";
 import { WaAgentTurnService } from "./agent/wa-agent-turn.service.js";
@@ -45,6 +47,7 @@ import { WaOutboundService } from "./wa-outbound.service.js";
   imports: [
     AiRuntimeModule,
     AlertsModule,
+    AuthModule,
     BillingModule,
     CatalogModule,
     ChatModule,
@@ -61,6 +64,7 @@ import { WaOutboundService } from "./wa-outbound.service.js";
     WaAgentStateService,
     WaOutboundService,
     AgentAccountService,
+    AgentSignupService,
     WaAgentHandoffService,
     WaAgentCommerceRepo,
     AgentDiscountService,

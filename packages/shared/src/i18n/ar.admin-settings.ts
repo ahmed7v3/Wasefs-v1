@@ -75,6 +75,10 @@ export const arAdminSettings = {
     "نطاقات بريد لا يُسمح بالتسجيل بها، مثل mailinator.com. تُضاف إلى قائمة النطاقات المؤقتة المحظورة مسبقًا.",
   "admin.settings.help.auth.phoneVerification":
     "طريقة التحقق من رقم الهاتف. «معطّل» يوقف التحقق مؤقتًا لكل المستخدمين.",
+  "admin.settings.help.auth.whatsappLogin":
+    "يُظهر زر «المتابعة عبر واتساب» في الدخول والتسجيل، ويقبل رسائل رمز الدخول على الرقم المربوط.",
+  "admin.settings.help.auth.whatsappAgentSignup":
+    "يسمح لمساعد واتساب بإنشاء حساب لمن يطلب ذلك في المحادثة بعد تأكيده.",
   "admin.settings.help.contact.whatsapp": "يظهر زر واتساب في مركز التواصل. اتركه فارغًا لإخفائه.",
   "admin.settings.help.contact.telegram": "اسم المستخدم على تيليجرام بدون @. اتركه فارغًا لإخفائه.",
   "admin.settings.help.locale.defaultLocale": "لغة الموقع لمن لم يختر لغة بعد.",

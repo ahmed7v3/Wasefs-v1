@@ -228,8 +228,12 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
     const market = phoneMarket(conversation.phone, await this.settings.get("currency"));
     const medications = await this.settings.get("medications");
     const medicationTools = medications.enabled && medications.waTools;
+    // Account creation from the chat needs both switches (docs/WA-SIGNUP.md section 3).
+    const auth = await this.settings.get("auth");
+    const accountTools = auth.whatsappLogin && auth.whatsappAgentSignup;
     const system = buildSystemPrompt({
       medications: medicationTools,
+      accountSignup: accountTools ? { webOrigin: this.toolDeps.webOrigin ?? "" } : null,
       persona: config.persona,
       language: config.language,
       emojiLevel: config.emojiLevel,
@@ -244,6 +248,7 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
     const ctx: AgentToolContext = {
       conversationId,
       userId: user === null ? null : conversation.userId,
+      phone: conversation.phone,
       market,
       config,
       now,
@@ -252,7 +257,7 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
       handoffReason: null,
     };
     const { definitions, handlers } = bindTools(
-      toolsFor(user !== null, { medications: medicationTools }),
+      toolsFor(user !== null, { medications: medicationTools, accountSignup: accountTools }),
       ctx,
       records,
     );

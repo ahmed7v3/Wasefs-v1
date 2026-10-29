@@ -11,6 +11,8 @@ export interface AgentSwitches {
   agent: WaAgentSettings;
   /** `auth.phoneVerification === "whatsapp_inbound"`: codes go to `wa:inbound`. */
   verificationOn: boolean;
+  /** `auth.whatsappLogin`: login claims and the logout command are routed (docs/WA-SIGNUP.md). */
+  whatsappLoginOn: boolean;
 }
 
 export interface AgentSettingsSource {
@@ -21,15 +23,16 @@ export interface AgentSettingsSource {
 export const AGENT_SETTINGS_TTL_MS = 30_000;
 
 /**
- * `waAgent` and `auth.phoneVerification`, cached for 30 s. A failed read keeps the last good value;
- * with none, the agent is off and verification as today, so a database blip can neither start the
- * agent nor break the code path.
+ * `waAgent`, `auth.phoneVerification` and `auth.whatsappLogin`, cached for 30 s. A failed read keeps
+ * the last good value; with none, the agent is off and verification as today, so a database blip
+ * can neither start the agent nor break the code path.
  */
 export class AgentSettingsCache implements AgentSettingsSource {
   private at = Number.NEGATIVE_INFINITY;
   private value: AgentSwitches = {
     agent: settingDefault("waAgent"),
     verificationOn: true,
+    whatsappLoginOn: true,
   };
 
   constructor(
@@ -58,5 +61,9 @@ export class AgentSettingsCache implements AgentSettingsSource {
 
 async function readSwitches(db: Database): Promise<AgentSwitches> {
   const [agent, auth] = await Promise.all([readSetting(db, "waAgent"), readSetting(db, "auth")]);
-  return { agent, verificationOn: auth.phoneVerification === "whatsapp_inbound" };
+  return {
+    agent,
+    verificationOn: auth.phoneVerification === "whatsapp_inbound",
+    whatsappLoginOn: auth.whatsappLogin,
+  };
 }

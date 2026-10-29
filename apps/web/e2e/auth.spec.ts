@@ -3,15 +3,9 @@ import { t } from "@wasfa/shared/i18n";
 import { finishOnboarding, newAccount, signedInAccount } from "./support/accounts";
 import { expect, test } from "./support/fixtures";
 import { waitForMailLink } from "./support/mail";
-import {
-  answerAccountType,
-  answerName,
-  answerPlan,
-  answerProfession,
-  skipSocial,
-} from "./support/onboarding-ui";
+import { finishWelcome } from "./support/onboarding-ui";
 
-// Task 1.9 acceptance: register (email) -> verify -> onboarding (individual) -> dashboard; the
+// Task 1.9 acceptance: register (email) -> verify -> the welcome card -> dashboard; the
 // Facebook button is visible and disabled; sign-out; private pages send signed-out visitors to login.
 
 test("registers with email, verifies from the mail, finishes onboarding and reaches the dashboard", async ({
@@ -42,13 +36,10 @@ test("registers with email, verifies from the mail, finishes onboarding and reac
   await login.locator("input[name=password]").fill(account.password);
   await login.getByRole("button", { name: t("auth.login.submit") }).click();
 
-  // Not onboarded yet: the dashboard sends the new user to the wizard first.
-  await expect(page).toHaveURL(/\/onboarding$/);
-  await answerAccountType(page, "individual");
-  await answerName(page, account.name);
-  await answerProfession(page);
-  await skipSocial(page);
-  await answerPlan(page);
+  // Not onboarded yet: a new user lands on the one-screen welcome card, name prefilled, "for me".
+  await expect(page).toHaveURL(/\/welcome$/);
+  await expect(page.locator("input[name=name]")).toHaveValue(account.name);
+  await finishWelcome(page);
 
   await expect(page).toHaveURL(/\/dashboard$/);
   const firstName = account.name.split(" ")[0] ?? "";

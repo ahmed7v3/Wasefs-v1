@@ -1,6 +1,11 @@
 import { Injectable } from "@nestjs/common";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
-import { USAGE_INTENTS, type OnboardingStep, type UsageIntent } from "@wasfa/shared/identity";
+import {
+  USAGE_INTENTS,
+  type OnboardingStep,
+  type Profession,
+  type UsageIntent,
+} from "@wasfa/shared/identity";
 
 import { AuditService } from "../audit/audit.service.js";
 import { PhoneService } from "../phone/phone.service.js";
@@ -15,10 +20,19 @@ import {
   type MachineState,
 } from "./onboarding.machine.js";
 import { OnboardingRepo, type OrgFields } from "./onboarding.repo.js";
-import { parseSubmission, readProgressData, type ProgressData } from "./onboarding.schemas.js";
+import {
+  parseSubmission,
+  readProgressData,
+  type ProgressData,
+  type StepSubmission,
+} from "./onboarding.schemas.js";
 
 import type { AuthenticatedUser } from "../common/current-user.js";
-import type { OnboardingInputStep, OnboardingState } from "@wasfa/shared/schemas/onboarding";
+import type {
+  OnboardingInputStep,
+  OnboardingState,
+  OnboardingWelcomeInput,
+} from "@wasfa/shared/schemas/onboarding";
 import type { FastifyRequest } from "fastify";
 
 /** Organization fields kept in the audit trail. */
@@ -30,6 +44,10 @@ interface OrgChange {
   before?: OrgFields;
   after: OrgFields;
 }
+
+/** A step answer, or the one-screen flow sending a lone (possibly empty) profession. */
+type AppliedSubmission =
+  StepSubmission | { step: "profession_intent"; input: { profession: Profession | null } };
 
 const conflict = (reason: string) => new AppError(ErrorCode.CONFLICT, { details: { reason } });
 
@@ -54,14 +72,18 @@ export class OnboardingService {
   ) {}
 
   /** Where the wizard stands, for `/me`. Does not create the progress row. */
-  async summary(user: { id: string }): Promise<{ currentStep: OnboardingStep; done: boolean }> {
+  async summary(user: {
+    id: string;
+  }): Promise<{ currentStep: OnboardingStep; done: boolean; followed?: true }> {
     const [account, progress] = await Promise.all([
       this.repo.findAccount(user.id),
       this.repo.findProgress(user.id),
     ]);
     if (!account) throw new AppError(ErrorCode.AUTH_REQUIRED);
     // Finished stays finished: no need to look at the environment.
-    if (progress?.completedAt) return { currentStep: "done", done: true };
+    const followed = readProgressData(progress?.data).followed === true;
+    const social = followed ? ({ followed: true } as const) : {};
+    if (progress?.completedAt) return { currentStep: "done", done: true, ...social };
 
     const { available } = await this.phone.availability();
     const view = evaluate({
@@ -72,7 +94,7 @@ export class OnboardingService {
       completedSteps: knownSteps(progress?.completedSteps ?? []),
       followed: readProgressData(progress?.data).followed,
     });
-    return { currentStep: view.currentStep, done: view.currentStep === "done" };
+    return { currentStep: view.currentStep, done: view.currentStep === "done", ...social };
   }
 
   /** The full wizard state; creates the progress row on the first visit. */
@@ -130,8 +152,73 @@ export class OnboardingService {
     body: unknown,
   ): Promise<OnboardingState> {
     // Bad input is a 400 before anything about the account's state is revealed or locked.
-    const submission = parseSubmission(step, body);
+    return this.apply(user, request, parseSubmission(step, body));
+  }
+
+  /**
+   * "I followed the page" from the dashboard card, which shows after the first analysis, long after
+   * the wizard finished: the answer is recorded without reopening any step.
+   */
+  async markFollowed(user: { id: string }): Promise<void> {
+    await this.repo.withLockedProgress(user.id, (tx) => tx.mergeData({ followed: true }));
+  }
+
+  /**
+   * The whole wizard in one call (`PUT /onboarding/welcome`). It is the same steps through the same
+   * rules, one after the other: the machine still decides the order, so a phone that must be
+   * verified and is not refuses the call before anything is written, and every step stays
+   * re-answerable. Social follow is skipped (it becomes a dashboard card) and the plan is the free one.
+   */
+  async welcome(
+    user: AuthenticatedUser,
+    request: FastifyRequest,
+    input: OnboardingWelcomeInput,
+  ): Promise<OnboardingState> {
+    const [account, { available }] = await Promise.all([
+      this.repo.findAccount(user.id),
+      this.phone.availability(),
+    ]);
+    if (!account) throw new AppError(ErrorCode.AUTH_REQUIRED);
+    if (
+      !phoneStepPassed({
+        accountType: account.accountType,
+        phoneVerified: account.phoneVerified,
+        emailVerified: account.emailVerified,
+        phoneVerificationAvailable: available,
+        completedSteps: [],
+      })
+    ) {
+      throw conflict("phone_not_verified");
+    }
+
+    const steps: AppliedSubmission[] = [
+      { step: "account_type", input: { accountType: input.accountType } },
+      { step: "name", input: { name: input.name } },
+      ...(input.organization === undefined
+        ? []
+        : [{ step: "organization" as const, input: input.organization }]),
+      { step: "profession_intent", input: { profession: input.profession ?? null } },
+      { step: "social_follow", input: { followed: false } },
+      { step: "plan_picker", input: { plan: "free" } },
+    ];
+    let state: OnboardingState | undefined;
+    for (const submission of steps) state = await this.apply(user, request, submission);
+    if (!state) throw new AppError(ErrorCode.INTERNAL);
+    return state;
+  }
+
+  private async apply(
+    user: AuthenticatedUser,
+    request: FastifyRequest,
+    submission: AppliedSubmission,
+  ): Promise<OnboardingState> {
+    const step = submission.step;
     const { available } = await this.phone.availability();
+    // Only the one-screen flow sends a lone profession; read before the lock like the other lookups.
+    const existingProfile =
+      submission.step === "profession_intent" && !("usageIntent" in submission.input)
+        ? await this.repo.findProfile(user.id)
+        : null;
 
     const orgChange = await this.repo.withLockedProgress(user.id, async (tx) => {
       const account = await tx.account();
@@ -198,12 +285,24 @@ export class OnboardingService {
           break;
         }
         case "profession_intent": {
-          await tx.saveProfile({
-            profession: submission.input.profession,
-            usageIntent: submission.input.usageIntent,
-            country: submission.input.country,
-            city: submission.input.city ?? null,
-          });
+          const { input } = submission;
+          if ("usageIntent" in input) {
+            await tx.saveProfile({
+              profession: input.profession,
+              usageIntent: input.usageIntent,
+              country: input.country,
+              city: input.city ?? null,
+            });
+          } else if (input.profession !== null) {
+            // One-screen flow: just the profession; what the profile already holds stays.
+            await tx.saveProfile({
+              profession: input.profession,
+              usageIntent: existingProfile?.usageIntent ?? [],
+              country: existingProfile?.country ?? null,
+              city: existingProfile?.city ?? null,
+            });
+          }
+          // No profession chosen: the step counts as answered with nothing written.
           break;
         }
         case "plan_picker": {

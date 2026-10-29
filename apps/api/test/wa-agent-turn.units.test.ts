@@ -298,6 +298,7 @@ describe("who gets which tools", () => {
       "medication_alternatives",
       "send_media",
       "create_document",
+      "create_account",
       "handoff_to_owner",
     ]);
     expect(h.ai.inputs[0]).toMatchObject({ task: "wa_agent", mode: "balanced", planId: null });
@@ -319,6 +320,7 @@ describe("who gets which tools", () => {
       "medication_alternatives",
       "send_media",
       "create_document",
+      "login_link",
       "handoff_to_owner",
     ]);
     expect(h.ai.inputs[0]).toMatchObject({

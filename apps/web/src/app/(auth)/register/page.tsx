@@ -4,12 +4,14 @@ import { redirect } from "next/navigation";
 
 import { AuthFooter, AuthHeading } from "../../../components/auth/auth-heading";
 import { RegisterForm } from "../../../components/auth/register-form";
+import { WhatsAppLogin } from "../../../components/auth/whatsapp-login";
 import { JoinCookie } from "../../../components/join/join-cookie";
 import { normalizeJoinSlug, normalizeReferralCode } from "../../../lib/attribution-cookies";
 import { providersResponseSchema, type ProviderStates } from "../../../lib/auth-api";
 import { getNonce } from "../../../lib/nonce";
 import { safeNext } from "../../../lib/safe-next";
 import { getMe, serverApi } from "../../../lib/session";
+import { loadWhatsAppAvailable } from "../../../lib/whatsapp-availability";
 
 import type { Metadata } from "next";
 
@@ -39,7 +41,11 @@ export default async function RegisterPage({
 
   if (await getMe().catch(() => null)) redirect(target);
 
-  const [providers, nonce] = await Promise.all([loadProviders(), getNonce()]);
+  const [providers, nonce, whatsappAvailable] = await Promise.all([
+    loadProviders(),
+    getNonce(),
+    loadWhatsAppAvailable(),
+  ]);
   const loginParams = new URLSearchParams();
   if (target !== "/dashboard") loginParams.set("next", target);
   if (joinSlug) loginParams.set("join", joinSlug);
@@ -49,6 +55,12 @@ export default async function RegisterPage({
     <>
       <AuthHeading title={t("auth.register.title")} lead={t("auth.register.lead")} />
       {joinSlug ? <JoinCookie slug={joinSlug} /> : null}
+      <WhatsAppLogin
+        available={whatsappAvailable}
+        next={target}
+        nonce={nonce}
+        passwordHref={loginHref}
+      />
       <RegisterForm
         nonce={nonce}
         initialReferralCode={referralCode ?? ""}

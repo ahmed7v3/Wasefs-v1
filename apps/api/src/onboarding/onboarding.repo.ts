@@ -40,7 +40,7 @@ export interface OnboardingOrg extends OrgFields {
 export interface ProfileFields {
   profession: NonNullable<UserProfile["profession"]>;
   usageIntent: string[];
-  country: string;
+  country: string | null;
   city: string | null;
 }
 
@@ -82,6 +82,14 @@ export class OnboardingTx {
     const [row] = await this.tx.select(accountColumns).from(users).where(eq(users.id, this.userId));
     if (!row) throw new Error("onboarding: user row missing");
     return row;
+  }
+
+  /** Merges keys into `data` without touching the steps or `completed_at` (the follow card, after onboarding). */
+  async mergeData(patch: Record<string, unknown>): Promise<void> {
+    await this.tx
+      .update(onboardingProgress)
+      .set({ data: sql`${onboardingProgress.data} || ${JSON.stringify(patch)}::jsonb` })
+      .where(eq(onboardingProgress.userId, this.userId));
   }
 
   async setAccountType(accountType: AccountType): Promise<void> {

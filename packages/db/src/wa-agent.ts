@@ -69,6 +69,21 @@ export async function getConversation(db: Handle, id: string): Promise<WaConvers
   return row ?? null;
 }
 
+/**
+ * Links a chat to the account just created for its verified phone, so the very next turn sees a
+ * linked customer (every inbound message re-resolves the link from the phone anyway).
+ */
+export async function linkConversationUser(
+  db: Handle,
+  conversationId: string,
+  userId: string,
+): Promise<void> {
+  await db
+    .update(waConversations)
+    .set({ userId, updatedAt: new Date() })
+    .where(and(eq(waConversations.id, conversationId), isNull(waConversations.userId)));
+}
+
 export interface InboundMessageInput {
   conversationId: string;
   direction: "in" | "owner";

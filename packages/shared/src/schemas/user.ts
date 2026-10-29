@@ -58,6 +58,8 @@ export const meResponseSchema = z.object({
   onboarding: z.object({
     currentStep: z.enum(ONBOARDING_STEPS),
     done: z.boolean(),
+    /** Present (true) once the person followed us; the dashboard card asks only until then. */
+    followed: z.boolean().optional(),
   }),
   organizations: z.array(
     z.object({
