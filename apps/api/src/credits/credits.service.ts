@@ -132,7 +132,7 @@ export class CreditsService {
    * `member` (org wallets): the organization member this hold is for; their monthly cap applies
    * (`QUOTA_EXCEEDED` `member_cap_reached`) and settling attributes the charge to them.
    */
-  reserve(
+  async reserve(
     owner: WalletOwner,
     amount: number,
     options: {
@@ -142,7 +142,25 @@ export class CreditsService {
       member?: { userId: string };
     },
   ): Promise<ReservationResult> {
+    if (owner.type === "user") await this.ensureMonthlyGrant(owner.id);
     return refusals(this.repo.reserve(owner, amount, options));
+  }
+
+  /**
+   * Pays this month's plan grant (the free plan's credits) the moment it is needed instead of after
+   * the worker's next daily run: a new account could otherwise not use its free credits on day one.
+   * Same rule and ledger key as the daily run, so never twice. Never blocks the caller: a failure is
+   * logged and the daily run pays later.
+   */
+  private async ensureMonthlyGrant(userId: string, now = new Date()): Promise<void> {
+    try {
+      await this.repo.ensureMonthlyGrant(userId, now);
+    } catch (error) {
+      this.logger.warn(
+        { reason: error instanceof Error ? error.name : "unknown" },
+        "Paying the monthly grant on demand failed",
+      );
+    }
   }
 
   /** Charges `min(actual, reserved)` and returns the rest. A second call changes nothing. */
@@ -206,6 +224,8 @@ export class CreditsService {
    */
   async forUser(userId: string, now = new Date()): Promise<MeCreditsResponse> {
     const owner = { type: "user", id: userId } as const;
+    // The balance shown is the one the next analysis will see.
+    await this.ensureMonthlyGrant(userId, now);
     const [wallet, plan, period] = await Promise.all([
       this.repo.personalWallet(userId),
       this.plans.effectivePlan(owner, now),

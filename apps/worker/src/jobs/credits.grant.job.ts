@@ -1,4 +1,4 @@
-import { expireUnused, grant, grantPeriod } from "@wasfa/db";
+import { expireUnused, grant, grantPeriod, previousPeriod } from "@wasfa/db";
 
 import { findGrantCandidates } from "./credits.repo.js";
 
@@ -11,13 +11,7 @@ export const GRANT_MAX_BATCHES = 500;
 
 type GrantContext = Pick<JobContext, "db" | "logger">;
 
-/** `YYYY-MM` of the month before `period`. */
-export function previousPeriod(period: string): string {
-  const [year = 0, month = 1] = period.split("-").map(Number);
-  return month === 1
-    ? `${String(year - 1)}-12`
-    : `${String(year)}-${String(month - 1).padStart(2, "0")}`;
-}
+export { previousPeriod };
 
 /**
  * `credits.grant_monthly`: gives every eligible user the monthly credits of their plan for the
