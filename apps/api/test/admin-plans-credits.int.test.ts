@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { creditLedger, creditWallets, orders, planEntitlements, plans } from "@wasfa/db";
+import { creditLedger, creditWallets, orders, planEntitlements, plans, users } from "@wasfa/db";
 import {
   adminAdjustResponseSchema,
   adminCreditWalletPageSchema,
@@ -963,13 +963,14 @@ describe("GET /me/credits", () => {
     expectError(await ctx.harness.call("GET", "/me/credits"), 401, "AUTH_REQUIRED");
   });
 
-  it("shows a new user's zero balance, the default plan and the first of next month", async () => {
+  it("shows a new user this month's free credits at once, the default plan and the first of next month", async () => {
     const person = await ctx.harness.signedInUser();
     const res = await call("GET", "/me/credits", person);
     expect(res.statusCode, res.body).toBe(200);
     const body = meCreditsResponseSchema.parse(res.json());
+    // The plan grant is paid the moment it is needed, not after the next daily run.
     expect(body).toMatchObject({
-      wallet: { ownerType: "user", balance: 0 },
+      wallet: { ownerType: "user", balance: 30 },
       plan: { key: "free", nameAr: "المجانية", nameEn: "Free" },
       monthlyCredits: 30,
     });
@@ -977,7 +978,29 @@ describe("GET /me/credits", () => {
     expect(body.nextGrantAt).toBe(
       new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString(),
     );
-    // Reading must not create a wallet.
+    // Once a month: reading again pays nothing more.
+    await call("GET", "/me/credits", person);
+    const [wallet] = await ctx.owner.db
+      .select()
+      .from(creditWallets)
+      .where(eq(creditWallets.ownerUserId, person.userId));
+    expect(wallet?.balance).toBe(30);
+    const entries = await ctx.owner.db
+      .select()
+      .from(creditLedger)
+      .where(eq(creditLedger.walletId, wallet?.id ?? randomUUID()));
+    expect(entries.map((entry) => entry.kind)).toEqual(["grant"]);
+  });
+
+  it("pays nothing to an unverified account and creates no wallet for it", async () => {
+    const person = await ctx.harness.signedInUser();
+    await ctx.owner.db
+      .update(users)
+      .set({ emailVerified: false })
+      .where(eq(users.id, person.userId));
+    const res = await call("GET", "/me/credits", person);
+    expect(res.statusCode, res.body).toBe(200);
+    expect(meCreditsResponseSchema.parse(res.json()).wallet.balance).toBe(0);
     expect(
       await ctx.owner.db
         .select()

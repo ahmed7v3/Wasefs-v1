@@ -23,11 +23,7 @@ import {
 import { busyLockKey } from "@wasfa/shared/busy";
 import { promptSessionKey, variantFor } from "@wasfa/shared/growth";
 import { RX_SKILL_NAME } from "@wasfa/shared/rx";
-import {
-  RX_SCHEMA_VERSION,
-  type RxResult,
-  type RxResultItem,
-} from "@wasfa/shared/schemas/rx";
+import { RX_SCHEMA_VERSION, type RxResult, type RxResultItem } from "@wasfa/shared/schemas/rx";
 import { Queue } from "bullmq";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -36,6 +32,7 @@ import { SettingsService } from "../src/settings/settings.service.js";
 
 import { AdminTestContext, type Admin } from "./support/admin-context.js";
 import { PASSWORD, type Jar } from "./support/auth-harness.js";
+import { useUpMonthlyGrant } from "./support/monthly-grant.js";
 
 /*
  * The conversion engine through the real app (GROWTH-STRATEGY, Task 3.14): the one prompt and its
@@ -131,7 +128,11 @@ async function page(owner: Person): Promise<string> {
 /** A finished analysis of `owner`, `minutesAgo` minutes ago. */
 async function analysis(
   owner: Person,
-  options: { items?: RxResultItem[]; status?: "done" | "processing" | "failed"; minutesAgo?: number } = {},
+  options: {
+    items?: RxResultItem[];
+    status?: "done" | "processing" | "failed";
+    minutesAgo?: number;
+  } = {},
 ): Promise<string> {
   const id = randomUUID();
   const fileId = await page(owner);
@@ -147,7 +148,10 @@ async function analysis(
       skillVersion: skillVersion(RX_SKILL_NAME),
       routeVersion,
       inputSha256: createHash("sha256").update(id).digest("hex"),
-      result: options.status === undefined || options.status === "done" ? result(options.items ?? [item()]) : null,
+      result:
+        options.status === undefined || options.status === "done"
+          ? result(options.items ?? [item()])
+          : null,
       finishedAt: options.status === undefined || options.status === "done" ? finishedAt : null,
     });
   await db().insert(rxPages).values({ analysisId: id, pageNo: 1, fileId });
@@ -209,23 +213,31 @@ describe("GET /me/growth/prompt", () => {
       cta: { kind: "taste" },
     });
     // GET has no side effects: asking again still answers (a prefetch never burns the prompt).
-    expect((await prompt(user, `context=result&rxId=${rxId}&sessionId=${session}`)).json().prompt).not.toBeNull();
+    expect(
+      (await prompt(user, `context=result&rxId=${rxId}&sessionId=${session}`)).json().prompt,
+    ).not.toBeNull();
 
     const shown = await sendEvents(user, [
       { name: "prompt_shown", sessionId: session, props: { kind: "analysis_taste" } },
     ]);
     expect(shown.json()).toEqual({ accepted: 1, dropped: 0 });
     expect(await ctx.redis.get(promptSessionKey(session))).toBe("1");
-    expect((await prompt(user, `context=result&rxId=${rxId}&sessionId=${session}`)).json().prompt).toBeNull();
+    expect(
+      (await prompt(user, `context=result&rxId=${rxId}&sessionId=${session}`)).json().prompt,
+    ).toBeNull();
     // Another session soon after: the per-kind cooldown after "shown" holds it back too.
-    expect((await prompt(user, `context=result&rxId=${rxId}&sessionId=${sessionId()}`)).json().prompt).toBeNull();
+    expect(
+      (await prompt(user, `context=result&rxId=${rxId}&sessionId=${sessionId()}`)).json().prompt,
+    ).toBeNull();
   });
 
   it("counts an analysis whose finish time has microseconds (written by the database clock)", async () => {
     const user = await person();
     const rxId = await analysis(user);
     // `now()` keeps microseconds; a millisecond copy of it must not push the row past itself.
-    await db().execute(sql`update rx_analyses set finished_at = now() - interval '1 second' + interval '0.000371 second' where id = ${rxId}`);
+    await db().execute(
+      sql`update rx_analyses set finished_at = now() - interval '1 second' + interval '0.000371 second' where id = ${rxId}`,
+    );
     const answer = await prompt(user, `context=result&rxId=${rxId}&sessionId=${sessionId()}`);
     expect(answer.json().prompt?.kind).toBe("analysis_taste");
   });
@@ -234,10 +246,14 @@ describe("GET /me/growth/prompt", () => {
     const user = await person();
     for (const status of ["processing", "failed"] as const) {
       const rxId = await analysis(user, { status });
-      expect((await prompt(user, `context=result&rxId=${rxId}&sessionId=${sessionId()}`)).json().prompt).toBeNull();
+      expect(
+        (await prompt(user, `context=result&rxId=${rxId}&sessionId=${sessionId()}`)).json().prompt,
+      ).toBeNull();
     }
     const certain = await analysis(user, { items: [item({ badge: "high", confidence: 0.98 })] });
-    expect((await prompt(user, `context=result&rxId=${certain}&sessionId=${sessionId()}`)).json().prompt).toBeNull();
+    expect(
+      (await prompt(user, `context=result&rxId=${certain}&sessionId=${sessionId()}`)).json().prompt,
+    ).toBeNull();
   });
 
   it("doubles the cooldown after each dismissal (7 days, then 14)", async () => {
@@ -271,19 +287,24 @@ describe("GET /me/growth/prompt", () => {
     const user = await person();
     const rxId = await analysis(user);
     await setGrowth({ killSwitch: true });
-    expect((await prompt(user, `context=result&rxId=${rxId}&sessionId=${sessionId()}`)).json().prompt).toBeNull();
+    expect(
+      (await prompt(user, `context=result&rxId=${rxId}&sessionId=${sessionId()}`)).json().prompt,
+    ).toBeNull();
     await setGrowth({ prompts: { enabled: false } });
-    expect((await prompt(user, `context=result&rxId=${rxId}&sessionId=${sessionId()}`)).json().prompt).toBeNull();
+    expect(
+      (await prompt(user, `context=result&rxId=${rxId}&sessionId=${sessionId()}`)).json().prompt,
+    ).toBeNull();
   });
 
   it("says when the free credits are used up, with the renewal date first", async () => {
     const user = await person();
+    await useUpMonthlyGrant(ctx.owner.db, user.userId);
     const credits = (await ctx.harness.call("GET", "/me/credits", { jar: user.jar })).json() as {
       wallet: { balance: number };
       monthlyCredits: number;
       nextGrantAt: string;
     };
-    // A new account before the monthly grant job ran: an empty wallet on the free plan.
+    // This month's free credits are spent: an empty wallet on the free plan.
     expect(credits.wallet.balance).toBe(0);
     const res = await prompt(user, `context=credits&sessionId=${sessionId()}`);
     expect(res.json().prompt).toMatchObject({
@@ -294,7 +315,10 @@ describe("GET /me/growth/prompt", () => {
   });
 
   it("needs a signed-in user and validates the query", async () => {
-    expect((await ctx.harness.call("GET", `/me/growth/prompt?context=result&sessionId=${sessionId()}`)).statusCode).toBe(401);
+    expect(
+      (await ctx.harness.call("GET", `/me/growth/prompt?context=result&sessionId=${sessionId()}`))
+        .statusCode,
+    ).toBe(401);
     const user = await person();
     expect((await prompt(user, "context=nowhere&sessionId=abcdefgh")).statusCode).toBe(400);
   });
@@ -345,8 +369,12 @@ describe("the taste of Deep mode", () => {
     const first = await analysis(user);
     const second = await analysis(user);
     expect(
-      (await ctx.harness.call("POST", "/me/taste", { jar: user.jar, body: { rxId: first, requestId: randomUUID() } }))
-        .statusCode,
+      (
+        await ctx.harness.call("POST", "/me/taste", {
+          jar: user.jar,
+          body: { rxId: first, requestId: randomUUID() },
+        })
+      ).statusCode,
     ).toBe(201);
     await ctx.redis.del(busyLockKey(user.userId, "rx"));
     const refused = await ctx.harness.call("POST", "/me/taste", {
@@ -388,13 +416,18 @@ describe("the taste of Deep mode", () => {
     });
     expect(refused.json().details).toMatchObject({ reason: "not_eligible" });
     // No grant row and no credits for a refusal.
-    const rows = await db().select().from(tasteGrants).where(eq(tasteGrants.ownerUserId, paying.userId));
+    const rows = await db()
+      .select()
+      .from(tasteGrants)
+      .where(eq(tasteGrants.ownerUserId, paying.userId));
     expect(rows).toHaveLength(0);
   });
 
   it("compares both results item by item and records the completion once", async () => {
     const user = await person();
-    const rxId = await analysis(user, { items: [item({ badge: "medium" }), item({ badge: "high", confidence: 0.95 })] });
+    const rxId = await analysis(user, {
+      items: [item({ badge: "medium" }), item({ badge: "high", confidence: 0.95 })],
+    });
     const started = await ctx.harness.call("POST", "/me/taste", {
       jar: user.jar,
       body: { rxId, requestId: randomUUID() },
@@ -406,7 +439,10 @@ describe("the taste of Deep mode", () => {
       .set({
         status: "done",
         finishedAt: new Date(),
-        result: result([item({ badge: "high", confidence: 0.97 }), item({ badge: "high", confidence: 0.95 })]),
+        result: result([
+          item({ badge: "high", confidence: 0.97 }),
+          item({ badge: "high", confidence: 0.95 }),
+        ]),
       })
       .where(eq(rxAnalyses.id, analysisId));
     const compare = () =>
@@ -414,7 +450,10 @@ describe("the taste of Deep mode", () => {
     const first = await compare();
     expect(first.statusCode, first.body).toBe(200);
     expect(first.json().items, first.body).toHaveLength(2);
-    expect(first.json().items.map((entry: { improved: boolean }) => entry.improved)).toEqual([true, false]);
+    expect(first.json().items.map((entry: { improved: boolean }) => entry.improved)).toEqual([
+      true,
+      false,
+    ]);
     await compare();
     const completed = await db()
       .select()
@@ -424,7 +463,10 @@ describe("the taste of Deep mode", () => {
 
     // Someone else's grant does not exist for them.
     const stranger = await person();
-    expect((await ctx.harness.call("GET", `/me/taste/${grantId}/compare`, { jar: stranger.jar })).statusCode).toBe(404);
+    expect(
+      (await ctx.harness.call("GET", `/me/taste/${grantId}/compare`, { jar: stranger.jar }))
+        .statusCode,
+    ).toBe(404);
   });
 });
 
@@ -433,18 +475,37 @@ describe("personal offers, value and proof", () => {
     const user = await person();
     const [promotion] = await db()
       .insert(promotions)
-      .values({ kind: "percent", name: "Welcome", titleAr: "ترحيب", titleEn: "Welcome", value: 2_000, status: "draft" })
+      .values({
+        kind: "percent",
+        name: "Welcome",
+        titleAr: "ترحيب",
+        titleEn: "Welcome",
+        value: 2_000,
+        status: "draft",
+      })
       .returning({ id: promotions.id });
     if (!promotion) throw new Error("promotion missing");
     const expiresAt = new Date(Date.now() + 48 * 3_600_000);
     await db()
       .insert(personalOffers)
-      .values({ ownerUserId: user.userId, kind: "welcome", promotionId: promotion.id, ruleKey: "welcome_offer", expiresAt });
+      .values({
+        ownerUserId: user.userId,
+        kind: "welcome",
+        promotionId: promotion.id,
+        ruleKey: "welcome_offer",
+        expiresAt,
+      });
     const first = await ctx.harness.call("GET", "/me/offers", { jar: user.jar });
     expect(first.statusCode).toBe(200);
-    expect(first.json().offers[0]).toMatchObject({ kind: "welcome", expiresAt: expiresAt.toISOString() });
+    expect(first.json().offers[0]).toMatchObject({
+      kind: "welcome",
+      expiresAt: expiresAt.toISOString(),
+    });
     // A second device: sign in again, same deadline (nothing is computed per session).
-    const [row] = await db().select({ email: users.email }).from(users).where(eq(users.id, user.userId));
+    const [row] = await db()
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, user.userId));
     if (!row) throw new Error("user missing");
     const other: Jar = new Map();
     await ctx.harness.call("POST", "/auth/sign-in/email", {
@@ -461,7 +522,12 @@ describe("personal offers, value and proof", () => {
     await analysis(user, { items: [item(), item(), item()] });
     await analysis(user, { items: [item()] });
     const res = await ctx.harness.call("GET", "/me/value", { jar: user.jar });
-    expect(res.json()).toEqual({ analyses: 2, drugsChecked: 4, minutesSavedEstimate: 20, estimate: true });
+    expect(res.json()).toEqual({
+      analyses: 2,
+      drugsChecked: 4,
+      minutesSavedEstimate: 20,
+      estimate: true,
+    });
   });
 
   it("hides social proof below the threshold", async () => {
@@ -491,12 +557,18 @@ describe("POST /growth/events", () => {
       { name: "prompt_clicked", sessionId: sessionId(), props: { kind: "not_a_kind" } },
     ]);
     expect(signed.json()).toEqual({ accepted: 1, dropped: 3 });
-    const stored = await db().select().from(growthEvents).where(eq(growthEvents.userId, user.userId));
+    const stored = await db()
+      .select()
+      .from(growthEvents)
+      .where(eq(growthEvents.userId, user.userId));
     expect(stored.map((row) => row.name)).toEqual(["plan_selected"]);
   });
 
   it("refuses more than 20 events at once", async () => {
-    const many = Array.from({ length: 21 }, () => ({ name: "pricing_viewed", sessionId: sessionId() }));
+    const many = Array.from({ length: 21 }, () => ({
+      name: "pricing_viewed",
+      sessionId: sessionId(),
+    }));
     expect((await sendEvents(null, many)).statusCode).toBe(400);
   });
 });
@@ -504,25 +576,41 @@ describe("POST /growth/events", () => {
 describe("unsubscribe", () => {
   it("turns marketing mail off with the signed token, from the page and the one-click button", async () => {
     const user = await person();
-    await ctx.harness.call("PUT", "/me/notification-prefs", { jar: user.jar, body: { marketing: true } });
-    expect((await ctx.harness.call("GET", "/me/notification-prefs", { jar: user.jar })).json().marketing).toEqual({
+    await ctx.harness.call("PUT", "/me/notification-prefs", {
+      jar: user.jar,
+      body: { marketing: true },
+    });
+    expect(
+      (await ctx.harness.call("GET", "/me/notification-prefs", { jar: user.jar })).json().marketing,
+    ).toEqual({
       enabled: true,
     });
     const token = unsubscribeToken(Buffer.from(ctx.env.ENCRYPTION_KEY, "base64"), user.userId);
 
     const page = await ctx.harness.call("POST", "/unsubscribe", { body: { token }, origin: null });
     expect(page.statusCode, page.body).toBe(200);
-    const [prefs] = await db().select().from(notificationPrefs).where(eq(notificationPrefs.userId, user.userId));
+    const [prefs] = await db()
+      .select()
+      .from(notificationPrefs)
+      .where(eq(notificationPrefs.userId, user.userId));
     expect(prefs?.marketingOptedOutVia).toBe("unsubscribe_link");
-    expect((await ctx.harness.call("GET", "/me/notification-prefs", { jar: user.jar })).json().marketing).toEqual({
+    expect(
+      (await ctx.harness.call("GET", "/me/notification-prefs", { jar: user.jar })).json().marketing,
+    ).toEqual({
       enabled: false,
     });
     // Idempotent.
-    expect((await ctx.harness.call("POST", "/unsubscribe", { body: { token }, origin: null })).statusCode).toBe(200);
+    expect(
+      (await ctx.harness.call("POST", "/unsubscribe", { body: { token }, origin: null }))
+        .statusCode,
+    ).toBe(200);
 
     // RFC 8058: the mail client posts a form to the header URL.
     const other = await person();
-    const otherToken = unsubscribeToken(Buffer.from(ctx.env.ENCRYPTION_KEY, "base64"), other.userId);
+    const otherToken = unsubscribeToken(
+      Buffer.from(ctx.env.ENCRYPTION_KEY, "base64"),
+      other.userId,
+    );
     const oneClick = await ctx.app.inject({
       method: "POST",
       url: `/unsubscribe?token=${encodeURIComponent(otherToken)}`,
@@ -531,15 +619,28 @@ describe("unsubscribe", () => {
       remoteAddress: "203.0.113.9",
     });
     expect(oneClick.statusCode, oneClick.body).toBe(200);
-    const [otherPrefs] = await db().select().from(notificationPrefs).where(eq(notificationPrefs.userId, other.userId));
+    const [otherPrefs] = await db()
+      .select()
+      .from(notificationPrefs)
+      .where(eq(notificationPrefs.userId, other.userId));
     expect(otherPrefs?.marketingOptedOutVia).toBe("one_click");
   });
 
   it("answers 404 for a forged or foreign token", async () => {
     const user = await person();
     const forged = `${user.userId}.${randomBytes(18).toString("base64url")}`;
-    expect((await ctx.harness.call("POST", "/unsubscribe", { body: { token: forged }, origin: null })).statusCode).toBe(404);
-    expect((await ctx.harness.call("POST", "/unsubscribe", { body: { token: "x".repeat(30) }, origin: null })).statusCode).toBe(404);
+    expect(
+      (await ctx.harness.call("POST", "/unsubscribe", { body: { token: forged }, origin: null }))
+        .statusCode,
+    ).toBe(404);
+    expect(
+      (
+        await ctx.harness.call("POST", "/unsubscribe", {
+          body: { token: "x".repeat(30) },
+          origin: null,
+        })
+      ).statusCode,
+    ).toBe(404);
   });
 });
 
@@ -560,12 +661,19 @@ describe("experiments and the funnel", () => {
     expect(created.statusCode, created.body).toBe(201);
     const id = created.json().id as string;
     expect(created.json().status).toBe("draft");
-    const started = await ctx.harness.call("POST", `/admin/growth/experiments/${id}/start`, { jar: marketer.jar });
+    const started = await ctx.harness.call("POST", `/admin/growth/experiments/${id}/start`, {
+      jar: marketer.jar,
+    });
     expect(started.json().status).toBe("running");
     // Variants cannot change once running.
     const edit = await ctx.harness.call("PATCH", `/admin/growth/experiments/${id}`, {
       jar: marketer.jar,
-      body: { variants: [{ key: "a", weight: 10 }, { key: "b", weight: 90 }] },
+      body: {
+        variants: [
+          { key: "a", weight: 10 },
+          { key: "b", weight: 90 },
+        ],
+      },
     });
     expect(edit.statusCode).toBe(409);
 
@@ -575,20 +683,32 @@ describe("experiments and the funnel", () => {
       { key: "a", weight: 50 },
       { key: "b", weight: 50 },
     ]);
-    expect(mine.json().assignments).toContainEqual({ experimentKey: "prompt_credits_low", variant: expected });
+    expect(mine.json().assignments).toContainEqual({
+      experimentKey: "prompt_credits_low",
+      variant: expected,
+    });
 
     // An exposure with the server-computed arm, then the results.
     await sendEvents(user, [
-      { name: "prompt_shown", sessionId: sessionId(), props: { kind: "credits_low" }, variant: "forged_arm" },
+      {
+        name: "prompt_shown",
+        sessionId: sessionId(),
+        props: { kind: "credits_low" },
+        variant: "forged_arm",
+      },
     ]);
     const [event] = await db()
       .select()
       .from(growthEvents)
       .where(and(eq(growthEvents.userId, user.userId), eq(growthEvents.name, "prompt_shown")));
     expect(event?.variant).toBe(expected);
-    const results = await ctx.harness.call("GET", `/admin/growth/experiments/${id}/results`, { jar: marketer.jar });
+    const results = await ctx.harness.call("GET", `/admin/growth/experiments/${id}/results`, {
+      jar: marketer.jar,
+    });
     expect(results.statusCode, results.body).toBe(200);
-    const arm = results.json().variants.find((row: { variant: string }) => row.variant === expected);
+    const arm = results
+      .json()
+      .variants.find((row: { variant: string }) => row.variant === expected);
     expect(arm.exposures).toBeGreaterThanOrEqual(1);
     await db().update(experiments).set({ status: "stopped" }).where(eq(experiments.id, id));
   });
@@ -597,8 +717,17 @@ describe("experiments and the funnel", () => {
     const res = await ctx.harness.call("GET", "/admin/growth/funnel", { jar: marketer.jar });
     expect(res.statusCode, res.body).toBe(200);
     const body = res.json();
-    for (const key of ["visitToSignup", "signupToActivation", "activationToPaid", "checkoutToPaid"]) {
-      expect(body[key]).toEqual({ from: expect.any(Number), to: expect.any(Number), rateBps: expect.any(Number) });
+    for (const key of [
+      "visitToSignup",
+      "signupToActivation",
+      "activationToPaid",
+      "checkoutToPaid",
+    ]) {
+      expect(body[key]).toEqual({
+        from: expect.any(Number),
+        to: expect.any(Number),
+        rateBps: expect.any(Number),
+      });
     }
     expect(body.signupToActivation.from).toBeGreaterThan(0);
   });
@@ -606,6 +735,8 @@ describe("experiments and the funnel", () => {
   it("denies the console to a role without the permission", async () => {
     const roleKey = await ctx.roleLacking("billing.read");
     const lacking = await ctx.admin(roleKey);
-    expect((await ctx.harness.call("GET", "/admin/growth/funnel", { jar: lacking.jar })).statusCode).toBe(403);
+    expect(
+      (await ctx.harness.call("GET", "/admin/growth/funnel", { jar: lacking.jar })).statusCode,
+    ).toBe(403);
   });
 });

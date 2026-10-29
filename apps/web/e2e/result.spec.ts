@@ -2,6 +2,7 @@ import { t } from "@wasfa/shared/i18n";
 
 import { finishOnboarding, newAccount, signedInAccount } from "./support/accounts";
 import { expectAccessible } from "./support/axe";
+import { useUpMonthlyGrant } from "./support/billing";
 import { expect, test } from "./support/fixtures";
 import {
   finishAnalysis,
@@ -31,10 +32,12 @@ interface Ctx {
 async function seeded(
   { context, page, urls, redis }: Ctx,
   status: "queued" | "done" | "refunded" | "failed" = "done",
-  extra: { errorRef?: string } = {},
+  extra: { errorRef?: string; creditsUsedUp?: boolean } = {},
 ) {
+  const { creditsUsedUp, ...seed } = extra;
   const account = await signedInAccount(context, urls, redis, newAccount("Rx"));
   await finishOnboarding(page.request, urls, account.name);
+  if (creditsUsedUp) useUpMonthlyGrant(account.email);
   await page.goto("/analyze");
   await expect(page.locator("h1").first()).toBeVisible();
   const fileId = await uploadRxPage(context, page, urls);
@@ -43,7 +46,7 @@ async function seeded(
     fileIds: [fileId],
     status,
     result: status === "done" ? sampleResult() : null,
-    ...extra,
+    ...seed,
   });
   return { account, id, fileId };
 }
@@ -166,11 +169,11 @@ for (const [label, width, height] of [
       redis,
     }) => {
       const ctx = { context, page, urls, redis };
-      const { id } = await seeded(ctx);
+      const { id } = await seeded(ctx, "done", { creditsUsedUp: true });
       await page.goto(`/analyze/${id}`);
       const deep = page.getByTestId("rx-deep");
       await expect(deep).toContainText(t("rx.action.deepPrice", { price: 1 }));
-      // A new account has no credits: the short balance is said, and the button waits.
+      // This month's free credits are spent: the short balance is said, and the button waits.
       await expect(deep.getByRole("alert")).toBeVisible();
       await expect(deep.getByRole("button", { name: t("rx.action.deep") })).toBeDisabled();
     });

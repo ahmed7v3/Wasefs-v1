@@ -228,7 +228,8 @@ describe("a linked customer", () => {
       pendingOrders?: unknown[];
     };
     expect(typeof facts.plan?.key).toBe("string");
-    expect(facts.credits?.balance).toBe(0);
+    // A new account's free credits are paid the moment its balance is read.
+    expect(facts.credits?.balance).toBe(30);
     expect(facts.pendingOrders).toEqual([]);
   });
 

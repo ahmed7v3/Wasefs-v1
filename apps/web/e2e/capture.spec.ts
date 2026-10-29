@@ -5,6 +5,7 @@ import { t } from "@wasfa/shared/i18n";
 
 import { finishOnboarding, newAccount, signedInAccount } from "./support/accounts";
 import { expectAccessible } from "./support/axe";
+import { useUpMonthlyGrant } from "./support/billing";
 import { expect, test, watchCsp } from "./support/fixtures";
 
 import type { BrowserContext, Page } from "@playwright/test";
@@ -106,9 +107,11 @@ async function openAnalyze(
   page: Page,
   urls: { web: string; api: string },
   redis: Parameters<typeof signedInAccount>[2],
+  options: { creditsUsedUp?: boolean } = {},
 ): Promise<void> {
   const account = await signedInAccount(context, urls, redis, newAccount("Cap"));
   await finishOnboarding(page.request, urls, account.name);
+  if (options.creditsUsedUp) useUpMonthlyGrant(account.email);
   await page.goto("/analyze");
   await expect(page.getByRole("heading", { name: t("capture.empty.title") })).toBeVisible();
 }
@@ -215,13 +218,13 @@ test.describe("capture on /analyze", () => {
     urls,
     redis,
   }) => {
-    await openAnalyze(context, page, urls, redis);
+    await openAnalyze(context, page, urls, redis, { creditsUsedUp: true });
     const blurred = await fixture(page, "blurred", "blurred.jpg");
     await picker(page).setInputFiles(asFile(blurred));
 
     await expect(page.getByTestId("quality-hint")).toContainText(t("capture.quality.title.blurry"));
     await expect(page.locator('li[data-status="warning"]')).toHaveCount(1);
-    // A new account has no credits yet: Analyze gives way to the calm "not enough credits" state.
+    // This month's free credits are spent: Analyze gives way to the calm "not enough credits" state.
     await expect(page.getByText(t("capture.analyze.insufficient"))).toBeVisible();
     await expect(page.getByRole("link", { name: t("capture.analyze.support") })).toBeVisible();
     await expectAccessible(page, "/analyze with a quality hint");

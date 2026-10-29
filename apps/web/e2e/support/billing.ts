@@ -44,6 +44,28 @@ function sql(script: string, params: object = {}): void {
   if (result.status !== 0) throw new Error(`billing seed failed: ${result.stdout}${result.stderr}`);
 }
 
+/**
+ * The account already spent this month's free credits: the plan grant the API would pay on demand is
+ * paid and expired (the db package's own functions), so the app shows a short balance.
+ */
+export function useUpMonthlyGrant(email: string): void {
+  sql(
+    `import postgres from "postgres";
+const { createDb, ensureMonthlyGrant, expireUnused, grantPeriod } = await import("./dist/index.js");
+const p = JSON.parse(process.env.P);
+const pg = postgres(process.env.DATABASE_URL);
+const [user] = await pg\`select id from users where email = \${p.email}\`;
+await pg.end();
+if (!user) throw new Error("no such account");
+const { db, close } = createDb({ url: process.env.DATABASE_URL, max: 1 });
+const now = new Date();
+await ensureMonthlyGrant(db, user.id, now);
+await expireUnused(db, { type: "user", id: user.id }, grantPeriod(now));
+await close();`,
+    { email },
+  );
+}
+
 /** An active percentage coupon (basis points) for everyone, valid now. */
 export function insertCoupon(code: string, bps: number): void {
   sql(
