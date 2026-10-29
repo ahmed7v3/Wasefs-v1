@@ -132,8 +132,8 @@ describe("start", () => {
     const jar: Jar = new Map();
     const res = await startLogin(jar);
     expect(res.statusCode).toBe(200);
-    const body = res.json<{ token: string; waLink: string; expiresAt: string }>();
-    expect(body.token).toMatch(/^[0-9A-Z]{4}-[0-9A-Z]{4}$/);
+    const body = res.json<{ code: string; waLink: string; expiresAt: string }>();
+    expect(body.code).toMatch(/^[0-9A-Z]{4}-[0-9A-Z]{4}$/);
     expect(body.waLink).toContain(`https://wa.me/${OUR_NUMBER}?text=`);
     const cookie = [res.headers["set-cookie"] ?? []]
       .flat()
@@ -155,7 +155,7 @@ describe("start -> bridge claim -> status -> session", () => {
   it("signs a new person in once, in the browser that asked, and tags the session", async () => {
     const phone = newPhone();
     const jar: Jar = new Map();
-    const { token } = (await startLogin(jar)).json<{ token: string }>();
+    const { code: token } = (await startLogin(jar)).json<{ code: string }>();
 
     const inbound = await claim(phone, token);
     expect((await replyFor(inbound)).outcome).toBe("login_ok");
@@ -185,7 +185,7 @@ describe("start -> bridge claim -> status -> session", () => {
   it("answers a replayed token with login_expired", async () => {
     const phone = newPhone();
     const jar: Jar = new Map();
-    const { token } = (await startLogin(jar)).json<{ token: string }>();
+    const { code: token } = (await startLogin(jar)).json<{ code: string }>();
     await claim(phone, token);
     const second = await claim(phone, token);
     expect((await replyFor(second)).outcome).toBe("login_expired");
@@ -206,7 +206,7 @@ describe("start -> bridge claim -> status -> session", () => {
       .returning({ id: users.id });
     expect(created).toBeDefined();
     const jar: Jar = new Map();
-    const { token } = (await startLogin(jar)).json<{ token: string }>();
+    const { code: token } = (await startLogin(jar)).json<{ code: string }>();
     expect((await replyFor(await claim(phone, token))).outcome).toBe("login_refused");
     expect((await poll(jar, token)).json()).toEqual({ status: "refused", reason: "two_factor" });
     expect(
@@ -220,7 +220,7 @@ describe("start -> bridge claim -> status -> session", () => {
   it("logout revokes the WhatsApp sessions and replies logout_ok", async () => {
     const phone = newPhone();
     const jar: Jar = new Map();
-    const { token } = (await startLogin(jar)).json<{ token: string }>();
+    const { code: token } = (await startLogin(jar)).json<{ code: string }>();
     await claim(phone, token);
     await waitFor(
       async () => (await poll(jar, token)).json<{ status: string }>().status === "signed_in",

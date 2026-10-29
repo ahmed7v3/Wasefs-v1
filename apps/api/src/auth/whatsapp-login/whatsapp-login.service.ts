@@ -107,7 +107,7 @@ export class WhatsAppLoginService {
     return {
       nonce,
       response: {
-        token: displayLoginToken(token),
+        code: displayLoginToken(token),
         waLink: `https://wa.me/${number.digits}?text=${encodeURIComponent(text)}`,
         expiresAt: new Date(expiresAt).toISOString(),
       },

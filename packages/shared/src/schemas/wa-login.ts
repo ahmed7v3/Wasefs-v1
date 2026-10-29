@@ -73,8 +73,11 @@ export const waLoginStartRequestSchema = z.object({});
 
 /** The response of `POST /auth/whatsapp/start`. */
 export const waLoginStartResponseSchema = z.object({
-  /** `XXXX-XXXX`, for display. */
-  token: z.string(),
+  /**
+   * `XXXX-XXXX`, for display. Not called `token`: the auth layer strips every `token` from response
+   * bodies (sanitizeSuccess) so a session token can never reach script.
+   */
+  code: z.string(),
   waLink: z.string(),
   /** ISO timestamp. */
   expiresAt: z.string(),

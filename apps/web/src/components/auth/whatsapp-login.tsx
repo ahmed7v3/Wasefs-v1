@@ -189,7 +189,7 @@ export function WhatsAppLogin({ available, next, nonce, passwordHref }: WhatsApp
         setNow(Date.now());
         setPhase({
           kind: "waiting",
-          token: result.token,
+          token: result.code,
           waLink: result.waLink,
           expiresAt,
           mobile: isMobileDevice(),

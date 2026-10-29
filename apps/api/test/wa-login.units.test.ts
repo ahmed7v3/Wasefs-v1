@@ -341,13 +341,13 @@ describe("WhatsAppLoginService", () => {
     const { response, nonce } = await service.start(
       "Mozilla/5.0 (Windows NT 10.0) Chrome/120 Safari/537.36",
     );
-    expect(response.token).toMatch(/^[0-9A-Z]{4}-[0-9A-Z]{4}$/);
+    expect(response.code).toMatch(/^[0-9A-Z]{4}-[0-9A-Z]{4}$/);
     const link = new URL(response.waLink);
     expect(link.origin + link.pathname).toBe("https://wa.me/201000000000");
     const text = link.searchParams.get("text") ?? "";
-    expect(parseLoginToken(text)).toBe(response.token.replace("-", ""));
+    expect(parseLoginToken(text)).toBe(response.code.replace("-", ""));
     expect(Date.parse(response.expiresAt)).toBeGreaterThan(Date.now());
-    const stored = redis.hashes.get(`wa:login:${response.token.replace("-", "")}`);
+    const stored = redis.hashes.get(`wa:login:${response.code.replace("-", "")}`);
     expect(stored?.get("ua")).toBe("Chrome · Windows");
     expect(stored?.get("nonceHash")).toBe(hashNonce(nonce));
   });
@@ -366,31 +366,31 @@ describe("WhatsAppLoginService", () => {
   it("signs a new person in: creates the account, replies login_ok, hands one result to the browser", async () => {
     const h = setup();
     const { response, nonce } = await h.service.start(null);
-    const token = response.token.replace("-", "");
+    const token = response.code.replace("-", "");
 
     await h.service.handleEntry(login(token, { pushName: "Mona" }));
     expect(h.created).toEqual([PHONE]);
     expect(h.redis.replies()).toEqual([{ inboundId: "MSG1", jid: JID, outcome: "login_ok" }]);
     expect(h.audits).toHaveLength(1);
 
-    expect(await h.service.poll(response.token, "another-browser")).toEqual({ status: "pending" });
-    expect(await h.service.poll(response.token, undefined)).toEqual({ status: "pending" });
-    expect(await h.service.poll(response.token, nonce)).toEqual({
+    expect(await h.service.poll(response.code, "another-browser")).toEqual({ status: "pending" });
+    expect(await h.service.poll(response.code, undefined)).toEqual({ status: "pending" });
+    expect(await h.service.poll(response.code, nonce)).toEqual({
       status: "approved",
       userId: "new-1",
       isNew: true,
     });
     // Exactly one session: the result is gone after the first successful poll.
-    expect(await h.service.poll(response.token, nonce)).toEqual({ status: "pending" });
+    expect(await h.service.poll(response.code, nonce)).toEqual({ status: "pending" });
   });
 
   it("signs an existing person in without creating anything", async () => {
     const h = setup({ existing: account({ id: "old" }) });
     const { response, nonce } = await h.service.start(null);
-    await h.service.handleEntry(login(response.token.replace("-", "")));
+    await h.service.handleEntry(login(response.code.replace("-", "")));
     expect(h.created).toHaveLength(0);
     expect(h.audits).toHaveLength(0);
-    expect(await h.service.poll(response.token, nonce)).toEqual({
+    expect(await h.service.poll(response.code, nonce)).toEqual({
       status: "approved",
       userId: "old",
       isNew: false,
@@ -404,17 +404,17 @@ describe("WhatsAppLoginService", () => {
   ] as const)("refuses %j with %s and replies login_refused", async (overrides, reason) => {
     const h = setup({ existing: account(overrides) });
     const { response, nonce } = await h.service.start(null);
-    await h.service.handleEntry(login(response.token.replace("-", "")));
+    await h.service.handleEntry(login(response.code.replace("-", "")));
     expect(h.redis.replies().map((reply) => reply.outcome)).toEqual(["login_refused"]);
-    expect(await h.service.poll(response.token, nonce)).toEqual({ status: "refused", reason });
+    expect(await h.service.poll(response.code, nonce)).toEqual({ status: "refused", reason });
   });
 
   it("re-checks the account when the browser polls (2FA switched on in between)", async () => {
     const h = setup({ existing: account({ id: "old" }) });
     const { response, nonce } = await h.service.start(null);
-    await h.service.handleEntry(login(response.token.replace("-", "")));
+    await h.service.handleEntry(login(response.code.replace("-", "")));
     h.setAccount(account({ id: "old", twoFactorEnabled: true }));
-    expect(await h.service.poll(response.token, nonce)).toEqual({
+    expect(await h.service.poll(response.code, nonce)).toEqual({
       status: "refused",
       reason: "two_factor",
     });
@@ -426,7 +426,7 @@ describe("WhatsAppLoginService", () => {
     expect(h.redis.replies().map((reply) => reply.outcome)).toEqual(["login_expired"]);
 
     const { response } = await h.service.start(null);
-    const token = response.token.replace("-", "");
+    const token = response.code.replace("-", "");
     await h.service.handleEntry(login(token, { id: "M1" }));
     await h.service.handleEntry(login(token, { id: "M2" }));
     expect(h.created).toEqual([PHONE]);
@@ -441,7 +441,7 @@ describe("WhatsAppLoginService", () => {
     const h = setup();
     const { response } = await h.service.start(null);
     h.redis.now += TTL_MS + 1;
-    await h.service.handleEntry(login(response.token.replace("-", "")));
+    await h.service.handleEntry(login(response.code.replace("-", "")));
     expect(h.created).toHaveLength(0);
     expect(h.redis.replies().map((reply) => reply.outcome)).toEqual(["login_expired"]);
   });
@@ -455,10 +455,10 @@ describe("WhatsAppLoginService", () => {
   it("creates nobody while sign-up is closed, tells the page, and says nothing in the chat", async () => {
     const h = setup({ signupOpen: false });
     const { response, nonce } = await h.service.start(null);
-    await h.service.handleEntry(login(response.token.replace("-", "")));
+    await h.service.handleEntry(login(response.code.replace("-", "")));
     expect(h.created).toHaveLength(0);
     expect(h.redis.replies()).toHaveLength(0);
-    expect(await h.service.poll(response.token, nonce)).toEqual({
+    expect(await h.service.poll(response.code, nonce)).toEqual({
       status: "refused",
       reason: "signup_closed",
     });

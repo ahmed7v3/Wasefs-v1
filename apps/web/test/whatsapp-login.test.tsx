@@ -29,7 +29,7 @@ function answers(statuses: unknown[]) {
     if (url.endsWith("/auth/whatsapp/start")) {
       return Promise.resolve(
         json({
-          token: "ABCD-1234",
+          code: "ABCD-1234",
           waLink: WA_LINK,
           expiresAt: new Date(NOW + 5 * 60_000).toISOString(),
         }),
