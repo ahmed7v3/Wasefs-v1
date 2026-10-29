@@ -120,6 +120,7 @@ export function RxPrintSheet({ result, branding, siteUrl, reportDate }: RxPrintS
               <th scope="row" className="border border-black px-2 py-1 text-start font-semibold">
                 <bdi>{drugTitle(item, modelOnly)}</bdi>
                 {!modelOnly && item.matchedDrugId === null ? ` (${t("rx.unmatched")})` : ""}
+                {item.match === "likely" ? ` (${t("rx.match.likely")})` : ""}
                 {item.activeIngredients.length > 0 ? (
                   <span className="block font-normal">
                     <bdi>{item.activeIngredients.join(" + ")}</bdi>

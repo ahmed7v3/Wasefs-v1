@@ -25,6 +25,7 @@ import {
   modelItems,
   pickForVerification,
   unmatchedReadings,
+  verifyContext,
   withDetails,
   type WorkItem,
 } from "./pipeline.js";
@@ -174,6 +175,7 @@ export async function analyzeImages(args: AnalyzeArgs): Promise<AnalyzeOutput> {
             index,
             crop: await cropRegion(page, item.extracted.box_2d),
             candidates: item.candidates,
+            context: verifyContext(items, index),
           });
         }
         return callJson({

@@ -55,7 +55,12 @@ export function rxItemLine(item: RxResultItem, locale: Locale): string {
   const name = displayName(
     (item.name ?? "").trim() !== "" ? (item.name ?? "") : item.rawText.trim(),
   );
-  const head = [name, item.strength, formLabel(item.form, locale)]
+  // A likely reading is named from the drug list and flagged, never presented as certain.
+  const named =
+    item.match === "likely"
+      ? `${name} ${t("whatsapp.agent.event.rxDone.likely", {}, locale)}`
+      : name;
+  const head = [named, item.strength, formLabel(item.form, locale)]
     .filter((part): part is string => part !== null && part.trim() !== "")
     .join(" ");
   const how = [item.dose, item.frequency, item.duration]

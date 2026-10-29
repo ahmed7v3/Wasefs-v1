@@ -1,4 +1,4 @@
-import { matchDrug, type Database } from "@wasfa/db";
+import { matchDrug, shapeCandidates, type Database } from "@wasfa/db";
 import {
   decideMatch,
   type Decision,
@@ -13,6 +13,7 @@ import {
   confidenceBadge,
   duplicateIngredientFindings,
   finalConfidence,
+  verifiedCandidateOutcome,
 } from "@wasfa/shared/rx-result";
 import { displayName } from "@wasfa/shared/rx-sanitize";
 import {
@@ -20,6 +21,7 @@ import {
   rxResultSchema,
   type RxDetailsAnswer,
   type RxExtraction,
+  type RxMatchOutcome,
   type RxResult,
   type RxResultItem,
   type RxVerifyAnswer,
@@ -49,6 +51,13 @@ export interface WorkItem {
   verifyCeiling: number | undefined;
   /** Text the verification read instead of the first reading. */
   nameOverride: string | null;
+  /**
+   * Chosen by the verification step with enough confidence (`likely`): shown with the database name and
+   * the "مرجّح" badge. A decision accept is `confirmed`; a line with no chosen drug is `ai`.
+   */
+  likely: boolean;
+  /** `ai` only: the candidate the verification leaned to but was not sure of; offered first on "عدّل". */
+  suggestion: RankedCandidate | null;
 }
 
 export interface MatchOutcome {
@@ -136,20 +145,63 @@ export async function matchLine(
     }
   }
 
-  const candidates = [...merged.values()]
+  // A re-read of the crop is a second look, not a clear one.
+  const legibility = nameOverride === null ? line.legibility : "partial";
+  const strengthWritten = (line.strength ?? "").trim() !== "";
+  let candidates = [...merged.values()]
     .sort((a, b) => b.score - a.score)
     .slice(0, settings.maxCandidates);
-  const decision = decideMatch(
-    {
-      candidates,
-      // A re-read of the crop is a second look, not a clear one.
-      legibility: nameOverride === null ? line.legibility : "partial",
-      strengthWritten: (line.strength ?? "").trim() !== "",
-    },
-    settings,
-  );
+  let decision = decideMatch({ candidates, legibility, strengthWritten }, settings);
+
+  // An unclear name, or one nothing accepted, also gets the letter-shape lookup (T1): the medicines
+  // whose name has the same first letters, a similar length and the same consonants. These are only
+  // offered to the verification step, never accepted (`via: "shape"`).
+  if (nameOverride === null && (legibility !== "clear" || decision.matchClass !== "accept")) {
+    const readings = new Set([
+      normalizeDrugName(primary).name,
+      ...line.alternatives.map((alt) => normalizeDrugName(alt).name),
+    ]);
+    for (const reading of readings) {
+      if (reading === "") continue;
+      for (const candidate of await shapeCandidates(db, reading, {
+        ...options,
+        limit: WIDE_CANDIDATES,
+      })) {
+        const known = merged.get(candidate.drugId);
+        if (known === undefined || candidate.score > known.score) {
+          merged.set(candidate.drugId, { ...candidate, via: "shape" });
+        }
+      }
+    }
+    candidates = oneVariantPerFamily([...merged.values()]);
+    decision = decideMatch({ candidates, legibility, strengthWritten }, settings);
+  }
   return { candidates, decision };
 }
+
+/** Candidates offered for an unclear line: up to this many, one per brand family. */
+export const WIDE_CANDIDATES = 8;
+
+/**
+ * One candidate per brand family, best first: the variant whose strength the prescription wrote when
+ * there is one, otherwise the best score. Families without a brand key stand alone. Pure.
+ */
+export function oneVariantPerFamily(candidates: readonly RankedCandidate[]): RankedCandidate[] {
+  const best = new Map<string, RankedCandidate>();
+  for (const candidate of candidates) {
+    const family = candidate.brandKey === "" ? candidate.drugId : candidate.brandKey;
+    const known = best.get(family);
+    if (known === undefined || rankOfVariant(candidate) > rankOfVariant(known)) {
+      best.set(family, candidate);
+    }
+  }
+  return [...best.values()]
+    .sort((a, b) => b.score - a.score || a.brandEn.localeCompare(b.brandEn))
+    .slice(0, WIDE_CANDIDATES);
+}
+
+const rankOfVariant = (candidate: RankedCandidate): number =>
+  (candidate.explanation.strength === "match" ? 10 : 0) + candidate.score;
 
 /** Step 2: match every line and normalize dose, frequency and duration. Flagging is decided here. */
 export async function matchItems(
@@ -172,14 +224,19 @@ export async function matchItems(
       matchClass: decision.matchClass,
       chosen: decision.chosen,
       familyOnly: decision.familyOnly,
+      // A name that is not clear and that nothing accepted gets a second look: that is how a
+      // handwritten name can become a `likely` database drug instead of staying the raw letters.
       flagged:
         extracted.confidence < RX_FLAG_CONFIDENCE ||
         decision.matchClass === "verify" ||
         extracted.legibility === "unclear" ||
+        (decision.matchClass === "unmatched" && extracted.legibility !== "clear") ||
         top?.explanation.strength === "conflict",
       verified: "not_needed",
       verifyCeiling: undefined,
       nameOverride: null,
+      likely: false,
+      suggestion: null,
     });
   }
   return items;
@@ -206,6 +263,8 @@ export function modelItems(extraction: RxExtraction): WorkItem[] {
     verified: "not_needed" as const,
     verifyCeiling: undefined,
     nameOverride: null,
+    likely: false,
+    suggestion: null,
   }));
 }
 
@@ -226,6 +285,41 @@ export function pickForVerification(items: readonly WorkItem[], max: number): nu
     .sort((a, b) => riskOf(b.item) - riskOf(a.item) || a.index - b.index)
     .slice(0, Math.max(0, max))
     .map(({ index }) => index);
+}
+
+/** Most other medicines named in the context of one line: enough for the picture, short for the prompt. */
+const CONTEXT_MEDICINES = 12;
+
+/**
+ * What the verification step may use besides the crop, with no extra model call: the other medicines on
+ * the same prescription (name and active ingredient, the stomach medicine next to a PPI, say) and the
+ * directions written with this line. Each entry is plain text for the prompt. Pure.
+ */
+export function verifyContext(items: readonly WorkItem[], index: number): string[] {
+  const others = items
+    .flatMap((item, i) => {
+      if (i === index) return [];
+      const name = (item.chosen?.brandEn ?? item.extracted.name ?? "").trim();
+      if (name === "") return [];
+      const ingredient = (item.extracted.activeIngredient ?? "").trim();
+      return [ingredient === "" ? name : `${name} (${ingredient})`];
+    })
+    .slice(0, CONTEXT_MEDICINES);
+  const own = items[index]?.extracted;
+  const directions = own
+    ? [own.dose, own.frequency, own.duration, own.notes]
+        .map((part) => (part ?? "").trim())
+        .filter((part) => part !== "")
+        .join(" | ")
+    : "";
+  return [
+    others.length === 0
+      ? "Other medicines on this prescription: none read"
+      : `Other medicines on this prescription: ${others.join("; ")}`,
+    directions === ""
+      ? "Directions written with this line: none read"
+      : `Directions written with this line: ${directions}`,
+  ];
 }
 
 /** The flagged lines that are left alone (over the cap, no readable page or box): honest about it. */
@@ -261,25 +355,38 @@ export async function applyVerification(
       const picked = options.find((candidate) => candidate.drugId === answer.id);
       if (picked !== undefined) {
         const same = picked.drugId === item.candidates[0]?.drugId;
-        item.chosen = picked;
-        // Several strengths of the picked family were offered and the line wrote none: the choice
-        // was a brand, not a product, so the strength stays the prescription's.
-        item.familyOnly =
-          (item.extracted.strength ?? "").trim() === "" &&
-          picked.brandKey !== "" &&
-          options.some(
-            (other) =>
-              other.drugId !== picked.drugId &&
-              other.brandKey === picked.brandKey &&
-              other.strengthText !== picked.strengthText,
-          );
         item.verified = same ? "confirmed" : "corrected";
-        item.verifyCeiling = RX_VERIFY_CONFIDENCE.candidate;
+        if (verifiedCandidateOutcome(answer.confidence) === "likely") {
+          item.chosen = picked;
+          item.likely = true;
+          item.suggestion = null;
+          // Several strengths of the picked family were offered and the line wrote none: the choice
+          // was a brand, not a product, so the strength stays the prescription's.
+          item.familyOnly =
+            (item.extracted.strength ?? "").trim() === "" &&
+            picked.brandKey !== "" &&
+            options.some(
+              (other) =>
+                other.drugId !== picked.drugId &&
+                other.brandKey === picked.brandKey &&
+                other.strengthText !== picked.strengthText,
+            );
+          item.verifyCeiling = Math.min(answer.confidence, RX_VERIFY_CONFIDENCE.candidate);
+        } else {
+          // Not sure enough: the model's reading stands and the candidate is offered first on "عدّل".
+          item.chosen = null;
+          item.likely = false;
+          item.familyOnly = false;
+          item.suggestion = picked;
+          item.verifyCeiling = Math.min(answer.confidence, RX_VERIFY_CONFIDENCE.other);
+        }
         continue;
       }
       // An id nobody offered: the model made it up, so the reading is not trusted at all.
     } else if (answer.kind === "none") {
       item.chosen = null;
+      item.likely = false;
+      item.suggestion = null;
       item.familyOnly = false;
       item.matchClass = "unmatched";
       item.verified = "confirmed";
@@ -294,12 +401,17 @@ export async function applyVerification(
         item.matchClass = outcome.decision.matchClass;
         item.chosen = outcome.decision.chosen;
         item.familyOnly = outcome.decision.familyOnly;
+        // A second look that the database accepts is `likely`, never `confirmed`: it is a re-read.
+        item.likely = outcome.decision.chosen !== null;
+        item.suggestion = null;
         item.verified = "corrected";
         item.verifyCeiling = RX_VERIFY_CONFIDENCE.other;
         continue;
       }
     }
     item.chosen = null;
+    item.likely = false;
+    item.suggestion = null;
     item.familyOnly = false;
     item.verified = "unreadable";
     item.verifyCeiling = RX_VERIFY_CONFIDENCE.unreadable;
@@ -351,8 +463,14 @@ export function buildResult(
     const rawBadge = confidenceBadge(confidence);
     const badge = !modelOnly && chosen === null && rawBadge === "high" ? "medium" : rawBadge;
     const generic = clamp(extracted.activeIngredient, 120);
+    const outcome: RxMatchOutcome = chosen === null ? "ai" : item.likely ? "likely" : "confirmed";
+    // Only a confirmed line takes the database strength. A `likely` line shows the prescription's
+    // strength or none: a database strength of a family with several would be a guess.
     const databaseStrength =
-      chosen !== null && !item.familyOnly && chosen.explanation.strength !== "conflict"
+      outcome === "confirmed" &&
+      chosen !== null &&
+      !item.familyOnly &&
+      chosen.explanation.strength !== "conflict"
         ? clamp(chosen.strengthText, 200)
         : null;
     return {
@@ -364,6 +482,11 @@ export function buildResult(
       matchedDrugId: chosen?.drugId ?? null,
       matchScore: chosen?.score ?? null,
       source: chosen === null ? "ai" : "database",
+      match: outcome,
+      suggestion:
+        chosen === null && item.suggestion !== null
+          ? { drugId: item.suggestion.drugId, name: item.suggestion.brandEn.slice(0, 200) }
+          : null,
       reading: clamp(item.nameOverride ?? extracted.name, 200),
       activeIngredients:
         chosen === null

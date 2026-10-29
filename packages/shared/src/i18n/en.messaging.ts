@@ -26,6 +26,7 @@ export const enMessaging: Partial<Record<keyof typeof arMessaging, string>> = {
   "whatsapp.agent.event.rxDone.pdfNote":
     "📄 I sent you a PDF with all the details and a dosing timetable",
   "whatsapp.agent.event.rxDone.lowConfidence": "(uncertain reading, check with your pharmacist)",
+  "whatsapp.agent.event.rxDone.likely": "(likely)",
   "whatsapp.agent.event.rxDone.unreadable":
     "Some areas of the prescription could not be read, so check them yourself or ask your pharmacist.",
   "whatsapp.agent.event.rxDone.link": "The full result and details of each medicine:",

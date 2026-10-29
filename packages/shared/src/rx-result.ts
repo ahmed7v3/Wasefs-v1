@@ -23,6 +23,20 @@ export const RX_VERIFY_CONFIDENCE = {
   skipped: RX_UNMATCHED_CONFIDENCE_CAP,
 } as const;
 
+/**
+ * A verification pick of a database candidate is `likely` when the model is at least this sure;
+ * below it the line stays the model's reading (`ai`) and the candidate is only offered first.
+ */
+export const RX_LIKELY_CONFIDENCE = 0.75;
+
+/**
+ * What a verification candidate answer means for the line: `likely` (shown with the database name and
+ * the "مرجّح" badge) or `suggestion` (the line stays `ai`, the candidate is offered first). Pure.
+ */
+export function verifiedCandidateOutcome(confidence: number): "likely" | "suggestion" {
+  return confidence >= RX_LIKELY_CONFIDENCE ? "likely" : "suggestion";
+}
+
 export function confidenceBadge(confidence: number): RxConfidenceBadge {
   if (confidence >= RX_BADGE_HIGH) return "high";
   return confidence >= RX_BADGE_MEDIUM ? "medium" : "low";

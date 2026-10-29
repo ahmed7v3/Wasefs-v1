@@ -94,6 +94,8 @@ export interface VerifyItem {
   index: number;
   crop: Buffer;
   candidates: readonly DrugMatchCandidate[];
+  /** Plain-text context from the rest of the prescription (other medicines, the directions). */
+  context: readonly string[];
 }
 
 /** One-line description of a candidate; the id is what the model answers with. */
@@ -112,11 +114,15 @@ export function verifyMessages(items: readonly VerifyItem[]): NormalizedMessage[
       parts: [
         {
           type: "text",
-          text: `Re-read these unclear prescription lines. For each item answer with exactly one of: kind "candidate" with the id of one listed candidate, kind "none" when you can read the name but it is none of the listed candidates (the candidates are only suggestions and may all be wrong), kind "other" with the text you read, or kind "unreadable". Never pick the closest candidate just to pick one. Prefer "unreadable" over a guess.`,
+          text: `Re-read these unclear prescription lines. The candidates come from the Egyptian drug list. For each item answer with exactly one of: kind "candidate" with the id of one listed candidate and a "confidence" from 0 to 1, kind "none", kind "other" with the text you read, or kind "unreadable". Choose the candidate whose name is consistent with the visible letters, the length, the strength and the form, and that makes sense with the directions and the other medicines on the prescription. A one-letter or one-word difference from what you see is acceptable for handwriting. Answer "none" only when no candidate is consistent with what is written. Give a confidence of 0.75 or more only when the letters, the strength and the form all agree with the candidate. Never invent a name outside the candidates. Answer "unreadable" only when nothing of the name can be read.`,
         },
         ...items.flatMap((item): ChatMessage["parts"] => [
           { type: "text", text: `<user_data item="${item.index}">` },
           { type: "image", mime: "image/jpeg", data: item.crop },
+          {
+            type: "text",
+            text: item.context.join("\n"),
+          },
           {
             type: "text",
             text:

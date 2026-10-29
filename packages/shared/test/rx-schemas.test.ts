@@ -138,7 +138,7 @@ const verifyCases: [name: string, value: unknown, valid: boolean][] = [
     "all three answer kinds",
     {
       answers: [
-        { index: 0, kind: "candidate", id: ID },
+        { index: 0, kind: "candidate", id: ID, confidence: 0.9 },
         { index: 1, kind: "other", text: "Cataflam 50" },
         { index: 2, kind: "unreadable" },
       ],
@@ -146,7 +146,21 @@ const verifyCases: [name: string, value: unknown, valid: boolean][] = [
     true,
   ],
   ["no answers", { answers: [] }, true],
-  ["a candidate without an id", { answers: [{ index: 0, kind: "candidate" }] }, false],
+  [
+    "a candidate without an id",
+    { answers: [{ index: 0, kind: "candidate", confidence: 0.9 }] },
+    false,
+  ],
+  [
+    "a candidate without a confidence",
+    { answers: [{ index: 0, kind: "candidate", id: ID }] },
+    false,
+  ],
+  [
+    "a confidence above 1",
+    { answers: [{ index: 0, kind: "candidate", id: ID, confidence: 1.2 }] },
+    false,
+  ],
   ["other without text", { answers: [{ index: 0, kind: "other" }] }, false],
   ["a kind we do not know", { answers: [{ index: 0, kind: "guess" }] }, false],
 ];

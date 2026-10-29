@@ -89,6 +89,23 @@ describe("RxTable", () => {
     expect(within(row).queryByText(t("rx.badge.high"))).toBeNull();
   });
 
+  it("badges a likely line, and offers the suggestion first on a line the model is not sure of", () => {
+    table([
+      item({ match: "likely" }),
+      item({
+        matchedDrugId: null,
+        source: "ai",
+        match: "ai",
+        suggestion: { drugId: "00000000-0000-4000-8000-000000000002", name: "Riopan" },
+        badge: "medium",
+      }),
+    ]);
+    const rows = screen.getAllByRole("row").slice(1);
+    expect(within(rows[0]!).getByText(t("rx.match.likely"))).toBeTruthy();
+    expect(within(rows[1]!).queryByText(t("rx.match.likely"))).toBeNull();
+    expect(within(rows[1]!).getByText(t("rx.match.suggestion", { name: "Riopan" }))).toBeTruthy();
+  });
+
   it("reports hover, focus and selection of a row", () => {
     const onActivate = vi.fn();
     const onSelect = vi.fn();

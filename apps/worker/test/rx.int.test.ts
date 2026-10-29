@@ -472,7 +472,7 @@ describe("rx.analyze", () => {
     const adapter = await run(
       testCase,
       provider(extraction, (ids) => ({
-        answers: [{ index: 1, kind: "candidate", id: ids[0] ?? "" }],
+        answers: [{ index: 1, kind: "candidate", id: ids[0] ?? "", confidence: 0.9 }],
       })),
     );
 
@@ -550,7 +550,7 @@ describe("rx.analyze", () => {
     await run(
       testCase,
       provider(reading([line({ name: "Augmentn", rawText: "Augmentn", confidence: 0.9 })]), () => ({
-        answers: [{ index: 0, kind: "candidate", id: randomUUID() }],
+        answers: [{ index: 0, kind: "candidate", id: randomUUID(), confidence: 0.9 }],
       })),
     );
     const item = resultOf(await analysisOf(testCase.analysisId)).items[0];

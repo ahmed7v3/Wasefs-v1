@@ -55,6 +55,11 @@
       "import": "./dist/drug-query.js",
       "default": "./dist/drug-query.js"
     },
+    "./drug-shape": {
+      "types": "./dist/drug-shape.d.ts",
+      "import": "./dist/drug-shape.js",
+      "default": "./dist/drug-shape.js"
+    },
     "./drug-translit": {
       "types": "./dist/drug-translit.d.ts",
       "import": "./dist/drug-translit.js",

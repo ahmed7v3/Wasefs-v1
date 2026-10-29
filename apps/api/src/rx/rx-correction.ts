@@ -66,6 +66,8 @@ export function applyCorrection(
         ...next,
         name: after,
         source: "ai",
+        match: "ai",
+        suggestion: null,
         matchedDrugId: null,
         matchScore: null,
         activeIngredients: [],
@@ -78,6 +80,9 @@ export function applyCorrection(
         ...next,
         name: clamp(drug.brandEn),
         source: "database",
+        // Picked by the user: a fact the database holds, so `confirmed`, not a guess.
+        match: "confirmed",
+        suggestion: null,
         matchedDrugId: drug.id,
         matchScore: 1,
         details: null,
