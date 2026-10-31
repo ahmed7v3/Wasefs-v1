@@ -7,21 +7,7 @@ import { z } from "zod";
  */
 
 /** The commands a customer can type (§18.4); admins may add aliases for these, never new commands. */
-export const WA_COMMAND_NAMES = [
-  "new",
-  "analyze",
-  "help",
-  "balance",
-  "report",
-  "schedule",
-  "meds",
-  "remind",
-  "voice",
-  "lang",
-  "human",
-  "privacy",
-] as const;
-export type WaCommandName = (typeof WA_COMMAND_NAMES)[number];
+export { WA_COMMANDS as WA_COMMAND_NAMES, type WaCommand as WaCommandName } from "../i18n/wa-commands.js";
 
 /** Media sent within this long of the previous one belongs to the same set (a prescription's pages). */
 export const SET_BURST_MS = 120_000;
