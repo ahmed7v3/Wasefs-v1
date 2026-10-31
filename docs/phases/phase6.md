@@ -671,6 +671,7 @@ v1 does not log the busy line itself or reply texts, so customer-facing texts ar
 | worker `Job failed` `alerts.sweep_pending` "Custom Id cannot contain :" (every run, ×3 attempts) | 7,107 | **R17 (new):** the repeatable alert sweep never runs, so admin alerts are not swept/escalated. Owner: WP9A (alerts) |
 | bridge `WhatsApp alert dropped` reason `disabled` | 24 | R18 candidate: probably the configured alert opt-out; verify in WP9A |
 | Baileys `stream:error` 503 + reconnect | 3 / 7 | R19 candidate (transport noise, no customer impact found); watch in the Health tab |
+| Local run of T1 after rebase: `shapeCandidates` finds no Glibimet for "Glbimet" + 5 mg | — | **R20 (new):** since #77 a combination strength "5/500 mg" is stored as its last component only (500 mg, also for 2.5/500), so a written "Glibimet 5" is a strength *conflict* for every Glibimet row in `matchDrug` and the shape path (live in production since #77). Owner: WP4 (keep all components; re-derive existing rows). T1's test for it is an `it.todo` until then |
 No log evidence either way for R1/R2/R15 download paths (v1 logs no media download lines), R7–R10, R14, R16;
 they are covered by the red tests. Production images were built from `99d6782`; the turn-timeout stop-gap is
 not deployed yet (it ships with the WP0 PR).
