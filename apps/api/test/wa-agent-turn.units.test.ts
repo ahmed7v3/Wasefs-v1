@@ -4,13 +4,16 @@ import { settingDefault, type WaAgentSettings } from "@wasfa/shared/settings";
 import { describe, expect, it } from "vitest";
 
 import { WaAgentHandoffService } from "../src/wa-agent/agent/handoff.service.js";
+import { MediaInputService } from "../src/wa-agent/agent/media-input.js";
+import { AgentRoundService } from "../src/wa-agent/agent/round.service.js";
+import { SummaryService } from "../src/wa-agent/agent/summary.service.js";
 import {
   LOCK_MS,
   PROVIDER_RETRY_DELAY_MS,
   STEP_TIMEOUT_MS,
   TURN_TIMEOUT_MS,
   WaAgentTurnService,
-} from "../src/wa-agent/agent/wa-agent-turn.service.js";
+} from "../src/wa-agent/turn/v1-turn.service.js";
 
 import { MemoryRedis, fakeAi, silentLogger, type FakeAi } from "./support/wa-agent-fakes.js";
 
@@ -255,18 +258,28 @@ function harness(
     error: (data: Record<string, unknown>, message: string) =>
       logs.push({ level: "error", data, message }),
   } as unknown as typeof silentLogger;
-  const service = new WaAgentTurnService(
+  const voice = {} as WaAgentVoiceService;
+  const round = new AgentRoundService(
     repo as unknown as WaAgentRepo,
     settings,
     redis as unknown as Redis,
     ai.service,
-    outbound,
     handoff,
     toolDeps,
     plans,
-    storage,
     recordingLogger,
-    {} as WaAgentVoiceService,
+    voice,
+    new MediaInputService(repo as unknown as WaAgentRepo, storage, voice),
+    new SummaryService(repo as unknown as WaAgentRepo, redis as unknown as Redis, ai.service),
+  );
+  const service = new WaAgentTurnService(
+    repo as unknown as WaAgentRepo,
+    settings,
+    redis as unknown as Redis,
+    outbound,
+    handoff,
+    round,
+    recordingLogger,
   );
   service.timing.now = () => clock.now;
   service.timing.sleep = (ms) => {

@@ -2,7 +2,10 @@ import { scriptQueue, type FakeScript } from "@wasfa/ai";
 import { settingDefault, type WaAgentSettings } from "@wasfa/shared/settings";
 import { describe, expect, it } from "vitest";
 
-import { WaAgentTurnService } from "../src/wa-agent/agent/wa-agent-turn.service.js";
+import { MediaInputService } from "../src/wa-agent/agent/media-input.js";
+import { AgentRoundService } from "../src/wa-agent/agent/round.service.js";
+import { SummaryService } from "../src/wa-agent/agent/summary.service.js";
+import { WaAgentTurnService } from "../src/wa-agent/turn/v1-turn.service.js";
 import {
   ElevenLabsClient,
   VoiceError,
@@ -529,18 +532,27 @@ function harness(options: HarnessOptions = {}) {
   } as unknown as WaAgentToolDeps;
   const handoff = { pauseWhenDelivered: () => undefined } as unknown as WaAgentHandoffService;
   const ai = fakeAi(options.script ?? scriptQueue(["تمام، الباقة برو بـ 199 جنيه"]));
-  const service = new WaAgentTurnService(
+  const round = new AgentRoundService(
     repo as unknown as WaAgentRepo,
     settings,
     redis as unknown as Redis,
     ai.service,
-    outbound,
     handoff,
     toolDeps,
     { effectivePlan: () => Promise.resolve({ id: "plan-1" }) } as unknown as PlansService,
-    storage,
     silentLogger,
     voice,
+    new MediaInputService(repo as unknown as WaAgentRepo, storage, voice),
+    new SummaryService(repo as unknown as WaAgentRepo, redis as unknown as Redis, ai.service),
+  );
+  const service = new WaAgentTurnService(
+    repo as unknown as WaAgentRepo,
+    settings,
+    redis as unknown as Redis,
+    outbound,
+    handoff,
+    round,
+    silentLogger,
   );
   const clock = { now: START };
   service.timing.now = () => clock.now;

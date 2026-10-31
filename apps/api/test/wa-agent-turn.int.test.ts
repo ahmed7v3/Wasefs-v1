@@ -12,10 +12,13 @@ import { ObjectStorage } from "../src/files/object-storage.js";
 import { PlansService } from "../src/plans/plans.service.js";
 import { SettingsService } from "../src/settings/settings.service.js";
 import { WaAgentHandoffService } from "../src/wa-agent/agent/handoff.service.js";
+import { MediaInputService } from "../src/wa-agent/agent/media-input.js";
+import { AgentRoundService } from "../src/wa-agent/agent/round.service.js";
+import { SummaryService } from "../src/wa-agent/agent/summary.service.js";
 import { WaAgentToolDeps } from "../src/wa-agent/agent/tool-deps.js";
-import { WaAgentTurnService } from "../src/wa-agent/agent/wa-agent-turn.service.js";
 import { WaAgentRepo } from "../src/wa-agent/conversation/conversation.repo.js";
 import { WaOutboundService } from "../src/wa-agent/transport/outbound.service.js";
+import { WaAgentTurnService } from "../src/wa-agent/turn/v1-turn.service.js";
 import { WaAgentVoiceService } from "../src/wa-agent/voice/voice.service.js";
 
 import { AdminTestContext } from "./support/admin-context.js";
@@ -106,18 +109,28 @@ function turnsWith(
   options: { costUsdMicros?: number; unavailable?: Error } = {},
 ) {
   const ai = fakeAi(script, options);
-  const service = new WaAgentTurnService(
+  const voice = ctx.app.get(WaAgentVoiceService);
+  const round = new AgentRoundService(
     repo,
     settings,
     ctx.redis,
     ai.service,
-    outbound,
     handoff,
     ctx.app.get(WaAgentToolDeps),
     ctx.app.get(PlansService),
-    ctx.app.get(ObjectStorage),
     silentLogger,
-    ctx.app.get(WaAgentVoiceService),
+    voice,
+    new MediaInputService(repo, ctx.app.get(ObjectStorage), voice),
+    new SummaryService(repo, ctx.redis, ai.service),
+  );
+  const service = new WaAgentTurnService(
+    repo,
+    settings,
+    ctx.redis,
+    outbound,
+    handoff,
+    round,
+    silentLogger,
   );
   // No waiting for the quiet period: the rows are already there.
   service.timing.quietMs = 0;

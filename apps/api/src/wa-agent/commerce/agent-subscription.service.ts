@@ -18,6 +18,7 @@ import { OrdersService } from "../../orders/orders.service.js";
 import { ManualPaymentsService } from "../../payments/manual/manual-payments.service.js";
 import { SettingsService } from "../../settings/settings.service.js";
 import { WaAgentRepo } from "../conversation/conversation.repo.js";
+import { AgentRxRepo } from "../rx/agent-rx.repo.js";
 
 import { WaAgentCommerceRepo, type OrderWithPayment } from "./agent-commerce.repo.js";
 import { cairoStamp } from "./agent-discount.service.js";
@@ -47,6 +48,7 @@ const declined = (reason: string, extra: AgentToolResult = {}): AgentToolResult 
 export class AgentSubscriptionService {
   constructor(
     private readonly commerce: WaAgentCommerceRepo,
+    private readonly rxRepo: AgentRxRepo,
     private readonly quoteRepo: QuoteInputsRepo,
     private readonly quotes: QuoteService,
     private readonly orders: OrdersService,
@@ -166,7 +168,7 @@ export class AgentSubscriptionService {
   }
 
   async attachReceipt(call: AgentCall): Promise<AgentToolResult> {
-    const [media] = await this.commerce.newestUnusedMedia(
+    const [media] = await this.rxRepo.newestUnusedMedia(
       call.conversationId,
       ["image", "document"],
       new Date(call.now.getTime() - RECEIPT_WINDOW_MS),
@@ -199,11 +201,11 @@ export class AgentSubscriptionService {
         pollMs: PROCESSING_POLL_MS,
       });
       if (status === "rejected") {
-        await this.commerce.releaseMedia(media.id, "attachedAs");
+        await this.rxRepo.releaseMedia(media.id, "attachedAs");
         return { attached: false, reason: "unreadable_receipt" };
       }
       if (status !== "processed") {
-        await this.commerce.releaseMedia(media.id, "attachedAs");
+        await this.rxRepo.releaseMedia(media.id, "attachedAs");
         return { attached: false, reason: "still_processing" };
       }
       const conversation = await this.conversations.find(call.conversationId);
@@ -214,7 +216,7 @@ export class AgentSubscriptionService {
         senderPhone: (conversation?.phone ?? "").replace(/^\+/, "") || "0000000000",
         fileId,
       });
-      await this.commerce.setMediaMeta(media.id, {
+      await this.rxRepo.setMediaMeta(media.id, {
         attachedAs: { fileId, paymentId: target.payment.id },
       });
       const method = await this.commerce.method(target.payment.methodKey);
@@ -229,7 +231,7 @@ export class AgentSubscriptionService {
         reviewWithinMinutes: method?.reviewSlaMinutes ?? billing.reviewSlaMinutes,
       };
     } catch (error) {
-      await this.commerce.releaseMedia(media.id, "attachedAs");
+      await this.rxRepo.releaseMedia(media.id, "attachedAs");
       if (isAppError(error)) return { attached: false, reason: receiptFailureReason(error) };
       throw error;
     }

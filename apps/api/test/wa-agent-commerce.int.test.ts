@@ -33,7 +33,9 @@ import { WaAgentCommerceRepo } from "../src/wa-agent/commerce/agent-commerce.rep
 import { AgentDiscountService } from "../src/wa-agent/commerce/agent-discount.service.js";
 import { AgentSubscriptionService } from "../src/wa-agent/commerce/agent-subscription.service.js";
 import { WaAgentRepo } from "../src/wa-agent/conversation/conversation.repo.js";
+import { AgentRxRepo } from "../src/wa-agent/rx/agent-rx.repo.js";
 import { AgentRxService } from "../src/wa-agent/rx/agent-rx.service.js";
+import { RxStartService } from "../src/wa-agent/rx/rx-start.service.js";
 
 import { AdminTestContext } from "./support/admin-context.js";
 import { buyer, insertProofFile } from "./support/billing-console-fixtures.js";
@@ -273,6 +275,7 @@ describe("start_subscription and attach_receipt against the database", () => {
     } as unknown as FilesService;
     const service = new AgentSubscriptionService(
       ctx.app.get(WaAgentCommerceRepo),
+      ctx.app.get(AgentRxRepo),
       ctx.app.get(QuoteInputsRepo),
       ctx.app.get(QuoteService),
       ctx.app.get(OrdersService),
@@ -337,6 +340,7 @@ describe("start_subscription and attach_receipt against the database", () => {
     const person = await linkedCustomer();
     const service = new AgentSubscriptionService(
       ctx.app.get(WaAgentCommerceRepo),
+      ctx.app.get(AgentRxRepo),
       ctx.app.get(QuoteInputsRepo),
       ctx.app.get(QuoteService),
       ctx.app.get(OrdersService),
@@ -370,6 +374,15 @@ describe("analyze_prescription against the database", () => {
     } as unknown as FilesService;
     return new AgentRxService(
       ctx.app.get(WaAgentCommerceRepo),
+      ctx.app.get(AgentRxRepo),
+      new RxStartService(
+        ctx.app.get(AgentRxRepo),
+        filesFake,
+        ctx.app.get(RxService),
+        ctx.app.get(CreditsService),
+        ctx.redis,
+        quietLogger,
+      ),
       filesFake,
       ctx.app.get(RxService),
       ctx.app.get(PlansService),
