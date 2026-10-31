@@ -18,6 +18,7 @@ import {
   AttachmentsService,
   attachmentStatus,
   type Attachment,
+  type FoundAttachment,
 } from "../../src/wa-agent/conversation/attachments.service.js";
 
 import type { AttachmentRow } from "../../src/wa-agent/conversation/attachments.repo.js";
@@ -483,18 +484,18 @@ describe("tool memory in history", () => {
 
 describe("view_attachment", () => {
   const image = new Uint8Array([9, 9]);
-  const found = (handle: number) => ({
+  const found = (handle: number): FoundAttachment => ({
     messageId: `msg-${String(handle)}`,
     handle,
     kind: "image" as const,
     ageSeconds: 5,
     set: "A",
-    status: { kind: "ready" as const },
+    status: { kind: "ready" },
     mediaKey: "k",
     mediaMime: "image/jpeg",
     mediaBytes: 2,
   });
-  const views = (state: Record<number, ReturnType<typeof found> | null> = {}) =>
+  const views = (state: Record<number, FoundAttachment | null> = {}) =>
     new AttachmentViews(
       SESSION,
       { find: (_session: string, handle: number) => Promise.resolve(state[handle] ?? null) },

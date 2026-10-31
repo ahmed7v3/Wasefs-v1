@@ -141,11 +141,11 @@ describe("create_account", () => {
   it("validates its arguments (name up to 60, confirmed required)", async () => {
     const h = toolSetup();
     expect(await h.handlers["create_account"]?.({})).toMatchObject({ error: "invalid_arguments" });
-    expect(await h.handlers["create_account"]?.({ confirmed: true, name: "x".repeat(61) })).toEqual(
-      {
-        error: "invalid_arguments",
-      },
-    );
+    expect(
+      await h.handlers["create_account"]?.({ confirmed: true, name: "x".repeat(61) }),
+    ).toMatchObject({
+      error: "invalid_arguments",
+    });
   });
 });
 

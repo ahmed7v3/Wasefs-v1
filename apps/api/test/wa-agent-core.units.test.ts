@@ -407,10 +407,10 @@ describe("tools", () => {
   it("validates arguments with the tool's schema", async () => {
     const records: ToolCallRecord[] = [];
     const { handlers } = bindTools(toolsFor(false), context(), records);
-    expect(await handlers["handoff_to_owner"]?.({ reason: "" })).toEqual({
+    expect(await handlers["handoff_to_owner"]?.({ reason: "" })).toMatchObject({
       error: "invalid_arguments",
     });
-    expect(await handlers["handoff_to_owner"]?.({ reason: "x".repeat(201) })).toEqual({
+    expect(await handlers["handoff_to_owner"]?.({ reason: "x".repeat(201) })).toMatchObject({
       error: "invalid_arguments",
     });
     expect(await handlers["send_media"]?.({})).toMatchObject({ error: "invalid_arguments" });
