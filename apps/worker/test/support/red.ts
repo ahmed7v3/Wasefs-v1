@@ -19,11 +19,7 @@ export interface RedCase {
   reason: RegExp;
 }
 
-export function redTest(
-  red: RedCase,
-  body: () => Promise<void> | void,
-  timeoutMs?: number,
-): void {
+export function redTest(red: RedCase, body: () => Promise<void> | void, timeoutMs?: number): void {
   it(
     `${red.id} ${red.title} [todo-fix(${red.fixedIn})]`,
     async () => {
@@ -34,13 +30,18 @@ export function redTest(
         failure = error;
       }
       if (failure === undefined) {
-        throw new Error(`${red.id} now passes: replace redTest with it() (fixed in ${red.fixedIn})`);
+        throw new Error(
+          `${red.id} now passes: replace redTest with it() (fixed in ${red.fixedIn})`,
+        );
       }
       const message = failure instanceof Error ? failure.message : String(failure);
       if (!red.reason.test(message)) {
-        throw new Error(`${red.id} failed for another reason than ${String(red.reason)}: ${message}`, {
-          cause: failure,
-        });
+        throw new Error(
+          `${red.id} failed for another reason than ${String(red.reason)}: ${message}`,
+          {
+            cause: failure,
+          },
+        );
       }
     },
     timeoutMs,

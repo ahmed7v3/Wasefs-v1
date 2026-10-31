@@ -158,7 +158,12 @@ describe("actionFor: transient (retry ladder)", () => {
     expect(
       actionFor(
         "transient",
-        ctx({ stepRetriesUsed: 2, attempt: 4, customerTextAllowed: false, customerTextInMs: 90_000 }),
+        ctx({
+          stepRetriesUsed: 2,
+          attempt: 4,
+          customerTextAllowed: false,
+          customerTextInMs: 90_000,
+        }),
       ),
     ).toEqual({ type: "defer", delayMs: 90_000, text: null });
     expect(

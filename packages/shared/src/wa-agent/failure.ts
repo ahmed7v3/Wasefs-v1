@@ -182,7 +182,8 @@ function textOrWait(
   send: Extract<FailureAction, { type: "fail" }>,
 ): FailureAction {
   if (ctx.customerTextAllowed) return send;
-  if (!ctx.rateDeferred) return { type: "defer", delayMs: Math.max(ctx.customerTextInMs, 1), text: null };
+  if (!ctx.rateDeferred)
+    return { type: "defer", delayMs: Math.max(ctx.customerTextInMs, 1), text: null };
   // Waited once already and still limited: a text went out moments ago, so the customer has been told.
   // End without another one; the owner alert keeps the state alerted (I1).
   return { ...send, ownerAlert: true };
@@ -197,7 +198,8 @@ export function actionFor(cls: FailureClass, ctx: ActionContext): FailureAction 
     case "transient": {
       const stepDelay = STEP_RETRY_DELAYS_MS[ctx.stepRetriesUsed];
       if (stepDelay !== undefined) return { type: "retry_step", delayMs: stepDelay };
-      const jobDelay = ctx.attempt <= ctx.jobRetries ? JOB_RETRY_DELAYS_MS[ctx.attempt - 1] : undefined;
+      const jobDelay =
+        ctx.attempt <= ctx.jobRetries ? JOB_RETRY_DELAYS_MS[ctx.attempt - 1] : undefined;
       if (jobDelay !== undefined) {
         // The customer hears "I'll answer within minutes" once, on the first deferral only.
         const tell = ctx.attempt === 1 && ctx.customerTextAllowed;
