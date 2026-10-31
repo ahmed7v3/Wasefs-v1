@@ -31,7 +31,9 @@ export class WaAgentInboundConsumer extends StreamConsumer {
     private readonly settings: SettingsService,
     @Inject(WA_AGENT_TURN_HANDLER) private readonly turns: WaAgentTurnHandler,
   ) {
-    super(env, logger, WA_AGENT_IN_STREAM, GROUP);
+    super(env, logger, WA_AGENT_IN_STREAM, GROUP, {
+      isV2: async () => (await settings.get("waAgent")).runtime.v2,
+    });
     this.logger.setContext("WaAgentInbound");
   }
 
@@ -45,6 +47,7 @@ export class WaAgentInboundConsumer extends StreamConsumer {
     const config = await this.settings.get("waAgent");
     const pauseUntil = new Date(Date.now() + config.takeoverPauseMinutes * MINUTE_MS);
     const { conversation, inserted } = await this.repo.ingest(entry, pauseUntil);
+    // v2: turn enqueue happens in the inbound consumer (queue builder)
     if (!inserted) return;
     // The row is the truth; the keys the bridge checks follow it (and a block is kept alive).
     await this.state.mirror(conversation);

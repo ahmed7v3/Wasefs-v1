@@ -256,3 +256,43 @@ export const waAgentEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("document_failed"), conversationId: z.uuid() }),
 ]);
 export type WaAgentEvent = z.output<typeof waAgentEventSchema>;
+
+/*
+ * `wa:agent:dlq`: entries a stream consumer gave up on (5 deliveries, handler kept throwing). A row
+ * names the source entry and the error class; it never carries customer text or phones (the
+ * inbound stream keeps only `waMessageId` and `kind`). Replay re-adds the source entry.
+ */
+
+/** A Redis stream entry id, e.g. `1730000000000-0`. */
+export const streamEntryIdSchema = z.string().regex(/^\d{1,16}-\d{1,10}$/);
+
+export const waAgentDlqIdParamSchema = z.object({ id: streamEntryIdSchema });
+
+export const waAgentDlqQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+
+export const waAgentDlqEntrySchema = z.object({
+  id: streamEntryIdSchema,
+  stream: z.string().max(100),
+  entryId: z.string().max(40),
+  group: z.string().max(100),
+  errorClass: z.string().max(100),
+  deliveries: z.number().int().min(1),
+  at: z.iso.datetime({ offset: true }),
+  /** Ids and statuses only; present for the events and sent streams. */
+  data: z.string().max(2_000).nullable(),
+  waMessageId: z.string().max(128).nullable(),
+  kind: z.string().max(40).nullable(),
+});
+export type WaAgentDlqEntry = z.output<typeof waAgentDlqEntrySchema>;
+
+export const waAgentDlqListSchema = z.object({
+  total: z.number().int().min(0),
+  entries: z.array(waAgentDlqEntrySchema),
+});
+export type WaAgentDlqList = z.output<typeof waAgentDlqListSchema>;
+
+/** `gone`: the source entry was trimmed from its stream, so there is nothing to re-add. */
+export const waAgentDlqReplaySchema = z.object({ status: z.enum(["replayed", "gone"]) });
+export type WaAgentDlqReplay = z.output<typeof waAgentDlqReplaySchema>;

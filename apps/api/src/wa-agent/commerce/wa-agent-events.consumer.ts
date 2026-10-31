@@ -39,6 +39,9 @@ const GROUP = "wa-agent-events";
 /** The agent turn's lock (`WaAgentTurnService`): taking it keeps a follow-up from landing inside a turn. */
 const turnLockKey = (conversationId: string) => `wa:agent:turn:${conversationId}`;
 const LOCK_MS = 15_000;
+/** A handled entry id is remembered this long, so a redelivery (v2) never sends a follow-up twice. */
+const DONE_TTL_SECONDS = 7 * 24 * 60 * 60;
+const doneKey = (entryId: string) => `wa:agent:events:done:${entryId}`;
 const LOCK_WAIT_MS = 20_000;
 const LOCK_POLL_MS = 500;
 const RELEASE_LOCK =
@@ -77,17 +80,22 @@ export class WaAgentEventsConsumer extends StreamConsumer {
     @Inject(REDIS) private readonly redis: Redis,
     private readonly storage: ObjectStorage,
   ) {
-    super(apiEnv, logger, WA_AGENT_EVENTS_STREAM, GROUP);
+    super(apiEnv, logger, WA_AGENT_EVENTS_STREAM, GROUP, {
+      isV2: async () => (await settings.get("waAgent")).runtime.v2,
+      keepData: true,
+    });
     this.logger.setContext("WaAgentEvents");
   }
 
-  async process(payload: unknown): Promise<void> {
+  async process(payload: unknown, entryId?: string): Promise<void> {
     const parsed = waAgentEventSchema.safeParse(payload);
     if (!parsed.success) {
       this.logger.warn("Malformed agent event dropped");
       return;
     }
     const event = parsed.data;
+    // The worker puts no event id in the payload; the entry id is the identity of one event.
+    if (entryId !== undefined && (await this.redis.exists(doneKey(entryId))) === 1) return;
     // A file the worker stored is deleted unless a queued message points to it (entries are never retried).
     const stored =
       event.type === "document_ready"
@@ -96,10 +104,18 @@ export class WaAgentEventsConsumer extends StreamConsumer {
           ? event.pdfKey
           : undefined;
     let sentKeys: string[] = [];
+    let failed = false;
     try {
       sentKeys = await this.deliver(event);
+      if (entryId !== undefined)
+        await this.redis.set(doneKey(entryId), "1", "EX", DONE_TTL_SECONDS);
+    } catch (error) {
+      failed = true;
+      throw error;
     } finally {
-      if (stored !== undefined && !sentKeys.includes(stored)) {
+      // v2 retries a failed entry, so its file must still be there; v1 never retries.
+      const retried = failed && (await this.isV2());
+      if (stored !== undefined && !sentKeys.includes(stored) && !retried) {
         await this.storage.remove(stored).catch(() => undefined);
       }
     }
