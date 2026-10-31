@@ -9,31 +9,108 @@ import type { landing } from "./landing";
 
 export const landingEn: typeof landing = {
   hero: {
-    pill: "Built for Arabic-speaking patients, pharmacists and doctors",
-    titleLines: ["Understand your prescription in seconds.", "With precision that checks itself."],
-    lead: "Wasfa AI is an Arabic-first assistant that reads a handwritten or printed prescription photo and turns it into a clear card with medicine names, doses, how often to take them, and warnings. Whatever we are not sure about, we put in front of you to review with your doctor or pharmacist.",
-    primaryCta: "Create your free account",
-    secondaryCta: "How does it work?",
-    reassurance: "Creating an account is free and needs no bank card.",
+    pill: "A smart Arabic-first assistant, on the web and on WhatsApp",
+    titleLines: ["Your prescription, clear in seconds…", "even from WhatsApp"],
+    lead: "Snap any prescription, even a handwritten one, and know every medicine, its dose and its schedule. Then chat with a smart assistant on the website or on WhatsApp. Wasfa helps you understand and does not replace your doctor or pharmacist.",
+    primaryCta: "Start free",
+    whatsappCta: "Chat with Wasfa on WhatsApp",
+    whatsappGreeting: "Hello Wasfa",
+    chips: ["No app to install", "100% Arabic", "Your privacy protected"],
     haveAccount: "Already have an account?",
     signIn: "Sign in",
   },
 
-  /** The illustration beside the hero headline: a sample, not a real result. */
-  visual: {
-    alt: "Illustrative example: a handwritten prescription is swept by a beam of light and turns into a structured result card with three lines, two confirmed and one unclear line flagged “Ask the pharmacist”. The card is labelled “Illustrative example”.",
+  /** The hero illustration: a WhatsApp-style chat with the assistant. A sample, not a real result. */
+  scene: {
+    alt: "Illustration (example): a phone showing a WhatsApp chat in which the user sent a prescription photo and the assistant replied with a card of two medicines, each with its dose and schedule, then a PDF file and a voice note. A handwritten prescription sheet sits beside it.",
     sampleBadge: "Illustrative example",
-    paperTitle: "Prescription",
-    resultTitle: "Structured result",
-    resultMeta: "3 medicines",
+    agentName: "Wasfa",
+    agentStatus: "Smart assistant",
+    photoCaption: "Prescription photo",
+    reply: "I read your prescription. Here are your medicines and their schedule:",
     items: [
-      { name: "Paracetamol 500 mg", detail: "One tablet every 8 hours · 3 days", flag: null },
-      { name: "Amoxicillin 500 mg", detail: "One capsule every 12 hours · 7 days", flag: null },
-      { name: "Unclear name", detail: "Check it with your pharmacist", flag: "review" },
+      {
+        name: "Amoxicillin 500 mg",
+        dose: "One capsule after food · 7 days",
+        times: [
+          { label: "8 am", kind: "sun" },
+          { label: "2 pm", kind: "sun" },
+          { label: "8 pm", kind: "moon" },
+        ],
+      },
+      {
+        name: "Paracetamol 500 mg",
+        dose: "One tablet if needed · 3 days",
+        times: [
+          { label: "8 am", kind: "sun" },
+          { label: "8 pm", kind: "moon" },
+        ],
+      },
     ],
-    confidenceHigh: "High confidence",
-    review: "Ask the pharmacist",
-    note: "Wasfa AI assists and does not diagnose",
+    pdfName: "Prescription report.pdf",
+    pdfMeta: "PDF · ready to share",
+    voiceLabel: "Voice note",
+    voiceLength: "0:12",
+  },
+
+  whatsapp: {
+    id: "whatsapp",
+    eyebrow: "WhatsApp",
+    title: "Everything from WhatsApp… with a very smart assistant",
+    lead: "No app to install and no menus to get lost in. Send a message, and Wasfa understands you and replies.",
+    tilesLabel: "What you can do on WhatsApp",
+    tiles: [
+      {
+        icon: "photo",
+        title: "Send a prescription photo",
+        body: "It reads the whole thing and sends back the medicines, doses and schedule in one message.",
+      },
+      {
+        icon: "voice",
+        title: "Talk with your voice",
+        body: "Send a voice note and it listens, then replies with a voice note too.",
+      },
+      {
+        icon: "medicine",
+        title: "Ask about any medicine",
+        body: "Prices and cheaper alternatives with the same active ingredient, from a database of more than 27,000 Egyptian medicines.",
+      },
+      {
+        icon: "files",
+        title: "Get your files",
+        body: "A PDF report and a medication schedule card to keep and share.",
+      },
+      {
+        icon: "pay",
+        title: "Subscribe and pay in the chat",
+        body: "Pick a plan and complete payment from the same conversation.",
+      },
+      {
+        icon: "account",
+        title: "Create your account in one message",
+        body: "Start the chat and the assistant sets up your account in a single step.",
+      },
+    ],
+    phoneLabel:
+      "Example WhatsApp chat: a prescription photo is sent, the assistant reads it and replies with the medicine card and schedule, then a voice note, a question about a cheaper alternative, and a PDF file.",
+    chat: [
+      { from: "user", kind: "photo", text: "Prescription photo" },
+      { from: "agent", kind: "text", text: "Got the prescription, reading it now." },
+      { from: "agent", kind: "meds", text: "Done. Here are your medicines and their schedule:" },
+      { from: "user", kind: "voice", text: "0:07" },
+      { from: "agent", kind: "voice", text: "0:09" },
+      { from: "user", kind: "text", text: "Is there a cheaper alternative to the first one?" },
+      {
+        from: "agent",
+        kind: "text",
+        text: "Yes, alternatives with the same active ingredient. I will list them with prices for you to check with your pharmacist.",
+      },
+      { from: "agent", kind: "file", text: "Prescription report.pdf" },
+    ],
+    cta: "Start the chat on WhatsApp",
+    qrTitle: "Or scan the code with your phone",
+    qrLabel: "QR code that opens the chat with Wasfa on WhatsApp",
+    note: "Wasfa explains and organises and does not diagnose. Check with your doctor or pharmacist before any treatment decision.",
   },
 
   skills: {
@@ -90,46 +167,53 @@ export const landingEn: typeof landing = {
   precision: {
     id: "precision",
     eyebrow: "Step by step",
-    title: "What happens to each line of your prescription?",
-    lead: "We follow one line from the handwriting to a result you can rely on. Whatever we are not sure about, we flag instead of guessing.",
+    title: "The journey of every line in your prescription",
+    lead: "We follow a single line from the handwriting to a result you can trust. Whatever we are not sure about, we flag instead of guessing.",
     stepsLabel: "Four stages for every line",
     sampleBadge: "Illustrative example",
     steps: [
       {
-        title: "We read the handwriting",
-        body: "We read the handwritten line exactly as written, character by character, before any interpretation.",
+        title: "Reading the handwriting",
+        body: "We read the handwritten line as it is, letter by letter, before any interpretation.",
       },
       {
-        title: "We match it against the drug database",
-        body: "We compare the name we read with the drug database and pick the closest one, with its active ingredient.",
+        title: "Precise matching",
+        body: "We compare the name we read with the medicine database and pick the closest one with its active ingredient.",
       },
       {
-        title: "We check the dose and frequency",
-        body: "Shorthand such as “1×3” is normalised into a clear dose and number of times a day.",
+        title: "Safety check",
+        body: "We check the dose and strength, and warn when the same active ingredient appears in two medicines.",
       },
       {
-        title: "We flag what we are not sure of",
-        body: "An unclear line stays flagged with its raw text for the pharmacist to review. We do not guess its name.",
+        title: "A clear result",
+        body: "A tidy card with the medicine and its schedule. Any line we are unsure about stays flagged for you to review.",
       },
     ],
     sample: {
       scribble: "Amoxil 500 1×3",
-      readLabel: "Text we read",
-      candidatesLabel: "Closest names in the drug database",
+      readLabel: "What we read",
+      candidatesLabel: "Closest names in the medicine database",
       candidates: ["Amoxil", "Amaryl", "Amoxapine"],
+      confidence: "High confidence",
       ingredientLabel: "Active ingredient",
       ingredient: "Amoxicillin",
-      rawLabel: "As written",
-      raw: "1×3",
-      normalized: "500 mg · 3 times a day",
-      flaggedRaw: "Am?x…l  ?×2",
-      flaggedBadge: "Ask the pharmacist",
-      flaggedNote: "We show the raw text as we read it and do not guess the name.",
+      doseLabel: "Dose",
+      dose: "500 mg · 3 times a day",
+      doseOk: "Within the usual range",
+      duplicateBadge: "Duplicate active ingredient",
+      duplicateNote: "Paracetamol appears in two medicines on this prescription.",
+      resultName: "Amoxicillin 500 mg",
+      resultDetail: "3 times a day · 7 days",
+      resultTimes: [
+        { label: "8 am", kind: "sun" },
+        { label: "2 pm", kind: "sun" },
+        { label: "8 pm", kind: "moon" },
+      ],
     },
     proof: {
       avgLabel: "Average analysis time",
       avgUnit: "seconds",
-      accuracyLabel: "Field-reading accuracy in our evaluation tests",
+      accuracyLabel: "Field reading accuracy in evaluation tests",
       note: "Figures from internal tests; they change as the system improves.",
     },
     link: "Learn more about the prescription reader",
@@ -140,6 +224,8 @@ export const landingEn: typeof landing = {
     eyebrow: "How it works",
     title: "How does Wasfa AI work?",
     lead: "Three steps from a photo to a clear result in Arabic.",
+    whatsappNote: "Or just send it on WhatsApp and the assistant will reply.",
+    whatsappLink: "Open the chat",
     steps: [
       {
         title: "Upload the prescription",
@@ -292,16 +378,43 @@ export const landingEn: typeof landing = {
 
   cta: {
     title: "Start understanding your prescription with confidence",
-    body: "Create your free account now, then upload your first prescription or ask about a medicine in Arabic.",
-    primary: "Create your free account",
+    body: "Create your free account now, or send your first prescription on WhatsApp and ask about any medicine in Arabic.",
+    primary: "Start free",
+    whatsapp: "Chat with Wasfa on WhatsApp",
     secondary: "Contact us",
   },
 
+  /** "Wasfa in your pocket": the ways to use the product today and what is still coming. */
   apps: {
-    title: "Wasfa AI for Android and iOS — coming soon",
-    lead: "We are building two phone apps that put the prescription card in your pocket. The website works on your phone today.",
+    title: "Wasfa in your pocket",
+    lead: "Wasfa works today on any phone, from the browser or from WhatsApp. The Android and iOS apps are coming soon.",
     phoneLabel:
-      "Illustration of a phone screen showing a prescription analysis result card (illustrative example)",
+      "Illustration of a phone screen showing a prescription analysis result with two medicine cards and their schedules (illustrative example)",
+    resultTitle: "Structured result",
+    resultMeta: "2 medicines",
+    resultNote: "Wasfa assists and does not diagnose",
+    sampleBadge: "Illustrative example",
+    waysLabel: "Ways to use Wasfa",
+    ways: [
+      {
+        key: "whatsapp",
+        title: "WhatsApp",
+        body: "Send the prescription and ask the assistant, with nothing to install.",
+        status: "Available now",
+      },
+      {
+        key: "web",
+        title: "Web app",
+        body: "Open the site in your browser and add it to your phone's home screen.",
+        status: "Available now",
+      },
+      {
+        key: "native",
+        title: "Phone apps",
+        body: "We are building dedicated apps for Android and iOS.",
+        status: "Coming soon",
+      },
+    ],
     soon: "Coming soon",
     android: "Android",
     ios: "iOS",

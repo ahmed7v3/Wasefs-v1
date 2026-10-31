@@ -1,10 +1,11 @@
 import { Badge, Container } from "@wasfa/ui";
-import { ArrowRight, Check, TriangleAlert } from "lucide-react";
+import { ArrowRight, Check, ShieldCheck, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 
 import { landingFor } from "../../content/landing-locale";
 import { localizedPath, type Locale } from "../../lib/locale";
 
+import { MedCard } from "./chat-parts";
 import { SectionHeading } from "./section-heading";
 
 /** The admin-published figures of `landing.proof` (null = not published, so not shown). */
@@ -20,7 +21,6 @@ export interface PrecisionWalkthroughProps {
   westernDigits?: boolean;
 }
 
-const STEP_COUNT = 4;
 const READER_PATH = "/features/prescription-reader";
 
 function numberFormat(locale: Locale, westernDigits: boolean): Intl.NumberFormat {
@@ -28,39 +28,46 @@ function numberFormat(locale: Locale, westernDigits: boolean): Intl.NumberFormat
   return new Intl.NumberFormat(tag, { maximumFractionDigits: 1 });
 }
 
-/** Handwriting-like stroke for the first step's picture. */
-const SCRIBBLE = "M4 22q6-18 12 0t12 0 12 0 12 0 12 0 12 0 12 0 12 0 12 0 12 0";
+/** The scribbled line of stage 1; the highlight box under it is the reading window. */
+const SCRIBBLE = "M6 30q5-14 10 0t10 0 10 0 10 0 10 0 10 0 10 0 10 0 10 0 10 0 10 0 10 0";
 
-/**
- * The small picture of one stage. The same component fills the card on a phone (and without scroll
- * motion) and the large sticky stage on desktop, so the sample data lives in one place.
- */
-function StepVisual({ index, locale }: { index: number; locale: Locale }) {
+/** The mini picture of one stage; the same sample line travels through all four. */
+function StageVisual({ index, locale }: { index: number; locale: Locale }) {
   const { precision } = landingFor(locale);
   const { sample } = precision;
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
-      <Badge tone="info" className="mb-3">
-        {precision.sampleBadge}
-      </Badge>
+    <div className="rounded-2xl border border-border bg-surface p-3.5">
       {index === 0 ? (
         <div>
           <svg
-            viewBox="0 0 128 44"
-            className="h-12 w-full max-w-64"
+            viewBox="0 0 132 48"
+            className="h-14 w-full"
             fill="none"
             aria-hidden="true"
             focusable="false"
           >
+            <rect x="2" y="4" width="128" height="40" rx="8" fill="#f7f3e8" />
             <path
               d={SCRIBBLE}
-              className="stroke-neutral-600"
-              strokeWidth="3"
+              stroke="#2b3a6b"
+              strokeWidth="2.4"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
+            <rect
+              x="3"
+              y="9"
+              width="126"
+              height="30"
+              rx="6"
+              fill="#60a5fa"
+              fillOpacity="0.16"
+              stroke="#1e3a8a"
+              strokeWidth="1.5"
+              strokeDasharray="4 3"
+            />
           </svg>
-          <p className="mt-2 text-sm text-text-muted">{sample.readLabel}</p>
+          <p className="mt-2.5 text-sm text-text-muted">{sample.readLabel}</p>
           <p dir="ltr" className="text-start text-lg font-bold text-text">
             {sample.scribble}
           </p>
@@ -69,12 +76,12 @@ function StepVisual({ index, locale }: { index: number; locale: Locale }) {
       {index === 1 ? (
         <div>
           <p className="text-sm text-text-muted">{sample.candidatesLabel}</p>
-          <ul className="mt-2 flex flex-col gap-2">
+          <ul className="mt-2 flex flex-col gap-1.5">
             {sample.candidates.map((name, position) => (
               <li
                 key={name}
                 dir="ltr"
-                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-start text-base ${
+                className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 text-start text-base ${
                   position === 0
                     ? "border-primary/40 bg-primary-soft font-bold text-text"
                     : "border-border text-text-muted"
@@ -82,65 +89,61 @@ function StepVisual({ index, locale }: { index: number; locale: Locale }) {
               >
                 {position === 0 ? (
                   <Check aria-hidden="true" className="size-4 shrink-0 text-primary" />
-                ) : null}
+                ) : (
+                  <span aria-hidden="true" className="size-4 shrink-0" />
+                )}
                 {name}
+                {position === 0 ? (
+                  <Badge tone="success" className="ms-auto px-2 py-0 text-xs">
+                    {sample.confidence}
+                  </Badge>
+                ) : null}
               </li>
             ))}
           </ul>
-          <p className="mt-3 text-sm text-text-muted">
+          <p className="mt-2.5 text-sm text-text-muted">
             {sample.ingredientLabel}:{" "}
             <span className="font-bold text-text">{sample.ingredient}</span>
           </p>
         </div>
       ) : null}
       {index === 2 ? (
-        <div>
-          <p className="text-sm text-text-muted">{sample.rawLabel}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-3">
-            <span dir="ltr" className="rounded-lg bg-neutral-100 px-3 py-1 text-lg font-bold">
-              {sample.raw}
-            </span>
-            <ArrowRight aria-hidden="true" className="size-5 text-primary rtl:-scale-x-100" />
-            <span className="text-lg font-bold text-text">
-              <bdi>{sample.normalized}</bdi>
-            </span>
+        <div className="flex flex-col gap-2">
+          <div className="rounded-xl border border-border bg-bg-warm px-3 py-2">
+            <p className="text-sm text-text-muted">{sample.doseLabel}</p>
+            <p className="text-base font-bold text-text">
+              <bdi>{sample.dose}</bdi>
+            </p>
+            <p className="mt-0.5 flex items-center gap-1 text-sm font-bold text-success">
+              <ShieldCheck aria-hidden="true" className="size-4" />
+              {sample.doseOk}
+            </p>
+          </div>
+          <div className="rounded-xl border border-warning/40 bg-warning-soft px-3 py-2">
+            <Badge tone="warning" className="bg-surface px-2 py-0.5">
+              <TriangleAlert aria-hidden="true" className="size-4" />
+              {sample.duplicateBadge}
+            </Badge>
+            <p className="mt-1 text-sm text-text">{sample.duplicateNote}</p>
           </div>
         </div>
       ) : null}
       {index === 3 ? (
-        <div className="flex flex-col gap-2">
-          <p
-            dir="ltr"
-            className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-start text-base text-text-muted"
-          >
-            <Check aria-hidden="true" className="size-4 shrink-0 text-success" />
-            {sample.scribble}
-          </p>
-          <div className="rounded-lg border border-warning/40 bg-warning-soft px-3 py-2">
-            <p dir="ltr" className="text-start text-base font-bold text-text">
-              {sample.flaggedRaw}
-            </p>
-            <Badge tone="warning" className="mt-1.5 bg-surface">
-              <TriangleAlert aria-hidden="true" className="size-4" />
-              {sample.flaggedBadge}
-            </Badge>
-          </div>
-          <p className="text-sm text-text-muted">{sample.flaggedNote}</p>
-        </div>
+        <MedCard
+          item={{ name: sample.resultName, dose: sample.resultDetail, times: sample.resultTimes }}
+          className="border-success/40"
+        />
       ) : null}
     </div>
   );
 }
 
 /**
- * "What happens to each line of your prescription?" (BRAND-AND-HOMEPAGE §3.2): four stages of one
- * sample line. Every word is server-rendered inside the step cards, so the section reads the same
- * with no motion, no scroll-driven animation support, or no JavaScript.
- *
- * Where scroll-driven animation is available and motion is allowed (globals.css, "Scroll motion"),
- * a desktop reader gets a sticky stage that follows the steps, one picture per stage, driven by
- * each step's view timeline; the in-card pictures then step aside. Phones always get four stacked
- * cards with their own small picture: no sticky, no scroll-jacking.
+ * "The journey of every line in your prescription" (BRAND-AND-HOMEPAGE §3.2): one handwritten line
+ * through four stages, a horizontal stepper from `lg` (it follows the reading direction) and a
+ * vertical one on a phone. Every word is server-rendered in the stage cards, so the section reads
+ * the same without motion or JavaScript; where scroll-driven animation is supported the connector
+ * grows as the section enters (`.journey-line`), and that is all the motion there is.
  */
 export function PrecisionWalkthrough({
   locale = "ar",
@@ -170,7 +173,7 @@ export function PrecisionWalkthrough({
     <section
       id={precision.id}
       aria-labelledby="precision-title"
-      className="border-y border-border/70 bg-surface py-16 sm:py-24"
+      className="border-y border-border/70 bg-linear-to-b from-surface via-primary-soft/40 to-surface py-16 sm:py-24"
     >
       <Container>
         <SectionHeading
@@ -179,72 +182,38 @@ export function PrecisionWalkthrough({
           title={precision.title}
           lead={precision.lead}
         />
-        <div className="motion-story mt-12 grid gap-10">
-          <ol
-            aria-label={precision.stepsLabel}
-            className="mx-auto flex w-full max-w-2xl flex-col gap-6"
+        <p className="mt-3 text-center">
+          <Badge tone="info">{precision.sampleBadge}</Badge>
+        </p>
+        <ol
+          aria-label={precision.stepsLabel}
+          className="relative mt-10 grid gap-6 lg:grid-cols-4 lg:gap-5"
+        >
+          {/* Connector: a track and a growing line, vertical on a phone and horizontal from lg. */}
+          <div
+            aria-hidden="true"
+            className="absolute inset-y-6 start-5 w-0.5 rounded-full bg-primary/15 lg:inset-x-[12.5%] lg:inset-y-auto lg:top-5 lg:h-0.5 lg:w-auto"
           >
-            {precision.steps.map((step, index) => (
-              <li
-                key={step.title}
-                className={`motion-story-step motion-story-step-${index + 1} relative grid grid-cols-[2.5rem_1fr] gap-4`}
-              >
-                <span className="relative z-10 grid size-10 place-items-center rounded-full bg-primary text-lg font-bold text-on-primary tabular-nums ring-4 ring-surface">
-                  {numbers.format(index + 1)}
-                </span>
-                {index < STEP_COUNT - 1 ? (
-                  <svg
-                    viewBox="0 0 2 100"
-                    preserveAspectRatio="none"
-                    className="motion-draw absolute start-[19px] top-10 h-[calc(100%-1rem)] w-0.5"
-                    fill="none"
-                    aria-hidden="true"
-                    focusable="false"
-                  >
-                    <path
-                      d="M1 0V100"
-                      className="stroke-primary/20"
-                      strokeWidth="2"
-                      strokeDasharray="none"
-                      strokeDashoffset="0"
-                      vectorEffect="non-scaling-stroke"
-                    />
-                    <path
-                      d="M1 0V100"
-                      pathLength="1"
-                      className="stroke-primary"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                ) : null}
-                <div className="min-w-0 self-start rounded-2xl border border-border bg-bg-warm p-5 shadow-card">
-                  <h3 className="text-xl font-bold text-text">{step.title}</h3>
-                  <p className="mt-2 text-base text-text-muted">{step.body}</p>
-                  <div className="precision-inline-visual mt-4">
-                    <StepVisual index={index} locale={locale} />
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ol>
-          {/* The sticky stage is decorative (the steps carry the words) and shown only with scroll motion. */}
-          <div aria-hidden="true" className="precision-sticky">
-            <div className="story-stage rounded-2xl border border-border bg-bg-warm p-6 shadow-raised">
-              {precision.steps.map((step, index) => (
-                <div
-                  key={step.title}
-                  className={`story-panel story-panel-${index + 1} flex flex-col justify-center gap-3`}
-                >
-                  <p className="text-lg font-bold text-primary">
-                    {numbers.format(index + 1)}. {step.title}
-                  </p>
-                  <StepVisual index={index} locale={locale} />
-                </div>
-              ))}
-            </div>
+            <div className="journey-line size-full rounded-full bg-primary" />
           </div>
-        </div>
+          {precision.steps.map((step, index) => (
+            <li
+              key={step.title}
+              className="relative grid grid-cols-[2.5rem_1fr] gap-4 lg:grid-cols-1 lg:grid-rows-[auto_1fr] lg:justify-items-center lg:gap-4"
+            >
+              <span className="relative z-10 grid size-10 place-items-center rounded-full bg-primary text-lg font-bold text-on-primary tabular-nums shadow-card ring-4 ring-surface">
+                {numbers.format(index + 1)}
+              </span>
+              <div className="min-w-0 self-start rounded-3xl lg:h-full lg:self-stretch border border-border bg-surface p-5 shadow-card lg:w-full">
+                <h3 className="text-xl font-bold text-text">{step.title}</h3>
+                <p className="mt-2 text-base text-text-muted">{step.body}</p>
+                <div className="mt-4">
+                  <StageVisual index={index} locale={locale} />
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
 
         {figures.length > 0 ? (
           <div className="mx-auto mt-12 max-w-2xl">
@@ -252,7 +221,7 @@ export function PrecisionWalkthrough({
               {figures.map((figure) => (
                 <div
                   key={figure.label}
-                  className="rounded-xl border border-border bg-bg-warm p-4 text-center"
+                  className="rounded-2xl border border-border bg-surface p-4 text-center shadow-card"
                 >
                   <dt className="text-sm text-text-muted">{figure.label}</dt>
                   <dd className="mt-1 text-3xl font-bold text-primary tabular-nums">

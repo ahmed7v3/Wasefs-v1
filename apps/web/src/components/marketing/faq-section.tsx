@@ -48,9 +48,9 @@ export function FaqSection({ locale = "ar" }: { locale?: Locale }) {
             <details
               key={item.question}
               {...(faq.exclusive ? { name: "faq" } : {})}
-              className="faq-item group rounded-2xl border border-border bg-surface shadow-card open:shadow-raised"
+              className="faq-item group rounded-3xl border border-border bg-surface shadow-card open:shadow-raised"
             >
-              <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 rounded-2xl px-5 py-3 text-lg font-bold text-text focus-visible:outline-none focus-visible:shadow-focus [&::-webkit-details-marker]:hidden">
+              <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 rounded-3xl px-5 py-3 text-lg font-bold text-text focus-visible:outline-none focus-visible:shadow-focus [&::-webkit-details-marker]:hidden">
                 {item.question}
                 {/* Points down; turns up when open (transform only, so no layout shift). */}
                 <span className="grid size-8 shrink-0 place-items-center rounded-full bg-primary-soft text-primary">

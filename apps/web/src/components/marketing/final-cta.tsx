@@ -5,6 +5,7 @@ import Link from "next/link";
 import { landingFor } from "../../content/landing-locale";
 import { localizedPath, type Locale } from "../../lib/locale";
 
+import { WhatsAppGlyph } from "./chat-parts";
 import { Mascot } from "./mascot";
 
 /** The whole family, from the edges in: the outer two only appear from `sm` up. */
@@ -26,12 +27,18 @@ const GROUP = [
   },
 ] as const;
 
-export function FinalCta({ locale = "ar" }: { locale?: Locale }) {
+export function FinalCta({
+  locale = "ar",
+  whatsappHref = null,
+}: {
+  locale?: Locale;
+  whatsappHref?: string | null;
+}) {
   const { cta } = landingFor(locale);
   return (
     <section aria-labelledby="cta-title" className="pt-4 pb-16 sm:pb-24">
       <Container>
-        <div className="relative overflow-hidden rounded-2xl border border-border bg-surface px-6 pt-10 pb-12 text-center shadow-raised sm:px-12 sm:pt-14 sm:pb-16">
+        <div className="relative overflow-hidden rounded-[1.75rem] border border-border bg-surface px-6 pt-10 pb-12 text-center shadow-raised sm:px-12 sm:pt-14 sm:pb-16">
           <div aria-hidden="true" className="lattice absolute inset-0" />
           <div className="relative">
             <div aria-hidden="true" className="flex items-end justify-center gap-1 sm:gap-3">
@@ -53,12 +60,30 @@ export function FinalCta({ locale = "ar" }: { locale?: Locale }) {
                 {cta.primary}
                 <ArrowRight aria-hidden="true" className="size-5 rtl:-scale-x-100" />
               </Link>
-              <Link
-                href={localizedPath("/contact", locale)}
-                className={buttonStyles({ size: "lg", variant: "secondary" })}
-              >
-                {cta.secondary}
-              </Link>
+              {whatsappHref ? (
+                <a
+                  href={whatsappHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-wa-cta="final"
+                  className={buttonStyles({
+                    size: "lg",
+                    className: "bg-wa-deep shadow-raised hover:bg-wa-deep/90",
+                  })}
+                >
+                  <span className="grid size-7 place-items-center rounded-full bg-wa-green text-wa-deep">
+                    <WhatsAppGlyph className="size-4.5" />
+                  </span>
+                  {cta.whatsapp}
+                </a>
+              ) : (
+                <Link
+                  href={localizedPath("/contact", locale)}
+                  className={buttonStyles({ size: "lg", variant: "secondary" })}
+                >
+                  {cta.secondary}
+                </Link>
+              )}
             </div>
           </div>
         </div>

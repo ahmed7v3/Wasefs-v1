@@ -49,7 +49,7 @@ export function Audiences({ locale = "ar" }: { locale?: Locale }) {
             return (
               <li key={item.title} className="motion-settle">
                 <article
-                  className={`flex h-full flex-col rounded-2xl border border-border border-t-4 bg-surface p-6 shadow-card transition-[transform,box-shadow] duration-200 ease-standard hover:-translate-y-1 hover:shadow-raised ${accent.bar}`}
+                  className={`flex h-full flex-col rounded-3xl border border-border border-t-4 bg-surface p-6 shadow-card transition-[transform,box-shadow] duration-200 ease-standard hover:-translate-y-1 hover:shadow-raised ${accent.bar}`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <span

@@ -1,9 +1,10 @@
 import { Container } from "@wasfa/ui";
-import { Apple, Bot, ShieldCheck } from "lucide-react";
+import { Apple, Bot, Check, Globe, ShieldCheck } from "lucide-react";
 
 import { landingFor } from "../../content/landing-locale";
 
 import { AppWaitlistFormLazy } from "./app-waitlist-lazy";
+import { PhoneShell, MedCard, WhatsAppGlyph } from "./chat-parts";
 
 import type { Locale } from "../../lib/locale";
 import type { PublicSettings } from "@wasfa/shared/settings";
@@ -61,52 +62,46 @@ export function PlatformChips({
   );
 }
 
-/** A phone drawn in CSS around a mini result card (the same sample lines as the hero). Decorative. */
-function PhoneFrame({ locale }: { locale: Locale }) {
-  const { apps, visual } = landingFor(locale);
+/** The web app in miniature: the result screen of a prescription with two medicines and their schedules. */
+function AppPhone({ locale }: { locale: Locale }) {
+  const { apps, scene } = landingFor(locale);
   return (
-    <div role="img" aria-label={apps.phoneLabel} className="mx-auto w-56 sm:w-60">
-      <div className="rounded-[2.25rem] border-4 border-neutral-800 bg-neutral-800 p-1.5 shadow-raised">
-        <div className="relative overflow-hidden rounded-[1.75rem] bg-bg-warm px-3 pt-7 pb-4">
-          <span
-            aria-hidden="true"
-            className="absolute inset-x-0 top-2 mx-auto block h-1.5 w-14 rounded-full bg-neutral-800"
-          />
-          <div aria-hidden="true" className="rounded-2xl border border-border bg-surface p-3">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-bold text-text">{visual.resultTitle}</span>
-              <span className="text-xs text-text-muted">{visual.resultMeta}</span>
-            </div>
-            <ul className="mt-2 flex flex-col gap-2">
-              {visual.items.map((item) => (
-                <li
-                  key={item.name}
-                  className={`rounded-lg border px-2 py-1.5 ${
-                    item.flag === "review"
-                      ? "border-warning bg-warning-soft"
-                      : "border-border bg-bg-warm"
-                  }`}
-                >
-                  <p className="text-xs font-bold text-text">{item.name}</p>
-                  <p className="text-xs text-text-muted">{item.detail}</p>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-2 flex items-center gap-1 text-xs text-text-muted">
-              <ShieldCheck aria-hidden="true" className="size-3.5 text-success" />
-              {visual.note}
-            </p>
+    <div role="img" aria-label={apps.phoneLabel} className="relative mx-auto">
+      <div
+        aria-hidden="true"
+        className="absolute inset-x-0 -inset-y-6 rounded-[3rem] bg-[radial-gradient(closest-side,var(--color-accent-soft),transparent)]"
+      />
+      <PhoneShell className="relative" screenClassName="bg-bg">
+        <div aria-hidden="true" className="px-3 pt-8 pb-4">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-bold text-text">{apps.resultTitle}</span>
+            <span className="rounded-full bg-primary-soft px-2 py-0.5 text-xs font-bold text-primary">
+              {apps.resultMeta}
+            </span>
           </div>
-          <p aria-hidden="true" className="mt-2 text-center text-xs text-text-muted">
-            {visual.sampleBadge}
+          <div className="mt-3 flex flex-col gap-2">
+            {scene.items.map((item) => (
+              <MedCard key={item.name} item={item} />
+            ))}
+          </div>
+          <p className="mt-3 flex items-center gap-1 text-xs text-text-muted">
+            <ShieldCheck aria-hidden="true" className="size-3.5 text-success" />
+            {apps.resultNote}
           </p>
+          <p className="mt-2 text-center text-xs font-bold text-text-muted">{apps.sampleBadge}</p>
         </div>
-      </div>
+      </PhoneShell>
     </div>
   );
 }
 
-/** "Apps coming soon" band before the final call to action. Server-rendered; only the form is a client island. */
+const WAY_ICONS = { whatsapp: WhatsAppGlyph, web: Globe, native: Apple } as const;
+
+/**
+ * "Wasfa in your pocket": the honest picture. WhatsApp and the installable web app work today, the
+ * native apps are coming. A phone with the result screen, the three ways, the store chips and (only
+ * while the setting allows) the lazy waiting-list form, the one client island of the band.
+ */
 export function AppsBand({
   settings,
   locale = "ar",
@@ -123,21 +118,62 @@ export function AppsBand({
       className="border-t border-border/70 py-16 sm:py-24"
     >
       <Container>
-        <div className="grid items-center gap-10 rounded-2xl border border-border bg-surface p-6 shadow-card sm:p-10 lg:grid-cols-[auto_1fr] lg:gap-14">
-          <PhoneFrame locale={locale} />
-          <div>
-            <h2 id="apps-title" className="text-2xl font-bold text-text sm:text-3xl">
-              {apps.title}
-            </h2>
-            <p className="mt-3 max-w-reading text-lg text-text-muted">{apps.lead}</p>
-            <div className="mt-5">
-              <PlatformChips apps={{ androidUrl, iosUrl }} locale={locale} />
+        <div className="relative overflow-hidden rounded-[1.75rem] border border-border bg-surface p-6 shadow-raised sm:p-10 lg:p-14">
+          <div aria-hidden="true" className="dot-grid absolute inset-x-0 top-0 h-56" />
+          <div className="relative grid items-center gap-10 lg:grid-cols-[auto_1fr] lg:gap-16">
+            <AppPhone locale={locale} />
+            <div className="min-w-0">
+              <h2 id="apps-title" className="text-2xl font-bold text-text sm:text-4xl">
+                {apps.title}
+              </h2>
+              <p className="mt-3 max-w-reading text-lg text-text-muted">{apps.lead}</p>
+              <ul aria-label={apps.waysLabel} className="mt-6 grid gap-3">
+                {apps.ways.map((way) => {
+                  const Icon = WAY_ICONS[way.key];
+                  const live = way.key !== "native";
+                  return (
+                    <li
+                      key={way.key}
+                      className="flex items-start gap-4 rounded-2xl border border-border bg-bg-warm p-4"
+                    >
+                      <span
+                        className={`grid size-11 shrink-0 place-items-center rounded-xl ${
+                          way.key === "whatsapp"
+                            ? "bg-wa-green/20 text-wa-deep"
+                            : "bg-primary-soft text-primary"
+                        }`}
+                      >
+                        <Icon aria-hidden="true" className="size-6" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <h3 className="text-lg font-bold text-text">{way.title}</h3>
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full px-2.5 text-sm font-bold ${
+                              live ? "bg-success-soft text-success" : "bg-accent-soft text-primary"
+                            }`}
+                          >
+                            {live ? <Check aria-hidden="true" className="size-3.5" /> : null}
+                            {way.status}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-base text-text-muted">{way.body}</p>
+                        {way.key === "native" ? (
+                          <div className="mt-3">
+                            <PlatformChips apps={{ androidUrl, iosUrl }} locale={locale} />
+                          </div>
+                        ) : null}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+              {waitlistEnabled ? (
+                <div className="mt-8 max-w-md">
+                  <AppWaitlistFormLazy locale={locale} copy={apps.waitlist} />
+                </div>
+              ) : null}
             </div>
-            {waitlistEnabled ? (
-              <div className="mt-8 max-w-md">
-                <AppWaitlistFormLazy locale={locale} copy={apps.waitlist} />
-              </div>
-            ) : null}
           </div>
         </div>
       </Container>

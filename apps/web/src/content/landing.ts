@@ -52,11 +52,38 @@ export interface LandingTrustItem {
   body: string;
 }
 
-export interface VisualItem {
+/** A dose time of a schedule chip; `kind` picks the sun (day) or moon (night) icon. */
+export interface SceneTime {
+  label: string;
+  kind: "sun" | "moon";
+}
+
+export interface SceneItem {
   name: string;
-  detail: string;
-  /** `review` marks a low-confidence line, drawn in the warning style. */
-  flag: "review" | null;
+  dose: string;
+  times: SceneTime[];
+}
+
+export type WhatsappTileIcon = "photo" | "voice" | "medicine" | "files" | "pay" | "account";
+
+export interface WhatsappTile {
+  icon: WhatsappTileIcon;
+  title: string;
+  body: string;
+}
+
+/** One message of the scripted WhatsApp conversation; `meds` renders the sample medicine card. */
+export interface ChatMessage {
+  from: "user" | "agent";
+  kind: "photo" | "text" | "voice" | "meds" | "file";
+  text: string;
+}
+
+export interface WayItem {
+  key: "whatsapp" | "web" | "native";
+  title: string;
+  body: string;
+  status: string;
 }
 
 export interface FaqItem {
@@ -66,31 +93,108 @@ export interface FaqItem {
 
 export const landing = {
   hero: {
-    pill: "صُمِّم للمريض والصيدلي والطبيب العربي",
-    titleLines: ["افهم روشتتك في ثوانٍ.", "بدقة تراجع نفسها."],
-    lead: "وصفة AI مساعد عربي يقرأ صورة الروشتة المكتوبة بخط اليد أو المطبوعة، ويحوّلها إلى بطاقة واضحة بأسماء الأدوية والجرعات ومرات الاستخدام والتحذيرات. وما لا نتأكد منه نضعه أمامك لتراجعه مع طبيبك أو صيدلي.",
-    primaryCta: "أنشئ حسابك المجاني",
-    secondaryCta: "كيف تعمل؟",
-    reassurance: "إنشاء الحساب مجاني ولا يحتاج إلى بطاقة بنكية.",
+    pill: "مساعد عربي ذكي على الموقع وعلى واتساب",
+    titleLines: ["روشتتك مفهومة في ثوانٍ…", "حتى من واتساب"],
+    lead: "صوّر أي روشتة، حتى المكتوبة بخط اليد، واعرف كل دواء وجرعته ومواعيده. ثم تحدّث مع مساعد ذكي على الموقع أو من واتساب. وصفة تساعدك على الفهم ولا تحل محل الطبيب أو الصيدلي.",
+    primaryCta: "ابدأ مجانًا",
+    whatsappCta: "كلّم وصفة على واتساب",
+    whatsappGreeting: "مرحبًا وصفة",
+    chips: ["بدون تثبيت تطبيق", "عربي 100%", "خصوصيتك محمية"],
     haveAccount: "لديك حساب بالفعل؟",
     signIn: "تسجيل الدخول",
   },
 
-  /** The illustration beside the hero headline: a sample, not a real result. */
-  visual: {
-    alt: "مثال توضيحي: روشتة مكتوبة بخط اليد يمسحها شعاع ضوئي فتتحول إلى بطاقة نتيجة منظمة بثلاثة بنود، بندان مؤكدان وبند غير واضح مُعلَّم «راجع الصيدلي»، والبطاقة موسومة «مثال توضيحي».",
+  /** The hero illustration: a WhatsApp-style chat with the assistant. A sample, not a real result. */
+  scene: {
+    alt: "رسم توضيحي (مثال): هاتف يعرض محادثة على واتساب، أرسل فيها المستخدم صورة روشتة فردّ المساعد ببطاقة دواءين لكل منهما الجرعة ومواعيد الاستخدام، ثم ملف PDF ورسالة صوتية. بجانبه ورقة روشتة بخط اليد.",
     sampleBadge: "مثال توضيحي",
-    paperTitle: "الروشتة",
-    resultTitle: "النتيجة المنظمة",
-    resultMeta: "3 أدوية",
+    agentName: "وصفة",
+    agentStatus: "مساعد ذكي",
+    photoCaption: "صورة الروشتة",
+    reply: "قرأت روشتتك. هذه أدويتك ومواعيدها:",
     items: [
-      { name: "باراسيتامول 500 مجم", detail: "قرص كل 8 ساعات · 3 أيام", flag: null },
-      { name: "أموكسيسيلين 500 مجم", detail: "كبسولة كل 12 ساعة · 7 أيام", flag: null },
-      { name: "اسم غير واضح", detail: "يُنصح بمراجعته مع الصيدلي", flag: "review" },
-    ] satisfies VisualItem[],
-    confidenceHigh: "ثقة عالية",
-    review: "راجع الصيدلي",
-    note: "وصفة AI تساعد ولا تشخّص",
+      {
+        name: "أموكسيسيلين 500 مجم",
+        dose: "كبسولة بعد الأكل · 7 أيام",
+        times: [
+          { label: "8 ص", kind: "sun" },
+          { label: "2 م", kind: "sun" },
+          { label: "8 م", kind: "moon" },
+        ],
+      },
+      {
+        name: "باراسيتامول 500 مجم",
+        dose: "قرص عند اللزوم · 3 أيام",
+        times: [
+          { label: "8 ص", kind: "sun" },
+          { label: "8 م", kind: "moon" },
+        ],
+      },
+    ] satisfies SceneItem[],
+    pdfName: "تقرير الروشتة.pdf",
+    pdfMeta: "PDF · جاهز للمشاركة",
+    voiceLabel: "رسالة صوتية",
+    voiceLength: "0:12",
+  },
+
+  whatsapp: {
+    id: "whatsapp",
+    eyebrow: "واتساب",
+    title: "كل حاجة من واتساب… مع مساعد ذكي جدًا",
+    lead: "لا تطبيق تثبّته ولا قوائم تتوه فيها. أرسل رسالة، ووصفة يفهمك ويرد عليك.",
+    tilesLabel: "ما يمكنك فعله من واتساب",
+    tiles: [
+      {
+        icon: "photo",
+        title: "أرسل صورة الروشتة",
+        body: "يقرأها كاملة ويعيد لك الأدوية والجرعات والمواعيد في رسالة واحدة.",
+      },
+      {
+        icon: "voice",
+        title: "تحدّث بصوتك",
+        body: "أرسل رسالة صوتية فيسمعها ويرد عليك برسالة صوتية أيضًا.",
+      },
+      {
+        icon: "medicine",
+        title: "اسأل عن أي دواء",
+        body: "السعر والبدائل الأرخص بنفس المادة الفعالة، من قاعدة تضم أكثر من 27 ألف دواء مصري.",
+      },
+      {
+        icon: "files",
+        title: "استلم ملفاتك",
+        body: "تقرير PDF وبطاقة مواعيد الدواء، تحفظها وتشاركها مع من تريد.",
+      },
+      {
+        icon: "pay",
+        title: "اشترك وادفع من المحادثة",
+        body: "اختر الباقة وأكمل الدفع من المحادثة نفسها.",
+      },
+      {
+        icon: "account",
+        title: "أنشئ حسابك برسالة واحدة",
+        body: "ابدأ المحادثة ويجهّز لك المساعد حسابك في خطوة واحدة.",
+      },
+    ] satisfies WhatsappTile[],
+    phoneLabel:
+      "مثال لمحادثة على واتساب: تُرسل صورة روشتة فيقرأها المساعد ويرد ببطاقة الأدوية ومواعيدها، ثم رسالة صوتية، وسؤال عن بديل أرخص، وملف PDF.",
+    chat: [
+      { from: "user", kind: "photo", text: "صورة الروشتة" },
+      { from: "agent", kind: "text", text: "وصلت الروشتة، أقرؤها الآن." },
+      { from: "agent", kind: "meds", text: "تمت القراءة. هذه أدويتك ومواعيدها:" },
+      { from: "user", kind: "voice", text: "0:07" },
+      { from: "agent", kind: "voice", text: "0:09" },
+      { from: "user", kind: "text", text: "هل يوجد بديل أرخص للدواء الأول؟" },
+      {
+        from: "agent",
+        kind: "text",
+        text: "نعم، بدائل بنفس المادة الفعالة. أعرضها لك مع أسعارها لتراجع الصيدلي.",
+      },
+      { from: "agent", kind: "file", text: "تقرير الروشتة.pdf" },
+    ] satisfies ChatMessage[],
+    cta: "ابدأ المحادثة على واتساب",
+    qrTitle: "أو امسح الكود بهاتفك",
+    qrLabel: "رمز QR لفتح المحادثة مع وصفة على واتساب",
+    note: "وصفة تشرح وتنظّم ولا تشخّص. راجع طبيبك أو الصيدلي قبل أي قرار علاجي.",
   },
 
   skills: {
@@ -147,41 +251,48 @@ export const landing = {
   precision: {
     id: "precision",
     eyebrow: "خطوة بخطوة",
-    title: "ماذا يحدث لكل سطر في روشتتك؟",
+    title: "رحلة كل سطر في روشتتك",
     lead: "نتتبع سطرًا واحدًا من الخط المكتوب إلى نتيجة موثوقة. وما لا نتأكد منه نعلّمه بدل أن نخمّن.",
     stepsLabel: "أربع مراحل لكل سطر",
     sampleBadge: "مثال توضيحي",
     steps: [
       {
-        title: "نقرأ الخط",
+        title: "قراءة الخط",
         body: "نقرأ السطر المكتوب بخط اليد كما هو، حرفًا بحرف، قبل أي تفسير.",
       },
       {
-        title: "نطابق مع قاعدة الأدوية",
-        body: "نقارن الاسم المقروء بأسماء قاعدة الأدوية ونختار الأقرب مع مادته الفعالة.",
+        title: "مطابقة دقيقة",
+        body: "نقارن الاسم المقروء بقاعدة الأدوية ونختار الأقرب مع مادته الفعالة.",
       },
       {
-        title: "نتحقق من الجرعة والتكرار",
-        body: "نوحّد الصيغ المختصرة مثل «1×3» إلى جرعة وعدد مرات واضحين.",
+        title: "فحص الأمان",
+        body: "نراجع الجرعة والتركيز، وننبّه إذا تكررت المادة الفعالة بين دوائين.",
       },
       {
-        title: "نعلّم ما لا نتأكد منه",
-        body: "السطر غير الواضح يبقى مُعلَّمًا بنصه الخام ليراجعه الصيدلي، ولا نخمّن اسمه.",
+        title: "نتيجة واضحة",
+        body: "بطاقة مرتبة بالدواء ومواعيده. وأي سطر غير مؤكد يبقى مُعلَّمًا لتراجعه.",
       },
     ] satisfies LandingStep[],
     sample: {
       scribble: "Amoxil 500 1×3",
-      readLabel: "نص مقروء",
+      readLabel: "ما قرأناه",
       candidatesLabel: "أقرب الأسماء في قاعدة الأدوية",
       candidates: ["Amoxil", "Amaryl", "Amoxapine"],
+      confidence: "ثقة عالية",
       ingredientLabel: "المادة الفعالة",
       ingredient: "أموكسيسيلين",
-      rawLabel: "كما كُتب",
-      raw: "1×3",
-      normalized: "500 mg · 3 مرات يوميًا",
-      flaggedRaw: "Am?x…l  ?×2",
-      flaggedBadge: "اسأل الصيدلي",
-      flaggedNote: "نعرض النص الخام كما قرأناه ولا نخمّن الاسم.",
+      doseLabel: "الجرعة",
+      dose: "500 mg · 3 مرات يوميًا",
+      doseOk: "ضمن المعتاد",
+      duplicateBadge: "مادة فعالة مكررة",
+      duplicateNote: "باراسيتامول موجود في دوائين من الروشتة.",
+      resultName: "أموكسيسيلين 500 مجم",
+      resultDetail: "3 مرات يوميًا · 7 أيام",
+      resultTimes: [
+        { label: "8 ص", kind: "sun" },
+        { label: "2 م", kind: "sun" },
+        { label: "8 م", kind: "moon" },
+      ] satisfies SceneTime[],
     },
     proof: {
       avgLabel: "متوسط وقت التحليل",
@@ -197,6 +308,8 @@ export const landing = {
     eyebrow: "كيف تعمل",
     title: "كيف تعمل وصفة AI؟",
     lead: "ثلاث خطوات من الصورة إلى نتيجة واضحة بالعربية.",
+    whatsappNote: "أو أرسلها مباشرة على واتساب وسيرد عليك المساعد.",
+    whatsappLink: "افتح المحادثة",
     steps: [
       {
         title: "ارفع الروشتة",
@@ -338,16 +451,43 @@ export const landing = {
 
   cta: {
     title: "ابدأ بفهم روشتتك بثقة",
-    body: "أنشئ حسابك المجاني الآن، وارفع أول روشتة أو اسأل عن دواء بالعربية.",
-    primary: "أنشئ حسابك المجاني",
+    body: "أنشئ حسابك المجاني الآن، أو أرسل أول روشتة من واتساب واسأل عن أي دواء بالعربية.",
+    primary: "ابدأ مجانًا",
+    whatsapp: "كلّم وصفة على واتساب",
     secondary: "تواصل معنا",
   },
 
-  /** Android and iOS band (before the final call to action); the form renders only while the setting allows. */
+  /** "Wasfa in your pocket": the ways to use the product today and what is still coming. */
   apps: {
-    title: "تطبيق وصفة AI على أندرويد و iOS — قريبًا",
-    lead: "نعمل على تطبيقين للهاتف يحملان بطاقة الروشتة إلى جيبك. الموقع يعمل على هاتفك من الآن.",
-    phoneLabel: "رسم توضيحي لشاشة هاتف تعرض بطاقة نتيجة تحليل روشتة (مثال توضيحي)",
+    title: "وصفة في جيبك",
+    lead: "تعمل وصفة الآن على أي هاتف، من المتصفح أو من واتساب. وتطبيقا أندرويد و iOS قادمان قريبًا.",
+    phoneLabel:
+      "رسم توضيحي لشاشة هاتف تعرض نتيجة تحليل روشتة ببطاقتي دواء ومواعيدهما (مثال توضيحي)",
+    resultTitle: "النتيجة المنظمة",
+    resultMeta: "دواءان",
+    resultNote: "وصفة تساعد ولا تشخّص",
+    sampleBadge: "مثال توضيحي",
+    waysLabel: "طرق استخدام وصفة",
+    ways: [
+      {
+        key: "whatsapp",
+        title: "واتساب",
+        body: "أرسل الروشتة واسأل المساعد دون تثبيت أي شيء.",
+        status: "متاح الآن",
+      },
+      {
+        key: "web",
+        title: "تطبيق الويب",
+        body: "افتح الموقع من المتصفح وثبّته على الشاشة الرئيسية لهاتفك.",
+        status: "متاح الآن",
+      },
+      {
+        key: "native",
+        title: "تطبيقات الهاتف",
+        body: "نعمل على تطبيقين مخصصين لأندرويد و iOS.",
+        status: "قريبًا",
+      },
+    ] satisfies WayItem[],
     soon: "قريبًا",
     android: "أندرويد",
     ios: "iOS",

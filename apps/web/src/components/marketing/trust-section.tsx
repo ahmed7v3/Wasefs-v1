@@ -35,7 +35,7 @@ export function TrustSection({ locale = "ar" }: { locale?: Locale }) {
             return (
               <li
                 key={item.title}
-                className="rounded-2xl border border-white/15 bg-white/8 p-6 backdrop-blur-sm"
+                className="rounded-3xl border border-white/15 bg-white/8 p-6 backdrop-blur-sm"
               >
                 <span className="grid size-12 place-items-center rounded-xl bg-white/15 text-white">
                   <Icon aria-hidden="true" className="size-6" />

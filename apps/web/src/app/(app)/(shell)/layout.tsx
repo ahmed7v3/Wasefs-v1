@@ -41,7 +41,7 @@ export default async function ShellLayout({ children }: { children: ReactNode })
       <JoinAcceptor
         verified={{ email: me.emailVerified && me.email !== null, phone: me.phoneVerified }}
       />
-      <ContactHub contact={settings.contact} />
+      <ContactHub contact={settings.contact} compact />
     </>
   );
 }

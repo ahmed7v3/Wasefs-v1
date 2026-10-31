@@ -50,11 +50,7 @@ for (const { name: pageName, path } of PAGES) {
           return [...document.querySelectorAll("main *")]
             .filter((el) => {
               const box = el.getBoundingClientRect();
-              return (
-                !el.closest(".hero-shimmer-gate") &&
-                box.width > 0 &&
-                (box.right > width + 1 || box.left < -1)
-              );
+              return box.width > 0 && (box.right > width + 1 || box.left < -1);
             })
             .map((el) => `${el.tagName}.${String(el.getAttribute("class")).slice(0, 50)}`);
         });
@@ -78,17 +74,14 @@ for (const { name: pageName, path } of PAGES) {
           `hero-${key}.png`,
           SHOT,
         );
-        // With animations frozen the story panels would all show at once, so the stage is masked.
-        await expect(page.locator("#precision")).toHaveScreenshot(`precision-${key}.png`, {
-          ...SHOT,
-          mask: [page.locator(".precision-sticky")],
-        });
+        await expect(page.locator("#precision")).toHaveScreenshot(`precision-${key}.png`, SHOT);
+        await expect(page.locator("#whatsapp")).toHaveScreenshot(`whatsapp-${key}.png`, SHOT);
       });
     }
   }
 }
 
-test("hero on a phone: pill, headline, lead, full-width actions, reassurance, illustration", async ({
+test("hero on a phone: pill, headline, lead, full-width action, chips, illustration", async ({
   page,
 }) => {
   await open(page, "/", 320, "no-preference");
@@ -105,7 +98,7 @@ test("hero on a phone: pill, headline, lead, full-width actions, reassurance, il
     await top("#hero-title"),
     await top("#hero-title ~ p"),
     await top('a[href="/register"]'),
-    await top('a[href="#how-it-works"]'),
+    await top("#hero-title ~ ul"),
     await top(".hero-scene"),
   ];
   expect(order).toEqual([...order].sort((a, b) => a - b));
@@ -113,28 +106,42 @@ test("hero on a phone: pill, headline, lead, full-width actions, reassurance, il
   const cta = await page
     .locator('#main section[aria-labelledby="hero-title"] a[href="/register"]')
     .boundingBox();
-  const container = await page.locator('section[aria-labelledby="hero-title"] > div').boundingBox();
+  // The content column, not the decorative dot grid beside it.
+  const container = await page
+    .locator('section[aria-labelledby="hero-title"] > div:not([aria-hidden="true"])')
+    .boundingBox();
   expect(cta && container).toBeTruthy();
   if (cta && container) {
     expect(cta.height).toBeGreaterThanOrEqual(48);
     expect(cta.width).toBeGreaterThan(container.width - 40);
   }
-  const scene = await page.locator(".hero-scene").boundingBox();
-  expect(scene?.height ?? 0).toBeLessThanOrEqual(800 * 0.52 + 1);
 });
 
-test("precision section: sticky story with scroll motion, stacked cards without", async ({
+test("hero illustration keeps a fixed box while the chat plays in", async ({ page }) => {
+  await open(page, "/", 390, "no-preference");
+  const scene = page.locator(".hero-scene");
+  const before = await scene.boundingBox();
+  await page.waitForTimeout(1_500);
+  const after = await scene.boundingBox();
+  expect(before?.height).toBeCloseTo(after?.height ?? -1, 0);
+  // The only meaningful image of the scene is its one labelled role.
+  await expect(page.locator('.hero-scene[role="img"]')).toHaveCount(1);
+});
+
+test("journey section: a horizontal stepper on desktop, a vertical one on a phone", async ({
   page,
 }) => {
   await open(page, "/", 1440, "no-preference");
-  await expect(page.locator(".precision-sticky")).toBeVisible();
-  await expect(page.locator(".precision-inline-visual").first()).toBeHidden();
-
-  await open(page, "/", 1440, "reduce");
-  await expect(page.locator(".precision-sticky")).toBeHidden();
-  await expect(page.locator(".precision-inline-visual").first()).toBeVisible();
+  const rows = await page
+    .locator("#precision ol > li")
+    .evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().top)));
+  expect(rows).toHaveLength(4);
+  expect(new Set(rows).size, "all four stages share one row").toBe(1);
 
   await open(page, "/", 390, "no-preference");
-  await expect(page.locator(".precision-sticky")).toBeHidden();
-  await expect(page.locator(".precision-inline-visual")).toHaveCount(4);
+  const stack = await page
+    .locator("#precision ol > li")
+    .evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().top)));
+  expect(stack).toEqual([...stack].sort((a, b) => a - b));
+  expect(new Set(stack).size, "four stages stacked").toBe(4);
 });
