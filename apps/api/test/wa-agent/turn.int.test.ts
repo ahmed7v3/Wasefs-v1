@@ -141,11 +141,11 @@ describe("the runner", () => {
     const scenario = await Scenario.start(ctx, { runtime, model: () => "بعد الإعادة" });
     await scenario.inbound({ text: "سؤال" });
     const runner = runtime.runner(scenario);
-    // A thrown model error is a failure the policy answers (failed_replied), not a crash. A crash is the
-    // process dying where nothing catches it: here the fenced write that would queue the reply fails once.
-    vi.spyOn(scenario.services.outbound, "enqueueFenced").mockRejectedValueOnce(
-      new Error("process crashed"),
-    );
+    // A thrown error is a failure the policy answers (failed_replied), not a crash. A crash is the process
+    // dying where nothing catches it: here both the reply and the policy's failure text fail to queue.
+    vi.spyOn(scenario.services.outbound, "enqueueFenced")
+      .mockRejectedValueOnce(new Error("process crashed"))
+      .mockRejectedValueOnce(new Error("process crashed"));
 
     await expect(runner.run(scenario.conversationId)).rejects.toThrow();
     expect((await scenario.inboundRows()).every((row) => row.turnId === null)).toBe(true);
