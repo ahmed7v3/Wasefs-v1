@@ -1,5 +1,8 @@
 # Medications: database, recognition, search (spec, 2026-10-28)
 
+> **Recognition v2 (Phase 6):** `docs/RX-ENGINE.md` extends §4 below with retrieval expansion, evidence fusion,
+> calibrated tiers and the accuracy contract; the principles in §1 stand.
+
 One medication database and one recognition engine shared by the prescription tool, the website
 assistant and the WhatsApp agent. Admin-controlled. Accuracy first, then cost.
 

@@ -1,5 +1,11 @@
 # WhatsApp AI agent (sales, support, paid usage, voice)
 
+> **v2 (Phase 6, 2026-10-31):** the runtime (transport, turns, failures, sessions, commands, attachments, tools,
+> guards, delivery) is specified in `docs/WA-AGENT-RUNTIME.md`, which supersedes §1, §4 and §8a here where they
+> differ. Prescription reading: `docs/RX-ENGINE.md`; result report: `docs/RX-REPORT.md`; Companion:
+> `docs/WA-COMPANION.md`. The product rules below (identity, persona, honesty, discounts, takeover, voice,
+> anti-ban) stay in force.
+
 > **Owner request (2026-10-26):** turn the WhatsApp number that today only receives verification codes into an
 > AI agent that sells and supports in the owner's voice, takes subscriptions by bank transfer, reads
 > prescriptions and answers questions on WhatsApp against the linked account's balance, and can answer by voice
