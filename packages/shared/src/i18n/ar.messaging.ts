@@ -70,6 +70,93 @@ export const arMessaging = {
   "whatsapp.agent.rx.pages.one": "صفحة",
   "whatsapp.agent.rx.pages.two": "صفحتين",
   "whatsapp.agent.rx.pages.many": "{count} صفحات",
+  "whatsapp.agent.attachments.header": "المرفقات في المحادثة دي:",
+  "whatsapp.agent.attachments.hint":
+    "لتحليل روشتة استخدم analyze_prescription بالمجموعة (set) أو بأرقام المرفقات (handles). ولو العميل سأل عن صورة معينة استخدم view_attachment.",
+  "whatsapp.agent.attachments.kind.image": "صورة",
+  "whatsapp.agent.attachments.kind.pdf": "ملف PDF",
+  "whatsapp.agent.attachments.kind.document": "ملف",
+  "whatsapp.agent.attachments.age.now": "من أقل من دقيقة",
+  "whatsapp.agent.attachments.age.minutes": "من {n} دقيقة",
+  "whatsapp.agent.attachments.age.hours": "من {n} ساعة",
+  "whatsapp.agent.attachments.age.days": "من {n} يوم",
+  "whatsapp.agent.attachments.status.ready": "جاهزة",
+  "whatsapp.agent.attachments.status.failed": "فشل التحميل ({reason})",
+  "whatsapp.agent.attachments.status.expired": "اتمسحت",
+  "whatsapp.agent.attachments.status.analysed": "اتحللت (rx#{ref})",
+  "whatsapp.agent.attachments.status.in_progress": "بتتحلل (rx#{ref})",
+  "whatsapp.agent.attachments.set": "مجموعة {label}",
+  "whatsapp.agent.attachments.imageRow": "[صورة #{handle}]",
+  "whatsapp.agent.attachments.fileRow": "[ملف #{handle}]",
+  "whatsapp.agent.toolNote": "[أداة: {body}]",
+  "whatsapp.agent.tools.viewCaption": "[الصورة #{handle} زي ما طلبت تشوفها]",
+  "whatsapp.agent.tools.explain.not_linked":
+    "الخدمة دي لأصحاب الحسابات المؤكدة بس، والرقم ده مش مربوط بحساب.",
+  "whatsapp.agent.tools.explain.already_linked": "الرقم ده مربوط بحساب بالفعل.",
+  "whatsapp.agent.tools.explain.invalid_arguments":
+    "الطلب مكانش مكتمل أو شكله غلط، جرّب تاني بالبيانات الصح.",
+  "whatsapp.agent.tools.explain.tool_failed":
+    "حصلت مشكلة مؤقتة في الأداة ومحصلش أي تغيير، ممكن نحاول تاني بعد شوية.",
+  "whatsapp.agent.tools.explain.stale_turn":
+    "المحادثة اتحدّثت برسالة أحدث، فالطلب ده اتلغى من غير أي تغيير.",
+  "whatsapp.agent.tools.explain.no_image":
+    "مفيش صورة روشتة جاهزة للتحليل. اطلب من العميل يبعت صورة الروشتة.",
+  "whatsapp.agent.tools.explain.still_processing": "الملف لسه بيتجهز. جرّب تاني بعد لحظات.",
+  "whatsapp.agent.tools.explain.unreadable_image":
+    "الصورة مش واضحة أو الملف تالف. اطلب من العميل يبعت صورة أوضح.",
+  "whatsapp.agent.tools.explain.already_analysed":
+    "الروشتة دي اتحللت قبل كده، النتيجة اتبعتت في رسالة فوق.",
+  "whatsapp.agent.tools.explain.insufficient_credits":
+    "رصيد العميل مش كفاية للعملية دي. اعرض عليه يشحن رصيده أو يشترك في باقة.",
+  "whatsapp.agent.tools.explain.quota_reached": "العميل وصل للحد المسموح بيه في الفترة دي.",
+  "whatsapp.agent.tools.explain.plan_feature": "الخدمة دي مش متاحة في باقة العميل الحالية.",
+  "whatsapp.agent.tools.explain.too_many_pages": "عدد الصفحات أكتر من المسموح للروشتة الواحدة.",
+  "whatsapp.agent.tools.explain.account_unavailable": "حساب العميل مش متاح حاليًا لتنفيذ الطلب ده.",
+  "whatsapp.agent.tools.explain.busy": "الخدمة مشغولة دلوقتي. جرّب تاني بعد شوية.",
+  "whatsapp.agent.tools.explain.unavailable": "الخدمة مش متاحة مؤقتًا. جرّب تاني بعد شوية.",
+  "whatsapp.agent.tools.explain.unknown_handle":
+    "رقم المرفق أو المجموعة دي مش موجودة في المحادثة الحالية. راجع قائمة المرفقات.",
+  "whatsapp.agent.tools.explain.not_ready":
+    "المرفق ده مش جاهز: لسه بيتجهز أو فشل تحميله أو اتمسح. اطلب من العميل يبعته تاني لو لزم.",
+  "whatsapp.agent.tools.explain.unknown_key": "الملف المطلوب مش موجود في المكتبة.",
+  "whatsapp.agent.tools.explain.limit_reached": "وصلنا للحد المسموح في الرسالة أو الفترة دي.",
+  "whatsapp.agent.tools.explain.media_unavailable": "الملف ده مش متاح للإرسال حاليًا.",
+  "whatsapp.agent.tools.explain.disabled": "العروض متوقفة حاليًا.",
+  "whatsapp.agent.tools.explain.plan_not_found": "الباقة المطلوبة مش موجودة أو مش متاحة.",
+  "whatsapp.agent.tools.explain.plan_not_allowed": "مفيش عرض خصم على الباقة دي.",
+  "whatsapp.agent.tools.explain.not_new_customer": "عرض الخصم ده للعملاء الجدد بس.",
+  "whatsapp.agent.tools.explain.too_early": "لسه بدري على عرض الخصم، حاول لاحقًا.",
+  "whatsapp.agent.tools.explain.price_unavailable": "السعر مش متاح دلوقتي. جرّب تاني بعد شوية.",
+  "whatsapp.agent.tools.explain.no_better_price": "الخصم مش هيوفّر على العميل عن السعر الحالي.",
+  "whatsapp.agent.tools.explain.lifetime_limit": "العميل استخدم عروض الخصم المتاحة له قبل كده.",
+  "whatsapp.agent.tools.explain.daily_cap": "وصلنا للحد اليومي لعروض الخصم.",
+  "whatsapp.agent.tools.explain.no_bank_method": "التحويل البنكي مش متاح حاليًا.",
+  "whatsapp.agent.tools.explain.coupon_unavailable": "كود الخصم مش صالح أو منتهي.",
+  "whatsapp.agent.tools.explain.quote_expired": "السعر المعروض انتهى. اطلب العرض من جديد.",
+  "whatsapp.agent.tools.explain.order_failed": "معرفناش نفتح الطلب. جرّب تاني بعد شوية.",
+  "whatsapp.agent.tools.explain.no_receipt_found":
+    "مفيش صورة إيصال جاهزة. اطلب من العميل يبعت صورة الإيصال.",
+  "whatsapp.agent.tools.explain.no_pending_payment": "مفيش طلب مستني الدفع.",
+  "whatsapp.agent.tools.explain.unreadable_receipt": "صورة الإيصال مش واضحة. اطلب صورة أوضح.",
+  "whatsapp.agent.tools.explain.proof_limit": "وصلنا للحد الأقصى لعدد الإيصالات على الطلب ده.",
+  "whatsapp.agent.tools.explain.proof_not_allowed": "الطلب ده مش بيقبل إيصالات دلوقتي.",
+  "whatsapp.agent.tools.explain.rate_limited": "محاولات كتير في وقت قصير. استنى شوية وجرّب تاني.",
+  "whatsapp.agent.tools.explain.attach_failed": "معرفناش نرفق الإيصال. جرّب تاني بعد شوية.",
+  "whatsapp.agent.tools.explain.not_deliverable":
+    "معرفناش نوصّل الرد الطبي دلوقتي ومتخصمش حاجة. جرّب تاني بعد شوية.",
+  "whatsapp.agent.tools.explain.needs_confirmation": "لازم العميل يوافق صراحةً الأول.",
+  "whatsapp.agent.tools.explain.phone_unknown":
+    "مش قادرين نعرف رقم العميل، فالتسجيل يتم من الموقع.",
+  "whatsapp.agent.tools.explain.signup_closed": "التسجيل متوقف مؤقتًا.",
+  "whatsapp.agent.tools.explain.exists": "الرقم ده عنده حساب بالفعل. اعرض عليه رابط دخول.",
+  "whatsapp.agent.tools.explain.inactive":
+    "الدخول بالرابط مش متاح للحساب ده. اطلب منه الدخول من الموقع.",
+  "whatsapp.agent.tools.explain.two_factor":
+    "الدخول بالرابط مش متاح للحساب ده. اطلب منه الدخول من الموقع.",
+  "whatsapp.agent.tools.explain.privileged":
+    "الدخول بالرابط مش متاح للحساب ده. اطلب منه الدخول من الموقع.",
+  "whatsapp.agent.tools.explain.view_limit": "ينفع تشوف صورتين بس في الرد الواحد.",
+  "whatsapp.agent.tools.explain.view_unavailable": "مش قادر أعرض المرفق ده دلوقتي.",
   "document.generatedOn": "تاريخ الإنشاء: {date}",
   "document.page": "صفحة",
   "document.disclaimerTitle": "تنبيه طبي",

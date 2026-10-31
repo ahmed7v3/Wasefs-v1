@@ -11,6 +11,7 @@ import { FilesService } from "../../files/files.service.js";
 import { RxService, type PreparedRx, type RxCacheHit } from "../../rx/rx.service.js";
 import { StaleFenceError } from "../agent/tools/tool.js";
 import { usageReason } from "../commerce/usage-errors.js";
+import { formatHandle, rxRefOf } from "../conversation/attachment-handle.js";
 
 import { AgentRxRepo, RxAlreadyAnalysedError } from "./agent-rx.repo.js";
 
@@ -70,17 +71,28 @@ export class RxStartService {
     call: AgentCall,
     effect: ToolEffectInfo,
     base: { user: AuthenticatedUser; creditsPerPage: number; maxPages: number },
+    selected?: { mediaIds: readonly string[]; handles: readonly number[] },
   ): Promise<AgentToolResult> {
     const { user, creditsPerPage, maxPages } = base;
-    const newest = await this.rxRepo.newestUnusedMedia(
-      call.conversationId,
-      ["image"],
-      new Date(call.now.getTime() - IMAGE_WINDOW_MS),
-      "rxId",
-      maxPages,
-    );
-    if (newest.length === 0) return declined("no_image");
-    const images = [...newest].reverse();
+    // v2 hands over the pictures it validated by session and handle (no time window); without them the
+    // start picks the newest unused pictures of the last 15 minutes, as v1 does.
+    const images =
+      selected === undefined
+        ? [
+            ...(await this.rxRepo.newestUnusedMedia(
+              call.conversationId,
+              ["image"],
+              new Date(call.now.getTime() - IMAGE_WINDOW_MS),
+              "rxId",
+              maxPages,
+            )),
+          ].reverse()
+        : await this.rxRepo.mediaByIds(call.conversationId, selected.mediaIds);
+    if (images.length === 0) return declined("no_image");
+    // A picture that lost its file between the check and now cannot be read.
+    if (selected !== undefined && images.length !== selected.mediaIds.length) {
+      return declined("not_ready");
+    }
     const mediaIds = images.map((image) => image.id);
     const viewer = { id: call.userId, orgIds: [] };
 
@@ -132,6 +144,10 @@ export class RxStartService {
       pages: fileIds.length,
       credits: fileIds.length * creditsPerPage,
       etaSeconds: ETA_SECONDS,
+      // v2 tool memory: the analysis the customer will be told about and the handles it covers.
+      ...(selected === undefined
+        ? {}
+        : { rxRef: rxRefOf(id), handles: selected.handles.map(formatHandle) }),
     };
     let ready: PreparedRx | undefined;
     let committed: { hit: RxCacheHit | null; reservationId: string | null } | undefined;

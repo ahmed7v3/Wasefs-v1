@@ -10,6 +10,7 @@ import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 
 import { DB, type DbHandle } from "../../common/database.js";
 
+import type { HistoryRow } from "../agent/agent-prompt.js";
 import type { WaSessionEndReason } from "@wasfa/shared/schemas/wa-agent";
 
 type Tx = Parameters<Parameters<DbHandle["db"]["transaction"]>[0]>[0];
@@ -25,6 +26,9 @@ const rowColumns = {
   mediaBytes: waMessages.mediaBytes,
   createdAt: waMessages.createdAt,
   answered: sql<boolean>`${waMessages.meta} ? 'turn'`,
+  // Media handle (`#3`) and the tool notes of a reply (docs/WA-AGENT-RUNTIME.md §18.5).
+  handle: waMessages.handle,
+  toolNotes: sql<unknown>`${waMessages.meta}->'toolNotes'`,
 };
 
 /** What a turn needs of the chat's current session. */
@@ -215,7 +219,7 @@ export class SessionRepo {
     conversationId: string,
     session: Pick<SessionContext, "id" | "startedAt">,
     limit: number,
-  ): Promise<TurnMessage[]> {
+  ): Promise<HistoryRow[]> {
     const rows = await this.handle.db
       .select(rowColumns)
       .from(waMessages)

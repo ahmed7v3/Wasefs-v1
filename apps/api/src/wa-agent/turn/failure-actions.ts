@@ -19,7 +19,7 @@ import { WaOutboundService } from "../transport/outbound.service.js";
 import { WA_AGENT_ROUND } from "../wa-agent.tokens.js";
 
 import { type AgentRound } from "./agent-round.js";
-import { fallbackOutcome, type Carry } from "./carry.js";
+import { carryNotes, fallbackOutcome, type Carry } from "./carry.js";
 import { OWNER_REASONS } from "./failure-policy.js";
 import { fallbackTexts } from "./fallback-replies.js";
 import { StaleFenceError } from "./lock.js";
@@ -144,6 +144,7 @@ export class FailureActions {
       costUsdMicros: carry.costUsdMicros,
       trace: [{ code: "failure", name: cls }, { code: signal.kind }],
       steps: carry.steps,
+      toolNotes: carryNotes(carry),
       causeClass: cls,
       ...extra,
     };

@@ -31,6 +31,8 @@ import { AgentDiscountService } from "./commerce/agent-discount.service.js";
 import { AgentMedicalService } from "./commerce/agent-medical.service.js";
 import { AgentSubscriptionService } from "./commerce/agent-subscription.service.js";
 import { WaAgentEventsConsumer } from "./commerce/wa-agent-events.consumer.js";
+import { AttachmentsRepo } from "./conversation/attachments.repo.js";
+import { AttachmentsService } from "./conversation/attachments.service.js";
 import { WaAgentRepo } from "./conversation/conversation.repo.js";
 import { SessionRepo } from "./conversation/session.repo.js";
 import { SessionService } from "./conversation/session.service.js";
@@ -98,6 +100,8 @@ const RX_RECONCILE_EVERY_MS = 30_000;
     WaAgentRepo,
     SessionRepo,
     SessionService,
+    AttachmentsRepo,
+    AttachmentsService,
     WaAgentStateService,
     WaOutboundService,
     AgentAccountService,

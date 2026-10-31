@@ -37,6 +37,7 @@ import { SummaryService } from "../../../src/wa-agent/agent/summary.service.js";
 import { WaAgentToolDeps } from "../../../src/wa-agent/agent/tool-deps.js";
 import { WaAgentCommerceRepo } from "../../../src/wa-agent/commerce/agent-commerce.repo.js";
 import { WaAgentEventsConsumer } from "../../../src/wa-agent/commerce/wa-agent-events.consumer.js";
+import { AttachmentsService } from "../../../src/wa-agent/conversation/attachments.service.js";
 import {
   WaAgentRepo,
   type AssignSession,
@@ -471,6 +472,7 @@ export class ScenarioServices {
       this.settings,
       ctx.redis,
       silentLogger,
+      ctx.app.get(AttachmentsService),
     );
     // Only the reading is replaced: the real one would copy the picture from the bucket.
     const deps = Object.create(real, {
@@ -495,6 +497,7 @@ export class ScenarioServices {
       new MediaInputService(this.repo, fakeStorage, voice),
       new SummaryService(this.repo, ctx.redis, ai.service, ctx.app.get(SessionRepo)),
       ctx.app.get(SessionService),
+      ctx.app.get(AttachmentsService),
     );
     const service = new WaAgentTurnService(
       this.repo,

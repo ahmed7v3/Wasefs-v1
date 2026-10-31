@@ -2,6 +2,7 @@ import { t } from "@wasfa/shared/i18n";
 
 import { toWhatsappText, splitReply } from "./agent-output.js";
 
+import type { HistoryRow } from "./agent-prompt.js";
 import type { RoundOutcome, StepTrace } from "../turn/agent-round.js";
 import type { StepRetry } from "../turn/retry-ladder.js";
 import type { ToolCallRecord } from "./tools/index.js";
@@ -47,8 +48,8 @@ export interface ComposeInput {
   conversation: WaConversation;
   /** The customer messages this round answers. */
   pending: readonly TurnMessage[];
-  /** The recent transcript, `pending` included. */
-  rows: readonly TurnMessage[];
+  /** The recent transcript, `pending` included (v2 rows also carry media handles and tool notes). */
+  rows: readonly HistoryRow[];
   config: WaAgentSettings;
   now: Date;
   /** Aborts the model calls early (v2: the conversation lock was lost). */
@@ -65,6 +66,8 @@ export interface ComposeInput {
   reaskFrom?: NormalizedMessage[] | undefined;
   /** v2: a line for the system context when the customer came back after a break. */
   returningNote?: string;
+  /** v2: the session this round reads; attachment handles and sets are scoped to it. */
+  sessionId?: string;
 }
 
 /**

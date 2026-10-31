@@ -2,7 +2,9 @@ import { buildSystemPrompt, firstNameOf } from "./agent-prompt.js";
 
 import type { WaAgentToolDeps } from "./tool-deps.js";
 import type { AgentToolContext } from "./tools/index.js";
+import type { AttachmentViewPort } from "./tools/tool.js";
 import type { Market } from "../../catalog/market.js";
+import type { SettingsService } from "../../settings/settings.service.js";
 import type { TurnUser, WaConversation } from "@wasfa/db";
 import type { WaAgentSettings } from "@wasfa/shared/settings";
 
@@ -10,6 +12,17 @@ import type { WaAgentSettings } from "@wasfa/shared/settings";
 export interface ToolSwitches {
   medications: boolean;
   accountSignup: boolean;
+}
+
+/** The optional tool groups the admin switches turn on for this round. */
+export async function toolSwitches(settings: Pick<SettingsService, "get">): Promise<ToolSwitches> {
+  const medications = await settings.get("medications");
+  // Account creation from the chat needs both switches (docs/WA-SIGNUP.md section 3).
+  const auth = await settings.get("auth");
+  return {
+    medications: medications.enabled && medications.waTools,
+    accountSignup: auth.whatsappLogin && auth.whatsappAgentSignup,
+  };
 }
 
 /** The round's system prompt: persona and language from the settings, the chat's summary, the market. */
@@ -22,6 +35,7 @@ export function roundSystemPrompt(input: {
   market: Market;
   conversation: WaConversation;
   returningNote?: string | undefined;
+  attachments?: string | null;
 }): string {
   const { switches, config, user, market } = input;
   return buildSystemPrompt({
@@ -35,6 +49,7 @@ export function roundSystemPrompt(input: {
     currency: market.currency,
     summary: input.conversation.summary,
     returningNote: input.returningNote ?? null,
+    attachments: input.attachments ?? null,
   });
 }
 
@@ -48,6 +63,8 @@ export function roundToolContext(input: {
   deps: WaAgentToolDeps;
   turnId?: string;
   fence?: number;
+  sessionId?: string | undefined;
+  views?: AttachmentViewPort | undefined;
 }): AgentToolContext {
   const { conversation, user } = input;
   return {
@@ -62,6 +79,8 @@ export function roundToolContext(input: {
     handoffReason: null,
     ...(input.turnId === undefined ? {} : { turnId: input.turnId }),
     ...(input.fence === undefined ? {} : { fence: input.fence }),
+    ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
+    ...(input.views === undefined ? {} : { views: input.views }),
   };
 }
 

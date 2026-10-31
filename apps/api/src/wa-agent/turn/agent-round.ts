@@ -108,6 +108,7 @@ export const READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
   "get_catalog",
   "search_medications",
   "medication_alternatives",
+  "view_attachment",
 ]);
 
 export function effectsRanOf(records: readonly ToolRecord[]): boolean {

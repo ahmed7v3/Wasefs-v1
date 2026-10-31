@@ -8,7 +8,8 @@ import {
 
 import { SessionRepo, type SessionContext } from "./session.repo.js";
 
-import type { InsertedInbound, TurnMessage, WaConversation } from "@wasfa/db";
+import type { HistoryRow } from "../agent/agent-prompt.js";
+import type { InsertedInbound, WaConversation } from "@wasfa/db";
 
 type Tx = Parameters<Parameters<SessionRepo["transaction"]>[0]>[0];
 
@@ -110,7 +111,7 @@ export class SessionService {
     conversationId: string,
     session: Pick<SessionContext, "id" | "startedAt">,
     limit: number,
-  ): Promise<TurnMessage[]> {
+  ): Promise<HistoryRow[]> {
     return this.repo.history(conversationId, session, limit);
   }
 

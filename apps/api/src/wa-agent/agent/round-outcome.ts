@@ -1,6 +1,9 @@
+<<<<<<< HEAD
 import { plainForSpeech } from "@wasfa/shared/wa-agent/compose";
 import { toWhatsApp } from "@wasfa/shared/wa-agent/format";
 
+=======
+>>>>>>> e9d8785 (feat(wa-agent): attachment registry, view_attachment, analyze by set or handles, tool memory and explain texts (WP2))
 import {
   effectsRanOf,
   type RoundOutcome,

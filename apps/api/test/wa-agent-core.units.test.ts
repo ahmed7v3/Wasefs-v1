@@ -333,7 +333,7 @@ describe("tools", () => {
     const records: ToolCallRecord[] = [];
     const ctx = context();
     const { handlers } = bindTools(toolsFor(true), ctx, records);
-    expect(await handlers["account_status"]?.({})).toEqual({ error: "not_linked" });
+    expect(await handlers["account_status"]?.({})).toMatchObject({ error: "not_linked" });
     expect(records).toEqual([{ name: "account_status", ok: false, code: "not_linked" }]);
   });
 
@@ -413,7 +413,7 @@ describe("tools", () => {
     expect(await handlers["handoff_to_owner"]?.({ reason: "x".repeat(201) })).toEqual({
       error: "invalid_arguments",
     });
-    expect(await handlers["send_media"]?.({})).toEqual({ error: "invalid_arguments" });
+    expect(await handlers["send_media"]?.({})).toMatchObject({ error: "invalid_arguments" });
     expect(records.every((record) => !record.ok)).toBe(true);
   });
 });

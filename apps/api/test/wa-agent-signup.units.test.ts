@@ -117,7 +117,7 @@ describe("create_account", () => {
 
   it("refuses without confirmation, and creates nothing", async () => {
     const h = toolSetup();
-    expect(await h.handlers["create_account"]?.({ confirmed: false })).toEqual({
+    expect(await h.handlers["create_account"]?.({ confirmed: false })).toMatchObject({
       created: false,
       reason: "needs_confirmation",
     });
@@ -126,7 +126,7 @@ describe("create_account", () => {
 
   it("says phone_unknown when WhatsApp did not reveal the number", async () => {
     const h = toolSetup({ phone: null });
-    expect(await h.handlers["create_account"]?.({ confirmed: true })).toEqual({
+    expect(await h.handlers["create_account"]?.({ confirmed: true })).toMatchObject({
       created: false,
       reason: "phone_unknown",
     });
@@ -140,7 +140,7 @@ describe("create_account", () => {
 
   it("validates its arguments (name up to 60, confirmed required)", async () => {
     const h = toolSetup();
-    expect(await h.handlers["create_account"]?.({})).toEqual({ error: "invalid_arguments" });
+    expect(await h.handlers["create_account"]?.({})).toMatchObject({ error: "invalid_arguments" });
     expect(await h.handlers["create_account"]?.({ confirmed: true, name: "x".repeat(61) })).toEqual(
       {
         error: "invalid_arguments",

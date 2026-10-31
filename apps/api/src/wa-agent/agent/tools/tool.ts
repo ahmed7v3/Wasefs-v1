@@ -80,6 +80,10 @@ export interface AgentCall {
   now: Date;
   /** Set for a write tool of a v2 turn: the effect the call belongs to. */
   effect?: ToolEffectInfo;
+  /** v2: the conversation's current session; the files the call may use are those of this session. */
+  sessionId?: string;
+  /** v2 `analyze_prescription`: what the model named (a set or handles); the server validates it. */
+  selection?: { set?: string | undefined; handles?: readonly (string | number)[] | undefined };
 }
 
 /** The services the tools reach, as narrow ports so a test can fake them. */
@@ -128,7 +132,12 @@ export interface AgentToolDeps {
 }
 
 /** Admin switches that gate a whole tool (checked when the turn's tools are chosen). */
-export type AgentToolFeature = "medications" | "accountSignup";
+export type AgentToolFeature = "medications" | "accountSignup" | "attachments";
+
+/** What `view_attachment` needs of the turn: ask to see a picture by handle (the loop's pixels path is in `attachment-views.ts`). */
+export interface AttachmentViewPort {
+  request: (handle: string | number) => Promise<AgentToolResult>;
+}
 
 /** One turn's state, bound to one conversation. Tools read the account from here, never from the model. */
 export interface AgentToolContext {
@@ -147,6 +156,10 @@ export interface AgentToolContext {
   turnId?: string;
   /** The conversation fence this turn holds (section 17.4); effects refuse to run once it moved on. */
   fence?: number;
+  /** v2: the conversation's current session (attachment handles and sets are scoped to it). */
+  sessionId?: string;
+  /** v2: `view_attachment`'s window onto the session's pictures; absent in v1. */
+  views?: AttachmentViewPort;
   /** Set by `handoff_to_owner`: the turn pauses the chat once its last reply is delivered. */
   handoffReason: string | null;
 }
@@ -217,6 +230,7 @@ export function callOf(ctx: AgentToolContext, effect?: ToolEffectInfo): AgentCal
   if (ctx.userId === null) return null;
   return {
     ...(effect === undefined ? {} : { effect }),
+    ...(ctx.sessionId === undefined ? {} : { sessionId: ctx.sessionId }),
     conversationId: ctx.conversationId,
     userId: ctx.userId,
     market: ctx.market,

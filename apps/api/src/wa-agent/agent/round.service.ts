@@ -9,6 +9,7 @@ import { AiRuntimeService } from "../../ai-runtime/ai-runtime.service.js";
 import { REDIS } from "../../common/redis.js";
 import { PlansService } from "../../plans/plans.service.js";
 import { SettingsService } from "../../settings/settings.service.js";
+import { AttachmentsService } from "../conversation/attachments.service.js";
 import { WaAgentRepo } from "../conversation/conversation.repo.js";
 import { SessionService } from "../conversation/session.service.js";
 import { WaAgentStateService } from "../conversation/state.service.js";
@@ -17,8 +18,8 @@ import { WaAgentVoiceService } from "../voice/voice.service.js";
 
 import { phoneMarket } from "./agent-market.js";
 import { toWhatsappText } from "./agent-output.js";
-import { buildHistory } from "./agent-prompt.js";
-import { roundSystemPrompt, roundToolContext, roundTurnSignal } from "./context.js";
+import { withViewedImages } from "./attachment-views.js";
+import { roundToolContext, roundTurnSignal, toolSwitches } from "./context.js";
 import { WaAgentHandoffService, handoffFlagKey } from "./handoff.service.js";
 import { MediaInputService } from "./media-input.js";
 import { callWithRetry, type StepRun } from "./model-step.js";
@@ -32,6 +33,7 @@ import {
   type TurnTiming,
 } from "./round-helpers.js";
 import { roundOutcome, speakReply } from "./round-outcome.js";
+import { roundPrompt } from "./round-prompt.js";
 import { inSession, roundRows } from "./session-context.js";
 import { SummaryService } from "./summary.service.js";
 import { WaAgentToolDeps } from "./tool-deps.js";
@@ -77,6 +79,7 @@ export class AgentRoundService implements AgentRound {
     private readonly media: MediaInputService,
     private readonly summary: SummaryService,
     private readonly sessions?: SessionService,
+    private readonly attachments?: AttachmentsService,
   ) {
     this.logger.setContext("WaAgentTurn");
   }
@@ -159,7 +162,7 @@ export class AgentRoundService implements AgentRound {
    * for the cases v1 answers with a polite line. Queues nothing and marks nothing.
    */
   async composeReply(input: ComposeInput): Promise<RoundOutcome | null> {
-    const { conversation, pending, rows, config, now, limits } = input;
+    const { conversation, pending, config, now, limits } = input;
 
     const admitted = await admitRound(
       { repo: this.repo, redis: this.redis, plans: this.plans, ai: this.ai },
@@ -174,29 +177,22 @@ export class AgentRoundService implements AgentRound {
       requestId,
     );
     const market = phoneMarket(conversation.phone, await this.settings.get("currency"));
-    const medications = await this.settings.get("medications");
-    const medicationTools = medications.enabled && medications.waTools;
-    // Account creation from the chat needs both switches (docs/WA-SIGNUP.md section 3).
-    const auth = await this.settings.get("auth");
-    const accountTools = auth.whatsappLogin && auth.whatsappAgentSignup;
-    const system = roundSystemPrompt({
-      switches: { medications: medicationTools, accountSignup: accountTools },
-      webOrigin: this.toolDeps.webOrigin ?? "",
-      config,
-      now,
-      user,
-      market,
-      conversation,
-      returningNote: input.returningNote,
-    });
+    const switches = await toolSwitches(this.settings);
     // A re-ask continues the conversation the first pass built (its tool results included).
-    const messages =
-      input.reaskFrom !== undefined
-        ? [...input.reaskFrom]
-        : buildHistory(
-            await this.media.transcribePending(rows, pending, config),
-            await this.media.loadImages(pending),
-          );
+    const { system, messages, views } = await roundPrompt(
+      { media: this.media, attachments: this.attachments },
+      input,
+      {
+        switches,
+        webOrigin: this.toolDeps.webOrigin ?? "",
+        config,
+        now,
+        user,
+        market,
+        conversation,
+        returningNote: input.returningNote,
+      },
+    );
 
     const records: ToolCallRecord[] = [];
     const outputs: ToolOutput[] = [];
@@ -210,9 +206,11 @@ export class AgentRoundService implements AgentRound {
       deps: this.toolDeps,
       ...(input.turnId === undefined ? {} : { turnId: input.turnId }),
       ...(input.fence === undefined ? {} : { fence: input.fence }),
+      sessionId: input.sessionId,
+      views,
     });
     const { definitions, handlers } = bindTools(
-      toolsFor(user !== null, { medications: medicationTools, accountSignup: accountTools }),
+      toolsFor(user !== null, { ...switches, attachments: views !== undefined }),
       ctx,
       records,
       outputs,
@@ -238,7 +236,8 @@ export class AgentRoundService implements AgentRound {
         handlers,
         maxSteps: MAX_STEPS,
         maxToolCallsPerStep: MAX_TOOL_CALLS_PER_STEP,
-        call: (step) => callWithRetry(stepRun, step),
+        // Pictures the model asked to see (`view_attachment`) join the next step.
+        call: (step) => callWithRetry(stepRun, withViewedImages(step, views)),
       });
     } catch (error) {
       throw await refusalAfterLoop({ redis: this.redis, logger: this.logger }, error, {
