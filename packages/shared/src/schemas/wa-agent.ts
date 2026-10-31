@@ -202,6 +202,8 @@ export const waAgentOutEntrySchema = z
     messageIds: z.array(z.uuid()).min(1).max(WA_AGENT_HARD_MAX_PARTS),
     jid: jidSchema,
     parts: waAgentOutboundSchema,
+    // A result the customer paid for: the bridge sends it although the owner paused the chat (never a block).
+    paidWork: z.boolean().optional(),
   })
   .refine((entry) => entry.messageIds.length === entry.parts.length, {
     message: "messageIds and parts must have the same length",
@@ -249,13 +251,30 @@ export const WA_AGENT_RX_TTL_SECONDS = 24 * 60 * 60;
 /** A customer message newer than this lets the agent follow up (the bridge's reply window). */
 export const WA_AGENT_FOLLOW_UP_WINDOW_MS = 24 * 60 * 60 * 1_000;
 
+/** Why a prescription reading ended without a result (docs/WA-AGENT-RUNTIME.md §9.2); picks the customer's text. */
+export const WA_RX_FAILURE_REASONS = [
+  "unreadable_image",
+  "not_a_prescription",
+  "too_many_pages",
+  "insufficient_credits",
+  "model_unavailable",
+  "internal",
+] as const;
+export type WaRxFailureReason = (typeof WA_RX_FAILURE_REASONS)[number];
+
 export const waAgentEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("order_paid"), userId: z.uuid(), orderId: z.uuid() }),
   z.object({ type: z.literal("payment_rejected"), userId: z.uuid(), orderId: z.uuid() }),
   z.object({ type: z.literal("payment_resubmit"), userId: z.uuid(), orderId: z.uuid() }),
   // `pdfKey`: the PDF of the result the worker rendered (absent when rendering failed or is off).
   z.object({ type: z.literal("rx_done"), rxId: z.uuid(), pdfKey: waDocumentKeySchema.optional() }),
-  z.object({ type: z.literal("rx_failed"), rxId: z.uuid() }),
+  // `reason` and `creditsReturned` come from what the worker did (optional: events queued before the upgrade have none).
+  z.object({
+    type: z.literal("rx_failed"),
+    rxId: z.uuid(),
+    reason: z.enum(WA_RX_FAILURE_REASONS).optional(),
+    creditsReturned: z.boolean().optional(),
+  }),
   // A file the agent asked for (`create_document`) is stored and ready to send, or could not be made.
   z.object({
     type: z.literal("document_ready"),

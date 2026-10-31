@@ -9,6 +9,7 @@ import {
   plans,
   rxAnalyses,
   rxPages,
+  waOutbox,
   type Database,
   type RxAnalysis,
   type WalletOwner,
@@ -186,4 +187,14 @@ export async function setUsageCredits(
   credits: number,
 ): Promise<void> {
   await db.update(aiUsage).set({ creditsCharged: credits }).where(eq(aiUsage.id, usageId));
+}
+
+/** True when the WhatsApp agent registered a result route (`wa_outbox`) for this analysis. */
+export async function hasOutboxRoute(db: Database, analysisId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: waOutbox.id })
+    .from(waOutbox)
+    .where(and(eq(waOutbox.kind, "rx_result"), eq(waOutbox.refId, analysisId)))
+    .limit(1);
+  return row !== undefined;
 }

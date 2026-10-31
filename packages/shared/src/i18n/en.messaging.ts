@@ -48,6 +48,21 @@ export const enMessaging: Partial<Record<keyof typeof arMessaging, string>> = {
   "whatsapp.agent.event.rxDone.link": "The full result and details of each medicine:",
   "whatsapp.agent.event.rxFailed":
     "We could not read the prescription, and the credits that were held have been returned to your account. Try a clearer picture with better light and send it again.",
+  "whatsapp.agent.event.rxFailed.unreadable_image":
+    "The picture is not clear enough for me to read. Please take it in good light, from above, and send it again.",
+  "whatsapp.agent.event.rxFailed.not_a_prescription":
+    "That does not look like a prescription. Please send a picture of the prescription itself.",
+  "whatsapp.agent.event.rxFailed.too_many_pages":
+    "The prescription has more pages than allowed. Please send it in smaller parts.",
+  "whatsapp.agent.event.rxFailed.insufficient_credits":
+    "Your balance is not enough to read this prescription. Top up or pick a plan on the website, then send it again.",
+  "whatsapp.agent.event.rxFailed.model_unavailable":
+    "The service is busy and we could not read the prescription. Please send it again in a little while.",
+  "whatsapp.agent.event.rxFailed.internal":
+    "Something went wrong on our side and we could not read the prescription. Please send it again in a little while.",
+  "whatsapp.agent.event.rxFailed.creditsReturned": "Your credits have been returned.",
+  "whatsapp.agent.event.rxFailed.creditsNotReturned":
+    "If any credit was deducted, it will be returned automatically.",
   "whatsapp.agent.event.documentFailed":
     "We could not create the file right now. Please ask for it again in a little while.",
   "whatsapp.agent.media.too_large": "That file is a bit too big. Please send a smaller one.",
