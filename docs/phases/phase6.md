@@ -637,6 +637,13 @@ rows; main reviews screens at 360 px and desktop.
 5. Dispense check price: 1 light credit, free for barcode-only?
 6. Auto new session after 12 h idle — keep, or only on «جديد»?
 7. Should paid results be delivered during an owner takeover pause (recommended yes, Decision 77)?
+8. (WP1.7) `ask_medical` is not exactly-once across a crash. Its chat credit hold uses a fresh
+   `chat:<assistantMessageId>:reserve` key, not one derived from the effect key, and the outbound send has no
+   idempotency key. A crash after the answer is queued and before the effect is marked done means the retry
+   answers again and charges again. Closing this means deriving the chat reservation key from the effect key
+   (money logic outside the rx start), so it was not changed. Options: (a) derive the key (recommended, small,
+   needs your yes); (b) treat a pending `ask_medical` effect as "do not re-run", so the worst case is no medical
+   answer plus the fallback text; (c) accept the window. Until decided: (c).
 
 ---
 
