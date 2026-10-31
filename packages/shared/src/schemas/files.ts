@@ -26,6 +26,12 @@ export function isHeicMime(mime: string): boolean {
   return (HEIC_MIMES as readonly string[]).includes(mime);
 }
 
+/**
+ * What a server-side import (WhatsApp media already in the bucket) may hand to the worker: the
+ * browser types plus HEIC/HEIF, which the worker decodes. Browser uploads stay on `UploadMime`.
+ */
+export type ImportMime = UploadMime | "image/heic" | "image/heif";
+
 /** 10 MB: the limit users see. The table allows 15 MB so the limit can be raised without a migration. */
 export const UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 /** Presigned PUT lifetime. */
