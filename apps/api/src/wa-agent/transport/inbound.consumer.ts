@@ -3,18 +3,18 @@ import { WA_AGENT_IN_STREAM } from "@wasfa/shared/schemas/phone";
 import { waAgentInboundSchema } from "@wasfa/shared/schemas/wa-agent";
 import { PinoLogger } from "nestjs-pino";
 
-import { API_ENV } from "../config/config.module.js";
-import { SettingsService } from "../settings/settings.service.js";
+import { API_ENV } from "../../config/config.module.js";
+import { SettingsService } from "../../settings/settings.service.js";
+import { WaAgentRepo } from "../conversation/conversation.repo.js";
+import { WaAgentStateService } from "../conversation/state.service.js";
+import { OutboxDeliverer } from "../outbox/deliverer.js";
+import { TurnQueue } from "../turn/turn.queue.js";
+import { TurnRepo } from "../turn/turn.repo.js";
+import { WA_AGENT_TURN_HANDLER, type WaAgentTurnHandler } from "../wa-agent.tokens.js";
 
-import { OutboxDeliverer } from "./outbox/deliverer.js";
 import { StreamConsumer } from "./stream-consumer.js";
-import { TurnQueue } from "./turn/turn.queue.js";
-import { TurnRepo } from "./turn/turn.repo.js";
-import { WaAgentStateService } from "./wa-agent-state.service.js";
-import { WaAgentRepo } from "./wa-agent.repo.js";
-import { WA_AGENT_TURN_HANDLER, type WaAgentTurnHandler } from "./wa-agent.tokens.js";
 
-import type { ApiEnv } from "../config/env.js";
+import type { ApiEnv } from "../../config/env.js";
 
 const GROUP = "wa-agent";
 const MINUTE_MS = 60_000;

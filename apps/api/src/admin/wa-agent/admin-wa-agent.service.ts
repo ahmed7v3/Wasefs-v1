@@ -21,10 +21,10 @@ import { API_ENV } from "../../config/config.module.js";
 import { encryptionKey, type ApiEnv } from "../../config/env.js";
 import { ObjectStorage } from "../../files/object-storage.js";
 import { SettingsService } from "../../settings/settings.service.js";
+import { WaAgentStateService } from "../../wa-agent/conversation/state.service.js";
 import { VoiceError } from "../../wa-agent/voice/elevenlabs.client.js";
 import { VoiceKeyService } from "../../wa-agent/voice/voice-key.service.js";
 import { WaAgentVoiceService } from "../../wa-agent/voice/voice.service.js";
-import { WaAgentStateService } from "../../wa-agent/wa-agent-state.service.js";
 import { decodeCursor, toPage } from "../common/keyset.js";
 
 import { AdminWaAgentRepo } from "./admin-wa-agent.repo.js";

@@ -19,9 +19,9 @@ import type { PlansService } from "../src/plans/plans.service.js";
 import type { SettingsService } from "../src/settings/settings.service.js";
 import type { WaAgentHandoffService } from "../src/wa-agent/agent/handoff.service.js";
 import type { WaAgentToolDeps } from "../src/wa-agent/agent/tool-deps.js";
+import type { WaAgentRepo } from "../src/wa-agent/conversation/conversation.repo.js";
+import type { WaOutboundService } from "../src/wa-agent/transport/outbound.service.js";
 import type { VoiceKeyService } from "../src/wa-agent/voice/voice-key.service.js";
-import type { WaAgentRepo } from "../src/wa-agent/wa-agent.repo.js";
-import type { WaOutboundService } from "../src/wa-agent/wa-outbound.service.js";
 import type { TurnMessage, WaConversation } from "@wasfa/db";
 import type { Redis } from "ioredis";
 

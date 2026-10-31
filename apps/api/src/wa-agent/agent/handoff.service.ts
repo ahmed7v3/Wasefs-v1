@@ -5,8 +5,8 @@ import { PinoLogger } from "nestjs-pino";
 import { AdminAlertService } from "../../alerts/alerts.service.js";
 import { REDIS } from "../../common/redis.js";
 import { SettingsService } from "../../settings/settings.service.js";
-import { WaAgentStateService } from "../wa-agent-state.service.js";
-import { WaAgentRepo } from "../wa-agent.repo.js";
+import { WaAgentRepo } from "../conversation/conversation.repo.js";
+import { WaAgentStateService } from "../conversation/state.service.js";
 
 import type { AlertKind } from "@wasfa/shared/billing";
 

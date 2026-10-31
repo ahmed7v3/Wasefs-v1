@@ -14,8 +14,8 @@ import { PinoLogger } from "nestjs-pino";
 import { ErrorReporter } from "../../common/errors.js";
 import { REDIS } from "../../common/redis.js";
 import { WaAgentHandoffService } from "../agent/handoff.service.js";
+import { WaOutboundService } from "../transport/outbound.service.js";
 import { WA_AGENT_ROUND } from "../wa-agent.tokens.js";
-import { WaOutboundService } from "../wa-outbound.service.js";
 
 import { type AgentRound } from "./agent-round.js";
 import { fallbackOutcome, type Carry } from "./carry.js";

@@ -4,7 +4,7 @@ import { type OnApplicationShutdown, type OnModuleInit } from "@nestjs/common";
 import { WA_AGENT_DLQ_STREAM } from "@wasfa/shared/schemas/phone";
 import { Redis } from "ioredis";
 
-import type { ApiEnv } from "../config/env.js";
+import type { ApiEnv } from "../../config/env.js";
 import type { PinoLogger } from "nestjs-pino";
 
 const BLOCK_MS = 2_000;

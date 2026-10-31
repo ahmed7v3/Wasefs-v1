@@ -25,6 +25,9 @@ import { REDIS } from "../../common/redis.js";
 import { ObjectStorage } from "../../files/object-storage.js";
 import { PlansService } from "../../plans/plans.service.js";
 import { SettingsService } from "../../settings/settings.service.js";
+import { WaAgentRepo } from "../conversation/conversation.repo.js";
+import { WaAgentStateService } from "../conversation/state.service.js";
+import { WaOutboundService } from "../transport/outbound.service.js";
 import {
   RoundRefused,
   effectsRanOf,
@@ -39,10 +42,7 @@ import { ladderRetry, singleRetry, type StepRetry } from "../turn/retry-ladder.j
 import { VoiceError } from "../voice/elevenlabs.client.js";
 import { textOnlyReason } from "../voice/voice-text.js";
 import { WaAgentVoiceService } from "../voice/voice.service.js";
-import { WaAgentStateService } from "../wa-agent-state.service.js";
-import { WaAgentRepo } from "../wa-agent.repo.js";
 import { type WaAgentTurnHandler } from "../wa-agent.tokens.js";
-import { WaOutboundService } from "../wa-outbound.service.js";
 
 import { phoneMarket } from "./agent-market.js";
 import { splitReply, toWhatsappText } from "./agent-output.js";
