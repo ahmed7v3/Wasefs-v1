@@ -395,6 +395,11 @@
       "import": "./dist/wa-agent/failure.js",
       "default": "./dist/wa-agent/failure.js"
     },
+    "./wa-agent/session": {
+      "types": "./dist/wa-agent/session.d.ts",
+      "import": "./dist/wa-agent/session.js",
+      "default": "./dist/wa-agent/session.js"
+    },
     "./rx-normalize": {
       "types": "./dist/rx-normalize.d.ts",
       "import": "./dist/rx-normalize.js",

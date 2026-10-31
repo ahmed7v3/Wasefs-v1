@@ -10,6 +10,7 @@ import { REDIS } from "../../common/redis.js";
 import { PlansService } from "../../plans/plans.service.js";
 import { SettingsService } from "../../settings/settings.service.js";
 import { WaAgentRepo } from "../conversation/conversation.repo.js";
+import { SessionService } from "../conversation/session.service.js";
 import { WaAgentStateService } from "../conversation/state.service.js";
 import { ladderRetry } from "../turn/retry-ladder.js";
 import { WaAgentVoiceService } from "../voice/voice.service.js";
@@ -23,7 +24,6 @@ import { MediaInputService } from "./media-input.js";
 import { callWithRetry, type StepRun } from "./model-step.js";
 import { admitRound, refusalAfterLoop } from "./round-gates.js";
 import {
-  HISTORY_LIMIT,
   MAX_TOOL_CALLS_PER_STEP,
   addSpend,
   answerFloor,
@@ -32,6 +32,7 @@ import {
   type TurnTiming,
 } from "./round-helpers.js";
 import { roundOutcome, speakReply } from "./round-outcome.js";
+import { inSession, roundRows } from "./session-context.js";
 import { SummaryService } from "./summary.service.js";
 import { WaAgentToolDeps } from "./tool-deps.js";
 import { bindTools, toolsFor, type ToolCallRecord, type ToolOutput } from "./tools/index.js";
@@ -75,6 +76,7 @@ export class AgentRoundService implements AgentRound {
     private readonly voice: WaAgentVoiceService,
     private readonly media: MediaInputService,
     private readonly summary: SummaryService,
+    private readonly sessions?: SessionService,
   ) {
     this.logger.setContext("WaAgentTurn");
   }
@@ -86,8 +88,7 @@ export class AgentRoundService implements AgentRound {
 
   /**
    * The v2 entry (`AgentRound`): the checks v1 makes before it reads the chat, then the shared round. The
-   * caller hands over the unanswered customer messages; none of them is stamped here (v2 links them in
-   * the transaction that queues the reply).
+   * caller hands over the unanswered customer messages; v2 links them when it queues the reply.
    */
   async compose(
     conversation: WaConversation,
@@ -100,12 +101,13 @@ export class AgentRoundService implements AgentRound {
     const quiet = () => quietOutcome(conversation, now);
     if (!config.enabled || WaAgentStateService.isHeld(conversation)) return quiet();
     if ((await this.redis.exists(handoffFlagKey(conversation.id))) === 1) return quiet();
-    const rows = await this.repo.recentMessages(conversation.id, HISTORY_LIMIT);
+    const { view, rows } = await roundRows(this.repo, this.sessions, conversation, config, options);
     const floor = answerFloor(rows, now.getTime());
     const eligible = pending.filter((row) => row.createdAt.getTime() > floor);
     if (eligible.length === 0) return quiet();
     const outcome = await this.composeReply({
       conversation,
+      ...view?.input,
       pending: eligible,
       rows,
       config,
@@ -117,7 +119,7 @@ export class AgentRoundService implements AgentRound {
       ...(options.fence === undefined ? {} : { fence: options.fence }),
       reaskFrom: options.reaskFrom,
     });
-    return outcome ?? quiet();
+    return outcome === null ? quiet() : inSession(outcome, view);
   }
 
   /** After the parts were queued as `messageIds` (none when the round had nothing to say). */
@@ -144,7 +146,8 @@ export class AgentRoundService implements AgentRound {
       }
     }
     if (tail.handoffReason !== null) this.handoff.pauseWhenDelivered(conversationId, messageIds);
-    this.track(this.summary.refreshSummary(tail.conversation, tail.planId, tail.now));
+    const { conversation: chat, planId, now, sessionId } = tail;
+    this.track(this.summary.refreshSummary(chat, planId, now, sessionId));
   }
 
   async discard(outcome: RoundOutcome): Promise<void> {
@@ -184,6 +187,7 @@ export class AgentRoundService implements AgentRound {
       user,
       market,
       conversation,
+      returningNote: input.returningNote,
     });
     // A re-ask continues the conversation the first pass built (its tool results included).
     const messages =

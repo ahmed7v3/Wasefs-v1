@@ -106,6 +106,8 @@ export interface SystemPromptInput {
   firstName: string | null;
   currency: string;
   summary: string | null;
+  /** v2: the customer is back after a break; one line, no transcript. */
+  returningNote?: string | null;
   /** The medication tools are on this turn (`medications.enabled && medications.waTools`). */
   medications?: boolean;
   /** The account tools are on this turn; carries the website origin for the terms links. */
@@ -121,6 +123,7 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
       ? "المرسل: ضيف غير مرتبط بحساب. للبيع والدعم فقط: لا تذكر أي بيانات حساب ولا تقدّم عروضًا شخصية. إذا أراد خدمات الحساب فاطلب منه إنشاء حساب وتأكيد هذا الرقم على المنصة."
       : `المرسل: عميل مرتبط بحساب مؤكد${input.firstName === "" ? "" : ` (الاسم الأول: ${input.firstName})`}.`,
     `عملة السوق: ${input.currency}`,
+    ...(input.returningNote ? [input.returningNote] : []),
   ].join("\n");
   const sections = [
     "أنت تردّ على عملاء وصفة AI على واتساب.",

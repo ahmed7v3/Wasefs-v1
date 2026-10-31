@@ -398,6 +398,8 @@ class FakeRepo {
     lastOutboundAt: null,
     summary: null,
     turnFence: 0,
+    sessionId: null,
+    profile: {},
     createdAt: new Date(START),
     updatedAt: new Date(START),
   };

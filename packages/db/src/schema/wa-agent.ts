@@ -8,11 +8,13 @@ import {
   WA_MEDIA_STATUSES,
   WA_OUTBOX_KINDS,
   WA_OUTBOX_STATES,
+  WA_SESSION_END_REASONS,
   WA_TOOL_EFFECT_STATES,
 } from "@wasfa/shared/schemas/wa-agent";
 import { FAILURE_CLASSES, WA_TURN_STATES } from "@wasfa/shared/wa-agent/failure";
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   check,
@@ -22,11 +24,14 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
 import { idColumn, inList, matches, timestamps } from "./columns.js";
 import { users } from "./users.js";
+
+import type { WaAgentProfile, WaSessionState } from "@wasfa/shared/wa-agent/session";
 
 /*
  * The WhatsApp AI agent's transcript (docs/WA-AGENT.md). One conversation per WhatsApp chat (`jid`);
@@ -46,7 +51,12 @@ export const waConversations = pgTable(
     pausedUntil: timestamp({ withTimezone: true }),
     lastInboundAt: timestamp({ withTimezone: true }),
     lastOutboundAt: timestamp({ withTimezone: true }),
+    // v1 only; v2 keeps the summary on the session.
     summary: text(),
+    // The session the model sees (docs/WA-AGENT-RUNTIME.md §18); null until the first v2 inbound message.
+    sessionId: uuid().references((): AnyPgColumn => waAgentSessions.id, { onDelete: "set null" }),
+    // Facts the customer chose (language, voice, preferred name); they survive a new session.
+    profile: jsonb().$type<WaAgentProfile>().notNull().default({}),
     // Fencing authority: bumped when a turn takes the lock, so a stale worker's writes fail the check.
     turnFence: bigint({ mode: "number" }).notNull().default(0),
     ...timestamps(),
@@ -58,6 +68,40 @@ export const waConversations = pgTable(
       sql`${table.phone} is null or ${matches(table.phone, E164_PATTERN.source)}`,
     ),
     index("wa_conversations_user_idx").on(table.userId),
+  ],
+);
+
+/*
+ * The slice of a chat the model sees (docs/WA-AGENT-RUNTIME.md §6, §18). Not `wa_sessions`, which is the
+ * Baileys auth table. Transcripts are not deleted when a session ends, only (privacy command) on request.
+ */
+export const waAgentSessions = pgTable(
+  "wa_agent_sessions",
+  {
+    id: idColumn(),
+    conversationId: uuid()
+      .notNull()
+      .references(() => waConversations.id, { onDelete: "cascade" }),
+    startedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    endedAt: timestamp({ withTimezone: true }),
+    endReason: text({ enum: WA_SESSION_END_REASONS }),
+    // Started by an idle rollover: the model gets a one-line "returning customer" note.
+    returning: boolean().notNull().default(false),
+    summary: text(),
+    summarizedCount: integer().notNull().default(0),
+    // The next media handle to give out (handles restart at 1 in every session).
+    nextHandle: integer().notNull().default(1),
+    state: jsonb().$type<WaSessionState>().notNull().default({}),
+  },
+  (table) => [
+    check(
+      "wa_agent_sessions_end_reason_check",
+      sql`${table.endReason} is null or ${inList(table.endReason, WA_SESSION_END_REASONS)}`,
+    ),
+    index("wa_agent_sessions_conversation_started_idx").on(
+      table.conversationId,
+      table.startedAt.desc(),
+    ),
   ],
 );
 
@@ -127,6 +171,12 @@ export const waMessages = pgTable(
     mediaStatus: text({ enum: WA_MEDIA_STATUSES }),
     // Set only in the transaction that answers the message, so null on an inbound row means "unanswered".
     turnId: uuid().references(() => waTurns.id, { onDelete: "set null" }),
+    // The session the row belongs to (null for rows written while v2 was off).
+    sessionId: uuid().references(() => waAgentSessions.id, { onDelete: "set null" }),
+    // Inbound image/document rows: the number the model and tools use to name the file (per session).
+    handle: integer(),
+    // Media sent in one burst share a label (A, B ... AA); the set of one prescription's pages.
+    setLabel: text(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -144,6 +194,10 @@ export const waMessages = pgTable(
     ),
     index("wa_messages_conversation_created_idx").on(table.conversationId, table.createdAt),
     index("wa_messages_created_idx").on(table.createdAt),
+    index("wa_messages_session_created_idx").on(table.sessionId, table.createdAt),
+    uniqueIndex("wa_messages_session_handle_key")
+      .on(table.sessionId, table.handle)
+      .where(sql`${table.handle} is not null`),
     index("wa_messages_unanswered_idx")
       .on(table.conversationId)
       .where(sql`${table.direction} = 'in' and ${table.turnId} is null`),
@@ -212,6 +266,7 @@ export const waOutbox = pgTable(
 
 export type WaConversation = typeof waConversations.$inferSelect;
 export type WaMessage = typeof waMessages.$inferSelect;
+export type WaAgentSession = typeof waAgentSessions.$inferSelect;
 export type WaTurn = typeof waTurns.$inferSelect;
 export type WaToolEffect = typeof waToolEffects.$inferSelect;
 export type WaOutboxRow = typeof waOutbox.$inferSelect;

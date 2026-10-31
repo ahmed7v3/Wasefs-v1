@@ -100,13 +100,24 @@ export interface InboundMessageInput {
   ts: number;
 }
 
+/** A row `insertInbound` just stored; what the session assignment hook needs to know about it. */
+export interface InsertedInbound {
+  id: string;
+  direction: "in" | "owner";
+  kind: WaAgentKind;
+  createdAt: Date;
+}
+
 /**
  * Stores one message the bridge saw; a redelivered one (same WhatsApp id) is a no-op. A customer
  * message also moves the chat's `last_inbound_at`. Returns the row id, or null for a duplicate.
+ * `afterInsert` (v2 sessions) runs right after the insert and before `last_inbound_at` moves, so it
+ * still sees the previous message time; pass a transaction so both are atomic.
  */
 export async function insertInbound(
   db: Handle,
   input: InboundMessageInput,
+  afterInsert?: (row: InsertedInbound) => Promise<void>,
 ): Promise<string | null> {
   const at = new Date(Math.min(input.ts, Date.now()));
   const [row] = await db
@@ -129,6 +140,7 @@ export async function insertInbound(
     .onConflictDoNothing({ target: waMessages.waMessageId })
     .returning({ id: waMessages.id });
   if (row === undefined) return null;
+  await afterInsert?.({ id: row.id, direction: input.direction, kind: input.kind, createdAt: at });
   if (input.direction === "in") {
     await db
       .update(waConversations)

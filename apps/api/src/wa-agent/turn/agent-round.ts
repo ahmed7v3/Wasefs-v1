@@ -50,6 +50,8 @@ export interface RoundTail {
   text: string;
   spoken: { mediaKey: string; chars: number } | null;
   handoffReason: string | null;
+  /** v2: the session the round read; `afterReply` summarises it. */
+  sessionId?: string;
 }
 
 export interface RoundOutcome {

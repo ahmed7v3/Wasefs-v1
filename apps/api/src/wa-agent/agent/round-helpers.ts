@@ -17,7 +17,7 @@ export const MAX_TOOL_CALLS_PER_STEP = 3;
 export const DAY_SECONDS = 86_400;
 const REPLY_WINDOW_MS = 24 * 60 * 60 * 1_000;
 
-export const utcDay =(at: Date) => at.toISOString().slice(0, 10).replaceAll("-", "");
+export const utcDay = (at: Date) => at.toISOString().slice(0, 10).replaceAll("-", "");
 export const spendKey = (at: Date) => `wa:agent:spend:${utcDay(at)}`;
 
 /** The agent's own spend today, in USD micros; the model's cost is added after every call. */
@@ -63,6 +63,8 @@ export interface ComposeInput {
   fence?: number;
   /** v2: answer again from this conversation without tools (the empty-answer re-ask). */
   reaskFrom?: NormalizedMessage[] | undefined;
+  /** v2: a line for the system context when the customer came back after a break. */
+  returningNote?: string;
 }
 
 /**

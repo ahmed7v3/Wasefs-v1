@@ -6,6 +6,7 @@ import { AiRuntimeService } from "../../ai-runtime/ai-runtime.service.js";
 import { wrapUserData } from "../../chat/chat-context.js";
 import { REDIS } from "../../common/redis.js";
 import { WaAgentRepo } from "../conversation/conversation.repo.js";
+import { SessionRepo } from "../conversation/session.repo.js";
 
 import { DAY_SECONDS, HISTORY_LIMIT, addSpend } from "./round-helpers.js";
 
@@ -23,13 +24,18 @@ const SUMMARY_SYSTEM_PROMPT =
 
 const summaryMarkKey = (conversationId: string) => `wa:agent:summary-through:${conversationId}`;
 
-/** Folds the older part of a long chat into `conversation.summary`, so the prompt stays short. */
+/**
+ * Folds the older part of a long chat into `conversation.summary` (v2: into the current session's
+ * summary), so the prompt stays short.
+ */
 @Injectable()
 export class SummaryService {
   constructor(
     private readonly repo: WaAgentRepo,
     @Inject(REDIS) private readonly redis: Redis,
     private readonly ai: AiRuntimeService,
+    // Absent in tests that only exercise v1.
+    private readonly sessions?: SessionRepo,
   ) {}
 
   /** After more than 40 messages since the last summary, the older ones are folded into it. */
@@ -37,13 +43,24 @@ export class SummaryService {
     conversation: WaConversation,
     planId: string | null,
     now: Date,
+    sessionId?: string,
   ): Promise<void> {
-    const markKey = summaryMarkKey(conversation.id);
+    // v2 passes the session the round read; its rows, summary and mark are the session's, not the chat's.
+    const sessions = sessionId === undefined ? undefined : this.sessions;
+    const scope = sessions !== undefined && sessionId !== undefined ? sessionId : conversation.id;
+    const markKey = summaryMarkKey(scope);
     const mark = await this.redis.get(markKey);
     const after = mark === null ? null : new Date(Number(mark));
-    if ((await this.repo.countAfter(conversation.id, after)) <= SUMMARY_AFTER_MESSAGES) return;
+    const total =
+      sessions !== undefined && sessionId !== undefined
+        ? await sessions.countSince(sessionId, after)
+        : await this.repo.countAfter(conversation.id, after);
+    if (total <= SUMMARY_AFTER_MESSAGES) return;
 
-    const rows = await this.repo.messagesAfter(conversation.id, after, 200);
+    const rows =
+      sessions !== undefined && sessionId !== undefined
+        ? await sessions.rowsSince(sessionId, after, 200)
+        : await this.repo.messagesAfter(conversation.id, after, 200);
     // The last messages stay verbatim in the prompt; the summary covers what falls behind them.
     const covered = rows.slice(0, Math.max(0, rows.length - HISTORY_LIMIT));
     const last = covered.at(-1);
@@ -72,7 +89,14 @@ export class SummaryService {
     await addSpend(this.redis, completion.costUsdMicros, now);
     const summary = completion.text.trim();
     if (summary === "") return;
-    await this.repo.saveSummary(conversation.id, summary.slice(0, SUMMARY_MAX_CHARS));
+    if (sessions !== undefined && sessionId !== undefined) {
+      const coveredCount =
+        (await sessions.countSince(sessionId, null)) -
+        (await sessions.countSince(sessionId, last.createdAt));
+      await sessions.saveSummary(sessionId, summary.slice(0, SUMMARY_MAX_CHARS), coveredCount);
+    } else {
+      await this.repo.saveSummary(conversation.id, summary.slice(0, SUMMARY_MAX_CHARS));
+    }
     await this.redis.set(markKey, String(last.createdAt.getTime()), "EX", SUMMARY_MARK_SECONDS);
   }
 }
