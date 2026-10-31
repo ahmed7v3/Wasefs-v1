@@ -233,7 +233,7 @@ async function routeToAgent(
   const stored =
     content.kind === "image" || content.kind === "document" || content.kind === "audio"
       ? await ingestMedia(content, raw, deps.media, now)
-      : { kind: content.kind };
+      : { kind: content.kind, mediaStatus: undefined };
   const phone = await chatPhone(raw, deps.resolver);
   const jid = agentChatJid(phone, remoteJid);
   const pushName = raw.pushName?.trim().slice(0, 100);
@@ -245,6 +245,7 @@ async function routeToAgent(
     kind: stored.kind,
     ...(content.text ? { text: content.text } : {}),
     ...("media" in stored && stored.media ? { media: stored.media } : {}),
+    ...(stored.mediaStatus ? { mediaStatus: stored.mediaStatus } : {}),
     ...(pushName ? { pushName } : {}),
     ts: sentAt,
   });

@@ -39,7 +39,7 @@ describe("magic bytes", () => {
     expect(await rejection(processImage(executable, "image/png"))).toBe("unsupported_type");
   });
 
-  it("rejects HEIC that was declared as a JPEG, with its own reason", async () => {
+  it("sends HEIC to the decoder: a file with only the HEIC header is corrupt", async () => {
     // An ISO base media `ftyp` box with the `heic` brand: all file-type needs to recognise it.
     const heic = Buffer.concat([
       Buffer.from([0x00, 0x00, 0x00, 0x18]),
@@ -47,7 +47,7 @@ describe("magic bytes", () => {
       Buffer.from([0x00, 0x00, 0x00, 0x00]),
       Buffer.from("mif1heic", "ascii"),
     ]);
-    expect(await rejection(processImage(heic, "image/jpeg"))).toBe("heic_unsupported");
+    expect(await rejection(processImage(heic, "image/jpeg"))).toBe("corrupt_image");
   });
 
   it("rejects a truncated image instead of storing half a picture", async () => {

@@ -4,6 +4,7 @@ import { waAgentSentSchema } from "@wasfa/shared/schemas/wa-agent";
 import { PinoLogger } from "nestjs-pino";
 
 import { API_ENV } from "../config/config.module.js";
+import { SettingsService } from "../settings/settings.service.js";
 
 import { StreamConsumer } from "./stream-consumer.js";
 import { WaAgentRepo } from "./wa-agent.repo.js";
@@ -19,8 +20,12 @@ export class WaAgentSentConsumer extends StreamConsumer {
     @Inject(API_ENV) env: ApiEnv,
     logger: PinoLogger,
     private readonly repo: WaAgentRepo,
+    settings: SettingsService,
   ) {
-    super(env, logger, WA_AGENT_SENT_STREAM, GROUP);
+    super(env, logger, WA_AGENT_SENT_STREAM, GROUP, {
+      isV2: async () => (await settings.get("waAgent")).runtime.v2,
+      keepData: true,
+    });
     this.logger.setContext("WaAgentSent");
   }
 
@@ -31,6 +36,7 @@ export class WaAgentSentConsumer extends StreamConsumer {
       return;
     }
     const { messageId, status, reason, waMessageId } = parsed.data;
+    // Idempotent under redelivery: only a still-queued row changes (`markOutbound`).
     await this.repo.recordVerdict(messageId, status, { reason, waMessageId });
   }
 }

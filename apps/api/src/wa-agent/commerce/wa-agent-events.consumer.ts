@@ -1,5 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
-import { t } from "@wasfa/shared/i18n";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import { newId } from "@wasfa/shared/ids";
 import { WA_AGENT_EVENTS_STREAM } from "@wasfa/shared/schemas/phone";
 import {
@@ -8,6 +7,7 @@ import {
   waAgentRxKey,
   type WaAgentEvent,
   type WaAgentOutboundPart,
+  type WaOutboxKind,
 } from "@wasfa/shared/schemas/wa-agent";
 import { Redis } from "ioredis";
 import { PinoLogger } from "nestjs-pino";
@@ -17,18 +17,14 @@ import { API_ENV } from "../../config/config.module.js";
 import { ObjectStorage } from "../../files/object-storage.js";
 import { RxService } from "../../rx/rx.service.js";
 import { SettingsService } from "../../settings/settings.service.js";
+import { OutboxDeliverer } from "../outbox/deliverer.js";
+import { EventPartsBuilder } from "../outbox/outbox-parts.js";
+import { WaOutboxRepo } from "../outbox/wa-outbox.repo.js";
 import { StreamConsumer } from "../stream-consumer.js";
 import { WaAgentRepo } from "../wa-agent.repo.js";
 import { WaOutboundService } from "../wa-outbound.service.js";
 
 import { WaAgentCommerceRepo } from "./agent-commerce.repo.js";
-import {
-  documentFailedText,
-  paymentMessage,
-  rxDoneParts,
-  rxFailedText,
-} from "./agent-event-messages.js";
-import { agentUser } from "./agent-user.js";
 
 import type { ApiEnv } from "../../config/env.js";
 import type { WaConversation } from "@wasfa/db";
@@ -39,14 +35,13 @@ const GROUP = "wa-agent-events";
 /** The agent turn's lock (`WaAgentTurnService`): taking it keeps a follow-up from landing inside a turn. */
 const turnLockKey = (conversationId: string) => `wa:agent:turn:${conversationId}`;
 const LOCK_MS = 15_000;
+/** A handled entry id is remembered this long, so a redelivery (v2) never sends a follow-up twice. */
+const DONE_TTL_SECONDS = 7 * 24 * 60 * 60;
+const doneKey = (entryId: string) => `wa:agent:events:done:${entryId}`;
 const LOCK_WAIT_MS = 20_000;
 const LOCK_POLL_MS = 500;
 const RELEASE_LOCK =
   "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) end return 0";
-
-type PaymentEvent = Extract<WaAgentEvent, { orderId: string }>;
-type DocumentEvent = Extract<WaAgentEvent, { type: "document_ready" | "document_failed" }>;
-type RxEvent = Extract<WaAgentEvent, { rxId: string }>;
 
 /**
  * Reads `wa:agent:events` (written by the worker): a payment decision on an order, a prescription
@@ -66,28 +61,43 @@ export class WaAgentEventsConsumer extends StreamConsumer {
       }),
   };
 
+  private readonly builder: EventPartsBuilder;
+
   constructor(
-    @Inject(API_ENV) private readonly apiEnv: ApiEnv,
+    @Inject(API_ENV) apiEnv: ApiEnv,
     logger: PinoLogger,
     private readonly conversations: WaAgentRepo,
     private readonly commerce: WaAgentCommerceRepo,
     private readonly outbound: WaOutboundService,
-    private readonly rx: RxService,
+    rx: RxService,
     private readonly settings: SettingsService,
     @Inject(REDIS) private readonly redis: Redis,
     private readonly storage: ObjectStorage,
+    // v2 only: routed results go through the outbox (absent in v1-only wiring).
+    @Optional() private readonly outbox?: WaOutboxRepo,
+    @Optional() private readonly deliverer?: OutboxDeliverer,
   ) {
-    super(apiEnv, logger, WA_AGENT_EVENTS_STREAM, GROUP);
+    super(apiEnv, logger, WA_AGENT_EVENTS_STREAM, GROUP, {
+      isV2: async () => (await settings.get("waAgent")).runtime.v2,
+      keepData: true,
+    });
     this.logger.setContext("WaAgentEvents");
+    this.builder = new EventPartsBuilder(apiEnv.WEB_ORIGIN[0] ?? "", commerce, rx);
   }
 
-  async process(payload: unknown): Promise<void> {
+  async process(payload: unknown, entryId?: string): Promise<void> {
     const parsed = waAgentEventSchema.safeParse(payload);
     if (!parsed.success) {
       this.logger.warn("Malformed agent event dropped");
       return;
     }
     const event = parsed.data;
+    if (this.outbox !== undefined && (await this.isV2())) {
+      await this.intake(event, entryId);
+      return;
+    }
+    // The worker puts no event id in the payload; the entry id is the identity of one event.
+    if (entryId !== undefined && (await this.redis.exists(doneKey(entryId))) === 1) return;
     // A file the worker stored is deleted unless a queued message points to it (entries are never retried).
     const stored =
       event.type === "document_ready"
@@ -96,12 +106,91 @@ export class WaAgentEventsConsumer extends StreamConsumer {
           ? event.pdfKey
           : undefined;
     let sentKeys: string[] = [];
+    let failed = false;
     try {
       sentKeys = await this.deliver(event);
+      if (entryId !== undefined)
+        await this.redis.set(doneKey(entryId), "1", "EX", DONE_TTL_SECONDS);
+    } catch (error) {
+      failed = true;
+      throw error;
     } finally {
-      if (stored !== undefined && !sentKeys.includes(stored)) {
+      // v2 retries a failed entry, so its file must still be there; v1 never retries.
+      const retried = failed && (await this.isV2());
+      if (stored !== undefined && !sentKeys.includes(stored) && !retried) {
         await this.storage.remove(stored).catch(() => undefined);
       }
+    }
+  }
+
+  /**
+   * v2: the event becomes (or completes) a `wa_outbox` row, which the deliverer sends under the chat's lock.
+   * The state transition is the idempotency, so no "done" marker is kept. An analysis started before the
+   * switch has no route row: its Redis key still names the chat, and the result gets a `ready` row then.
+   */
+  private async intake(event: WaAgentEvent, entryId: string | undefined): Promise<void> {
+    const outbox = this.outbox;
+    if (outbox === undefined) return;
+    const payload: Record<string, unknown> = { ...event };
+    let created: boolean;
+    if ("rxId" in event) {
+      if ((await outbox.routeResult(event.rxId, payload)) !== null) {
+        this.deliverer?.kick();
+        return;
+      }
+      // A repeated event finds the route already past `waiting`: nothing more to do.
+      if (await outbox.hasRoute(event.rxId)) return;
+      const conversationId = await this.redis.getdel(waAgentRxKey(event.rxId));
+      if (conversationId === null) return await this.dropStored(event);
+      created = await this.insert(
+        conversationId,
+        "rx_result",
+        event.rxId,
+        `rx:${event.rxId}`,
+        payload,
+      );
+    } else if (event.type === "document_ready" || event.type === "document_failed") {
+      const id =
+        event.type === "document_ready"
+          ? event.mediaKey
+          : `failed:${event.conversationId}:${entryId ?? newId()}`;
+      created = await this.insert(event.conversationId, "document", null, `doc:${id}`, payload);
+    } else {
+      const conversation = await this.commerce.recentConversation(
+        event.userId,
+        new Date(Date.now() - WA_AGENT_FOLLOW_UP_WINDOW_MS),
+      );
+      if (conversation === null) return;
+      // The entry id tells a redelivery from a second decision on the same order (reject, resubmit, reject).
+      const key = `pay:${event.type}:${event.orderId}${entryId === undefined ? "" : `:${entryId}`}`;
+      created = await this.insert(conversation.id, "payment", event.orderId, key, payload);
+    }
+    if (created) this.deliverer?.kick();
+  }
+
+  private async insert(
+    conversationId: string,
+    kind: WaOutboxKind,
+    refId: string | null,
+    idempotencyKey: string,
+    payload: Record<string, unknown>,
+  ): Promise<boolean> {
+    // All of these are results the customer asked for or paid for.
+    const row = await this.outbox?.insertReady({
+      conversationId,
+      kind,
+      refId,
+      idempotencyKey,
+      payload,
+      paidWork: true,
+    });
+    return row !== null && row !== undefined;
+  }
+
+  /** A result nobody is waiting for: the PDF the worker stored has no message to go with. */
+  private async dropStored(event: WaAgentEvent): Promise<void> {
+    if (event.type === "rx_done" && event.pdfKey !== undefined) {
+      await this.storage.remove(event.pdfKey).catch(() => undefined);
     }
   }
 
@@ -113,53 +202,11 @@ export class WaAgentEventsConsumer extends StreamConsumer {
 
     const conversation = await this.target(event);
     if (conversation === null) return [];
-    const parts = await this.partsFor(event, conversation, config.caps, locale);
+    const parts = await this.builder.parts(event, conversation, config.caps, locale);
     if (parts === null || parts.length === 0) return [];
     if (!(await this.send(conversation.id, parts))) return [];
     this.logger.info({ conversationId: conversation.id, type: event.type }, "Agent follow-up sent");
     return parts.flatMap((part) => ("mediaKey" in part && part.mediaKey ? [part.mediaKey] : []));
-  }
-
-  private async partsFor(
-    event: WaAgentEvent,
-    conversation: WaConversation,
-    caps: { maxReplyChars: number; maxMessagesPerTurn: number },
-    locale: Locale,
-  ): Promise<WaAgentOutboundPart[] | null> {
-    if (event.type === "document_ready" || event.type === "document_failed") {
-      return this.documentParts(event, locale);
-    }
-    // The PDF of a result takes one of the allowed messages; with only one allowed the text wins.
-    const withPdf =
-      event.type === "rx_done" && event.pdfKey !== undefined && caps.maxMessagesPerTurn >= 2;
-    const textCaps = withPdf ? { ...caps, maxMessagesPerTurn: caps.maxMessagesPerTurn - 1 } : caps;
-    const texts =
-      "rxId" in event
-        ? await this.rxTexts(event, conversation, textCaps, locale, withPdf)
-        : await this.paymentTexts(event, locale);
-    if (texts === null) return null;
-    const parts = texts.map((text): WaAgentOutboundPart => ({ kind: "text", text }));
-    // A result that turned out to be missing is the failure line: no PDF goes with it.
-    const failed = texts.length === 1 && texts[0] === rxFailedText(locale);
-    if (withPdf && !failed && event.type === "rx_done" && event.pdfKey !== undefined) {
-      parts.push({
-        kind: "document",
-        mediaKey: event.pdfKey,
-        fileName: `${t("whatsapp.agent.event.rxPdfName", {}, locale)}.pdf`,
-      });
-    }
-    return parts;
-  }
-
-  private documentParts(event: DocumentEvent, locale: Locale): WaAgentOutboundPart[] {
-    if (event.type === "document_failed") {
-      return [{ kind: "text", text: documentFailedText(locale) }];
-    }
-    return [
-      event.kind === "image"
-        ? { kind: "image", mediaKey: event.mediaKey }
-        : { kind: "document", mediaKey: event.mediaKey, fileName: event.fileName },
-    ];
   }
 
   /** The chat to tell: the chat that asked, the rx request's own chat, or the user's chat with a message in the last 24 h. */
@@ -177,42 +224,6 @@ export class WaAgentEventsConsumer extends StreamConsumer {
       new Date(Date.now() - WA_AGENT_FOLLOW_UP_WINDOW_MS),
     );
   }
-  private async paymentTexts(event: PaymentEvent, locale: Locale): Promise<string[] | null> {
-    // Scoped to the user in the event: an order of anyone else is simply not found.
-    const row = await this.commerce.orderWithPayment(event.userId, event.orderId);
-    if (!row) return null;
-    const plan = row.order.planId === null ? null : await this.commerce.plan(row.order.planId);
-    return [
-      paymentMessage(
-        event.type,
-        {
-          number: row.order.number,
-          planName: plan === null ? null : locale === "en" ? plan.nameEn : plan.nameAr,
-          rejectReason: row.payment.rejectReason,
-        },
-        locale,
-      ),
-    ];
-  }
-
-  private async rxTexts(
-    event: RxEvent,
-    conversation: WaConversation,
-    caps: { maxReplyChars: number; maxMessagesPerTurn: number },
-    locale: Locale,
-    withPdf: boolean,
-  ): Promise<string[] | null> {
-    if (event.type === "rx_failed") return [rxFailedText(locale)];
-    if (conversation.userId === null) return null;
-    const row = await this.commerce.user(conversation.userId);
-    if (row?.status !== "active") return null;
-    // The analysis is read as its owner: someone else's analysis id is simply not found.
-    const view = await this.rx.get(agentUser(row, new Date()), event.rxId);
-    if (view.result === null) return [rxFailedText(locale)];
-    const origin = this.apiEnv.WEB_ORIGIN[0] ?? "";
-    return rxDoneParts(view.result, `${origin}/analyze/${event.rxId}`, caps, locale, withPdf);
-  }
-
   /** Queues the parts while holding the chat's turn lock, so they do not land inside an agent turn. */
   private async send(conversationId: string, parts: WaAgentOutboundPart[]): Promise<boolean> {
     const token = newId();

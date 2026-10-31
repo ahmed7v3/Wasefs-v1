@@ -50,6 +50,7 @@ class FakeRepo {
     lastInboundAt: null,
     lastOutboundAt: null,
     summary: null,
+    turnFence: 0,
     createdAt: new Date(START),
     updatedAt: new Date(START),
   };

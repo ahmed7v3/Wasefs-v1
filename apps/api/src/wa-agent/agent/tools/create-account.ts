@@ -31,8 +31,11 @@ export const createAccountTool = defineTool({
     confirmed: z.boolean(),
   }),
   linkedOnly: false,
+  effect: "write",
   guestOnly: true,
   feature: "accountSignup",
+  // The one-time sign-in link is a secret: it is never stored.
+  unstored: ["loginUrl"],
   handler: (ctx, args) => {
     if (!args.confirmed) return { created: false, reason: "needs_confirmation" };
     // A guest whose number WhatsApp did not reveal cannot get an account here: the website is the way.

@@ -1,20 +1,25 @@
 import { settingDefault } from "@wasfa/shared/settings";
-import { afterEach, describe, expect, vi } from "vitest";
+import { uuidFromKey } from "@wasfa/shared/wa-agent/uuid-from-key";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { LOCK_MS, WaAgentTurnService } from "../../src/wa-agent/agent/wa-agent-turn.service.js";
+import { RxAlreadyAnalysedError } from "../../src/wa-agent/commerce/agent-commerce.repo.js";
 import { AgentRxService } from "../../src/wa-agent/commerce/agent-rx.service.js";
 import { WaAgentEventsConsumer } from "../../src/wa-agent/commerce/wa-agent-events.consumer.js";
+import { ConversationLock, LOCK_TTL_MS } from "../../src/wa-agent/turn/lock.js";
+import { TurnRunner } from "../../src/wa-agent/turn/turn-runner.js";
 import {
   COMMERCE_CONVERSATION_ID,
   COMMERCE_USER_ID,
   commerceCall,
   quietLogger,
 } from "../support/wa-agent-commerce-fakes.js";
-import { MemoryRedis, silentLogger } from "../support/wa-agent-fakes.js";
+import { ExpiringRedis, MemoryRedis, silentLogger } from "../support/wa-agent-fakes.js";
 
-import { redTest } from "./red.js";
 
-import type { WaConversation } from "@wasfa/db";
+import type { RoundOutcome } from "../../src/wa-agent/turn/agent-round.js";
+import type { ActiveTurn } from "../../src/wa-agent/turn/turn.store.js";
+import type { TurnMessage, WaConversation } from "@wasfa/db";
+import type { Redis } from "ioredis";
 
 /*
  * Red tests for the root causes of docs/WA-AGENT-RUNTIME.md §2 that live in the api and need no
@@ -30,124 +35,89 @@ afterEach(() => {
 
 // --- R9: the turn lock is kept alive while a turn runs --------------------------------------------
 
-/** MemoryRedis with expiry on the (fake) clock, and the few extra commands a lock heartbeat may use. */
-class ExpiringRedis extends MemoryRedis {
-  private readonly expiresAt = new Map<string, number>();
-
-  private live(key: string): boolean {
-    const at = this.expiresAt.get(key);
-    if (at !== undefined && at <= Date.now()) {
-      this.values.delete(key);
-      this.expiresAt.delete(key);
-    }
-    return this.values.has(key);
-  }
-
-  override set(key: string, value: string, ...flags: Array<string | number>): Promise<"OK" | null> {
-    const exists = this.live(key);
-    if (flags.includes("NX") && exists) return Promise.resolve(null);
-    if (flags.includes("XX") && !exists) return Promise.resolve(null);
-    const unit = flags.find((flag) => flag === "EX" || flag === "PX");
-    const amount = unit === undefined ? undefined : Number(flags[flags.indexOf(unit) + 1]);
-    this.values.set(key, value);
-    if (amount !== undefined) {
-      this.expiresAt.set(key, Date.now() + (unit === "EX" ? amount * 1_000 : amount));
-    } else {
-      this.expiresAt.delete(key);
-    }
-    return Promise.resolve("OK");
-  }
-
-  override get(key: string): Promise<string | null> {
-    return Promise.resolve(this.live(key) ? (this.values.get(key) ?? null) : null);
-  }
-
-  override getdel(key: string): Promise<string | null> {
-    const value = this.live(key) ? (this.values.get(key) ?? null) : null;
-    this.values.delete(key);
-    this.expiresAt.delete(key);
-    return Promise.resolve(value);
-  }
-
-  override exists(key: string): Promise<number> {
-    return Promise.resolve(this.live(key) ? 1 : 0);
-  }
-
-  pexpire(key: string, ms: number): Promise<number> {
-    if (!this.live(key)) return Promise.resolve(0);
-    this.expiresAt.set(key, Date.now() + ms);
-    return Promise.resolve(1);
-  }
-
-  /** The unlock script (compare and delete) and a compare-and-extend heartbeat script. */
-  override eval(script: string, keys: number, key: string, ...args: string[]): Promise<number> {
-    const token = args[0];
-    if (!this.live(key) || this.values.get(key) !== token) return Promise.resolve(0);
-    if (/pexpire|expire/i.test(script)) {
-      const ms = Number(args[1] ?? LOCK_MS);
-      this.expiresAt.set(key, Date.now() + ms);
-      return Promise.resolve(1);
-    }
-    return super.eval(script, keys, key, token ?? "");
-  }
-}
-
-function lockHarness() {
+function lockedRunner() {
   const redis = new ExpiringRedis();
   const gate: { release: () => void } = { release: () => undefined };
   const opened = new Promise<void>((resolve) => {
     gate.release = resolve;
   });
-  const state = { turnsStarted: 0 };
-  const service = new WaAgentTurnService(
-    fake({ find: () => Promise.resolve(null) }),
-    fake({
-      // The first turn is "slow": it sits in its first read until the test lets it go.
-      get: async () => {
+  const state = { turnsStarted: 0, requeued: 0 };
+  const outcome: RoundOutcome = {
+    parts: [],
+    skipped: true,
+    toolRecords: [],
+    effectsRan: false,
+    costUsdMicros: 0,
+    trace: [],
+    tail: {
+      conversation: fake({}),
+      planId: null,
+      now: new Date(),
+      steps: 0,
+      truncated: false,
+      text: "",
+      spoken: null,
+      handoffReason: null,
+    },
+  };
+  let unanswered = true;
+  const runner = TurnRunner.of({
+    lock: new ConversationLock(fake<Redis>(redis)),
+    store: {
+      bumpFence: () => Promise.resolve(1),
+      // One message waits until the first round has answered it.
+      unanswered: () => Promise.resolve(unanswered ? [fake<TurnMessage>({ id: "m1" })] : []),
+      hasUnanswered: () => Promise.resolve(false),
+      begin: () => Promise.resolve(fake<ActiveTurn>({ id: "t1" })),
+      endOf: () => fake({}),
+      endQuietly: () => Promise.resolve(),
+    },
+    conversations: {
+      find: () => Promise.resolve(fake<WaConversation>({ id: COMMERCE_CONVERSATION_ID })),
+    },
+    settings: fake({ get: () => Promise.resolve(settingDefault("waAgent")) }),
+    failures: fake({}),
+    round: {
+      // The first round is "slow": it sits in its model call until the test lets it go.
+      compose: async () => {
         state.turnsStarted += 1;
-        if (state.turnsStarted === 1) await opened;
-        return { ...settingDefault("waAgent"), enabled: false };
+        await opened;
+        unanswered = false;
+        return outcome;
       },
-    }),
-    fake(redis),
-    fake({}),
-    fake({}),
-    fake({}),
-    fake({}),
-    fake({}),
-    fake({}),
-    silentLogger,
-    fake({}),
-  );
-  return { service, redis, gate, state };
+      afterReply: () => Promise.resolve(),
+      discard: () => Promise.resolve(),
+    },
+    outbound: { enqueueFenced: () => Promise.resolve([]) },
+    queue: {
+      enqueue: () => {
+        state.requeued += 1;
+        return Promise.resolve();
+      },
+    },
+    logger: silentLogger,
+  });
+  return { runner, gate, state };
 }
 
 describe("R9 turn lock", () => {
-  redTest(
-    {
-      id: "R9",
-      fixedIn: "WP1",
-      title: "a turn longer than the lock TTL keeps the lock",
-      reason: /^R9: /,
-    },
-    async () => {
-      vi.useFakeTimers({
-        toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"],
-      });
-      const { service, gate, state } = lockHarness();
-      const first = service.onInbound(COMMERCE_CONVERSATION_ID);
-      await vi.advanceTimersByTimeAsync(LOCK_MS + 5_000);
-      const second = service.onInbound(COMMERCE_CONVERSATION_ID);
-      await vi.advanceTimersByTimeAsync(1_000);
-      const concurrent = state.turnsStarted;
-      gate.release();
-      await vi.advanceTimersByTimeAsync(20_000);
-      await Promise.all([first, second]);
-      expect(concurrent, "R9: a second handler after the TTL must not run a concurrent turn").toBe(
-        1,
-      );
-    },
-  );
+  it("R9 a turn longer than the lock TTL keeps the lock", async () => {
+    vi.useFakeTimers({
+      toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+    });
+    const { runner, gate, state } = lockedRunner();
+    const first = runner.run(COMMERCE_CONVERSATION_ID);
+    await vi.advanceTimersByTimeAsync(LOCK_TTL_MS + 5_000);
+    const second = runner.run(COMMERCE_CONVERSATION_ID);
+    await vi.advanceTimersByTimeAsync(1_000);
+    const concurrent = state.turnsStarted;
+    gate.release();
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(await second, "the second handler found the conversation busy").toBe("busy");
+    expect(await first).toBe("answered");
+    expect(concurrent, "R9: a second handler after the TTL must not run a concurrent turn").toBe(1);
+    expect(state.requeued, "the busy job came back later instead of being lost").toBe(1);
+  });
 });
 
 // --- R10 / R16: analyze_prescription ---------------------------------------------------------------
@@ -159,18 +129,27 @@ const IMAGE = {
   mediaMime: "image/jpeg",
   mediaBytes: 1234,
   createdAt: new Date("2026-10-26T09:50:00.000Z"),
+  fileId: null,
 };
 
+const EFFECT_KEY = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const TURN_ID = "018f0000-0000-7000-8000-0000000000f1";
+
 interface RxSetup {
-  metaError?: Error;
   fileStatus?: string;
+  /** Redis and the queue are down after the start committed. */
+  downstreamDown?: boolean;
 }
 
 function rxService(setup: RxSetup = {}) {
   const redis = new MemoryRedis();
+  if (setup.downstreamDown) {
+    redis.set = () => Promise.reject(new Error("redis down"));
+  }
   const claimed = new Set<string>();
   const released: string[] = [];
   const created: unknown[] = [];
+  const commits: Array<{ analysisId: string; conversationId: string; mediaIds: string[] }> = [];
   const fileCalls: Array<{ method: string; args: unknown[] }> = [];
   const config = settingDefault("rx");
   const baseFiles = {
@@ -210,14 +189,44 @@ function rxService(setup: RxSetup = {}) {
         claimed.delete(id);
         return Promise.resolve();
       },
-      setMediaMeta: () => (setup.metaError ? Promise.reject(setup.metaError) : Promise.resolve()),
+      setMediaMeta: () => Promise.resolve(),
+      dropMediaFileId: () => Promise.resolve(),
+      // The real one is one transaction: the second start of the same picture claims nothing.
+      commitRxStart: (input: {
+        analysisId: string;
+        conversationId: string;
+        mediaIds: string[];
+        create: (tx: unknown) => Promise<void>;
+      }) => {
+        if (input.mediaIds.some((id) => claimed.has(id))) {
+          return Promise.reject(new RxAlreadyAnalysedError());
+        }
+        for (const id of input.mediaIds) claimed.add(id);
+        commits.push({
+          analysisId: input.analysisId,
+          conversationId: input.conversationId,
+          mediaIds: input.mediaIds,
+        });
+        return input.create({});
+      },
     }),
     fake(files),
     fake({
+      // v1: the web entry.
       create: (...args: unknown[]) => {
         created.push(args);
-        return Promise.resolve({ id: "018f0000-0000-7000-8000-0000000000d1" });
+        return Promise.resolve({ id: RX_ID });
       },
+      // v2: the pieces.
+      prepare: () => Promise.resolve({ ticket: { release: () => Promise.resolve() } }),
+      cacheHit: () => Promise.resolve(null),
+      reserveFor: () => Promise.resolve("reservation-1"),
+      createInTx: (...args: unknown[]) => {
+        created.push(args);
+        return Promise.resolve();
+      },
+      enqueue: () =>
+        setup.downstreamDown ? Promise.reject(new Error("queue down")) : Promise.resolve(),
     }),
     fake({ entitlement: () => Promise.resolve({ maxPagesPerRx: null }) }),
     fake({ forUser: () => Promise.resolve({ wallet: { balance: 2 } }) }),
@@ -225,59 +234,58 @@ function rxService(setup: RxSetup = {}) {
     fake(redis),
     quietLogger,
   );
-  return { service, redis, claimed, released, created, fileCalls };
+  return { service, redis, claimed, released, created, commits, fileCalls };
 }
 
 const RX_ID = "018f0000-0000-7000-8000-0000000000d1";
 
 describe("R10 analyze_prescription", () => {
-  redTest(
-    {
-      id: "R10",
-      fixedIn: "WP1",
-      title: "a started analysis keeps its claim and its route when the follow-up write fails",
-      reason: /^R10: /,
-    },
-    async () => {
-      const { service, redis, released, created } = rxService({
-        metaError: new Error("meta write failed"),
-      });
-      const call = commerceCall();
-      await service.analyze(call).catch(() => undefined);
-      expect(created, "R10: the analysis was started").toHaveLength(1);
-      expect(released, "R10: the media claim stays held for a created analysis").toEqual([]);
-      expect(
-        redis.values.get(`wa:agent:rx:${RX_ID}`),
-        "R10: the started analysis is still routed to the conversation",
-      ).toBe(COMMERCE_CONVERSATION_ID);
-      await service.analyze(call).catch(() => undefined);
-      expect(created, "R10: a retry of the same call starts no second analysis").toHaveLength(1);
-    },
-  );
+  it("R10 a started analysis keeps its claim and its route when redis and the queue fail after it", async () => {
+    const { service, released, created, commits } = rxService({ downstreamDown: true });
+    const call = commerceCall({ effect: { key: EFFECT_KEY, turnId: TURN_ID, fence: 4 } });
+    const result = await service.analyze(call);
+    expect(result, "R10: the analysis is reported as started").toMatchObject({ started: true });
+    expect(created, "R10: the analysis was started").toHaveLength(1);
+    expect(commits, "R10: claim, analysis and route are one commit").toEqual([
+      {
+        analysisId: uuidFromKey(EFFECT_KEY),
+        conversationId: COMMERCE_CONVERSATION_ID,
+        mediaIds: [IMAGE.id],
+      },
+    ]);
+    expect(released, "R10: the media claim stays held for a created analysis").toEqual([]);
+    const again = await service.analyze(call);
+    expect(again, "R10: the picture is taken").toMatchObject({
+      started: false,
+      reason: "already_analysed",
+    });
+    expect(created, "R10: a retry of the same call starts no second analysis").toHaveLength(1);
+  });
 });
 
 describe("R16 declined prescription import", () => {
-  redTest(
-    {
-      id: "R16",
-      fixedIn: "WP1",
-      title: "files imported for a declined request are deleted",
-      reason: /^R16: /,
-    },
-    async () => {
-      const { service, fileCalls } = rxService({ fileStatus: "rejected" });
-      const result = await service.analyze(commerceCall());
-      expect(result, "R16: the request is declined").toMatchObject({ started: false });
-      const cleanup = fileCalls.filter(
-        (entry) =>
-          /delete|remove|discard|purge|cleanup/i.test(entry.method) &&
-          JSON.stringify(entry.args).includes("file-1"),
-      );
-      expect(cleanup, "R16: the imported file is deleted from storage on decline").not.toHaveLength(
-        0,
-      );
-    },
-  );
+  it("R16 files imported for a declined request are deleted", async () => {
+    const { service, fileCalls } = rxService({ fileStatus: "rejected" });
+    const result = await service.analyze(commerceCall());
+    expect(result, "R16: the request is declined").toMatchObject({ started: false });
+    const cleanup = fileCalls.filter(
+      (entry) =>
+        /delete|remove|discard|purge|cleanup/i.test(entry.method) &&
+        JSON.stringify(entry.args).includes("file-1"),
+    );
+    expect(cleanup, "R16: the imported file is deleted from storage on decline").not.toHaveLength(
+      0,
+    );
+  });
+
+  it("R16 the v2 start deletes them too and forgets them on the picture", async () => {
+    const { service, fileCalls } = rxService({ fileStatus: "uploaded" });
+    const result = await service.analyze(
+      commerceCall({ effect: { key: EFFECT_KEY, turnId: TURN_ID } }),
+    );
+    expect(result).toMatchObject({ started: false, reason: "still_processing" });
+    expect(fileCalls.map((entry) => entry.method)).toContain("discardImported");
+  });
 });
 
 // --- R12: rx_failed texts --------------------------------------------------------------------------
@@ -320,32 +328,16 @@ async function failureText(event: Record<string, unknown>): Promise<string> {
 }
 
 describe("R12 rx_failed", () => {
-  redTest(
-    {
-      id: "R12",
-      fixedIn: "WP1",
-      title: "an unreadable image and an internal error get different texts",
-      reason: /^R12: /,
-    },
-    async () => {
-      const unreadable = await failureText({ reason: "unreadable_image", creditsReturned: true });
-      const internal = await failureText({ reason: "internal", creditsReturned: true });
-      expect(unreadable, "R12: the unreadable-image text is sent").not.toBe("");
-      expect(unreadable, "R12: unreadable image and internal error differ").not.toBe(internal);
-    },
-  );
+  it("R12 an unreadable image and an internal error get different texts", async () => {
+    const unreadable = await failureText({ reason: "unreadable_image", creditsReturned: true });
+    const internal = await failureText({ reason: "internal", creditsReturned: true });
+    expect(unreadable, "R12: the unreadable-image text is sent").not.toBe("");
+    expect(unreadable, "R12: unreadable image and internal error differ").not.toBe(internal);
+  });
 
-  redTest(
-    {
-      id: "R12",
-      fixedIn: "WP1",
-      title: "the text never claims credits were returned unless the event says so",
-      reason: /^R12: /,
-    },
-    async () => {
-      const text = await failureText({ reason: "internal", creditsReturned: false });
-      expect(text, "R12: a text is sent").not.toBe("");
-      expect(text, "R12: no refund claim when credits were not returned").not.toContain("أعدنا");
-    },
-  );
+  it("R12 the text never claims credits were returned unless the event says so", async () => {
+    const text = await failureText({ reason: "internal", creditsReturned: false });
+    expect(text, "R12: a text is sent").not.toBe("");
+    expect(text, "R12: no refund claim when credits were not returned").not.toContain("أعدنا");
+  });
 });

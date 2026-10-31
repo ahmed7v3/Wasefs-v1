@@ -16,6 +16,7 @@ export const attachReceiptTool = defineTool({
   },
   schema: z.object({}),
   linkedOnly: true,
+  effect: "write",
   handler: (ctx) => {
     const call = callOf(ctx);
     if (call === null) return toolError("not_linked");

@@ -58,6 +58,7 @@ export class WaAgentRepo {
         kind: entry.kind,
         text: entry.text,
         media: entry.media,
+        mediaStatus: entry.mediaStatus,
         waMessageId: entry.waMessageId,
         ts: entry.ts,
       });

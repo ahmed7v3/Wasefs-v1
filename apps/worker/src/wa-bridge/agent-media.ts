@@ -10,15 +10,18 @@ import {
   WA_AGENT_MEDIA_PREFIX,
   type WaAgentInbound,
   type WaAgentKind,
+  type WaMediaStatus,
 } from "@wasfa/shared/schemas/wa-agent";
 
+import { downloadWithRetries, type DownloadIo } from "./agent-media-download.js";
 import { unwrapContent, type RawMessage } from "./inbound.js";
 
 /*
  * What the agent reads from a WhatsApp message and what of it may be stored. Media is downloaded
  * with Baileys, checked against the limits (docs/WA-AGENT.md) and put in the private uploads bucket;
- * anything over a limit, of another type, or that fails to download becomes kind `other` without
- * media, and the agent says it could not open it. Nothing here logs content.
+ * anything over a limit, of another type, or that fails to download keeps its kind with a typed
+ * `mediaStatus` and no media; the agent turn says why. `other` is only for content it cannot read
+ * (video, sticker, location, contact). Nothing here logs content.
  */
 
 export type AgentContent =
@@ -111,13 +114,18 @@ export function unwrapped(raw: RawMessage): RawMessage {
   return { ...raw, message: unwrapContent(raw.message) };
 }
 
+const isImageMime = (mime: string) => (WA_AGENT_IMAGE_MIMES as readonly string[]).includes(mime);
+
 export function mediaAllowed(
   kind: "image" | "document" | "audio",
   mime: string | null,
 ): mime is string {
   if (mime === null) return false;
-  if (kind === "image") return (WA_AGENT_IMAGE_MIMES as readonly string[]).includes(mime);
-  if (kind === "document") return (WA_AGENT_DOCUMENT_MIMES as readonly string[]).includes(mime);
+  // An image sent "as a document" (the usual way to send a HEIC original) is still an image.
+  if (kind === "image") return isImageMime(mime);
+  if (kind === "document") {
+    return isImageMime(mime) || (WA_AGENT_DOCUMENT_MIMES as readonly string[]).includes(mime);
+  }
   return mime.startsWith("audio/");
 }
 
@@ -132,9 +140,7 @@ export function withinLimits(
   return !(kind === "audio" && seconds !== null && seconds > WA_AGENT_MAX_AUDIO_SECONDS);
 }
 
-export interface MediaIo {
-  /** The decrypted bytes of the message's media (Baileys). */
-  download: (raw: RawMessage) => Promise<Buffer>;
+export interface MediaIo extends DownloadIo {
   /** The private uploads bucket. */
   put: (key: string, body: Buffer, contentType: string) => Promise<void>;
 }
@@ -147,12 +153,15 @@ export function mediaKeyFor(now: number, id: string = randomUUID()): string {
 
 export interface IngestedMedia {
   kind: WaAgentKind;
+  /** `ok` with `media`; otherwise why there is no stored file. The kind is kept either way. */
+  mediaStatus: WaMediaStatus;
   media?: NonNullable<WaAgentInbound["media"]>;
 }
 
 /**
- * Turns an image / PDF / voice note into stored media, or into kind `other` (limits, type, download
- * or storage failure). `io` is null when uploads storage is not configured.
+ * Turns an image / PDF / voice note into stored media. A failure keeps the semantic kind (the agent
+ * knows a photo was sent) with a typed `mediaStatus` and no media key. `io` is null when uploads
+ * storage is not configured.
  */
 export async function ingestMedia(
   content: Extract<AgentContent, { kind: "image" | "document" | "audio" }>,
@@ -160,25 +169,36 @@ export async function ingestMedia(
   io: MediaIo | null,
   now: number,
 ): Promise<IngestedMedia> {
-  const { kind, mime, bytes, seconds } = content;
-  if (io === null || !mediaAllowed(kind, mime) || !withinLimits(kind, bytes, seconds)) {
-    return { kind: "other" };
-  }
+  const { mime, bytes, seconds } = content;
+  const kind =
+    content.kind === "document" && mime !== null && isImageMime(mime) ? "image" : content.kind;
+  const failed = (mediaStatus: Exclude<WaMediaStatus, "ok">): IngestedMedia => ({
+    kind,
+    mediaStatus,
+  });
+  if (io === null) return failed("storage_unavailable");
+  if (!mediaAllowed(content.kind, mime)) return failed("unsupported_type");
+  if (!withinLimits(content.kind, bytes, seconds)) return failed("too_large");
+
+  const downloaded = await downloadWithRetries(io, unwrapped(raw));
+  if (!downloaded.ok) return failed(downloaded.reason);
+  const { body } = downloaded;
+  if (body.length === 0) return failed("download_failed");
+  if (!withinLimits(content.kind, body.length, seconds)) return failed("too_large");
+  const key = mediaKeyFor(now);
   try {
-    const body = await io.download(unwrapped(raw));
-    if (!withinLimits(kind, body.length, seconds) || body.length === 0) return { kind: "other" };
-    const key = mediaKeyFor(now);
     await io.put(key, body, mime);
-    return {
-      kind,
-      media: {
-        key,
-        mime,
-        bytes: body.length,
-        ...(seconds === null ? {} : { seconds: Math.round(seconds) }),
-      },
-    };
   } catch {
-    return { kind: "other" };
+    return failed("storage_unavailable");
   }
+  return {
+    kind,
+    mediaStatus: "ok",
+    media: {
+      key,
+      mime,
+      bytes: body.length,
+      ...(seconds === null ? {} : { seconds: Math.round(seconds) }),
+    },
+  };
 }

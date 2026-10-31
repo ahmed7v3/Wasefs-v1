@@ -62,24 +62,49 @@ export class ErrorReporter {
   }
 
   async report(error: unknown, request: FastifyRequest, code: ErrorCode): Promise<string> {
+    return this.record(error, {
+      route: routeOf(request),
+      method: request.method,
+      requestId: String(request.id),
+      code,
+    });
+  }
+
+  /** The same row for a failure that has no HTTP request (a queue job, a WhatsApp turn). */
+  async record(
+    error: unknown,
+    meta: {
+      route: string;
+      method: string;
+      requestId: string;
+      code: string;
+      userId?: string | undefined;
+      context?: Record<string, unknown>;
+    },
+  ): Promise<string> {
     const ref = newErrorRef();
     const err = error instanceof Error ? error : new Error("Non-Error value thrown");
-    const route = routeOf(request);
+    const { route } = meta;
     const stack = err.stack ? redactText(err.stack) : null;
     const firstFrame = err.stack?.split("\n").find((line) => line.trim().startsWith("at ")) ?? "";
     const fingerprint = createHash("sha256")
-      .update(`${err.name}|${request.method}|${route}|${firstFrame.trim()}`)
+      .update(`${err.name}|${meta.method}|${route}|${firstFrame.trim()}`)
       .digest("hex")
       .slice(0, 32);
     const row = {
       ref,
       fingerprint,
-      code,
+      code: meta.code,
       route,
-      method: request.method,
-      requestId: String(request.id),
+      method: meta.method,
+      userId: meta.userId ?? null,
+      requestId: meta.requestId,
       message: redactText(err.message).slice(0, 2_000),
-      context: { errorName: err.name, appCode: isAppError(err) ? err.code : null },
+      context: {
+        errorName: err.name,
+        appCode: isAppError(err) ? err.code : null,
+        ...meta.context,
+      },
       stack: stack?.slice(0, 16_000) ?? null,
     };
     this.logger.error(

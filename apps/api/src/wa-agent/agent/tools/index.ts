@@ -11,7 +11,14 @@ import { medicationAlternativesTool, searchMedicationsTool } from "./medications
 import { offerDiscountTool } from "./offer-discount.js";
 import { sendMediaTool } from "./send-media.js";
 import { startSubscriptionTool } from "./start-subscription.js";
-import { toolError, type AgentTool, type AgentToolContext, type AgentToolFeature } from "./tool.js";
+import {
+  StaleFenceError,
+  toolError,
+  withToolEffect,
+  type AgentTool,
+  type AgentToolContext,
+  type AgentToolFeature,
+} from "./tool.js";
 
 import type { ToolDefinition, ToolHandler } from "@wasfa/ai";
 
@@ -21,8 +28,12 @@ export type {
   AgentTool,
   AgentToolContext,
   AgentToolDeps,
+  AgentToolEffect,
   AgentToolResult,
+  ToolEffectInfo,
+  ToolEffectsPort,
 } from "./tool.js";
+export { StaleFenceError } from "./tool.js";
 
 /** Every tool the agent has. A new tool is a new file in this folder plus one line here. */
 export const AGENT_TOOLS: readonly AgentTool[] = [
@@ -65,6 +76,15 @@ export interface ToolCallRecord {
   code?: string;
 }
 
+/**
+ * What a successful call returned, kept in memory only: the failure policy builds a reply from it when
+ * the model fails after a tool ran. Never stored and never logged (it can hold amounts and codes).
+ */
+export interface ToolOutput {
+  name: string;
+  result: unknown;
+}
+
 function errorCode(result: unknown): string | null {
   if (typeof result !== "object" || result === null || !("error" in result)) return null;
   return typeof result.error === "string" ? result.error : "error";
@@ -79,6 +99,7 @@ export function bindTools(
   tools: readonly AgentTool[],
   ctx: AgentToolContext,
   records: ToolCallRecord[],
+  outputs?: ToolOutput[],
 ): { definitions: ToolDefinition[]; handlers: Record<string, ToolHandler> } {
   const handlers: Record<string, ToolHandler> = {};
   for (const tool of tools) {
@@ -93,11 +114,24 @@ export function bindTools(
       const parsed = tool.schema.safeParse(raw);
       if (!parsed.success) return fail("invalid_arguments");
       try {
-        const result = await tool.handler(ctx, parsed.data);
+        // A write tool of a v2 turn (`ctx.turnId`) acts once per turn and arguments; v1 just calls it.
+        const result =
+          tool.effect === "write"
+            ? await withToolEffect(
+                ctx,
+                name,
+                parsed.data,
+                (effect) => tool.handler(ctx, parsed.data, effect),
+                tool,
+              )
+            : await tool.handler(ctx, parsed.data);
         const code = errorCode(result);
         records.push(code === null ? { name, ok: true } : { name, ok: false, code });
+        if (code === null) outputs?.push({ name, result });
         return result;
-      } catch {
+      } catch (error) {
+        // The turn lost the chat to a newer one: nothing was done, and the runner must see why.
+        if (error instanceof StaleFenceError) return fail("stale_turn");
         return fail("tool_failed");
       }
     };
