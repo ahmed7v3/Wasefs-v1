@@ -150,7 +150,11 @@ function rxCard(item: RxResult["items"][number], language: Locale): RxPdfDoc["it
   ];
   const doubtful = item.badge === "low" || item.verified === "unreadable";
   return {
-    title: itemName(item),
+    // A likely reading is named from the drug list and flagged, never presented as certain.
+    title:
+      item.match === "likely"
+        ? `${itemName(item)} ${label("whatsapp.agent.event.rxDone.likely")}`
+        : itemName(item),
     sub: [item.strength, formLabel(item.form, language)].filter(present).join(" "),
     flag: doubtful ? label("whatsapp.agent.event.rxDone.lowConfidence") : null,
     facts: facts.flatMap(([key, value]) =>

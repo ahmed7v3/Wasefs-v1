@@ -3,7 +3,7 @@ import { drugColumns } from "@wasfa/shared/drugs";
 import { normalizeDrugName } from "@wasfa/shared/normalize";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { matchDrug } from "../src/drug-matcher.js";
+import { matchDrug, shapeCandidates } from "../src/drug-matcher.js";
 import { medicationCardsFor, searchMedications } from "../src/medication-search.js";
 import { activeIngredients, drugIngredients, drugs } from "../src/schema/index.js";
 
@@ -188,5 +188,27 @@ describe("medicationCardsFor on Arabic words", () => {
   it("builds a card for a brand written in Arabic inside a sentence", async () => {
     const cards = await medicationCardsFor(fixture.handle.db, "عندي ريوبان و بانادول", 3);
     expect(cards.map((card) => card.title)).toEqual(["Riopan", "Panadol"]);
+  });
+});
+
+describe("shapeCandidates on names the model could not read", () => {
+  it.each([
+    ["Ripan", "riopan"], // a letter missing
+    ["Bebra 20", "bepra"], // b for p
+    ["Glbimet 5", "glibimet"], // a vowel missing
+    ["Motdyl", "motidyl"], // a vowel and y missing
+  ])("%s reaches the %s family", async (reading, key) => {
+    const candidates = await shapeCandidates(fixture.handle.db, reading, { limit: 8 });
+    expect(candidates.map((c) => c.brandKey)).toContain(key);
+    expect(candidates.length).toBeLessThanOrEqual(8);
+  });
+
+  // Known gap (phase6.md Notes, R20, owner WP4): since the brand-family import (#77) a combination
+  // strength "5/500 mg" is stored as its last component only (500 mg), so a written "Glibimet 5"
+  // conflicts with every Glibimet row. Keeping all components is a data-layer change in WP4.
+  it.todo("offers a strength-matching variant when a strength was written (R20, WP4)");
+
+  it("a made-up name with no consistent candidate gets none", async () => {
+    expect(await shapeCandidates(fixture.handle.db, "Zexorin 20")).toEqual([]);
   });
 });

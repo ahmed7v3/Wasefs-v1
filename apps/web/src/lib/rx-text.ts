@@ -16,6 +16,7 @@ export type RxTextItem = Pick<
   | "rawText"
   | "name"
   | "matchedDrugId"
+  | "match"
   | "verified"
   | "badge"
   | "activeIngredients"
@@ -79,7 +80,8 @@ export function itemLine(item: RxTextItem, position: number, modelOnly = false):
     clean(item.duration),
     clean(item.route),
   ].filter((part) => part !== "");
-  const head = `${String(position)}. ${title}${unmatched ? ` (${t("rx.share.unconfirmed")})` : ""}`;
+  const likely = item.match === "likely" ? ` (${t("rx.match.likely")})` : "";
+  const head = `${String(position)}. ${title}${unmatched ? ` (${t("rx.share.unconfirmed")})` : likely}`;
   return [head, ...details].join(" — ");
 }
 

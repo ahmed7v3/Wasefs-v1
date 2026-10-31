@@ -23,6 +23,7 @@ export const arMessaging = {
   "whatsapp.agent.event.rxDone.finding": "⚠️ {text} {items}",
   "whatsapp.agent.event.rxDone.pdfNote": "📄 بعتلك ملف PDF فيه كل التفاصيل وجدول المواعيد",
   "whatsapp.agent.event.rxDone.lowConfidence": "(قراءة غير مؤكدة، راجعها مع الصيدلي)",
+  "whatsapp.agent.event.rxDone.likely": "(مرجّح)",
   "whatsapp.agent.event.rxDone.unreadable":
     "توجد مناطق في الروشتة لم نستطع قراءتها، فراجعها بنفسك أو اسأل الصيدلي.",
   "whatsapp.agent.event.rxDone.link": "النتيجة الكاملة وتفاصيل كل دواء:",

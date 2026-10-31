@@ -14,8 +14,11 @@ import {
 import type { Database } from "@wasfa/db";
 import type { RankedCandidate } from "@wasfa/shared/drug-decision";
 
-const { matchDrug } = vi.hoisted(() => ({ matchDrug: vi.fn() }));
-vi.mock("@wasfa/db", () => ({ matchDrug }));
+const { matchDrug, shapeCandidates } = vi.hoisted(() => ({
+  matchDrug: vi.fn(),
+  shapeCandidates: vi.fn(),
+}));
+vi.mock("@wasfa/db", () => ({ matchDrug, shapeCandidates }));
 
 const settings: RecognitionSettings = {
   similarityFloor: 0.3,
@@ -77,6 +80,8 @@ const script = (byText: Record<string, Omit<RankedCandidate, "via">[]>): void =>
 
 beforeEach(() => {
   matchDrug.mockReset();
+  shapeCandidates.mockReset();
+  shapeCandidates.mockResolvedValue([]);
 });
 
 describe("matchLine", () => {
@@ -186,6 +191,8 @@ const work = (over: Partial<WorkItem> = {}): WorkItem => ({
   verified: "not_needed",
   verifyCeiling: undefined,
   nameOverride: null,
+  likely: false,
+  suggestion: null,
   ...over,
 });
 
@@ -306,7 +313,16 @@ describe("applyVerification", () => {
       db,
       items,
       offered(items),
-      { answers: [{ index: 0, kind: "candidate", id: "0190a000-0000-7000-8000-0000000000ff" }] },
+      {
+        answers: [
+          {
+            index: 0,
+            kind: "candidate",
+            id: "0190a000-0000-7000-8000-0000000000ff",
+            confidence: 0.9,
+          },
+        ],
+      },
       settings,
     );
     expect(items[0]).toMatchObject({ chosen: null, verified: "unreadable" });
@@ -316,7 +332,7 @@ describe("applyVerification", () => {
       db,
       again,
       offered(again),
-      { answers: [{ index: 0, kind: "candidate", id: drugId }] },
+      { answers: [{ index: 0, kind: "candidate", id: drugId, confidence: 0.9 }] },
       settings,
     );
     expect(again[0]?.chosen?.drugId).toBe(drugId);
@@ -331,7 +347,7 @@ describe("applyVerification", () => {
       db,
       items,
       offered(items),
-      { answers: [{ index: 0, kind: "candidate", id: "a" }] },
+      { answers: [{ index: 0, kind: "candidate", id: "a", confidence: 0.9 }] },
       settings,
     );
     expect(items[0]?.familyOnly).toBe(true);

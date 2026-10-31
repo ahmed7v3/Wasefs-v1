@@ -1,6 +1,14 @@
 import { cleanDrugQuery } from "@wasfa/shared/drug-query";
+import {
+  isShapePoolKey,
+  SHAPE_LENGTH_WINDOW,
+  SHAPE_MIN_LENGTH,
+  SHAPE_MIN_SIMILARITY,
+  shapeSimilarity,
+} from "@wasfa/shared/drug-shape";
 import { arabicToLatinCandidates } from "@wasfa/shared/drug-translit";
 import {
+  brandKeyOf,
   DRUG_FORM_BONUS,
   DRUG_MATCH_LIMIT,
   DRUG_SIMILARITY_THRESHOLD,
@@ -285,4 +293,115 @@ export async function matchDrug(
       form: row.form_state,
     },
   }));
+}
+
+/*
+ * Letter-shape lookup (T1): for a name the model could not read clearly, the drugs whose brand key
+ * starts with the same two letters and has a similar length, ranked by consonant skeleton. The pool
+ * comes from one indexed-by-prefix query; the ranking and the filters are pure (`@wasfa/shared/drug-shape`).
+ * Shape candidates are offered to the verification step only; they are never accepted by themselves.
+ */
+
+export interface ShapeMatchOptions {
+  /** Strength written next to the name: a drug with a different strength is dropped. */
+  strength?: Strength | null;
+  /** Dosage form written next to the name: a drug with a different form is dropped. */
+  form?: string | null;
+  /** Candidates to return; default `DRUG_MATCH_LIMIT`, at most 8 for a line. */
+  limit?: number;
+  strengthBonus?: number;
+  formBonus?: number;
+}
+
+type ShapeRow = {
+  drug_id: string;
+  brand_en: string;
+  brand_ar: string | null;
+  brand_key: string;
+  form: string | null;
+  strength_text: string | null;
+  manufacturer: string | null;
+  status: "active" | "withdrawn";
+  strength_value_micro: number | string | null;
+  strength_unit: string | null;
+};
+
+/** Far more than any real family of look-alike names; the pool is filtered in code afterwards. */
+const SHAPE_POOL_LIMIT = 2_000;
+
+export async function shapeCandidates(
+  db: Database,
+  reading: string,
+  options: ShapeMatchOptions = {},
+): Promise<DrugMatchCandidate[]> {
+  const key = brandKeyOf(reading);
+  if (key.length < SHAPE_MIN_LENGTH) return [];
+  const limit = Math.max(1, Math.min(options.limit ?? DRUG_MATCH_LIMIT, 8));
+  const strengthBonus = clamp01(options.strengthBonus ?? DRUG_STRENGTH_BONUS);
+  const formBonus = clamp01(options.formBonus ?? DRUG_FORM_BONUS);
+  const micro = options.strength ? strengthMicro(options.strength.value) : null;
+  const unit = options.strength?.unit ?? null;
+  const formText =
+    options.form === undefined || options.form === null || options.form.trim() === ""
+      ? null
+      : (normalizeDrugName(options.form).form ?? options.form.trim().toLowerCase());
+
+  const rows = await db.execute<ShapeRow>(sql`
+    select id as drug_id, brand_en, brand_ar, brand_key, form, strength_text, manufacturer, status,
+           strength_value_micro, strength_unit
+    from drugs
+    where left(brand_key, 2) = ${key.slice(0, 2)}::text
+      and char_length(brand_key) between ${key.length - SHAPE_LENGTH_WINDOW}::int
+                                     and ${key.length + SHAPE_LENGTH_WINDOW}::int
+    order by brand_key, id
+    limit ${SHAPE_POOL_LIMIT}
+  `);
+
+  const scored: DrugMatchCandidate[] = [];
+  for (const row of Array.from(rows)) {
+    if (!isShapePoolKey(key, row.brand_key)) continue;
+    // A drug whose strength is known and differs from the one written is not this drug.
+    const rowMicro = row.strength_value_micro === null ? null : Number(row.strength_value_micro);
+    let strength: DrugStrengthState = "unknown";
+    if (micro !== null && rowMicro !== null) {
+      if (rowMicro !== micro || (unit !== null && row.strength_unit !== unit)) continue;
+      strength = "match";
+    }
+    const form: DrugFormState =
+      formText === null || row.form === null
+        ? "unknown"
+        : row.form === formText
+          ? "match"
+          : "mismatch";
+    if (form === "mismatch") continue;
+
+    const nameScore = shapeSimilarity(key, row.brand_key);
+    if (nameScore < SHAPE_MIN_SIMILARITY) continue;
+    const score = clamp01(
+      nameScore + (strength === "match" ? strengthBonus : 0) + (form === "match" ? formBonus : 0),
+    );
+    scored.push({
+      drugId: row.drug_id,
+      brandEn: row.brand_en,
+      brandAr: row.brand_ar,
+      brandKey: row.brand_key,
+      form: row.form,
+      strengthText: row.strength_text,
+      manufacturer: row.manufacturer,
+      status: row.status,
+      score: round4(score),
+      explanation: {
+        nameScore: round4(nameScore),
+        matchedOn: "brand",
+        strength,
+        form,
+      },
+    });
+  }
+  return scored
+    .sort(
+      (a, b) =>
+        b.score - a.score || a.brandEn.localeCompare(b.brandEn) || a.drugId.localeCompare(b.drugId),
+    )
+    .slice(0, limit);
 }

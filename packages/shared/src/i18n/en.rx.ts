@@ -12,6 +12,10 @@ export const enRx: Partial<Record<keyof typeof arRx, string>> = {
   "rx.failed": "The analysis could not be completed. You were not charged.",
   "rx.unmatched": "Unconfirmed",
   "rx.source.ai": "AI reading",
+  "rx.match.likely": "likely",
+  "rx.match.likelyHint":
+    "The name is from the medicine list and the reading is likely, not certain. Check it, or pick another medicine with Edit.",
+  "rx.match.suggestion": "maybe: {name}",
   "rx.rating.title": "Was the analysis good?",
   "rx.rating.lead": "Your rating helps us improve accuracy.",
   "rx.rating.saved": "Thank you for rating",
@@ -20,11 +24,14 @@ export const enRx: Partial<Record<keyof typeof arRx, string>> = {
   "rx.rating.sharedYes": "you agreed to a team review",
   "rx.rating.dialogGood": "We are glad you liked the analysis",
   "rx.rating.dialogBad": "Sorry the analysis was not what you expected",
-  "rx.rating.dialogHint": "You can add a note and, if you wish, send the prescription and the result to our team.",
+  "rx.rating.dialogHint":
+    "You can add a note and, if you wish, send the prescription and the result to our team.",
   "rx.rating.note": "Your note (optional)",
   "rx.rating.noteHint": "Do not write names or phone numbers.",
-  "rx.rating.share": "I agree to send the prescription picture and the result to the Wasfa AI team to review and improve accuracy",
-  "rx.rating.shareHint": "Optional. The picture may contain personal data; only the review team sees it and it is used only to improve accuracy. You can change your mind by rating again.",
+  "rx.rating.share":
+    "I agree to send the prescription picture and the result to the Wasfa AI team to review and improve accuracy",
+  "rx.rating.shareHint":
+    "Optional. The picture may contain personal data; only the review team sees it and it is used only to improve accuracy. You can change your mind by rating again.",
   "rx.rating.send": "Send rating",
   "rx.rating.thanks": "Your rating was saved. Thank you.",
   "rx.rating.failed": "The rating could not be saved.",
@@ -35,11 +42,14 @@ export const enRx: Partial<Record<keyof typeof arRx, string>> = {
   "rx.details.sideEffects": "Common side effects",
   "rx.details.precautions": "General precautions",
   "rx.details.none": "No details are available for this medicine.",
-  "rx.details.note": "General reference written by the model from the medicine name only. Ask your doctor or pharmacist before any decision.",
+  "rx.details.note":
+    "General reference written by the model from the medicine name only. Ask your doctor or pharmacist before any decision.",
   "rx.overview.title": "Overview of the case",
   "rx.overview.conditions": "These medicines may be related to",
-  "rx.overview.note": "General information based on the medicine names only. It is not a diagnosis; diagnosis and treatment are for your doctor.",
-  "rx.overview.unavailable": "The details and overview could not be prepared this time. The prescription reading itself is complete.",
+  "rx.overview.note":
+    "General information based on the medicine names only. It is not a diagnosis; diagnosis and treatment are for your doctor.",
+  "rx.overview.unavailable":
+    "The details and overview could not be prepared this time. The prescription reading itself is complete.",
   "rx.badge.high": "High confidence",
   "rx.badge.medium": "Medium confidence",
   "rx.badge.low": "Low confidence",
@@ -161,7 +171,8 @@ export const enRx: Partial<Record<keyof typeof arRx, string>> = {
   "rx.print.reportDate": "Report date",
   "rx.print.review": "Needs review",
   "rx.print.detailsTitle": "Medicine details",
-  "rx.print.footer": "This report was prepared automatically by Wasfa AI and needs a doctor's or pharmacist's review.",
+  "rx.print.footer":
+    "This report was prepared automatically by Wasfa AI and needs a doctor's or pharmacist's review.",
   "rx.print.cta": "Analyse your prescription at {url}",
   "rx.print.qrAlt": "QR code of the Wasfa AI site",
 

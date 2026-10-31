@@ -89,6 +89,8 @@ export const rxVerifyAnswerSchema = z.object({
           index: z.number().int().min(0),
           kind: z.literal("candidate"),
           id: z.string().uuid(),
+          /** How sure the model is that the candidate is what is written (0-1). Decides `likely` vs `ai`. */
+          confidence: z.number().min(0).max(1),
         }),
         z.object({
           index: z.number().int().min(0),
@@ -103,6 +105,10 @@ export const rxVerifyAnswerSchema = z.object({
     .max(40),
 });
 export type RxVerifyAnswer = z.infer<typeof rxVerifyAnswerSchema>;
+
+/** Outcome of one line against the drug database (see `rxResultItemSchema.match`). */
+export const RX_MATCH_OUTCOMES = ["confirmed", "likely", "ai"] as const;
+export type RxMatchOutcome = (typeof RX_MATCH_OUTCOMES)[number];
 
 export const RX_CONFIDENCE_BADGES = ["high", "medium", "low"] as const;
 export type RxConfidenceBadge = (typeof RX_CONFIDENCE_BADGES)[number];
@@ -148,6 +154,17 @@ export const rxResultItemSchema = z.object({
   verified: z.enum(["not_needed", "confirmed", "corrected", "unreadable", "skipped"]),
   /** `ai`: the name is the model's reading, not confirmed in the database. Absent on older results. */
   source: z.enum(["database", "ai"]).optional(),
+  /**
+   * The line's outcome: `confirmed` (a clear name that matches the database), `likely` (the model chose
+   * a database candidate for an unclear name; shown as "مرجّح"), `ai` (the model's own reading stands).
+   * Absent on older results, where `source` alone tells the story.
+   */
+  match: z.enum(RX_MATCH_OUTCOMES).optional(),
+  /** `ai` lines only: the best candidate the model leaned to but was not sure of; offered first on "عدّل". */
+  suggestion: z
+    .object({ drugId: z.string().uuid(), name: clip(200) })
+    .nullable()
+    .optional(),
   /** The model's own reading of the name, kept when the name shown is a database brand (feeds learning from corrections). */
   reading: text.optional(),
   /** Added after the reading by the details step; absent on older results and when it failed. */
@@ -323,11 +340,17 @@ export const rxVerifyJsonSchema = {
           {
             type: "object",
             additionalProperties: false,
-            required: ["index", "kind", "id"],
+            required: ["index", "kind", "id", "confidence"],
             properties: {
               index: { type: "integer", minimum: 0 },
               kind: { type: "string", enum: ["candidate"] },
               id: { type: "string", description: "id of one of the offered candidates" },
+              confidence: {
+                type: "number",
+                minimum: 0,
+                maximum: 1,
+                description: "how sure you are that this candidate is what is written, 0-1",
+              },
             },
           },
           {

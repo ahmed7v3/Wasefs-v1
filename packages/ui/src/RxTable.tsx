@@ -28,6 +28,8 @@ export type RxTableItem = Pick<
   | "verified"
   | "details"
   | "source"
+  | "match"
+  | "suggestion"
 >;
 
 export interface RxTableProps {
@@ -264,7 +266,20 @@ export function RxTable({
                   className="px-3 py-2 max-xl:flex max-xl:flex-wrap max-xl:items-center max-xl:gap-2 max-xl:px-0 max-xl:pb-0 max-xl:pt-2"
                 >
                   <div className="flex flex-wrap items-center gap-2">
+                    {item.match === "likely" ? (
+                      <span
+                        title={t("rx.match.likelyHint")}
+                        className="rounded-full bg-primary-soft px-2 py-0.5 text-xs font-semibold text-primary"
+                      >
+                        {t("rx.match.likely")}
+                      </span>
+                    ) : null}
                     <ConfidenceBadge level={item.badge} unmatched={unmatched} />
+                    {item.suggestion ? (
+                      <span className="text-sm text-text-muted">
+                        {t("rx.match.suggestion", { name: item.suggestion.name })}
+                      </span>
+                    ) : null}
                     {item.source === "ai" ? (
                       <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-text-muted">
                         {t("rx.source.ai")}

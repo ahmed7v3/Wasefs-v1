@@ -8,8 +8,11 @@ import type { MedicationSettings } from "./settings.js";
  * this text". Retrieval and scoring happen in SQL; this only weighs the evidence.
  */
 
-/** Where a candidate came from: the primary reading, an alternative reading, or the raw line. */
-export type MatchVia = "primary" | "alternative" | "raw";
+/**
+ * Where a candidate came from: the primary reading, an alternative reading, the raw line, or the
+ * letter-shape lookup for an unclear name. Only `primary` can be accepted without a second look.
+ */
+export type MatchVia = "primary" | "alternative" | "raw" | "shape";
 
 export interface RankedCandidate extends DrugMatchCandidate {
   via: MatchVia;
