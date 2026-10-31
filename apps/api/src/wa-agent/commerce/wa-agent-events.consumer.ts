@@ -24,7 +24,6 @@ import { StreamConsumer } from "../stream-consumer.js";
 import { WaAgentRepo } from "../wa-agent.repo.js";
 import { WaOutboundService } from "../wa-outbound.service.js";
 
-
 import { WaAgentCommerceRepo } from "./agent-commerce.repo.js";
 
 import type { ApiEnv } from "../../config/env.js";
