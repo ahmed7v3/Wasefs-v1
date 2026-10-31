@@ -25,6 +25,11 @@ export const handoffToOwnerTool = defineTool({
   },
   schema: z.object({ reason: z.string().trim().min(1).max(200) }),
   linkedOnly: false,
+  effect: "write",
+  // The alert is not repeated, but this turn must still pause the chat after its last reply.
+  replay: (ctx, args) => {
+    ctx.handoffReason = args.reason;
+  },
   handler: async (ctx, args) => {
     await ctx.deps.handoff.raise(ctx.conversationId, args.reason);
     ctx.handoffReason = args.reason;

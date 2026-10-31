@@ -16,6 +16,7 @@ import { AgentDocumentService, type DocumentCall } from "../documents/agent-docu
 import { AgentAccountService } from "./account-facts.service.js";
 import { AgentSignupService } from "./agent-signup.service.js";
 import { WaAgentHandoffService } from "./handoff.service.js";
+import { ToolEffectsRepo } from "./tools/tool-effects.repo.js";
 
 import type { AgentCall, AgentToolDeps } from "./tools/index.js";
 import type { Market } from "../../catalog/market.js";
@@ -43,6 +44,7 @@ export class WaAgentToolDeps implements AgentToolDeps {
     private readonly signup: AgentSignupService,
     @Inject(DB) private readonly dbHandle: DbHandle,
     private readonly settings: SettingsService,
+    readonly effects: ToolEffectsRepo,
     @Inject(API_ENV) env: Pick<ApiEnv, "MEDIA_PUBLIC_ORIGIN" | "WEB_ORIGIN">,
   ) {
     this.mediaOrigin = env.MEDIA_PUBLIC_ORIGIN ?? "";

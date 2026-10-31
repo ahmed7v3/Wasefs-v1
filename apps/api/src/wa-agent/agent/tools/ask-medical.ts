@@ -25,6 +25,7 @@ export const askMedicalTool = defineTool({
   },
   schema: z.object({ question: z.string().trim().min(1).max(2_000) }),
   linkedOnly: true,
+  effect: "write",
   handler: (ctx, args) => {
     const call = callOf(ctx);
     if (call === null) return toolError("not_linked");

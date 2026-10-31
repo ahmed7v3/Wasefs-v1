@@ -1,7 +1,7 @@
 import { isMediaOriginUrl } from "@wasfa/shared/schemas/wa-agent";
 import { z } from "zod";
 
-import { defineTool, toolError } from "./tool.js";
+import { defineTool, toolError, type AgentToolContext } from "./tool.js";
 
 import type { MediaAsset } from "@wasfa/shared/schemas/media";
 
@@ -28,6 +28,33 @@ export function pickImageVariant(variants: MediaAsset["variants"]): { key: strin
   return null;
 }
 
+/** Queues the picture with the reply; asking for the same picture again changes nothing. */
+async function queueMedia(ctx: AgentToolContext, args: { key: string }) {
+  const item = ctx.config.media.find((entry) => entry.key === args.key);
+  if (!item) return toolError("unknown_key");
+  // Room is kept for at least one text message in the same turn.
+  const limit = ctx.config.caps.maxMessagesPerTurn - 1;
+  if (ctx.mediaParts.length >= limit) return toolError("limit_reached");
+
+  const asset = await ctx.deps.media.find(item.mediaAssetId);
+  if (!asset || asset.status !== "ready") return toolError("media_unavailable");
+  const variant = pickImageVariant(asset.variants);
+  if (!variant || ctx.deps.mediaOrigin === "") return toolError("media_unavailable");
+  const url = `${ctx.deps.mediaOrigin.replace(/\/+$/, "")}/${variant.key}`;
+  if (!isMediaOriginUrl(url, ctx.deps.mediaOrigin)) return toolError("media_unavailable");
+
+  // The same picture twice in one turn is one picture.
+  const already = ctx.mediaParts.some((part) => part.kind === "image" && part.url === url);
+  if (!already) {
+    ctx.mediaParts.push({
+      kind: "image",
+      url,
+      ...(item.caption ? { caption: item.caption } : {}),
+    });
+  }
+  return { sent: true };
+}
+
 /**
  * Sends a picture the admin put in the agent media list (`waAgent.media`). The model names a list key;
  * everything else (which asset, which url) is decided here, and the url must lie under the public
@@ -47,29 +74,10 @@ export const sendMediaTool = defineTool({
   },
   schema: z.object({ key: z.string().trim().min(1).max(40) }),
   linkedOnly: false,
-  handler: async (ctx, args) => {
-    const item = ctx.config.media.find((entry) => entry.key === args.key);
-    if (!item) return toolError("unknown_key");
-    // Room is kept for at least one text message in the same turn.
-    const limit = ctx.config.caps.maxMessagesPerTurn - 1;
-    if (ctx.mediaParts.length >= limit) return toolError("limit_reached");
-
-    const asset = await ctx.deps.media.find(item.mediaAssetId);
-    if (!asset || asset.status !== "ready") return toolError("media_unavailable");
-    const variant = pickImageVariant(asset.variants);
-    if (!variant || ctx.deps.mediaOrigin === "") return toolError("media_unavailable");
-    const url = `${ctx.deps.mediaOrigin.replace(/\/+$/, "")}/${variant.key}`;
-    if (!isMediaOriginUrl(url, ctx.deps.mediaOrigin)) return toolError("media_unavailable");
-
-    // The same picture twice in one turn is one picture.
-    const already = ctx.mediaParts.some((part) => part.kind === "image" && part.url === url);
-    if (!already) {
-      ctx.mediaParts.push({
-        kind: "image",
-        url,
-        ...(item.caption ? { caption: item.caption } : {}),
-      });
-    }
-    return { sent: true };
+  effect: "write",
+  // The picture only lives in this run's reply: a re-run that finds the effect done must queue it again.
+  replay: async (ctx, args) => {
+    await queueMedia(ctx, args);
   },
+  handler: queueMedia,
 });
