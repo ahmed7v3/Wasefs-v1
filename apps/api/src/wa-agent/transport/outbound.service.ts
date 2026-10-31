@@ -8,16 +8,15 @@ import {
 } from "@wasfa/shared/schemas/wa-agent";
 import { Redis } from "ioredis";
 
-import { REDIS } from "../common/redis.js";
-import { API_ENV } from "../config/config.module.js";
-import { SettingsService } from "../settings/settings.service.js";
+import { REDIS } from "../../common/redis.js";
+import { API_ENV } from "../../config/config.module.js";
+import { SettingsService } from "../../settings/settings.service.js";
+import { WaAgentRepo } from "../conversation/conversation.repo.js";
+import { WaAgentStateService } from "../conversation/state.service.js";
+import { TurnRepo } from "../turn/turn.repo.js";
 
-import { TurnRepo } from "./turn/turn.repo.js";
-import { WaAgentStateService } from "./wa-agent-state.service.js";
-import { WaAgentRepo } from "./wa-agent.repo.js";
-
-import type { ApiEnv } from "../config/env.js";
-import type { TurnEnd } from "./turn/turn.repo.js";
+import type { ApiEnv } from "../../config/env.js";
+import type { TurnEnd } from "../turn/turn.repo.js";
 import type { OutboundPartRow, WaConversation } from "@wasfa/db";
 import type { WaTurnState } from "@wasfa/shared/wa-agent/failure";
 

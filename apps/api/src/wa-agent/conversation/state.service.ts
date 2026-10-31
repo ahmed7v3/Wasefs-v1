@@ -2,9 +2,9 @@ import { Inject, Injectable } from "@nestjs/common";
 import { waAgentBlockKey, waAgentPauseKey } from "@wasfa/shared/schemas/wa-agent";
 import { Redis } from "ioredis";
 
-import { REDIS } from "../common/redis.js";
+import { REDIS } from "../../common/redis.js";
 
-import { WaAgentRepo } from "./wa-agent.repo.js";
+import { WaAgentRepo } from "./conversation.repo.js";
 
 import type { WaConversation } from "@wasfa/db";
 

@@ -2,7 +2,7 @@ import { RedisContainer, type StartedRedisContainer } from "@testcontainers/redi
 import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { StreamConsumer } from "../../src/wa-agent/stream-consumer.js";
+import { StreamConsumer } from "../../src/wa-agent/transport/stream-consumer.js";
 import { quietLogger } from "../support/wa-agent-commerce-fakes.js";
 
 import type { ApiEnv } from "../../src/config/env.js";

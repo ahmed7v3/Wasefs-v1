@@ -31,9 +31,9 @@ import { RxService } from "../src/rx/rx.service.js";
 import { SettingsService } from "../src/settings/settings.service.js";
 import { WaAgentCommerceRepo } from "../src/wa-agent/commerce/agent-commerce.repo.js";
 import { AgentDiscountService } from "../src/wa-agent/commerce/agent-discount.service.js";
-import { AgentRxService } from "../src/wa-agent/commerce/agent-rx.service.js";
 import { AgentSubscriptionService } from "../src/wa-agent/commerce/agent-subscription.service.js";
-import { WaAgentRepo } from "../src/wa-agent/wa-agent.repo.js";
+import { WaAgentRepo } from "../src/wa-agent/conversation/conversation.repo.js";
+import { AgentRxService } from "../src/wa-agent/rx/agent-rx.service.js";
 
 import { AdminTestContext } from "./support/admin-context.js";
 import { buyer, insertProofFile } from "./support/billing-console-fixtures.js";

@@ -5,7 +5,7 @@ import { PinoLogger } from "nestjs-pino";
 import { ChatTurnService } from "../../chat/chat-turn.service.js";
 import { CreditsService } from "../../credits/credits.service.js";
 import { splitReply, toWhatsappText } from "../agent/agent-output.js";
-import { WaOutboundService } from "../wa-outbound.service.js";
+import { WaOutboundService } from "../transport/outbound.service.js";
 
 import { WaAgentCommerceRepo } from "./agent-commerce.repo.js";
 import { agentUser } from "./agent-user.js";

@@ -4,9 +4,9 @@ import { actionFor, classify, type FailureSignal } from "@wasfa/shared/wa-agent/
 import { PinoLogger } from "nestjs-pino";
 
 import { SettingsService } from "../../settings/settings.service.js";
-import { WaAgentRepo } from "../wa-agent.repo.js";
+import { WaAgentRepo } from "../conversation/conversation.repo.js";
+import { WaOutboundService } from "../transport/outbound.service.js";
 import { WA_AGENT_ROUND } from "../wa-agent.tokens.js";
-import { WaOutboundService } from "../wa-outbound.service.js";
 
 import {
   RoundRefused,

@@ -34,18 +34,18 @@ import {
 import { WaAgentToolDeps } from "../../../src/wa-agent/agent/tool-deps.js";
 import { WaAgentTurnService } from "../../../src/wa-agent/agent/wa-agent-turn.service.js";
 import { WaAgentCommerceRepo } from "../../../src/wa-agent/commerce/agent-commerce.repo.js";
-import { AgentRxService } from "../../../src/wa-agent/commerce/agent-rx.service.js";
 import { WaAgentEventsConsumer } from "../../../src/wa-agent/commerce/wa-agent-events.consumer.js";
+import { WaAgentRepo } from "../../../src/wa-agent/conversation/conversation.repo.js";
+import { WaAgentStateService } from "../../../src/wa-agent/conversation/state.service.js";
 import { OutboxDeliverer } from "../../../src/wa-agent/outbox/deliverer.js";
 import { WaOutboxRepo } from "../../../src/wa-agent/outbox/wa-outbox.repo.js";
+import { AgentRxService } from "../../../src/wa-agent/rx/agent-rx.service.js";
+import { WaOutboundService } from "../../../src/wa-agent/transport/outbound.service.js";
 import { FailureActions } from "../../../src/wa-agent/turn/failure-actions.js";
 import { ConversationLock } from "../../../src/wa-agent/turn/lock.js";
 import { TurnRunner } from "../../../src/wa-agent/turn/turn-runner.js";
 import { TurnStore } from "../../../src/wa-agent/turn/turn.store.js";
 import { WaAgentVoiceService } from "../../../src/wa-agent/voice/voice.service.js";
-import { WaAgentStateService } from "../../../src/wa-agent/wa-agent-state.service.js";
-import { WaAgentRepo } from "../../../src/wa-agent/wa-agent.repo.js";
-import { WaOutboundService } from "../../../src/wa-agent/wa-outbound.service.js";
 import { AdminTestContext } from "../../support/admin-context.js";
 import { fakeAi, silentLogger, type FakeAi } from "../../support/wa-agent-fakes.js";
 

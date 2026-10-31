@@ -2,7 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 
 import { API_ENV } from "../../config/config.module.js";
 import { encryptionKey, type ApiEnv } from "../../config/env.js";
-import { WaAgentRepo } from "../wa-agent.repo.js";
+import { WaAgentRepo } from "../conversation/conversation.repo.js";
 
 const TTL_MS = 60_000;
 

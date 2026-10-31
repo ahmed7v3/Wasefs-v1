@@ -7,9 +7,9 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { SettingsService } from "../src/settings/settings.service.js";
-import { WaAgentInboundConsumer } from "../src/wa-agent/wa-agent-inbound.consumer.js";
-import { WaAgentSentConsumer } from "../src/wa-agent/wa-agent-sent.consumer.js";
-import { WaOutboundService } from "../src/wa-agent/wa-outbound.service.js";
+import { WaAgentInboundConsumer } from "../src/wa-agent/transport/inbound.consumer.js";
+import { WaOutboundService } from "../src/wa-agent/transport/outbound.service.js";
+import { WaAgentSentConsumer } from "../src/wa-agent/transport/sent.consumer.js";
 
 import { AdminTestContext } from "./support/admin-context.js";
 
