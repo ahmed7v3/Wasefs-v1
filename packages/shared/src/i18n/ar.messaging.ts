@@ -41,6 +41,20 @@ export const arMessaging = {
   "whatsapp.agent.event.rxDone.link": "النتيجة الكاملة وتفاصيل كل دواء:",
   "whatsapp.agent.event.rxFailed":
     "تعذّرت قراءة الروشتة، وأعدنا الرصيد المخصوم إلى حسابك. جرّب صورة أوضح وإضاءة أفضل وأرسلها مرة أخرى.",
+  "whatsapp.agent.event.rxFailed.unreadable_image":
+    "الصورة مش واضحة كفاية عشان أقراها 🙏 صورها في نور كويس ومن فوق، وابعتها تاني.",
+  "whatsapp.agent.event.rxFailed.not_a_prescription":
+    "دي مش شكل روشتة 🤔 ابعتلي صورة الروشتة نفسها وأنا أقراها لك.",
+  "whatsapp.agent.event.rxFailed.too_many_pages":
+    "الروشتة صفحاتها أكتر من المسموح. ابعتها على دفعات أقل لو سمحت.",
+  "whatsapp.agent.event.rxFailed.insufficient_credits":
+    "رصيدك مش كفاية لقراءة الروشتة دي. اشحن رصيدك أو اختار باقة من الموقع وابعتها تاني.",
+  "whatsapp.agent.event.rxFailed.model_unavailable":
+    "الخدمة مشغولة دلوقتي ومقدرناش نقرأ الروشتة. ابعتها تاني بعد شوية.",
+  "whatsapp.agent.event.rxFailed.internal":
+    "حصلت مشكلة من عندنا ومقدرناش نقرأ الروشتة. ابعتها تاني بعد شوية.",
+  "whatsapp.agent.event.rxFailed.creditsReturned": "ورجّعنا لك الرصيد.",
+  "whatsapp.agent.event.rxFailed.creditsNotReturned": "ولو اتخصم منك رصيد هيرجعلك تلقائي.",
   "whatsapp.agent.event.documentFailed": "تعذّر إنشاء الملف الآن. جرّب طلبه مرة أخرى بعد قليل.",
   "whatsapp.agent.media.too_large": "الملف كبير شوية، ابعته بحجم أصغر لو سمحت",
   "whatsapp.agent.media.unsupported_type":
