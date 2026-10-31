@@ -14,8 +14,8 @@ import { DB, type DbHandle } from "../../common/database.js";
 
 import { StaleFenceError } from "./lock.js";
 
-import type { TurnTraceStep } from "./agent-round.js";
-import type { WaTurnState } from "@wasfa/shared/wa-agent/failure";
+import type { StepTrace, TurnTraceStep } from "./agent-round.js";
+import type { FailureClass, WaTurnState } from "@wasfa/shared/wa-agent/failure";
 
 type Tx = Parameters<Parameters<DbHandle["db"]["transaction"]>[0]>[0];
 
@@ -32,6 +32,15 @@ export interface TurnEnd {
   inboundIds: readonly string[];
   costUsdMicros: number;
   trace: readonly TurnTraceStep[];
+  /** Per model call (`wa_turns.trace.steps`). */
+  steps?: readonly StepTrace[];
+  /** Failure end: the class and the `WSF-` reference stored on the turn. */
+  causeClass?: FailureClass;
+  errorRef?: string;
+  /** The turn already waited once for the customer-text limit (read back by the next run). */
+  rateDeferred?: boolean;
+  /** False for a deferral: the inbound rows stay unlinked so the retry answers them (section 17.5). */
+  link?: boolean;
 }
 
 /**
@@ -78,6 +87,23 @@ export class TurnRepo {
       )
       .orderBy(asc(waMessages.createdAt), asc(waMessages.id))
       .limit(UNANSWERED_LIMIT);
+  }
+
+  /** When the oldest customer message still waiting for an answer arrived; null when none waits. */
+  async oldestUnansweredAt(conversationId: string): Promise<Date | null> {
+    const [row] = await this.handle.db
+      .select({ createdAt: waMessages.createdAt })
+      .from(waMessages)
+      .where(
+        and(
+          eq(waMessages.conversationId, conversationId),
+          eq(waMessages.direction, "in"),
+          isNull(waMessages.turnId),
+        ),
+      )
+      .orderBy(asc(waMessages.createdAt))
+      .limit(1);
+    return row?.createdAt ?? null;
   }
 
   async hasUnanswered(conversationId: string): Promise<boolean> {
@@ -141,11 +167,15 @@ export class TurnRepo {
    * Queues the reply rows, links the inbound rows and closes the turn `replied`, all under the fence.
    * Returns the new rows' ids in order; the caller adds the stream entry only after this returned.
    */
-  async commitReply(end: TurnEnd, parts: readonly OutboundPartRow[]): Promise<string[]> {
+  async commitReply(
+    end: TurnEnd,
+    parts: readonly OutboundPartRow[],
+    state: WaTurnState = "replied",
+  ): Promise<string[]> {
     return this.handle.db.transaction(async (tx) => {
       await assertFence(tx, end.conversationId, end.fence);
       const ids = await insertOutbound(tx, end.conversationId, parts, end.turnId);
-      await this.finish(tx, end, "replied");
+      await this.finish(tx, end, state);
       return ids;
     });
   }
@@ -176,7 +206,8 @@ export class TurnRepo {
   }
 
   private async finish(tx: Tx, end: TurnEnd, state: WaTurnState): Promise<void> {
-    if (end.inboundIds.length > 0) {
+    const live = state === "deferred";
+    if (end.inboundIds.length > 0 && end.link !== false) {
       await tx
         .update(waMessages)
         .set({ turnId: end.turnId })
@@ -186,9 +217,16 @@ export class TurnRepo {
       .update(waTurns)
       .set({
         state,
-        endedAt: new Date(),
+        // A deferred turn is still live: its retry reuses the row.
+        endedAt: live ? null : new Date(),
         costUsdMicros: end.costUsdMicros,
-        trace: { steps: end.trace },
+        causeClass: end.causeClass ?? null,
+        errorRef: end.errorRef ?? null,
+        trace: {
+          steps: end.steps ?? [],
+          events: end.trace,
+          ...(end.rateDeferred === true ? { rateDeferred: true } : {}),
+        },
       })
       .where(and(eq(waTurns.id, end.turnId), eq(waTurns.fence, end.fence)))
       .returning({ id: waTurns.id });

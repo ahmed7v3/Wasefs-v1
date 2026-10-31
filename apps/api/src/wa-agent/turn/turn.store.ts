@@ -4,6 +4,7 @@ import { TurnRepo, type TurnEnd } from "./turn.repo.js";
 
 import type { RoundOutcome } from "./agent-round.js";
 import type { TurnMessage } from "@wasfa/db";
+import type { WaTurnState } from "@wasfa/shared/wa-agent/failure";
 
 /** A turn a run is working on, `running` under the run's fence. */
 export interface ActiveTurn {
@@ -13,6 +14,8 @@ export interface ActiveTurn {
   attempt: number;
   /** The inbound rows it answers; linked only when its reply is queued (§17.5). */
   inboundIds: string[];
+  /** An earlier run of this turn already waited for the customer-text limit. */
+  rateDeferred: boolean;
 }
 
 /**
@@ -44,7 +47,14 @@ export class TurnStore {
   ): Promise<ActiveTurn> {
     const inboundIds = unanswered.map((message) => message.id);
     const row = await this.repo.begin(conversationId, fence, inboundIds);
-    return { id: row.id, conversationId, fence, attempt: row.attempt, inboundIds };
+    return {
+      id: row.id,
+      conversationId,
+      fence,
+      attempt: row.attempt,
+      inboundIds,
+      rateDeferred: row.trace["rateDeferred"] === true,
+    };
   }
 
   /** What `enqueueFenced` / `endQuietly` write besides the state. */
@@ -55,14 +65,20 @@ export class TurnStore {
       inboundIds: turn.inboundIds,
       costUsdMicros: outcome.costUsdMicros,
       trace: outcome.trace,
+      steps: outcome.steps ?? [],
     };
   }
 
   /** Nothing is sent (`dropped_policy`): the inbound rows are linked so they are not answered again. */
   endQuietly(turn: ActiveTurn, outcome: RoundOutcome): Promise<void> {
     return this.repo.closeQuietly(
-      { ...this.endOf(turn, outcome), conversationId: turn.conversationId },
+      { ...this.endOf(turn, outcome), causeClass: "policy", conversationId: turn.conversationId },
       "dropped_policy",
     );
+  }
+
+  /** Closes the turn in `state` with whatever `end` carries (class, reference, link flag), fenced. */
+  close(turn: ActiveTurn, end: Omit<TurnEnd, "conversationId">, state: WaTurnState): Promise<void> {
+    return this.repo.closeQuietly({ ...end, conversationId: turn.conversationId }, state);
   }
 }

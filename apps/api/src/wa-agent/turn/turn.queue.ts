@@ -22,9 +22,16 @@ export function debounceDelayMs(replyDelaySeconds: number, random: number): numb
 }
 
 /** What the runner and the inbound consumer need from the queue (tests replace it). */
+export interface EnqueueOptions {
+  /** Wait this long instead of the reply delay (a deferred turn's retry). */
+  delayMs?: number;
+  /** False: a later call within the window does not push the job back (default true = debounce). */
+  extend?: boolean;
+}
+
 export interface TurnEnqueuer {
   /** Schedules a turn for the conversation; calls within the delay collapse into one job. */
-  enqueue: (conversationId: string) => Promise<void>;
+  enqueue: (conversationId: string, options?: EnqueueOptions) => Promise<void>;
 }
 
 /**
@@ -45,17 +52,23 @@ export class TurnQueue implements TurnEnqueuer, OnApplicationShutdown {
     this.queue = new Queue<TurnJob>(TURN_QUEUE, { connection: redis });
   }
 
-  async enqueue(conversationId: string): Promise<void> {
+  async enqueue(conversationId: string, options: EnqueueOptions = {}): Promise<void> {
     const config = await this.settings.get("waAgent");
     await this.add(
       conversationId,
-      debounceDelayMs(config.replyDelaySeconds, this.random()),
+      options.delayMs ?? debounceDelayMs(config.replyDelaySeconds, this.random()),
       config.runtime.jobAttempts,
+      options.extend ?? true,
     );
   }
 
-  /** `delayMs` is both the wait and the debounce window. */
-  async add(conversationId: string, delayMs: number, jobAttempts: number): Promise<void> {
+  /** `delayMs` is both the wait and the dedup window; `extend` makes it a debounce. */
+  async add(
+    conversationId: string,
+    delayMs: number,
+    jobAttempts: number,
+    extend = true,
+  ): Promise<void> {
     await this.queue.add(
       "turn",
       { conversationId },
@@ -64,8 +77,7 @@ export class TurnQueue implements TurnEnqueuer, OnApplicationShutdown {
         deduplication: {
           id: turnDedupId(conversationId),
           ttl: delayMs,
-          extend: true,
-          replace: true,
+          ...(extend ? { extend: true, replace: true } : {}),
         },
         // `jobAttempts` counts retries, BullMQ's `attempts` counts runs.
         attempts: jobAttempts + 1,

@@ -113,28 +113,23 @@ describe("root causes of the WhatsApp agent", () => {
     },
   );
 
-  redTest(
-    {
-      id: "R4",
-      fixedIn: "WP1",
-      title: "a model error is not the busy line and does not pause the chat",
-      reason: /^R4: /,
-    },
-    async () => {
-      const scenario = await Scenario.start(ctx, { model: () => providerDown() });
-      await scenario.inbound({ text: "عايز أعرف الأسعار" });
-      await scenario.runTurns();
+  it("R4 a model error is not the busy line and does not pause the chat", async () => {
+    const scenario = await Scenario.start(ctx, {
+      runtime: new V2Runtime(),
+      model: () => providerDown(),
+    });
+    await scenario.inbound({ text: "عايز أعرف الأسعار" });
+    await scenario.runTurns();
 
-      expect(
-        await scenario.outboundTexts(),
-        "R4: the customer got the «server is busy» line for a model error",
-      ).not.toContain(busyLine);
-      expect(
-        (await scenario.conversation()).status,
-        "R4: the chat was paused automatically after a model error",
-      ).toBe("active");
-    },
-  );
+    expect(
+      await scenario.outboundTexts(),
+      "R4: the customer got the «server is busy» line for a model error",
+    ).not.toContain(busyLine);
+    expect(
+      (await scenario.conversation()).status,
+      "R4: the chat was paused automatically after a model error",
+    ).toBe("active");
+  });
 
   redTest(
     {
@@ -165,38 +160,36 @@ describe("root causes of the WhatsApp agent", () => {
     },
   );
 
-  redTest(
-    {
-      id: "R6",
-      fixedIn: "WP1",
-      title: "a second failure on a new message the same day is not silent",
-      reason: /^R6: /,
-    },
-    async () => {
-      const scenario = await Scenario.start(ctx, { model: () => providerDown() });
-      await scenario.inbound({ text: "أول رسالة" });
-      await scenario.runTurns();
-      // The owner looked and resumed the chat; the model is still down for the next message.
-      await scenario.ownerResume();
-      const before = (await scenario.outbound()).length;
+  it("R6 a second failure on a new message the same day is not silent", async () => {
+    const scenario = await Scenario.start(ctx, {
+      runtime: new V2Runtime(),
+      model: () => providerDown(),
+    });
+    await scenario.inbound({ text: "أول رسالة" });
+    await scenario.runTurns();
+    // The owner looked and resumed the chat; the model is still down for the next message.
+    await scenario.ownerResume();
+    const before = (await scenario.outbound()).length;
 
-      await scenario.inbound({ text: "تاني رسالة" });
-      await scenario.runTurns();
+    await scenario.inbound({ text: "تاني رسالة" });
+    await scenario.runTurns();
 
-      expect(
-        (await scenario.outbound()).length,
-        "R6: the second message got no reply and no deferral line (silence)",
-      ).toBeGreaterThan(before);
-    },
-  );
+    expect(
+      (await scenario.outbound()).length,
+      "R6: the second message got no reply and no deferral line (silence)",
+    ).toBeGreaterThan(before);
+  });
 
   describe("R7 an unexpected error leaves the message unanswered", () => {
-    const failingModel = async (chat: { current?: Scenario }, seen: { marked?: boolean | undefined }) => {
+    const failingModel = async (
+      chat: { current?: Scenario },
+      seen: { marked?: boolean | undefined },
+    ) => {
       seen.marked = (await chat.current?.inboundRows())?.some((row) => row.turnId !== null);
       throw new Error("unexpected failure");
     };
 
-    it("R7 the inbound row is not linked while the model runs, and stays unlinked after the crash", async () => {
+    it("R7 the inbound row is not linked while the model runs; the failure ending links it", async () => {
       const seen: { marked?: boolean | undefined } = {};
       const chat: { current?: Scenario } = {};
       const scenario = await Scenario.start(ctx, {
@@ -212,33 +205,24 @@ describe("root causes of the WhatsApp agent", () => {
         "R7: the inbound row was already marked answered before the model produced anything",
       ).toBe(false);
       const rows = await scenario.inboundRows();
-      expect(rows.every((row) => row.turnId === null && !("turn" in (row.meta as object)))).toBe(
-        true,
-      );
+      // The turn ended `failed_replied`, so the row is answered by the failure text now.
+      expect(rows.every((row) => row.turnId !== null)).toBe(true);
     });
 
-    redTest(
-      {
-        id: "R7",
-        fixedIn: "WP1",
-        title: "the customer is told when a turn fails for good (failure policy, WP1.6)",
-        reason: /^R7: the customer got no failure text/,
-      },
-      async () => {
-        const scenario = await Scenario.start(ctx, {
-          runtime: new V2Runtime(),
-          model: () => {
-            throw new Error("unexpected failure");
-          },
-        });
-        await scenario.inbound({ text: "سؤال" });
-        await scenario.runTurns();
-        expect(
-          (await scenario.outboundTexts()).length,
-          "R7: the customer got no failure text (silence)",
-        ).toBeGreaterThan(0);
-      },
-    );
+    it("R7 the customer is told when a turn fails for good (failure policy, WP1.6)", async () => {
+      const scenario = await Scenario.start(ctx, {
+        runtime: new V2Runtime(),
+        model: () => {
+          throw new Error("unexpected failure");
+        },
+      });
+      await scenario.inbound({ text: "سؤال" });
+      await scenario.runTurns();
+      expect(
+        (await scenario.outboundTexts()).length,
+        "R7: the customer got no failure text (silence)",
+      ).toBeGreaterThan(0);
+    });
   });
 
   it("R8 a slow conversation does not delay another one", async () => {
@@ -267,48 +251,34 @@ describe("root causes of the WhatsApp agent", () => {
     ).toBeLessThan(slowReply?.createdAt.getTime() ?? 0);
   });
 
-  redTest(
-    {
-      id: "R11",
-      fixedIn: "WP1",
-      title: "a step timeout before any tool ran is retried",
-      reason: /^R11: /,
-    },
-    async () => {
-      const scenario = await Scenario.start(ctx, {
-        model: (_request, call) => {
-          if (call === 0) throw stepTimeout();
-          return "ده الرد بعد المحاولة التانية";
-        },
-      });
-      await scenario.inbound({ text: "عايز أعرف حاجة" });
-      await scenario.runTurns();
+  it("R11 a step timeout before any tool ran is retried", async () => {
+    const scenario = await Scenario.start(ctx, {
+      runtime: new V2Runtime(),
+      model: (_request, call) => {
+        if (call === 0) throw stepTimeout();
+        return "ده الرد بعد المحاولة التانية";
+      },
+    });
+    await scenario.inbound({ text: "عايز أعرف حاجة" });
+    await scenario.runTurns();
 
-      expect(
-        await scenario.outboundTexts(),
-        "R11: the step timeout was not retried; the scripted second response never reached the customer",
-      ).toContain("ده الرد بعد المحاولة التانية");
-    },
-  );
+    expect(
+      await scenario.outboundTexts(),
+      "R11: the step timeout was not retried; the scripted second response never reached the customer",
+    ).toContain("ده الرد بعد المحاولة التانية");
+  });
 
-  redTest(
-    {
-      id: "R13",
-      fixedIn: "WP1",
-      title: "an empty final answer after a tool ran still gets a fallback text",
-      reason: /^R13: /,
-    },
-    async () => {
-      const scenario = await Scenario.start(ctx, {
-        model: (_request, call) => (call === 0 ? toolCall("get_catalog") : ""),
-      });
-      await scenario.inbound({ text: "كام سعر الباقات؟" });
-      await scenario.runTurns();
+  it("R13 an empty final answer after a tool ran still gets a fallback text", async () => {
+    const scenario = await Scenario.start(ctx, {
+      runtime: new V2Runtime(),
+      model: (_request, call) => (call === 0 ? toolCall("get_catalog") : ""),
+    });
+    await scenario.inbound({ text: "كام سعر الباقات؟" });
+    await scenario.runTurns();
 
-      expect(
-        (await scenario.outboundTexts()).length,
-        "R13: the model's empty answer produced nothing for the customer (ghost reply)",
-      ).toBeGreaterThan(0);
-    },
-  );
+    expect(
+      (await scenario.outboundTexts()).length,
+      "R13: the model's empty answer produced nothing for the customer (ghost reply)",
+    ).toBeGreaterThan(0);
+  });
 });

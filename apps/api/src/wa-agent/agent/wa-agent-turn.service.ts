@@ -1,9 +1,10 @@
 import { Inject, Injectable, type OnApplicationShutdown } from "@nestjs/common";
 import {
-  AiProviderError,
   ToolLoopError,
   collectCompletion,
   runToolLoop,
+  type NormalizedMessage,
+  type RouterEvent,
   type ToolLoopResult,
 } from "@wasfa/ai";
 import { t } from "@wasfa/shared/i18n";
@@ -28,9 +29,13 @@ import {
   RoundRefused,
   effectsRanOf,
   type AgentRound,
+  type ComposeOptions,
   type RoundOutcome,
+  type StepTrace,
   type TurnTraceStep,
 } from "../turn/agent-round.js";
+import { signalOf } from "../turn/failure-policy.js";
+import { ladderRetry, singleRetry, type StepRetry } from "../turn/retry-ladder.js";
 import { VoiceError } from "../voice/elevenlabs.client.js";
 import { textOnlyReason } from "../voice/voice-text.js";
 import { WaAgentVoiceService } from "../voice/voice.service.js";
@@ -50,7 +55,13 @@ import {
 } from "./agent-prompt.js";
 import { WaAgentHandoffService, handoffFlagKey } from "./handoff.service.js";
 import { WaAgentToolDeps } from "./tool-deps.js";
-import { bindTools, toolsFor, type AgentToolContext, type ToolCallRecord } from "./tools/index.js";
+import {
+  bindTools,
+  toolsFor,
+  type AgentToolContext,
+  type ToolCallRecord,
+  type ToolOutput,
+} from "./tools/index.js";
 
 import type { WaConversation, TurnMessage } from "@wasfa/db";
 import type { WaAgentSettings } from "@wasfa/shared/settings";
@@ -136,6 +147,13 @@ interface ComposeInput {
   limits: { stepMs: number; turnMs: number };
   /** v1 stamps the messages it takes; v2 does not (it links them when the reply is queued). */
   onTaken?: (messageIds: string[], requestId: string) => Promise<void>;
+  /** What happens when a model step fails: v1 one retry, v2 the retry ladder. */
+  stepRetry: StepRetry;
+  /** v2: the turn and its fence, handed to the tools (idempotency keys). */
+  turnId?: string;
+  fence?: number;
+  /** v2: answer again from this conversation without tools (the empty-answer re-ask). */
+  reaskFrom?: NormalizedMessage[] | undefined;
 }
 
 /** The waits of a turn; tests replace them to run without real time. */
@@ -254,6 +272,7 @@ export class WaAgentTurnService implements WaAgentTurnHandler, AgentRound, OnApp
         config,
         now,
         limits: { stepMs: STEP_TIMEOUT_MS, turnMs: TURN_TIMEOUT_MS },
+        stepRetry: singleRetry((ms) => this.timing.sleep(ms), PROVIDER_RETRY_DELAY_MS),
         // Taken: a message that arrives from here on is not part of this turn and gets the next one.
         onTaken: (messageIds, requestId) => this.repo.setMeta(messageIds, { turn: requestId }),
       });
@@ -294,6 +313,7 @@ export class WaAgentTurnService implements WaAgentTurnHandler, AgentRound, OnApp
     conversation: WaConversation,
     pending: readonly TurnMessage[],
     signal: AbortSignal,
+    options: ComposeOptions = {},
   ): Promise<RoundOutcome> {
     const config = await this.settings.get("waAgent");
     const now = new Date(this.timing.now());
@@ -312,6 +332,10 @@ export class WaAgentTurnService implements WaAgentTurnHandler, AgentRound, OnApp
       now,
       signal,
       limits: { stepMs: config.runtime.stepTimeoutMs, turnMs: config.runtime.turnTimeoutMs },
+      stepRetry: ladderRetry((ms) => this.timing.sleep(ms)),
+      ...(options.turnId === undefined ? {} : { turnId: options.turnId }),
+      ...(options.fence === undefined ? {} : { fence: options.fence }),
+      reaskFrom: options.reaskFrom,
     });
     return outcome ?? quiet();
   }
@@ -391,8 +415,6 @@ export class WaAgentTurnService implements WaAgentTurnHandler, AgentRound, OnApp
       pending.map((message) => message.id),
       requestId,
     );
-    const heard = await this.transcribePending(rows, pending, config);
-    const images = await this.loadImages(pending);
     const market = phoneMarket(conversation.phone, await this.settings.get("currency"));
     const medications = await this.settings.get("medications");
     const medicationTools = medications.enabled && medications.waTools;
@@ -410,9 +432,18 @@ export class WaAgentTurnService implements WaAgentTurnHandler, AgentRound, OnApp
       currency: market.currency,
       summary: conversation.summary,
     });
-    const messages = buildHistory(heard, images);
+    // A re-ask continues the conversation the first pass built (its tool results included).
+    const messages =
+      input.reaskFrom !== undefined
+        ? [...input.reaskFrom]
+        : buildHistory(
+            await this.transcribePending(rows, pending, config),
+            await this.loadImages(pending),
+          );
 
     const records: ToolCallRecord[] = [];
+    const outputs: ToolOutput[] = [];
+    const stepTraces: StepTrace[] = [];
     const ctx: AgentToolContext = {
       conversationId,
       userId: user === null ? null : conversation.userId,
@@ -423,11 +454,14 @@ export class WaAgentTurnService implements WaAgentTurnHandler, AgentRound, OnApp
       deps: this.toolDeps,
       mediaParts: [],
       handoffReason: null,
+      ...(input.turnId === undefined ? {} : { turnId: input.turnId }),
+      ...(input.fence === undefined ? {} : { fence: input.fence }),
     };
     const { definitions, handlers } = bindTools(
       toolsFor(user !== null, { medications: medicationTools, accountSignup: accountTools }),
       ctx,
       records,
+      outputs,
     );
     const turnSignal = AbortSignal.any(
       input.signal === undefined
@@ -444,40 +478,85 @@ export class WaAgentTurnService implements WaAgentTurnHandler, AgentRound, OnApp
         maxSteps: MAX_STEPS,
         maxToolCallsPerStep: MAX_TOOL_CALLS_PER_STEP,
         call: async (step) => {
-          const run = () =>
-            collectCompletion(
-              this.ai.run(
-                {
-                  task: "wa_agent",
-                  mode: "balanced",
-                  planId,
-                  request: {
-                    system,
-                    messages: step.messages,
-                    tools: step.tools,
-                    toolChoice: step.toolChoice,
-                    maxOutputTokens: MAX_OUTPUT_TOKENS,
-                  },
-                  ownerUserId: conversation.userId,
-                  userId: conversation.userId,
-                  requestId,
-                  estimateInputTokens: Math.ceil(promptChars(system, step.messages) / 3),
-                  // Once a tool ran, a different model must not take over the half-done turn.
-                  noFallback: !step.allowFallback,
-                },
-                // Each step has its own limit, and every step stops when the whole turn runs out.
-                AbortSignal.any([turnSignal, AbortSignal.timeout(limits.stepMs)]),
-              ),
-            );
-          try {
-            return await run();
-          } catch (error) {
-            // Before any tool ran, a provider error (a rejected or overloaded request, which fails in
-            // seconds and costs nothing) gets one more try. A route with a single model has no fallback,
-            // so without this one blip became the busy line and a handoff to the owner.
-            if (!step.allowFallback || !(error instanceof AiProviderError)) throw error;
-            await this.timing.sleep(PROVIDER_RETRY_DELAY_MS);
-            return run();
+          const run = async () => {
+            const seen: { model?: string; routeVersion?: number } = {};
+            const started = Date.now();
+            // Each step has its own limit, and every step stops when the whole turn runs out.
+            const stepSignal = AbortSignal.any([turnSignal, AbortSignal.timeout(limits.stepMs)]);
+            try {
+              const completion = await collectCompletion(
+                tap(
+                  this.ai.run(
+                    {
+                      task: "wa_agent",
+                      mode: "balanced",
+                      planId,
+                      request: {
+                        system,
+                        messages: step.messages,
+                        tools: step.tools,
+                        toolChoice: input.reaskFrom === undefined ? step.toolChoice : "none",
+                        maxOutputTokens: MAX_OUTPUT_TOKENS,
+                      },
+                      ownerUserId: conversation.userId,
+                      userId: conversation.userId,
+                      requestId,
+                      estimateInputTokens: Math.ceil(promptChars(system, step.messages) / 3),
+                      // Once a tool ran, a different model must not take over the half-done turn.
+                      noFallback: !step.allowFallback,
+                    },
+                    stepSignal,
+                  ),
+                  seen,
+                ),
+              );
+              // An aborted stream ends quietly; that is a timeout, not an empty answer.
+              if (stepSignal.aborted) throw stepSignal.reason;
+              stepTraces.push({
+                step: stepTraces.length + 1,
+                ...(seen.model === undefined ? {} : { model: seen.model }),
+                ...(seen.routeVersion === undefined ? {} : { routeVersion: seen.routeVersion }),
+                latencyMs: Date.now() - started,
+                ...(completion.usage === undefined
+                  ? {}
+                  : {
+                      tokens: {
+                        input: completion.usage.inputTokens,
+                        output: completion.usage.outputTokens,
+                      },
+                    }),
+                costUsdMicros: completion.costUsdMicros,
+                tools: completion.toolCalls.map((call) => ({
+                  tool: call.name,
+                  outcome: "pending",
+                })),
+              });
+              return completion;
+            } catch (error) {
+              stepTraces.push({
+                step: stepTraces.length + 1,
+                latencyMs: Date.now() - started,
+                tools: [],
+                error: signalOf(error, { turnSignal }).kind,
+              });
+              throw error;
+            }
+          };
+          // A failed step may be run again (v1: one retry of a provider error before any tool; v2: the
+          // ladder, only before an effect). The decision lives in `input.stepRetry`.
+          for (let retriesUsed = 0; ; retriesUsed++) {
+            try {
+              return await run();
+            } catch (error) {
+              const again = await input.stepRetry({
+                error,
+                retriesUsed,
+                effectsRan: effectsRanOf(records),
+                toolsRan: !step.allowFallback,
+                turnSignal,
+              });
+              if (!again) throw error;
+            }
           }
         },
       });
@@ -495,7 +574,17 @@ export class WaAgentTurnService implements WaAgentTurnHandler, AgentRound, OnApp
         { conversationId, ...detail, tools: records.map((record) => record.name) },
         "Agent turn failed",
       );
-      throw new RoundRefused({ kind: "busy", cause: "model_failed", detail });
+      throw new RoundRefused(
+        { kind: "busy", cause: "model_failed", detail },
+        {
+          cause,
+          toolRecords: records,
+          toolResults: outputs,
+          costUsdMicros: error instanceof ToolLoopError ? error.costUsdMicros : 0,
+          steps: withOutcomes(stepTraces, records),
+          handoffReason: ctx.handoffReason,
+        },
+      );
     }
     await this.addSpend(result.costUsdMicros, now);
     this.logger.info(
@@ -516,6 +605,9 @@ export class WaAgentTurnService implements WaAgentTurnHandler, AgentRound, OnApp
     return {
       parts,
       toolRecords: records,
+      toolResults: outputs,
+      transcript: result.messages,
+      steps: withOutcomes(stepTraces, records),
       effectsRan: effectsRanOf(records),
       costUsdMicros: result.costUsdMicros,
       trace: [
@@ -801,6 +893,7 @@ export function answerFloor(rows: readonly TurnMessage[], now: number): number {
 function quietOutcome(conversation: WaConversation, now: Date): RoundOutcome {
   return {
     parts: [],
+    skipped: true,
     toolRecords: [],
     effectsRan: false,
     costUsdMicros: 0,
@@ -816,6 +909,40 @@ function quietOutcome(conversation: WaConversation, now: Date): RoundOutcome {
       handoffReason: null,
     },
   };
+}
+
+/** Passes the router's events through and notes which model answered. */
+async function* tap(
+  events: AsyncIterable<RouterEvent>,
+  seen: { model?: string; routeVersion?: number },
+): AsyncGenerator<RouterEvent> {
+  for await (const event of events) {
+    if (event.type === "result") {
+      seen.model = event.result.modelId;
+      seen.routeVersion = event.result.routeVersion;
+    }
+    yield event;
+  }
+}
+
+/** Fills each step's tool list with how the calls ended; records come in the order the calls ran. */
+function withOutcomes(
+  steps: readonly StepTrace[],
+  records: readonly ToolCallRecord[],
+): StepTrace[] {
+  let next = 0;
+  return steps.map((step) => ({
+    ...step,
+    tools: step.tools.map((entry, index) => {
+      // Calls over the per-step cap are answered without running, so they have no record.
+      if (index >= MAX_TOOL_CALLS_PER_STEP) return { tool: entry.tool, outcome: "too_many_calls" };
+      const record = records[next];
+      next += 1;
+      const outcome =
+        record === undefined ? "not_run" : record.ok ? "ok" : (record.code ?? "error");
+      return { tool: entry.tool, outcome };
+    }),
+  }));
 }
 
 /** Media first, then the text split to what is left of the turn's message budget. */

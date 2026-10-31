@@ -1,6 +1,19 @@
 /** Texts the server sends, never a page: WhatsApp agent follow-ups and generated document labels.
  * Kept out of `ar.core.ts` so the public client catalogue (`public.ts`) does not ship them. */
 export const arMessaging = {
+  "whatsapp.agent.deferred": "معلش، هرد عليك خلال دقايق 🙏",
+  "whatsapp.agent.failed":
+    "حصلت مشكلة عندنا ومقدرتش أرد دلوقتي. لو اتكررت ابعت الكود ده لخدمة العملاء: {ref}",
+  "whatsapp.agent.aiPaused": "الخدمة الذكية واقفة مؤقتًا، وهنرد عليك أول ما ترجع 🙏",
+  "whatsapp.agent.fallback.ack": "تمام، محتاج مني إيه كمان؟",
+  "whatsapp.agent.fallback.analyze_prescription":
+    "⏳ بقرأ الروشتة دلوقتي، النتيجة هتوصلك خلال دقيقة",
+  "whatsapp.agent.fallback.start_subscription":
+    "تمام، طلبك {orderRef} اتفتح. المبلغ: {amount}\nالتحويل على: {bank}\nاسم الحساب: {holder}\nالحساب: {account}\nالمرجع: {reference}",
+  "whatsapp.agent.fallback.start_subscription.free": "تمام، طلبك {orderRef} اتفعّل من غير مبلغ.",
+  "whatsapp.agent.fallback.offer_discount": "كود الخصم بتاعك: {code}، وبيخلص {expires}",
+  "whatsapp.agent.fallback.create_document": "بجهزلك الملف وهيوصلك حالًا",
+  "whatsapp.agent.fallback.handoff_to_owner": "حولت كلامك لزميلي وهيرد عليك",
   "whatsapp.agent.event.paid": "تم اعتماد دفع الطلب {number} وتفعيل {item}. شكرًا لثقتك بوصفة AI.",
   "whatsapp.agent.event.rejected":
     "لم نتمكن من اعتماد دفع الطلب {number} ({item}): {reason}. يمكنك إرسال إيصال جديد هنا في المحادثة وسنراجعه.",
