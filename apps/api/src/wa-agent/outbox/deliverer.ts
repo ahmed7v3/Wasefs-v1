@@ -37,6 +37,8 @@ import type { WaOutboxRow } from "@wasfa/db";
 
 export const SWEEP_EVERY_MS = 5_000;
 const BATCH = 20;
+const PROMOTE_EVERY_MS = 30_000;
+const PROMOTE_GRACE_MS = 30_000;
 const LOCK_WAIT_MS = 20_000;
 const LOCK_POLL_MS = 500;
 const LOCK_BUSY_RETRY_MS = 10_000;
@@ -60,6 +62,7 @@ export class OutboxDeliverer implements OnModuleInit, OnApplicationShutdown {
   /** Waits for the conversation lock; tests shorten them. */
   readonly timing = {
     lockWaitMs: LOCK_WAIT_MS,
+    promoteEveryMs: PROMOTE_EVERY_MS,
     pollMs: LOCK_POLL_MS,
     sleep: (ms: number) =>
       new Promise<void>((resolve) => {
@@ -69,6 +72,7 @@ export class OutboxDeliverer implements OnModuleInit, OnApplicationShutdown {
   private timer: NodeJS.Timeout | undefined;
   private running: Promise<void> | undefined;
   private again = false;
+  private lastPromote = 0;
 
   constructor(
     @Inject(API_ENV) private readonly env: Pick<ApiEnv, "NODE_ENV">,
@@ -133,11 +137,19 @@ export class OutboxDeliverer implements OnModuleInit, OnApplicationShutdown {
             this.logger.warn({ reason: errorClass(error) }, "Outbox sweep callback failed");
           });
         }
+        await this.promoteFinished();
         for (const row of await this.rows.claimDue(BATCH)) await this.deliver(row);
       } catch (error) {
         this.logger.error({ reason: errorClass(error) }, "Outbox sweep failed");
       }
     } while (this.again);
+  }
+
+  /** Every 30 s: a route whose analysis ended 30 s ago without an event is delivered anyway (the real event normally wins). */
+  private async promoteFinished(): Promise<void> {
+    if (Date.now() - this.lastPromote < this.timing.promoteEveryMs) return;
+    this.lastPromote = Date.now();
+    await this.rows.promoteFinished(new Date(Date.now() - PROMOTE_GRACE_MS), BATCH);
   }
 
   private async deliver(row: WaOutboxRow): Promise<void> {

@@ -300,6 +300,7 @@ export class AgentRxService {
       if (ready === undefined || committed === undefined)
         throw new Error("committed start missing");
       const { hit, reservationId } = committed;
+      // A cached result has no worker event: the outbox sweep delivers it once the analysis is `done`.
       if (hit !== null) await this.rx.settleCacheHit(ready, { id, reservationId, hit });
       else await this.rx.enqueue(id, ready);
     } catch (error) {

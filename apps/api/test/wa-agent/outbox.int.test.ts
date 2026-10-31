@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
 
-import { waOutbox, type WaOutboxRow } from "@wasfa/db";
+import { rxAnalyses, waOutbox, type WaOutboxRow } from "@wasfa/db";
 import { WA_AGENT_DLQ_STREAM } from "@wasfa/shared/schemas/phone";
 import { settingDefault } from "@wasfa/shared/settings";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { EventPartsBuilder } from "../../src/wa-agent/outbox/outbox-parts.js";
 import { WaOutboxRepo } from "../../src/wa-agent/outbox/wa-outbox.repo.js";
 import { AdminTestContext } from "../support/admin-context.js";
 
@@ -125,6 +126,65 @@ describe("event intake", () => {
     await consumer.process(event, "1730000000000-0");
     await deliverer(scenario).sweep();
     expect(await scenario.outboundTexts()).toHaveLength(1);
+  });
+});
+
+describe("routes whose analysis ended without an event", () => {
+  async function routeWithAnalysis(
+    scenario: Scenario,
+    status: "done" | "queued",
+    finishedMinutesAgo: number,
+  ) {
+    const rxId = randomUUID();
+    await ctx.owner.db.insert(rxAnalyses).values({
+      id: rxId,
+      ownerUserId: scenario.userId,
+      createdBy: scenario.userId,
+      status,
+      mode: "balanced",
+      skillVersion: "prescription-analysis@000000000000",
+      ...(status === "done"
+        ? { finishedAt: new Date(Date.now() - finishedMinutesAgo * 60_000) }
+        : {}),
+    });
+    const route = await insertRow(scenario, {
+      kind: "rx_result",
+      idempotencyKey: `rx:${rxId}`,
+      refId: rxId,
+      state: "waiting",
+      payload: {},
+    });
+    return route;
+  }
+
+  it("a finished analysis is delivered once by the sweep, a second sweep sends nothing", async () => {
+    const scenario = await Scenario.start(ctx, {
+      linked: true,
+      model: () => "تمام",
+      settings: { runtime: { ...settingDefault("waAgent").runtime, v2: true } },
+    });
+    await scenario.inbound({ text: "مرحبا" });
+    const route = await routeWithAnalysis(scenario, "done", 1);
+    vi.spyOn(EventPartsBuilder.prototype, "parts").mockResolvedValue([
+      { kind: "text", text: "نتيجة الروشتة" },
+    ]);
+    deliverer(scenario).timing.promoteEveryMs = 0;
+
+    await deliverer(scenario).sweep();
+    expect((await reload(route.id)).state).toBe("delivered");
+    expect(await scenario.outboundTexts()).toEqual(["نتيجة الروشتة"]);
+
+    await deliverer(scenario).sweep();
+    expect(await scenario.outboundTexts()).toEqual(["نتيجة الروشتة"]);
+  });
+
+  it("an analysis that is still queued leaves its route waiting", async () => {
+    const scenario = await chat();
+    const route = await routeWithAnalysis(scenario, "queued", 5);
+    deliverer(scenario).timing.promoteEveryMs = 0;
+    await deliverer(scenario).sweep();
+    expect((await reload(route.id)).state).toBe("waiting");
+    expect(await scenario.outbound()).toHaveLength(0);
   });
 });
 

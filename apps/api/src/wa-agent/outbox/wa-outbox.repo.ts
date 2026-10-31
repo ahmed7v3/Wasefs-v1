@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { waOutbox, type WaOutboxRow } from "@wasfa/db";
+import { rxAnalyses, waOutbox, type WaOutboxRow } from "@wasfa/db";
 import { and, asc, eq, inArray, lte, sql } from "drizzle-orm";
 
 import { DB, type DbHandle } from "../../common/database.js";
@@ -40,6 +40,47 @@ export class WaOutboxRepo {
       )
       .returning();
     return row ?? null;
+  }
+
+  /**
+   * Routes still `waiting` whose analysis ended before `olderThan` (a cache hit nobody announced, a lost
+   * event) become `ready`, with the payload the event would have carried. Where only the event knows
+   * (why it failed, whether credits came back) the honest default is used: `internal`, not returned.
+   */
+  async promoteFinished(olderThan: Date, limit: number): Promise<WaOutboxRow[]> {
+    const finished = this.handle.db
+      .select({ id: waOutbox.id })
+      .from(waOutbox)
+      .innerJoin(rxAnalyses, eq(rxAnalyses.id, waOutbox.refId))
+      .where(
+        and(
+          eq(waOutbox.kind, "rx_result"),
+          eq(waOutbox.state, "waiting"),
+          inArray(rxAnalyses.status, ["done", "refunded", "failed"]),
+          lte(rxAnalyses.finishedAt, olderThan),
+        ),
+      )
+      .limit(limit);
+    return this.handle.db
+      .update(waOutbox)
+      .set({
+        state: "ready",
+        nextAttemptAt: sql`now()`,
+        updatedAt: sql`now()`,
+        payload: sql`(
+          select case a.status
+            when 'done' then jsonb_build_object('type', 'rx_done', 'rxId', a.id)
+            when 'refunded' then jsonb_build_object('type', 'rx_failed', 'rxId', a.id,
+              'reason', case when jsonb_array_length(coalesce(a.result -> 'items', '[]'::jsonb)) = 0
+                and jsonb_array_length(coalesce(a.result -> 'unreadableRegions', '[]'::jsonb)) = 0
+                then 'not_a_prescription' else 'unreadable_image' end,
+              'creditsReturned', false)
+            else jsonb_build_object('type', 'rx_failed', 'rxId', a.id,
+              'reason', 'internal', 'creditsReturned', false) end
+          from rx_analyses a where a.id = ${waOutbox.refId})`,
+      })
+      .where(and(eq(waOutbox.state, "waiting"), inArray(waOutbox.id, finished)))
+      .returning();
   }
 
   /** Whether a route (in any state) exists for the analysis. */
