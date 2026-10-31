@@ -6,6 +6,7 @@ import { AuthModule } from "../auth/auth.module.js";
 import { BillingModule } from "../billing/billing.module.js";
 import { CatalogModule } from "../catalog/catalog.module.js";
 import { ChatModule } from "../chat/chat.module.js";
+import { REDIS } from "../common/redis.js";
 import { CreditsModule } from "../credits/credits.module.js";
 import { FilesModule } from "../files/files.module.js";
 import { MediaModule } from "../media/media.module.js";
@@ -28,6 +29,12 @@ import { WaAgentEventsConsumer } from "./commerce/wa-agent-events.consumer.js";
 import { AgentDocumentService } from "./documents/agent-document.service.js";
 import { WaDocumentQueue } from "./documents/wa-document-queue.js";
 import { DlqService } from "./transport/dlq.service.js";
+import { ConversationLock } from "./turn/lock.js";
+import { TurnRunner } from "./turn/turn-runner.js";
+import { TurnQueue } from "./turn/turn.queue.js";
+import { TurnRepo } from "./turn/turn.repo.js";
+import { TurnStore } from "./turn/turn.store.js";
+import { TurnWorker } from "./turn/turn.worker.js";
 import { ElevenLabsClient } from "./voice/elevenlabs.client.js";
 import { VoiceKeyService } from "./voice/voice-key.service.js";
 import { WaAgentVoiceService } from "./voice/voice.service.js";
@@ -35,8 +42,10 @@ import { WaAgentInboundConsumer } from "./wa-agent-inbound.consumer.js";
 import { WaAgentSentConsumer } from "./wa-agent-sent.consumer.js";
 import { WaAgentStateService } from "./wa-agent-state.service.js";
 import { WaAgentRepo } from "./wa-agent.repo.js";
-import { WA_AGENT_TURN_HANDLER } from "./wa-agent.tokens.js";
+import { WA_AGENT_ROUND, WA_AGENT_TURN_HANDLER } from "./wa-agent.tokens.js";
 import { WaOutboundService } from "./wa-outbound.service.js";
+
+import type { Redis } from "ioredis";
 
 /**
  * The WhatsApp AI agent's transport and data layer (docs/WA-AGENT.md work package A): transcript
@@ -84,6 +93,18 @@ import { WaOutboundService } from "./wa-outbound.service.js";
     WaAgentEventsConsumer,
     DlqService,
     { provide: WA_AGENT_TURN_HANDLER, useExisting: WaAgentTurnService },
+    // The v2 turn engine (behind `waAgent.runtime.v2`): queue, fenced lock, turn store, runner, worker.
+    { provide: WA_AGENT_ROUND, useExisting: WaAgentTurnService },
+    {
+      provide: ConversationLock,
+      inject: [REDIS],
+      useFactory: (redis: Redis) => new ConversationLock(redis),
+    },
+    TurnRepo,
+    TurnStore,
+    TurnQueue,
+    TurnRunner,
+    TurnWorker,
   ],
   exports: [
     WaOutboundService,

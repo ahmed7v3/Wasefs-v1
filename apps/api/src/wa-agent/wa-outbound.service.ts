@@ -12,11 +12,13 @@ import { REDIS } from "../common/redis.js";
 import { API_ENV } from "../config/config.module.js";
 import { SettingsService } from "../settings/settings.service.js";
 
+import { TurnRepo } from "./turn/turn.repo.js";
 import { WaAgentStateService } from "./wa-agent-state.service.js";
 import { WaAgentRepo } from "./wa-agent.repo.js";
 
 import type { ApiEnv } from "../config/env.js";
-import type { OutboundPartRow } from "@wasfa/db";
+import type { TurnEnd } from "./turn/turn.repo.js";
+import type { OutboundPartRow, WaConversation } from "@wasfa/db";
 
 const refuse = (reason: string) => new AppError(ErrorCode.CONFLICT, { details: { reason } });
 
@@ -39,6 +41,7 @@ function rowOf(part: WaAgentOutboundPart): OutboundPartRow {
 export class WaOutboundService {
   constructor(
     private readonly repo: WaAgentRepo,
+    private readonly turns: TurnRepo,
     private readonly settings: SettingsService,
     @Inject(REDIS) private readonly redis: Redis,
     @Inject(API_ENV) private readonly env: Pick<ApiEnv, "MEDIA_PUBLIC_ORIGIN">,
@@ -46,6 +49,35 @@ export class WaOutboundService {
 
   /** Returns the ids of the queued messages, one per part, in order. */
   async enqueue(conversationId: string, parts: unknown): Promise<string[]> {
+    const { conversation, parsed } = await this.prepare(conversationId, parts);
+    const messageIds = await this.repo.queueOutbound(conversationId, parsed.map(rowOf));
+    await this.publish(conversation, messageIds, parsed);
+    return messageIds;
+  }
+
+  /**
+   * The v2 turn's way: the rows are inserted under the turn's fence and, in the same transaction, the
+   * turn's inbound rows are linked and the turn is closed `replied` (docs/WA-AGENT-RUNTIME.md §17.4). The
+   * stream entry is added only after that commit. Throws `StaleFenceError` when the lock was taken over.
+   */
+  async enqueueFenced(
+    conversationId: string,
+    parts: unknown,
+    end: Omit<TurnEnd, "conversationId">,
+  ): Promise<string[]> {
+    const { conversation, parsed } = await this.prepare(conversationId, parts);
+    const messageIds = await this.turns.commitReply({ ...end, conversationId }, parsed.map(rowOf));
+    try {
+      await this.publish(conversation, messageIds, parsed);
+    } catch (error) {
+      // Nothing reached the bridge: reopen the turn so its retry answers the customer.
+      await this.turns.reopen({ turnId: end.turnId, fence: end.fence });
+      throw error;
+    }
+    return messageIds;
+  }
+
+  private async prepare(conversationId: string, parts: unknown) {
     const config = await this.settings.get("waAgent");
     if (!config.enabled) throw refuse("agent_disabled");
     // A part that carries a url may only point into the public media library, never anywhere else.
@@ -65,12 +97,20 @@ export class WaOutboundService {
     if (conversation.status === "blocked") throw refuse("conversation_blocked");
     if (WaAgentStateService.isHeld(conversation)) throw refuse("conversation_paused");
 
-    const messageIds = await this.repo.queueOutbound(conversationId, parsed.data.map(rowOf));
+    return { conversation, parsed: parsed.data };
+  }
+
+  /** Hands queued rows to the bridge; when the stream refuses, the rows are dropped, not left `queued`. */
+  private async publish(
+    conversation: WaConversation,
+    messageIds: string[],
+    parts: WaAgentOutboundPart[],
+  ): Promise<void> {
     const entry: WaAgentOutEntry = {
-      conversationId,
+      conversationId: conversation.id,
       messageIds,
       jid: conversation.jid,
-      parts: parsed.data,
+      parts,
     };
     try {
       await this.redis.xadd(
@@ -89,6 +129,5 @@ export class WaOutboundService {
       }
       throw error;
     }
-    return messageIds;
   }
 }

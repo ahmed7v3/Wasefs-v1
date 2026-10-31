@@ -157,11 +157,15 @@ const OUTBOUND_KIND: Record<OutboundPartRow["kind"], WaAgentKind> = {
   voice: "audio",
 };
 
-/** Queues the parts of one reply as `out` / `queued` rows; returns their ids in order. */
+/**
+ * Queues the parts of one reply as `out` / `queued` rows; returns their ids in order. A v2 turn passes its
+ * `turnId`, so the rows say which turn wrote them.
+ */
 export async function insertOutbound(
   db: Handle,
   conversationId: string,
   parts: readonly OutboundPartRow[],
+  turnId?: string,
 ): Promise<string[]> {
   const rows = await db
     .insert(waMessages)
@@ -173,6 +177,7 @@ export async function insertOutbound(
         text: part.text ?? null,
         mediaKey: part.kind === "text" ? null : (part.mediaKey ?? null),
         status: "queued" as const,
+        turnId: turnId ?? null,
       })),
     )
     .returning({ id: waMessages.id });

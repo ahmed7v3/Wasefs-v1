@@ -6,7 +6,7 @@ import { AdminTestContext } from "../support/admin-context.js";
 
 import { redTest } from "./red.js";
 import { TINY_JPEG } from "./scenarios/fixtures.js";
-import { Scenario, V1Runtime } from "./scenarios/harness.js";
+import { Scenario, V2Runtime } from "./scenarios/harness.js";
 
 /*
  * Red scenario tests for the Phase 6 root causes (docs/WA-AGENT-RUNTIME.md section 2): R1, R3, R4, R5,
@@ -42,7 +42,9 @@ describe("the harness", () => {
     await scenario.runTurns();
     expect(await scenario.outboundTexts()).toEqual(["أهلا بيك"]);
     expect(scenario.modelInputs()).toHaveLength(1);
-    expect((await scenario.inboundRows()).every((row) => "turn" in (row.meta as object))).toBe(true);
+    expect((await scenario.inboundRows()).every((row) => "turn" in (row.meta as object))).toBe(
+      true,
+    );
   });
 });
 
@@ -144,7 +146,8 @@ describe("root causes of the WhatsApp agent", () => {
     async () => {
       const scenario = await Scenario.start(ctx, {
         linked: true,
-        model: (_request, call) => [toolCall("analyze_prescription"), "بقرأ الروشتة"][call] ?? "تمام",
+        model: (_request, call) =>
+          [toolCall("analyze_prescription"), "بقرأ الروشتة"][call] ?? "تمام",
       });
       await scenario.inbound({ image: TINY_JPEG });
       await scenario.runTurns();
@@ -187,72 +190,82 @@ describe("root causes of the WhatsApp agent", () => {
     },
   );
 
-  redTest(
-    {
-      id: "R7",
-      fixedIn: "WP1",
-      title: "an unexpected error leaves the message unanswered and the customer told",
-      reason: /^R7: /,
-    },
-    async () => {
-      let markedWhileModelRan: boolean | undefined;
+  describe("R7 an unexpected error leaves the message unanswered", () => {
+    const failingModel = async (chat: { current?: Scenario }, seen: { marked?: boolean | undefined }) => {
+      seen.marked = (await chat.current?.inboundRows())?.some((row) => row.turnId !== null);
+      throw new Error("unexpected failure");
+    };
+
+    it("R7 the inbound row is not linked while the model runs, and stays unlinked after the crash", async () => {
+      const seen: { marked?: boolean | undefined } = {};
       const chat: { current?: Scenario } = {};
       const scenario = await Scenario.start(ctx, {
-        model: async () => {
-          markedWhileModelRan = (await chat.current?.inboundRows())?.some(
-            (row) => "turn" in (row.meta as object),
-          );
-          throw new Error("unexpected failure");
-        },
+        runtime: new V2Runtime(),
+        model: () => failingModel(chat, seen),
       });
       chat.current = scenario;
       await scenario.inbound({ text: "سؤال" });
       await scenario.runTurns();
 
       expect(
-        markedWhileModelRan,
+        seen.marked,
         "R7: the inbound row was already marked answered before the model produced anything",
       ).toBe(false);
-      expect(
-        (await scenario.outboundTexts()).length,
-        "R7: the customer got no failure text (silence)",
-      ).toBeGreaterThan(0);
-    },
-  );
+      const rows = await scenario.inboundRows();
+      expect(rows.every((row) => row.turnId === null && !("turn" in (row.meta as object)))).toBe(
+        true,
+      );
+    });
 
-  redTest(
-    {
-      id: "R8",
-      fixedIn: "WP1",
-      title: "a slow conversation does not delay another one",
-      reason: /^R8: /,
-    },
-    async () => {
-      const lane = new V1Runtime();
-      const slow = await Scenario.start(ctx, {
-        runtime: lane,
-        model: async () => {
-          await new Promise<void>((resolve) => {
-            setTimeout(resolve, 2_000);
-          });
-          return "رد بطيء";
-        },
-      });
-      const quick = await Scenario.start(ctx, { runtime: lane, model: () => "رد سريع" });
-      await slow.inbound({ text: "أنا الأول" });
-      await quick.inbound({ text: "أنا التاني" });
+    redTest(
+      {
+        id: "R7",
+        fixedIn: "WP1",
+        title: "the customer is told when a turn fails for good (failure policy, WP1.6)",
+        reason: /^R7: the customer got no failure text/,
+      },
+      async () => {
+        const scenario = await Scenario.start(ctx, {
+          runtime: new V2Runtime(),
+          model: () => {
+            throw new Error("unexpected failure");
+          },
+        });
+        await scenario.inbound({ text: "سؤال" });
+        await scenario.runTurns();
+        expect(
+          (await scenario.outboundTexts()).length,
+          "R7: the customer got no failure text (silence)",
+        ).toBeGreaterThan(0);
+      },
+    );
+  });
 
-      await Promise.all([slow.runTurns(), quick.runTurns()]);
+  it("R8 a slow conversation does not delay another one", async () => {
+    const runtime = new V2Runtime();
+    const slow = await Scenario.start(ctx, {
+      runtime,
+      model: async () => {
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, 2_000);
+        });
+        return "رد بطيء";
+      },
+    });
+    const quick = await Scenario.start(ctx, { runtime, model: () => "رد سريع" });
+    await slow.inbound({ text: "أنا الأول" });
+    await quick.inbound({ text: "أنا التاني" });
 
-      const [slowReply] = await slow.outboundRows();
-      const [quickReply] = await quick.outboundRows();
-      expect(slowReply && quickReply, "harness: both chats should have been answered").toBeTruthy();
-      expect(
-        quickReply?.createdAt.getTime() ?? Infinity,
-        "R8: the second conversation's reply waited for the first one's slow model call",
-      ).toBeLessThan(slowReply?.createdAt.getTime() ?? 0);
-    },
-  );
+    await Promise.all([slow.runTurns(), quick.runTurns()]);
+
+    const [slowReply] = await slow.outboundRows();
+    const [quickReply] = await quick.outboundRows();
+    expect(slowReply && quickReply, "harness: both chats should have been answered").toBeTruthy();
+    expect(
+      quickReply?.createdAt.getTime() ?? Infinity,
+      "R8: the second conversation's reply waited for the first one's slow model call",
+    ).toBeLessThan(slowReply?.createdAt.getTime() ?? 0);
+  });
 
   redTest(
     {
