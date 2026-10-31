@@ -66,6 +66,8 @@ export const WA_AGENT_IMAGE_MIMES = [
   "image/heic",
   "image/heif",
 ] as const;
+/** Image types a vision model is shown directly; HEIC/HEIF reach it only after the worker converts them. */
+export const WA_AGENT_VISION_MIMES = ["image/jpeg", "image/png", "image/webp"] as const;
 export const WA_AGENT_DOCUMENT_MIMES = ["application/pdf"] as const;
 
 /** Where inbound media lives in the uploads bucket: `wa/<yyyy>/<mm>/<uuid>`. */

@@ -9,7 +9,7 @@ import {
 import { t } from "@wasfa/shared/i18n";
 import { newId } from "@wasfa/shared/ids";
 import {
-  WA_AGENT_IMAGE_MIMES,
+  WA_AGENT_VISION_MIMES,
   WA_AGENT_MAX_AUDIO_BYTES,
   WA_AGENT_MAX_FILE_BYTES,
   WA_AGENT_MAX_TEXT,
@@ -486,7 +486,7 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
           message.kind === "image" &&
           message.mediaKey !== null &&
           message.mediaMime !== null &&
-          (WA_AGENT_IMAGE_MIMES as readonly string[]).includes(message.mediaMime) &&
+          (WA_AGENT_VISION_MIMES as readonly string[]).includes(message.mediaMime) &&
           (message.mediaBytes ?? 0) <= WA_AGENT_MAX_FILE_BYTES,
       )
       .slice(-MAX_IMAGES);
