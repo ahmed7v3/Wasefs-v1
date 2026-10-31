@@ -112,6 +112,10 @@ export function damerauDistance(a: string, b: string): number {
 
 const letterCount = (s: string): number => Array.from(s.replace(/\s/g, "")).length;
 
+/** Fuzzy only on Arabic-script aliases of enough letters: English near-words (rest, menus, helps) are common chat. */
+const isFuzzyEligible = (alias: string): boolean =>
+  /[؀-ۿ]/.test(alias) && letterCount(alias) >= MIN_FUZZY_LETTERS;
+
 const withinOne = (a: string, b: string): boolean =>
   Math.abs(a.length - b.length) <= 1 && damerauDistance(a, b) <= 1;
 
@@ -145,9 +149,7 @@ export function matchCommand(text: string, opts: MatchOptions = {}): CommandMatc
 
   if (BLOCKED.has(body)) return null;
 
-  const hits = entries.filter(
-    (e) => letterCount(e.text) >= MIN_FUZZY_LETTERS && withinOne(body, e.text),
-  );
+  const hits = entries.filter((e) => isFuzzyEligible(e.text) && withinOne(body, e.text));
   const first = hits[0];
   if (first === undefined) return null;
   const command = first.command;
