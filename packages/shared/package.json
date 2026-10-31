@@ -395,6 +395,21 @@
       "import": "./dist/wa-agent/failure.js",
       "default": "./dist/wa-agent/failure.js"
     },
+    "./wa-agent/normalize": {
+      "types": "./dist/wa-agent/normalize.d.ts",
+      "import": "./dist/wa-agent/normalize.js",
+      "default": "./dist/wa-agent/normalize.js"
+    },
+    "./wa-agent/commands": {
+      "types": "./dist/wa-agent/commands.d.ts",
+      "import": "./dist/wa-agent/commands.js",
+      "default": "./dist/wa-agent/commands.js"
+    },
+    "./i18n/wa-commands": {
+      "types": "./dist/i18n/wa-commands.d.ts",
+      "import": "./dist/i18n/wa-commands.js",
+      "default": "./dist/i18n/wa-commands.js"
+    },
     "./rx-normalize": {
       "types": "./dist/rx-normalize.d.ts",
       "import": "./dist/rx-normalize.js",
