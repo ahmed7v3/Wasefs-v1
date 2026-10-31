@@ -496,7 +496,11 @@ export class ScenarioServices {
   }
 
   /** The v2 runner: real lock, store, fencing and outbound; `round` is the thinking part, `queue` the re-enqueue sink. */
-  makeRunner(round: AgentRound, queue: TurnEnqueuer): TurnRunner {
+  makeRunner(
+    round: AgentRound,
+    queue: TurnEnqueuer,
+    lock: ConversationLock = new ConversationLock(this.ctx.redis),
+  ): TurnRunner {
     const { ctx } = this;
     const store = ctx.app.get(TurnStore);
     const failures = new FailureActions(
@@ -510,7 +514,7 @@ export class ScenarioServices {
       silentLogger,
     );
     return new TurnRunner(
-      new ConversationLock(ctx.redis),
+      lock,
       store,
       this.repo,
       this.settings,
