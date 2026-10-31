@@ -43,7 +43,7 @@
     "@testcontainers/minio": "12.2.0",
     "@testcontainers/postgresql": "^12.2.0",
     "@testcontainers/redis": "^12.2.0",
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.6.5",
     "@types/nodemailer": "^8.0.2",
     "@wasfa/config": "workspace:*",
     "eslint": "^10.12.0",
