@@ -20,7 +20,11 @@ import { waConversations, waMessages, type WaConversation } from "./schema/wa-ag
 
 import type { Database } from "./client.js";
 import type { Transaction } from "./credits-ledger.js";
-import type { WaAgentConversationStatus, WaAgentKind } from "@wasfa/shared/schemas/wa-agent";
+import type {
+  WaAgentConversationStatus,
+  WaAgentKind,
+  WaMediaStatus,
+} from "@wasfa/shared/schemas/wa-agent";
 
 /*
  * The WhatsApp AI agent's transcript (docs/WA-AGENT.md). Plain functions over a `Database` or a
@@ -90,6 +94,7 @@ export interface InboundMessageInput {
   kind: WaAgentKind;
   text?: string | undefined;
   media?: { key: string; mime: string; bytes: number; seconds?: number | undefined } | undefined;
+  mediaStatus?: WaMediaStatus | undefined;
   waMessageId: string;
   /** Epoch ms the message was sent; never stored in the future. */
   ts: number;
@@ -115,6 +120,7 @@ export async function insertInbound(
       mediaMime: input.media?.mime ?? null,
       mediaBytes: input.media?.bytes ?? null,
       mediaSeconds: input.media?.seconds ?? null,
+      mediaStatus: input.mediaStatus ?? null,
       waMessageId: input.waMessageId,
       // What the owner typed was already sent by their phone.
       status: input.direction === "owner" ? "sent" : "received",

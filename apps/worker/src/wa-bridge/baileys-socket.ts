@@ -8,7 +8,6 @@ import { waAlertOptInSchema } from "@wasfa/shared/schemas/wa-alert";
 import makeWASocket, {
   Browsers,
   DisconnectReason,
-  downloadMediaMessage,
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
   type WAMessage,
@@ -19,6 +18,7 @@ import { routeInbound, type InboundRouterDeps } from "./agent-inbound.js";
 import { type MediaIo } from "./agent-media.js";
 import { type AgentSettingsSource } from "./agent-settings.js";
 import { usePostgresAuthState } from "./auth-state.js";
+import { baileysMediaIo } from "./baileys-media.js";
 import { recordIgnored } from "./inbound-diagnostics.js";
 import {
   addressingOf,
@@ -180,21 +180,15 @@ export function createBaileysSessionOpener(
           logger,
         });
 
-        const baileysDownload: MediaIo["download"] = async (raw) => {
-          const buffer = await downloadMediaMessage(
-            raw as unknown as WAMessage,
-            "buffer",
-            {},
-            { logger: baileysLogger, reuploadRequest: socket.updateMediaMessage },
-          );
-          return buffer;
-        };
         const router: InboundRouterDeps = {
           redis,
           guard,
           settings: agentSettings,
           resolver,
-          media: mediaStore === null ? null : { download: baileysDownload, put: mediaStore.put },
+          media:
+            mediaStore === null
+              ? null
+              : { ...baileysMediaIo(socket, baileysLogger), put: mediaStore.put },
           logger,
         };
 
