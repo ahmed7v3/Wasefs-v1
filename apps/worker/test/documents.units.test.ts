@@ -415,9 +415,12 @@ describe("rx PDF on rx_done", () => {
     const key = await createRxPdf(RX_ID, deps).render(result);
     expect(key).toMatch(KEY_PATTERN);
     expect(documents.requests[0]).toMatchObject({ template: "rx_result", format: "pdf" });
-    const doc = (documents.requests[0]?.data["doc"] ?? {}) as { rows: string[][]; link: string };
+    const doc = (documents.requests[0]?.data["doc"] ?? {}) as {
+      items: { flag: string | null }[];
+      link: string;
+    };
     // A doubtful line is flagged, never presented as certain.
-    expect(doc.rows[0]?.[0]).toContain("uncertain reading");
+    expect(doc.items[0]?.flag).toContain("uncertain reading");
     expect(doc.link).toBe(`https://wasfa.online/analyze/${RX_ID}`);
     expect(documents.requests[0]?.data["disclaimer"]).toBeDefined();
 

@@ -46,6 +46,18 @@ jobs:
       # see each other's data or Redis keys, which shared `services:` containers could not guarantee.
       # At most 3 packages at once: turbo's default (10) on a 4-vCPU runner, each vitest with its own
       # workers and containers, starved jsdom tests until random ones overran their timeouts.
+      # The real Typst (same release and digest as infra/docker/worker.Dockerfile) so the document
+      # templates are compiled on every PR, not first at the image build on main.
+      - name: Install Typst
+        env:
+          TYPST_VERSION: 0.15.1
+          TYPST_SHA256: a6d077d0a95eed5a2eba715b2dae06be954f624ccbf85758a03f389ded33118c
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/typst.tar.xz" "https://github.com/typst/typst/releases/download/v${TYPST_VERSION}/typst-x86_64-unknown-linux-musl.tar.xz"
+          echo "${TYPST_SHA256}  $RUNNER_TEMP/typst.tar.xz" | sha256sum -c -
+          tar -xJf "$RUNNER_TEMP/typst.tar.xz" -C "$RUNNER_TEMP" --strip-components=1 typst-x86_64-unknown-linux-musl/typst
+          echo "TYPST_BIN=$RUNNER_TEMP/typst" >> "$GITHUB_ENV"
+
       - run: pnpm test --concurrency=3
 
       - run: pnpm build

@@ -71,21 +71,64 @@ export function samplePayload(
   }
 }
 
+const sampleItem = (fields: Record<string, unknown>) => ({
+  matchedDrugId: null,
+  matchScore: null,
+  activeIngredients: [],
+  route: null,
+  notes: null,
+  confidence: 0.9,
+  badge: "high",
+  verified: "not_needed",
+  details: null,
+  ...fields,
+});
+
+/** Four medicines: a full reading, a bedtime one, an as-needed doubtful one, and one with no readable frequency. */
 export const SAMPLE_RX_RESULT = {
   items: [
-    {
-      rawText: "Augmentin 1g",
+    sampleItem({
+      rawText: "Augmentin 1g 1x2",
       name: "Augmentin",
       strength: "1 g",
+      form: "أقراص",
+      dose: "قرص",
+      frequency: "مرتين يوميًا بعد الأكل",
+      duration: "7 أيام",
+      route: "فموي",
+      notes: "يكمل العلاج حتى النهاية",
+      badge: "medium",
+      details: {
+        purpose: "مضاد حيوي لعلاج العدوى البكتيرية",
+        sideEffects: ["إسهال"],
+        precautions: ["يؤخذ مع الطعام لتقليل اضطراب المعدة", "أخبر الطبيب عن حساسية البنسلين"],
+      },
+    }),
+    sampleItem({
+      rawText: "Lipitor 20 hs",
+      name: "Lipitor",
+      strength: "20 mg",
       form: "tablet",
-      dose: "1",
-      frequency: "twice daily",
-      duration: "7 days",
+      dose: "قرص",
+      frequency: "قبل النوم",
+      duration: "شهر",
+    }),
+    sampleItem({
+      rawText: "panadol",
+      name: "Panadol",
+      strength: "500 mg",
+      form: "أقراص",
+      dose: "قرص",
+      frequency: "عند اللزوم",
+      duration: null,
       badge: "low",
-      verified: "skipped",
-    },
+      verified: "unreadable",
+    }),
+    sampleItem({ rawText: "Vitamin D", name: "Vitamin D", dose: "حبة", frequency: null }),
   ],
   date: "2026-10-20",
+  findings: [{ kind: "duplicate_ingredient", itemIndexes: [0, 2], ingredient: "x" }],
+  overview: { summary: "أدوية لعلاج عدوى وارتفاع الكوليسترول.", likelyConditions: [] },
   unreadableRegions: [{}],
 } as unknown as RxResult;
 

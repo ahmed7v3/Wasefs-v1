@@ -385,6 +385,11 @@
       "import": "./dist/rx-normalize.js",
       "default": "./dist/rx-normalize.js"
     },
+    "./rx-schedule": {
+      "types": "./dist/rx-schedule.d.ts",
+      "import": "./dist/rx-schedule.js",
+      "default": "./dist/rx-schedule.js"
+    },
     "./rx-result": {
       "types": "./dist/rx-result.d.ts",
       "import": "./dist/rx-result.js",
