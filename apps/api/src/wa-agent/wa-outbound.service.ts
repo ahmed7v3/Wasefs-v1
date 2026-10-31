@@ -19,6 +19,7 @@ import { WaAgentRepo } from "./wa-agent.repo.js";
 import type { ApiEnv } from "../config/env.js";
 import type { TurnEnd } from "./turn/turn.repo.js";
 import type { OutboundPartRow, WaConversation } from "@wasfa/db";
+import type { WaTurnState } from "@wasfa/shared/wa-agent/failure";
 
 const refuse = (reason: string) => new AppError(ErrorCode.CONFLICT, { details: { reason } });
 
@@ -64,9 +65,14 @@ export class WaOutboundService {
     conversationId: string,
     parts: unknown,
     end: Omit<TurnEnd, "conversationId">,
+    state: WaTurnState = "replied",
   ): Promise<string[]> {
     const { conversation, parsed } = await this.prepare(conversationId, parts);
-    const messageIds = await this.turns.commitReply({ ...end, conversationId }, parsed.map(rowOf));
+    const messageIds = await this.turns.commitReply(
+      { ...end, conversationId },
+      parsed.map(rowOf),
+      state,
+    );
     try {
       await this.publish(conversation, messageIds, parsed);
     } catch (error) {

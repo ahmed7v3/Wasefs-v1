@@ -666,6 +666,14 @@ const waAgentRuntimeSchema = z.object({
   jobAttempts: z.number().int().min(0).max(5).default(3),
 });
 
+/** How often the failure policy may speak or alert (docs/WA-AGENT-RUNTIME.md section 5.4). */
+const waAgentFailuresSchema = z.object({
+  /** One failure text per chat per this many minutes; a further failure is deferred, never silent. */
+  customerTextEveryMinutes: z.number().int().min(1).max(120).default(10),
+  /** One owner alert per chat per this many minutes for failures. */
+  ownerAlertEveryMinutes: z.number().int().min(5).max(1_440).default(60),
+});
+
 /**
  * The WhatsApp AI agent (docs/WA-AGENT.md §7). Off by default and independent from
  * `auth.phoneVerification`. The ElevenLabs key is a secret and never lives here.
@@ -691,6 +699,7 @@ export const waAgentSettingsSchema = z.object({
   media: z.array(waAgentMediaItemSchema).max(30).default([]),
   voice: waAgentVoiceSchema.default(() => waAgentVoiceSchema.parse({})),
   runtime: waAgentRuntimeSchema.default(() => waAgentRuntimeSchema.parse({})),
+  failures: waAgentFailuresSchema.default(() => waAgentFailuresSchema.parse({})),
 });
 export type WaAgentSettings = z.output<typeof waAgentSettingsSchema>;
 

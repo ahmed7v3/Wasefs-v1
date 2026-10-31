@@ -45,6 +45,7 @@ function lockedRunner() {
   const state = { turnsStarted: 0, requeued: 0 };
   const outcome: RoundOutcome = {
     parts: [],
+    skipped: true,
     toolRecords: [],
     effectsRan: false,
     costUsdMicros: 0,
@@ -76,6 +77,7 @@ function lockedRunner() {
       find: () => Promise.resolve(fake<WaConversation>({ id: COMMERCE_CONVERSATION_ID })),
     },
     settings: fake({ get: () => Promise.resolve(settingDefault("waAgent")) }),
+    failures: fake({}),
     round: {
       // The first round is "slow": it sits in its model call until the test lets it go.
       compose: async () => {

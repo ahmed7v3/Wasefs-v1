@@ -154,6 +154,9 @@ export interface AgentToolContext {
   fence?: number;
   /** Set by `handoff_to_owner`: the turn pauses the chat once its last reply is delivered. */
   handoffReason: string | null;
+  /** The v2 turn this call belongs to (idempotency key) and its fence; absent in v1. */
+  turnId?: string;
+  fence?: number;
 }
 
 /** A tool as the registry keeps it: arguments arrive already parsed with `schema`. */

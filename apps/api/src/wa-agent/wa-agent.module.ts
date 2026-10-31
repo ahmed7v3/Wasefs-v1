@@ -6,6 +6,7 @@ import { AuthModule } from "../auth/auth.module.js";
 import { BillingModule } from "../billing/billing.module.js";
 import { CatalogModule } from "../catalog/catalog.module.js";
 import { ChatModule } from "../chat/chat.module.js";
+import { ErrorReporter } from "../common/errors.js";
 import { REDIS } from "../common/redis.js";
 import { CreditsModule } from "../credits/credits.module.js";
 import { FilesModule } from "../files/files.module.js";
@@ -32,6 +33,7 @@ import { WaDocumentQueue } from "./documents/wa-document-queue.js";
 import { RxReconciler } from "./outbox/rx-reconciler.js";
 import { RxReconcilerRepo } from "./outbox/rx-reconciler.repo.js";
 import { DlqService } from "./transport/dlq.service.js";
+import { FailureActions } from "./turn/failure-actions.js";
 import { ConversationLock } from "./turn/lock.js";
 import { TurnRunner } from "./turn/turn-runner.js";
 import { TurnQueue } from "./turn/turn.queue.js";
@@ -109,6 +111,8 @@ import type { Redis } from "ioredis";
     TurnRepo,
     TurnStore,
     TurnQueue,
+    ErrorReporter,
+    FailureActions,
     TurnRunner,
     TurnWorker,
   ],

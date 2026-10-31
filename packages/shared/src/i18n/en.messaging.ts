@@ -2,6 +2,23 @@ import type { arMessaging } from "./ar.messaging.js";
 
 /** English counterpart of `ar.messaging.ts` (server-sent texts: WhatsApp follow-ups, document labels). */
 export const enMessaging: Partial<Record<keyof typeof arMessaging, string>> = {
+  "whatsapp.agent.deferred": "Sorry, I will get back to you in a few minutes 🙏",
+  "whatsapp.agent.failed":
+    "Something went wrong on our side and I could not reply right now. If it keeps happening, send this code to customer service: {ref}",
+  "whatsapp.agent.aiPaused":
+    "The smart assistant is paused for now. We will reply as soon as it is back 🙏",
+  "whatsapp.agent.fallback.ack": "Got it. What else do you need from me?",
+  "whatsapp.agent.fallback.analyze_prescription":
+    "⏳ I am reading the prescription now, the result will reach you within a minute",
+  "whatsapp.agent.fallback.start_subscription":
+    "Your order {orderRef} is open. Amount: {amount}\nTransfer to: {bank}\nAccount name: {holder}\nAccount: {account}\nReference: {reference}",
+  "whatsapp.agent.fallback.start_subscription.free":
+    "Your order {orderRef} is active, nothing to pay.",
+  "whatsapp.agent.fallback.offer_discount": "Your discount code: {code}, valid until {expires}",
+  "whatsapp.agent.fallback.create_document":
+    "I am preparing your file and it will reach you shortly",
+  "whatsapp.agent.fallback.handoff_to_owner":
+    "I passed your message to my colleague and they will reply",
   "whatsapp.agent.event.paid":
     "Your payment for order {number} was approved and {item} is active. Thank you for choosing Wasfa AI.",
   "whatsapp.agent.event.rejected":

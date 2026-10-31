@@ -21,6 +21,7 @@ import {
 import { type WaAgentSettings } from "@wasfa/shared/settings";
 import { and, asc, eq, sql } from "drizzle-orm";
 
+import { ErrorReporter } from "../../../src/common/errors.js";
 import { CreditsService } from "../../../src/credits/credits.service.js";
 import { ObjectStorage } from "../../../src/files/object-storage.js";
 import { PlansService } from "../../../src/plans/plans.service.js";
@@ -35,6 +36,7 @@ import { WaAgentTurnService } from "../../../src/wa-agent/agent/wa-agent-turn.se
 import { WaAgentCommerceRepo } from "../../../src/wa-agent/commerce/agent-commerce.repo.js";
 import { AgentRxService } from "../../../src/wa-agent/commerce/agent-rx.service.js";
 import { WaAgentEventsConsumer } from "../../../src/wa-agent/commerce/wa-agent-events.consumer.js";
+import { FailureActions } from "../../../src/wa-agent/turn/failure-actions.js";
 import { ConversationLock } from "../../../src/wa-agent/turn/lock.js";
 import { TurnRunner } from "../../../src/wa-agent/turn/turn-runner.js";
 import { TurnStore } from "../../../src/wa-agent/turn/turn.store.js";
@@ -491,14 +493,26 @@ export class ScenarioServices {
   /** The v2 runner: real lock, store, fencing and outbound; `round` is the thinking part, `queue` the re-enqueue sink. */
   makeRunner(round: AgentRound, queue: TurnEnqueuer): TurnRunner {
     const { ctx } = this;
+    const store = ctx.app.get(TurnStore);
+    const failures = new FailureActions(
+      ctx.redis,
+      store,
+      this.outbound,
+      round,
+      queue,
+      this.handoff,
+      ctx.app.get(ErrorReporter),
+      silentLogger,
+    );
     return new TurnRunner(
       new ConversationLock(ctx.redis),
-      ctx.app.get(TurnStore),
+      store,
       this.repo,
       this.settings,
       round,
       this.outbound,
       queue,
+      failures,
       silentLogger,
     );
   }

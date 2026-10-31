@@ -17,6 +17,12 @@ import type { ApiEnv } from "../config/env.js";
 
 const GROUP = "wa-agent";
 const MINUTE_MS = 60_000;
+/**
+ * How much longer than `replyDelaySeconds` the oldest unanswered message may wait before the debounce stops
+ * extending: enough for the jitter (25 %) and a busy worker, small enough that a customer who keeps typing
+ * still gets a reply (no starvation).
+ */
+const DEBOUNCE_CAP_MARGIN_MS = 20_000;
 
 /**
  * Reads `wa:agent:in` (written by the WhatsApp bridge), stores the transcript and hands each customer
@@ -85,10 +91,19 @@ export class WaAgentInboundConsumer extends StreamConsumer {
     }
   }
 
-  /** v2: the message is stored; a debounced job answers it. A failure is logged, the stream moves on. */
+  /**
+   * v2: the message is stored; a debounced job answers it. A failure is logged, the stream moves on.
+   * The debounce has a cap: a customer who keeps typing would push the job back for ever and never get a
+   * reply, so once the oldest unanswered message has waited past the reply delay plus a margin, the job
+   * is queued without extending.
+   */
   private async enqueueTurn(conversationId: string): Promise<void> {
     try {
-      await this.turnQueue.enqueue(conversationId);
+      const config = await this.settings.get("waAgent");
+      const oldest = await this.turnRows.oldestUnansweredAt(conversationId);
+      const waitedMs = oldest === null ? 0 : Date.now() - oldest.getTime();
+      const capped = waitedMs > config.replyDelaySeconds * 1_000 + DEBOUNCE_CAP_MARGIN_MS;
+      await this.turnQueue.enqueue(conversationId, capped ? { extend: false } : {});
     } catch (error) {
       // The row stays unanswered: the next message or the audit finds it.
       this.logger.error({ conversationId, reason: (error as Error).name }, "Agent turn not queued");
