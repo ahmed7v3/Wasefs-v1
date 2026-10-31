@@ -123,9 +123,7 @@ describe("A1 Redis drops while the model works", () => {
     expect(first).toBe("stale");
     expect(await scenario.outboundTexts()).toEqual(["تمام"]);
     expect(await replied(scenario)).toHaveLength(1);
-    expect((await scenario.inboundRows()).every((row) => "turn" in (row.meta as object))).toBe(
-      true,
-    );
+    expect((await scenario.inboundRows()).every((row) => row.turnId !== null)).toBe(true);
 
     // Nothing is left to do: another job changes nothing.
     expect(await v2.runner(scenario).run(scenario.conversationId)).toBe("idle");
@@ -153,9 +151,7 @@ describe("A1 Redis drops while the model works", () => {
     await v2.runner(scenario).run(scenario.conversationId);
     expect(await scenario.outboundTexts()).toEqual(["تمام"]);
     expect(await replied(scenario)).toHaveLength(1);
-    expect((await scenario.inboundRows()).every((row) => "turn" in (row.meta as object))).toBe(
-      true,
-    );
+    expect((await scenario.inboundRows()).every((row) => row.turnId !== null)).toBe(true);
   });
 });
 
