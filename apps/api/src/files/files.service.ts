@@ -13,7 +13,7 @@ import {
   type CreateUploadResponse,
   type FileStatusResponse,
   type FileUrlResponse,
-  type UploadMime,
+  type ImportMime,
   type UploadRejectReason,
 } from "@wasfa/shared/schemas/files";
 import { isPdfObjectKey, originalObjectKey } from "@wasfa/shared/storage";
@@ -117,7 +117,7 @@ export class FilesService {
    */
   async importObject(
     user: FileViewer,
-    input: { sourceKey: string; purpose: ImportPurpose; mime: UploadMime; bytes: number },
+    input: { sourceKey: string; purpose: ImportPurpose; mime: ImportMime; bytes: number },
   ): Promise<string> {
     if (!this.storage.configured) {
       throw new AppError(ErrorCode.UPSTREAM_UNAVAILABLE, {
@@ -146,7 +146,8 @@ export class FilesService {
       createdBy: user.id,
       purpose: input.purpose,
       r2Key: key,
-      mime: isPdf ? PROCESSED_MIME : (input.mime as FileMime),
+      // The row can only hold a FileMime; a PDF or HEIC original is turned into a JPEG by the worker.
+      mime: isPdf || isHeicMime(input.mime) ? PROCESSED_MIME : (input.mime as FileMime),
       bytes: head.bytes,
       expiresAt: new Date(Date.now() + retentionDays * DAY_MS),
     });
