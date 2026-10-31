@@ -19,6 +19,18 @@ const MAX_IMAGES = 4;
 /** Voice notes transcribed per turn (each one costs ElevenLabs time). */
 const MAX_TRANSCRIPTS = 5;
 
+/** A stored file the model can look at: a vision type, within the size limit. */
+function visionReadable(
+  message: Pick<TurnMessage, "mediaKey" | "mediaMime" | "mediaBytes">,
+): boolean {
+  return (
+    message.mediaKey !== null &&
+    message.mediaMime !== null &&
+    (WA_AGENT_VISION_MIMES as readonly string[]).includes(message.mediaMime) &&
+    (message.mediaBytes ?? 0) <= WA_AGENT_MAX_FILE_BYTES
+  );
+}
+
 /** What the customer sent besides text: pictures read for the model, voice notes turned into words. */
 @Injectable()
 export class MediaInputService {
@@ -31,29 +43,30 @@ export class MediaInputService {
   /** The customer's pictures of this turn (at most 4, 10 MB each), read from the private uploads bucket. */
   async loadImages(pending: readonly TurnMessage[]): Promise<TurnImage[]> {
     const wanted = pending
-      .filter(
-        (message) =>
-          message.kind === "image" &&
-          message.mediaKey !== null &&
-          message.mediaMime !== null &&
-          (WA_AGENT_VISION_MIMES as readonly string[]).includes(message.mediaMime) &&
-          (message.mediaBytes ?? 0) <= WA_AGENT_MAX_FILE_BYTES,
-      )
+      .filter((message) => message.kind === "image" && visionReadable(message))
       .slice(-MAX_IMAGES);
     const images: TurnImage[] = [];
     for (const message of wanted) {
-      if (message.mediaKey === null || message.mediaMime === null) continue;
-      try {
-        images.push({
-          messageId: message.id,
-          mime: message.mediaMime,
-          data: await this.storage.getBytes(message.mediaKey, WA_AGENT_MAX_FILE_BYTES),
-        });
-      } catch {
-        // The picture shows up as a placeholder; the rest of the turn goes on.
-      }
+      const image = await this.loadOne(message);
+      // A picture that cannot be read shows up as its text marker; the rest of the turn goes on.
+      if (image !== null) images.push({ messageId: message.id, ...image });
     }
     return images;
+  }
+
+  /** One stored picture for the model (vision types, 10 MB at most); null when it cannot be read. */
+  async loadOne(
+    message: Pick<TurnMessage, "mediaKey" | "mediaMime" | "mediaBytes">,
+  ): Promise<{ mime: string; data: Uint8Array } | null> {
+    if (message.mediaKey === null || !visionReadable(message)) return null;
+    try {
+      return {
+        mime: message.mediaMime ?? "",
+        data: await this.storage.getBytes(message.mediaKey, WA_AGENT_MAX_FILE_BYTES),
+      };
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -62,11 +75,11 @@ export class MediaInputService {
    * (a transcript, or the words of a voice reply) reads as text. A note that cannot be transcribed
    * stays a placeholder and carries `meta.transcribeError`.
    */
-  async transcribePending(
-    rows: readonly TurnMessage[],
+  async transcribePending<R extends TurnMessage>(
+    rows: readonly R[],
     pending: readonly TurnMessage[],
     config: WaAgentSettings,
-  ): Promise<TurnMessage[]> {
+  ): Promise<R[]> {
     const texts = new Map<string, string>();
     const wanted = pending
       .filter((message) => message.kind === "audio" && (message.text?.trim() ?? "") === "")

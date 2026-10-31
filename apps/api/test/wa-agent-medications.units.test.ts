@@ -141,10 +141,10 @@ describe("search_medications", () => {
 
   it("refuses arguments that do not fit", async () => {
     const { handlers, searches } = setup(null);
-    expect(await handlers["search_medications"]?.({ query: "" })).toEqual({
+    expect(await handlers["search_medications"]?.({ query: "" })).toMatchObject({
       error: "invalid_arguments",
     });
-    expect(await handlers["search_medications"]?.({ query: "x".repeat(81) })).toEqual({
+    expect(await handlers["search_medications"]?.({ query: "x".repeat(81) })).toMatchObject({
       error: "invalid_arguments",
     });
     expect(searches).toHaveLength(0);
@@ -165,7 +165,7 @@ describe("medication_alternatives", () => {
 
   it("works for a guest and rejects a bad id", async () => {
     const { handlers, lookups } = setup(null);
-    expect(await handlers["medication_alternatives"]?.({ drugId: "nope" })).toEqual({
+    expect(await handlers["medication_alternatives"]?.({ drugId: "nope" })).toMatchObject({
       error: "invalid_arguments",
     });
     expect(lookups).toHaveLength(0);

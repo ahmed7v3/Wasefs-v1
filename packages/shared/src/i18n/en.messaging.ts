@@ -82,6 +82,109 @@ export const enMessaging: Partial<Record<keyof typeof arMessaging, string>> = {
   "whatsapp.agent.rx.pages.one": "1 page",
   "whatsapp.agent.rx.pages.two": "2 pages",
   "whatsapp.agent.rx.pages.many": "{count} pages",
+  "whatsapp.agent.attachments.header": "Attachments in this conversation:",
+  "whatsapp.agent.attachments.hint":
+    "To read a prescription use analyze_prescription with the set or the attachment handles. If the customer asks about a specific picture use view_attachment.",
+  "whatsapp.agent.attachments.kind.image": "picture",
+  "whatsapp.agent.attachments.kind.pdf": "PDF",
+  "whatsapp.agent.attachments.kind.document": "file",
+  "whatsapp.agent.attachments.age.now": "just now",
+  "whatsapp.agent.attachments.age.minutes": "{n} min ago",
+  "whatsapp.agent.attachments.age.hours": "{n} h ago",
+  "whatsapp.agent.attachments.age.days": "{n} d ago",
+  "whatsapp.agent.attachments.status.ready": "ready",
+  "whatsapp.agent.attachments.status.failed": "failed ({reason})",
+  "whatsapp.agent.attachments.status.expired": "deleted",
+  "whatsapp.agent.attachments.status.analysed": "analysed (rx#{ref})",
+  "whatsapp.agent.attachments.status.in_progress": "being analysed (rx#{ref})",
+  "whatsapp.agent.attachments.set": "set {label}",
+  "whatsapp.agent.attachments.imageRow": "[picture #{handle}]",
+  "whatsapp.agent.attachments.fileRow": "[file #{handle}]",
+  "whatsapp.agent.toolNote": "[tool: {body}]",
+  "whatsapp.agent.tools.viewCaption": "[Picture #{handle} as you asked to see it]",
+  "whatsapp.agent.tools.explain.not_linked":
+    "This service is for confirmed accounts only, and this number is not linked to one.",
+  "whatsapp.agent.tools.explain.already_linked": "This number is already linked to an account.",
+  "whatsapp.agent.tools.explain.invalid_arguments":
+    "The request was incomplete or malformed; try again with the right details.",
+  "whatsapp.agent.tools.explain.tool_failed":
+    "The tool had a temporary problem and nothing changed; we can try again shortly.",
+  "whatsapp.agent.tools.explain.stale_turn":
+    "A newer message arrived, so this request was cancelled with no change.",
+  "whatsapp.agent.tools.explain.no_image":
+    "There is no prescription picture ready to read. Ask the customer to send the prescription.",
+  "whatsapp.agent.tools.explain.still_processing":
+    "The file is still being prepared. Try again in a moment.",
+  "whatsapp.agent.tools.explain.unreadable_image":
+    "The picture is unclear or damaged. Ask the customer for a clearer one.",
+  "whatsapp.agent.tools.explain.already_analysed":
+    "That prescription was already read; the result was sent in an earlier message.",
+  "whatsapp.agent.tools.explain.insufficient_credits":
+    "The customer's balance is not enough for this. Offer a top-up or a plan.",
+  "whatsapp.agent.tools.explain.quota_reached": "The customer reached their limit for this period.",
+  "whatsapp.agent.tools.explain.plan_feature":
+    "This service is not part of the customer's current plan.",
+  "whatsapp.agent.tools.explain.too_many_pages":
+    "There are more pages than one prescription allows.",
+  "whatsapp.agent.tools.explain.account_unavailable":
+    "The customer's account cannot do this right now.",
+  "whatsapp.agent.tools.explain.busy": "The service is busy right now. Try again shortly.",
+  "whatsapp.agent.tools.explain.unavailable":
+    "The service is temporarily unavailable. Try again shortly.",
+  "whatsapp.agent.tools.explain.unknown_handle":
+    "That attachment number or set is not in the current conversation. Check the attachments list.",
+  "whatsapp.agent.tools.explain.not_ready":
+    "That attachment is not ready: still preparing, failed to download, or deleted. Ask the customer to resend if needed.",
+  "whatsapp.agent.tools.explain.unknown_key": "The requested file is not in the library.",
+  "whatsapp.agent.tools.explain.limit_reached": "The limit for this message or period was reached.",
+  "whatsapp.agent.tools.explain.media_unavailable": "That file cannot be sent right now.",
+  "whatsapp.agent.tools.explain.disabled": "Offers are switched off right now.",
+  "whatsapp.agent.tools.explain.plan_not_found":
+    "The requested plan does not exist or is not available.",
+  "whatsapp.agent.tools.explain.plan_not_allowed": "There is no discount offer on that plan.",
+  "whatsapp.agent.tools.explain.not_new_customer": "This discount is for new customers only.",
+  "whatsapp.agent.tools.explain.too_early": "It is too early for a discount offer; try later.",
+  "whatsapp.agent.tools.explain.price_unavailable":
+    "The price is not available right now. Try again shortly.",
+  "whatsapp.agent.tools.explain.no_better_price":
+    "The discount would not save the customer anything over the current price.",
+  "whatsapp.agent.tools.explain.lifetime_limit":
+    "The customer already used the discount offers available to them.",
+  "whatsapp.agent.tools.explain.daily_cap": "The daily limit of discount offers was reached.",
+  "whatsapp.agent.tools.explain.no_bank_method": "Bank transfer is not available right now.",
+  "whatsapp.agent.tools.explain.coupon_unavailable": "The coupon code is invalid or expired.",
+  "whatsapp.agent.tools.explain.quote_expired":
+    "The quoted price expired. Ask for the offer again.",
+  "whatsapp.agent.tools.explain.order_failed": "The order could not be opened. Try again shortly.",
+  "whatsapp.agent.tools.explain.no_receipt_found":
+    "There is no receipt picture ready. Ask the customer to send it.",
+  "whatsapp.agent.tools.explain.no_pending_payment": "There is no order waiting for payment.",
+  "whatsapp.agent.tools.explain.unreadable_receipt":
+    "The receipt picture is unclear. Ask for a clearer one.",
+  "whatsapp.agent.tools.explain.proof_limit":
+    "The maximum number of receipts for this order was reached.",
+  "whatsapp.agent.tools.explain.proof_not_allowed":
+    "This order does not accept receipts right now.",
+  "whatsapp.agent.tools.explain.rate_limited":
+    "Too many attempts in a short time. Wait a little and try again.",
+  "whatsapp.agent.tools.explain.attach_failed":
+    "The receipt could not be attached. Try again shortly.",
+  "whatsapp.agent.tools.explain.not_deliverable":
+    "The medical answer could not be delivered and nothing was charged. Try again shortly.",
+  "whatsapp.agent.tools.explain.needs_confirmation": "The customer must agree explicitly first.",
+  "whatsapp.agent.tools.explain.phone_unknown":
+    "We cannot see the customer's number, so sign-up must be done on the website.",
+  "whatsapp.agent.tools.explain.signup_closed": "Sign-up is paused for now.",
+  "whatsapp.agent.tools.explain.exists":
+    "This number already has an account. Offer a sign-in link.",
+  "whatsapp.agent.tools.explain.inactive":
+    "A sign-in link is not available for this account. Ask them to sign in on the website.",
+  "whatsapp.agent.tools.explain.two_factor":
+    "A sign-in link is not available for this account. Ask them to sign in on the website.",
+  "whatsapp.agent.tools.explain.privileged":
+    "A sign-in link is not available for this account. Ask them to sign in on the website.",
+  "whatsapp.agent.tools.explain.view_limit": "You can look at two pictures per reply only.",
+  "whatsapp.agent.tools.explain.view_unavailable": "I cannot show that attachment right now.",
   "document.generatedOn": "Generated on: {date}",
   "document.page": "Page",
   "document.disclaimerTitle": "Medical notice",

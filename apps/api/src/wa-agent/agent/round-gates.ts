@@ -21,8 +21,7 @@ export async function admitRound(
   input: ComposeInput,
 ): Promise<{ user: TurnUser | null; planId: string | null } | null> {
   const { conversation, config, now } = input;
-  const user =
-    conversation.userId === null ? null : await deps.repo.findUser(conversation.userId);
+  const user = conversation.userId === null ? null : await deps.repo.findUser(conversation.userId);
   if (conversation.userId !== null && user?.status !== "active") {
     throw new RoundRefused({ kind: "account_unavailable" });
   }

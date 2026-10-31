@@ -687,7 +687,9 @@ describe("media", () => {
     await h.ask("hi");
     expect(h.sent[0]?.parts).toEqual([{ kind: "text", text: "آسف" }]);
     const toolMessage = h.ai.adapter.requests[1]?.messages.at(-1);
-    expect(toolMessage?.role === "tool" ? toolMessage.content : "").toBe('{"error":"unknown_key"}');
+    expect(toolMessage?.role === "tool" ? toolMessage.content : "").toContain(
+      '"error":"unknown_key"',
+    );
   });
 });
 

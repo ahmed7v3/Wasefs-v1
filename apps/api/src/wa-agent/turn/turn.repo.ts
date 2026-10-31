@@ -16,6 +16,7 @@ import { SessionRepo } from "../conversation/session.repo.js";
 import { StaleFenceError } from "./lock.js";
 
 import type { StepTrace, TurnTraceStep } from "./agent-round.js";
+import type { ToolNote } from "../agent/tool-notes.js";
 import type { FailureClass, WaTurnState } from "@wasfa/shared/wa-agent/failure";
 
 type Tx = Parameters<Parameters<DbHandle["db"]["transaction"]>[0]>[0];
@@ -38,6 +39,8 @@ export interface TurnEnd {
   /** Failure end: the class and the `WSF-` reference stored on the turn. */
   causeClass?: FailureClass;
   errorRef?: string;
+  /** Tool memory: written to `meta.toolNotes` of the first reply row in the reply's transaction (docs §8.3). */
+  toolNotes?: readonly ToolNote[];
   /** The turn already waited once for the customer-text limit (read back by the next run). */
   rateDeferred?: boolean;
   /** False for a deferral: the inbound rows stay unlinked so the retry answers them (section 17.5). */
@@ -181,6 +184,15 @@ export class TurnRepo {
       const ids = await insertOutbound(tx, end.conversationId, parts, end.turnId);
       // A no-op while the chat has no session (nothing is written then).
       await this.sessions.stampOutbound(tx, end.conversationId, ids);
+      const first = ids[0];
+      if (first !== undefined && end.toolNotes !== undefined && end.toolNotes.length > 0) {
+        await tx
+          .update(waMessages)
+          .set({
+            meta: sql`${waMessages.meta} || ${JSON.stringify({ toolNotes: end.toolNotes })}::jsonb`,
+          })
+          .where(eq(waMessages.id, first));
+      }
       await this.finish(tx, end, state);
       return ids;
     });

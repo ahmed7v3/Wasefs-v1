@@ -1,3 +1,5 @@
+import { toolNotesOf, type ToolNote } from "../agent/tool-notes.js";
+
 import {
   effectsRanOf,
   type RoundFailure,
@@ -17,6 +19,9 @@ export interface Carry {
   steps: StepTrace[];
   handoffReason: string | null;
 }
+
+/** The tool notes of a turn that ended in a failure reply (the tools that ran before the failure). */
+export const carryNotes = (carry: Carry): ToolNote[] => toolNotesOf(carry.toolRecords);
 
 export const emptyCarry = (): Carry => ({
   toolRecords: [],

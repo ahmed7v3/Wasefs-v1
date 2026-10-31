@@ -2,18 +2,19 @@ import { t } from "@wasfa/shared/i18n";
 
 import { HISTORY_LIMIT } from "./round-helpers.js";
 
+import type { HistoryRow } from "./agent-prompt.js";
 import type { WaAgentRepo } from "../conversation/conversation.repo.js";
 import type { SessionService } from "../conversation/session.service.js";
 import type { ComposeOptions, RoundOutcome } from "../turn/agent-round.js";
-import type { TurnMessage, WaConversation } from "@wasfa/db";
+import type { WaConversation } from "@wasfa/db";
 import type { WaAgentSettings } from "@wasfa/shared/settings";
 
 /** What a v2 round sees of the chat: its current session only (docs/WA-AGENT-RUNTIME.md §18.2). */
 export interface SessionView {
   sessionId: string;
-  rows: TurnMessage[];
-  /** What replaces the chat in the round's input: the session's summary and, for a customer who came back after a break, one line. */
-  input: { conversation: WaConversation; returningNote?: string };
+  rows: HistoryRow[];
+  /** What replaces the chat in the round's input: the session (its files are the ones tools may use), its summary and, for a customer who came back after a break, one line. */
+  input: { sessionId: string; conversation: WaConversation; returningNote?: string };
 }
 
 /** The session's verbatim tail, summary and returning note; null while the chat has no session yet. */
@@ -33,6 +34,7 @@ export async function sessionView(
     sessionId: session.id,
     rows,
     input: {
+      sessionId: session.id,
       conversation: { ...conversation, summary: session.summary },
       ...(note === undefined ? {} : { returningNote: note }),
     },
@@ -46,7 +48,7 @@ export async function roundRows(
   conversation: WaConversation,
   config: WaAgentSettings,
   options: ComposeOptions,
-): Promise<{ view: SessionView | null; rows: TurnMessage[] }> {
+): Promise<{ view: SessionView | null; rows: HistoryRow[] }> {
   const view =
     options.turnId !== undefined && sessions
       ? await sessionView(sessions, conversation, config)

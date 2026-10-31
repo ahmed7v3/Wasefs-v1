@@ -21,6 +21,43 @@ export interface InboundMedia {
   fileId: string | null;
 }
 
+const mediaColumns = {
+  id: waMessages.id,
+  kind: waMessages.kind,
+  mediaKey: waMessages.mediaKey,
+  mediaMime: waMessages.mediaMime,
+  mediaBytes: waMessages.mediaBytes,
+  createdAt: waMessages.createdAt,
+  fileId: sql<string | null>`${waMessages.meta}->>'fileId'`,
+};
+
+/** A row with a stored file as an `InboundMedia`; rows without one (expired, failed) are left out. */
+function inboundOf(row: {
+  id: string;
+  kind: string;
+  mediaKey: string | null;
+  mediaMime: string | null;
+  mediaBytes: number | null;
+  createdAt: Date;
+  fileId: string | null;
+}): InboundMedia[] {
+  return (row.kind === "image" || row.kind === "document") &&
+    row.mediaKey !== null &&
+    row.mediaMime !== null
+    ? [
+        {
+          id: row.id,
+          kind: row.kind,
+          mediaKey: row.mediaKey,
+          mediaMime: row.mediaMime,
+          mediaBytes: row.mediaBytes ?? 0,
+          createdAt: row.createdAt,
+          fileId: row.fileId,
+        },
+      ]
+    : [];
+}
+
 /** Some picture of the start was already read by another analysis; nothing was written. */
 export class RxAlreadyAnalysedError extends Error {
   constructor() {
@@ -43,15 +80,7 @@ export class AgentRxRepo {
     limit: number,
   ): Promise<InboundMedia[]> {
     const rows = await this.handle.db
-      .select({
-        id: waMessages.id,
-        kind: waMessages.kind,
-        mediaKey: waMessages.mediaKey,
-        mediaMime: waMessages.mediaMime,
-        mediaBytes: waMessages.mediaBytes,
-        createdAt: waMessages.createdAt,
-        fileId: sql<string | null>`${waMessages.meta}->>'fileId'`,
-      })
+      .select(mediaColumns)
       .from(waMessages)
       .where(
         and(
@@ -64,23 +93,21 @@ export class AgentRxRepo {
       )
       .orderBy(desc(waMessages.createdAt), desc(waMessages.id))
       .limit(limit);
-    return rows.flatMap((row) =>
-      (row.kind === "image" || row.kind === "document") &&
-      row.mediaKey !== null &&
-      row.mediaMime !== null
-        ? [
-            {
-              id: row.id,
-              kind: row.kind,
-              mediaKey: row.mediaKey,
-              mediaMime: row.mediaMime,
-              mediaBytes: row.mediaBytes ?? 0,
-              createdAt: row.createdAt,
-              fileId: row.fileId,
-            },
-          ]
-        : [],
-    );
+    return rows.flatMap(inboundOf);
+  }
+
+  /**
+   * The pictures a v2 call resolved by handle (`AttachmentsService.resolve`), in the order of `ids`. The
+   * conversation id keeps the lookup inside this chat even if an id were ever wrong.
+   */
+  async mediaByIds(conversationId: string, ids: readonly string[]): Promise<InboundMedia[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.handle.db
+      .select(mediaColumns)
+      .from(waMessages)
+      .where(and(eq(waMessages.conversationId, conversationId), inArray(waMessages.id, [...ids])));
+    const byId = new Map(rows.flatMap(inboundOf).map((media) => [media.id, media]));
+    return ids.flatMap((id) => byId.get(id) ?? []);
   }
 
   /** Gives a claim back when the work it was for failed. */

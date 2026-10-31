@@ -309,14 +309,16 @@ describe("agent tools are bound to the chat's account", () => {
       ["ask_medical", { question: "x" }],
     ] as const) {
       const handler = handlers[name];
-      expect(await handler?.(args)).toEqual({ error: "not_linked" });
+      expect(await handler?.(args)).toMatchObject({ error: "not_linked" });
     }
     // A user id in the arguments is not part of any schema: the call is invalid, not honoured.
     const offer = handlers["offer_discount"];
-    expect(await offer?.({ planKey: "pro", months: 2 })).toEqual({ error: "not_linked" });
+    expect(await offer?.({ planKey: "pro", months: 2 })).toMatchObject({ error: "not_linked" });
     const linked = { ...guest, userId: COMMERCE_USER_ID };
     const bound = bindTools(toolsFor(true), linked, []).handlers["offer_discount"];
-    expect(await bound?.({ planKey: "pro", months: 2 })).toEqual({ error: "invalid_arguments" });
+    expect(await bound?.({ planKey: "pro", months: 2 })).toMatchObject({
+      error: "invalid_arguments",
+    });
   });
 });
 

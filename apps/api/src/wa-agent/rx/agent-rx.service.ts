@@ -14,6 +14,7 @@ import { SettingsService } from "../../settings/settings.service.js";
 import { WaAgentCommerceRepo } from "../commerce/agent-commerce.repo.js";
 import { agentUser } from "../commerce/agent-user.js";
 import { usageReason } from "../commerce/usage-errors.js";
+import { AttachmentsService } from "../conversation/attachments.service.js";
 
 import { AgentRxRepo, type InboundMedia } from "./agent-rx.repo.js";
 import {
@@ -46,6 +47,7 @@ export class AgentRxService {
     private readonly settings: SettingsService,
     @Inject(REDIS) private readonly redis: Redis,
     private readonly logger: PinoLogger,
+    private readonly attachments?: AttachmentsService,
   ) {
     this.logger.setContext("WaAgentRx");
   }
@@ -65,11 +67,14 @@ export class AgentRxService {
       entitlement?.maxPagesPerRx ?? RX_MAX_PAGES,
     );
     if (call.effect !== undefined) {
-      return this.start.analyzeOnce(call, call.effect, {
-        user,
-        creditsPerPage: rxSettings.creditsPerPage,
-        maxPages,
-      });
+      const base = { user, creditsPerPage: rxSettings.creditsPerPage, maxPages };
+      // v2 (docs/WA-AGENT-RUNTIME.md §18.5): the session's registry decides which pictures, no time window.
+      if (call.sessionId === undefined || this.attachments === undefined) {
+        return this.start.analyzeOnce(call, call.effect, base);
+      }
+      const picked = await this.attachments.resolve(call.sessionId, call.selection ?? {}, maxPages);
+      if (!picked.ok) return declined(picked.code);
+      return this.start.analyzeOnce(call, call.effect, base, picked);
     }
     // Newest first from the database; pages are read in the order the customer sent them.
     const newest = await this.rxRepo.newestUnusedMedia(

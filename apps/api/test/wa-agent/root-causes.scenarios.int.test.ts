@@ -4,14 +4,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { AdminTestContext } from "../support/admin-context.js";
 
-import { redTest } from "./red.js";
 import { TINY_JPEG } from "./scenarios/fixtures.js";
 import { Scenario, V2Runtime } from "./scenarios/harness.js";
 
 /*
- * Red scenario tests for the Phase 6 root causes (docs/WA-AGENT-RUNTIME.md section 2): R1, R3, R4, R5,
- * R6, R7, R8, R11, R13. Each body states the CORRECT v2 behaviour; today it fails on its own assertion
- * (the message starts with the root cause id, which `redTest` checks). R2, R9, R10, R12, R14 to R16 are
+ * Scenario tests for the Phase 6 root causes (docs/WA-AGENT-RUNTIME.md section 2): R1, R3, R4, R5,
+ * R6, R7, R8, R11, R13. Each body states the CORRECT v2 behaviour; a root cause not fixed yet fails on
+ * its own assertion (the message starts with the root cause id). R2, R9, R10, R12, R14 to R16 are
  * covered elsewhere.
  */
 
@@ -49,69 +48,57 @@ describe("the harness", () => {
 });
 
 describe("root causes of the WhatsApp agent", () => {
-  redTest(
-    {
-      id: "R1",
-      fixedIn: "WP2",
-      title: "an unanalysed picture can be analysed later, and the model remembers the first call",
-      reason: /^R1: /,
-    },
-    async () => {
-      // Picture A is read at once; picture B waits for the customer's go-ahead, 20 minutes later.
-      const scenario = await Scenario.start(ctx, {
-        linked: true,
-        model: (_request, call) =>
-          [
-            toolCall("analyze_prescription"),
-            "بقرأ الروشتة دلوقتي",
-            "تحب أقرأ الصورة التانية كمان؟",
-            toolCall("analyze_prescription"),
-            "بقرأ الصورة التانية",
-          ][call] ?? "تمام",
-      });
-      await scenario.inbound({ image: TINY_JPEG });
-      await scenario.runTurns();
-      await scenario.inbound({ image: TINY_JPEG });
-      await scenario.runTurns();
-      await scenario.passTime(20);
-      await scenario.inbound({ text: "حلل الصورة التانية" });
-      await scenario.runTurns();
+  it("R1 an unanalysed picture can be analysed later, and the model remembers the first call", async () => {
+    // Picture A is read at once; picture B waits for the customer's go-ahead, 20 minutes later.
+    const scenario = await Scenario.start(ctx, {
+      linked: true,
+      runtime: new V2Runtime(),
+      model: (_request, call) =>
+        [
+          toolCall("analyze_prescription"),
+          "بقرأ الروشتة دلوقتي",
+          "تحب أقرأ الصورة التانية كمان؟",
+          toolCall("analyze_prescription"),
+          "بقرأ الصورة التانية",
+        ][call] ?? "تمام",
+    });
+    await scenario.inbound({ image: TINY_JPEG });
+    await scenario.runTurns();
+    await scenario.inbound({ image: TINY_JPEG });
+    await scenario.runTurns();
+    await scenario.passTime(20);
+    await scenario.inbound({ text: "حلل الصورة التانية" });
+    await scenario.runTurns();
 
-      expect(
-        scenario.modelSaw(4),
-        "R1: the second call was answered no_image although the second picture was never analysed",
-      ).not.toContain("no_image");
-      expect(
-        (await scenario.readings()).length,
-        "R1: no second analysis started on the unanalysed picture",
-      ).toBe(2);
-      expect(
-        scenario.modelSaw(3),
-        "R1: the model's history has no note of the first analyze_prescription call",
-      ).toContain("analyze_prescription");
-    },
-  );
+    expect(
+      scenario.modelSaw(4),
+      "R1: the second call was answered no_image although the second picture was never analysed",
+    ).not.toContain("no_image");
+    expect(
+      (await scenario.readings()).length,
+      "R1: no second analysis started on the unanalysed picture",
+    ).toBe(2);
+    expect(
+      scenario.modelSaw(3),
+      "R1: the model's history has no note of the first analyze_prescription call",
+    ).toContain("analyze_prescription");
+  });
 
-  redTest(
-    {
-      id: "R3",
-      fixedIn: "WP2",
-      title: "six pictures in one burst are all referenced to the model",
-      reason: /^R3: /,
-    },
-    async () => {
-      const scenario = await Scenario.start(ctx, { model: () => "استلمت الصور" });
-      for (let index = 0; index < 6; index++) await scenario.inbound({ image: TINY_JPEG });
-      await scenario.runTurns();
+  it("R3 six pictures in one burst are all referenced to the model", async () => {
+    const scenario = await Scenario.start(ctx, {
+      runtime: new V2Runtime(),
+      model: () => "استلمت الصور",
+    });
+    for (let index = 0; index < 6; index++) await scenario.inbound({ image: TINY_JPEG });
+    await scenario.runTurns();
 
-      const seen = scenario.modelSaw(0);
-      const placeholders = seen.split("[صورة]").length - 1;
-      expect(
-        placeholders,
-        `R3: ${placeholders} of 6 pictures reached the model as a bare «[صورة]» placeholder (${scenario.imagesSeen(0)} shown)`,
-      ).toBe(0);
-    },
-  );
+    const seen = scenario.modelSaw(0);
+    const placeholders = seen.split("[صورة]").length - 1;
+    expect(
+      placeholders,
+      `R3: ${placeholders} of 6 pictures reached the model as a bare «[صورة]» placeholder (${scenario.imagesSeen(0)} shown)`,
+    ).toBe(0);
+  });
 
   it("R4 a model error is not the busy line and does not pause the chat", async () => {
     const scenario = await Scenario.start(ctx, {
