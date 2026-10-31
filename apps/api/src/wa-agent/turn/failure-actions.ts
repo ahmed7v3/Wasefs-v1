@@ -14,6 +14,7 @@ import { PinoLogger } from "nestjs-pino";
 import { ErrorReporter } from "../../common/errors.js";
 import { REDIS } from "../../common/redis.js";
 import { WaAgentHandoffService } from "../agent/handoff.service.js";
+import { composeParts } from "../compose/compose-parts.js";
 import { WaOutboundService } from "../transport/outbound.service.js";
 import { WA_AGENT_ROUND } from "../wa-agent.tokens.js";
 
@@ -152,14 +153,15 @@ export class FailureActions {
     return run.config.language === "en" ? "en" : "ar";
   }
 
-  /** Queues `text` under the fence and ends the turn in `state`; a chat paused meanwhile ends it quietly. */
+  /** Queues `text` composed for WhatsApp under the fence and ends the turn in `state`; a chat paused meanwhile ends it quietly. */
   private async send(
     run: FailureRun,
-    parts: { kind: "text"; text: string }[],
+    text: string,
     state: WaTurnState,
     end: ReturnType<FailureActions["end"]>,
   ): Promise<string[] | null> {
     try {
+      const parts = composeParts(text, run.config.caps);
       return await this.outbound.enqueueFenced(run.turn.conversationId, parts, end, state);
     } catch (error) {
       if (!isRefusal(error)) throw error;
@@ -203,7 +205,7 @@ export class FailureActions {
       await this.store.close(turn, end, "deferred");
     } else {
       const text = t(action.text, {}, this.locale(run));
-      const ids = await this.send(run, [{ kind: "text", text }], "deferred", end);
+      const ids = await this.send(run, text, "deferred", end);
       if (ids === null) return "done";
       await this.markText(run, false);
     }
@@ -219,12 +221,7 @@ export class FailureActions {
     const { turn, conversation, carry } = run;
     const texts = fallbackTexts(carry.toolResults, this.locale(run));
     const text = texts.length > 0 ? texts.join("\n\n") : t(action.otherwise, {}, this.locale(run));
-    const ids = await this.send(
-      run,
-      [{ kind: "text", text }],
-      "replied",
-      this.end(run, { link: true }),
-    );
+    const ids = await this.send(run, text, "replied", this.end(run, { link: true }));
     if (ids === null) return "done";
     const outcome = fallbackOutcome(conversation, carry, text);
     try {
@@ -260,7 +257,7 @@ export class FailureActions {
     }
     const text = t(action.text, { ref: errorRef ?? "" }, this.locale(run));
     const end = this.end(run, { link: true, ...(errorRef === undefined ? {} : { errorRef }) });
-    const ids = await this.send(run, [{ kind: "text", text }], "failed_replied", end);
+    const ids = await this.send(run, text, "failed_replied", end);
     if (ids === null) return "done";
     await this.markText(run, cls === "spend_cap" || cls === "ai_off");
     if (action.ownerAlert) await this.alertOwner(run, errorRef);

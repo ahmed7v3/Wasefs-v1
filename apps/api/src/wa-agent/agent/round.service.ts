@@ -262,9 +262,9 @@ export class AgentRoundService implements AgentRound {
     );
 
     const spoken = await speakReply(
-      { voice: this.voice, random: this.random },
+      { voice: this.voice, random: this.random, outputs },
       result.text,
-      ctx.mediaParts,
+      ctx,
       pending,
       config,
       now,

@@ -2,7 +2,7 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import { isolateBidi, stripBidi } from "../src/wa-agent/bidi.js";
-import { composeText } from "../src/wa-agent/compose.js";
+import { composeText, plainForSpeech } from "../src/wa-agent/compose.js";
 import { toWhatsApp } from "../src/wa-agent/format.js";
 import { splitReply } from "../src/wa-agent/split.js";
 
@@ -267,5 +267,15 @@ describe("composeText", () => {
     expect(composeText("## نصيحة\n- خد Bepra 20 mg", { maxChars: 100, maxParts: 2 })).toEqual([
       `${RLM}*نصيحة*\n${RLM}• خد ${FSI}Bepra 20 mg${PDI}`,
     ]);
+  });
+});
+
+describe("plainForSpeech", () => {
+  it("drops direction marks, WhatsApp markers and bullets", () => {
+    const [composed = ""] = composeText("- *خد* Bepra 20 mg _قبل_ ~العشاء~ `x`", {
+      maxChars: 100,
+      maxParts: 1,
+    });
+    expect(plainForSpeech(composed)).toBe("خد Bepra 20 mg قبل العشاء x");
   });
 });

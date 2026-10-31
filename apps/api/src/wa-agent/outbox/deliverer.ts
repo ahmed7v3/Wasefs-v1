@@ -23,6 +23,7 @@ import { API_ENV } from "../../config/config.module.js";
 import { ObjectStorage } from "../../files/object-storage.js";
 import { SettingsService } from "../../settings/settings.service.js";
 import { HANDOFF_ALERT_KIND } from "../agent/handoff.service.js";
+import { composeTextParts } from "../compose/compose-parts.js";
 import { WaAgentRepo } from "../conversation/conversation.repo.js";
 import { WaAgentStateService } from "../conversation/state.service.js";
 import { WaOutboundService } from "../transport/outbound.service.js";
@@ -200,9 +201,10 @@ export class OutboxDeliverer implements OnModuleInit, OnApplicationShutdown {
     const event = waAgentEventSchema.safeParse(row.payload);
     if (!event.success) return this.dead(row, row.attempts, "invalid_payload");
     const locale: Locale = config.language === "en" ? "en" : "ar";
-    const parts = await this.builder.parts(event.data, conversation, config.caps, locale);
-    if (parts === null || parts.length === 0) return this.dead(row, row.attempts, "no_content");
-    await this.labelIfEarlier(event.data, conversation.sessionId, conversation.id, parts, locale);
+    const built = await this.builder.parts(event.data, conversation, config.caps, locale);
+    if (built === null || built.length === 0) return this.dead(row, row.attempts, "no_content");
+    await this.labelIfEarlier(event.data, conversation.sessionId, conversation.id, built, locale);
+    const parts = composeTextParts(built, config.caps);
 
     await this.outbound.enqueueDelivery(row.conversationId, parts, {
       fence,
