@@ -60,7 +60,9 @@ export class ToolLoopError extends Error {
 
   constructor(cause: unknown, costUsdMicros: number, steps: number) {
     const code = cause instanceof AiProviderError ? cause.code : "unknown";
-    super(`Tool loop failed after tools ran: ${code}`);
+    // The original error stays reachable as `cause`: a timeout and a provider error are different
+    // failures, and the logs must say which one happened.
+    super(`Tool loop failed after tools ran: ${code}`, { cause });
     this.name = "ToolLoopError";
     this.code = code;
     this.costUsdMicros = costUsdMicros;
