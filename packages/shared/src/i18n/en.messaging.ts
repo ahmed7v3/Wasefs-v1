@@ -77,6 +77,11 @@ export const enMessaging: Partial<Record<keyof typeof arMessaging, string>> = {
   "whatsapp.agent.session.returning":
     "A returning customer after a break; start fresh and do not assume old context.",
   "whatsapp.agent.rx.fromEarlier": "The result of the prescription you sent at {time}:",
+  "whatsapp.agent.rx.starting":
+    "⏳ Reading the prescription ({pages})… the result will reach you in under a minute",
+  "whatsapp.agent.rx.pages.one": "1 page",
+  "whatsapp.agent.rx.pages.two": "2 pages",
+  "whatsapp.agent.rx.pages.many": "{count} pages",
   "document.generatedOn": "Generated on: {date}",
   "document.page": "Page",
   "document.disclaimerTitle": "Medical notice",

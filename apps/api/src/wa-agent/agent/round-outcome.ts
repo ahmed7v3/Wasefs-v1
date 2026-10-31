@@ -1,8 +1,17 @@
-import { effectsRanOf, type RoundOutcome, type StepTrace, type TurnTraceStep } from "../turn/agent-round.js";
+import { plainForSpeech } from "@wasfa/shared/wa-agent/compose";
+import { toWhatsApp } from "@wasfa/shared/wa-agent/format";
+
+import {
+  effectsRanOf,
+  type RoundOutcome,
+  type StepTrace,
+  type TurnTraceStep,
+} from "../turn/agent-round.js";
 import { textOnlyReason } from "../voice/voice-text.js";
 
 import { toWhatsappText } from "./agent-output.js";
 import { replyParts, withOutcomes } from "./round-helpers.js";
+import { composedReplyParts, rxStarted } from "./rx-progress.js";
 
 import type { WaAgentVoiceService } from "../voice/voice.service.js";
 import type { AgentToolContext, ToolCallRecord, ToolOutput } from "./tools/index.js";
@@ -17,23 +26,32 @@ import type { WaAgentSettings } from "@wasfa/shared/settings";
  * code, a bank number), the daily character cap is used up or ElevenLabs failed.
  */
 export async function speakReply(
-  deps: { voice: WaAgentVoiceService; random: () => number },
+  deps: { voice: WaAgentVoiceService; random: () => number; outputs: readonly ToolOutput[] },
   text: string,
-  media: readonly WaAgentOutboundPart[],
+  ctx: AgentToolContext,
   pending: readonly TurnMessage[],
   config: WaAgentSettings,
   now: Date,
 ): Promise<{ mediaKey: string; chars: number } | null> {
   const { voice } = config;
   const reply = text.trim();
-  if (!voice.enabled || voice.voiceId === "" || reply === "" || media.length > 0) return null;
+  const v2 = ctx.turnId !== undefined;
+  if (!voice.enabled || voice.voiceId === "" || reply === "" || ctx.mediaParts.length > 0)
+    return null;
+  // A started reading gets its text line first (v2), which a lone voice note would drop.
+  if (v2 && rxStarted(deps.outputs)) return null;
   if (reply.length > voice.maxChars || textOnlyReason(reply) !== null) return null;
   const wanted =
     voice.replyMode === "mirror"
       ? pending.some((message) => message.kind === "audio")
       : voice.replyMode === "sometimes" && deps.random() * 100 < voice.sometimesPercent;
   if (!wanted || !(await deps.voice.ready(voice))) return null;
-  return deps.voice.speak(toWhatsappText(reply), voice, now);
+  // v2 reads the composed text without direction marks or WhatsApp markers; v1 is unchanged.
+  return deps.voice.speak(
+    v2 ? plainForSpeech(toWhatsApp(reply)) : toWhatsappText(reply),
+    voice,
+    now,
+  );
 }
 
 /** What the finished loop becomes: the parts to send (a voice note or text) and the trace of the round. */
@@ -53,7 +71,9 @@ export function roundOutcome(input: {
     input;
   const parts: WaAgentOutboundPart[] = spoken
     ? [{ kind: "voice", mediaKey: spoken.mediaKey }]
-    : replyParts(result.text, ctx.mediaParts, config.caps);
+    : ctx.turnId === undefined
+      ? replyParts(result.text, ctx.mediaParts, config.caps)
+      : composedReplyParts(result.text, ctx.mediaParts, outputs, config);
   return {
     parts,
     toolRecords: records,
