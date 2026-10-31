@@ -656,3 +656,43 @@ reasons.)*
 - Release A scope: WP0, WP1, WP2, WP9 part A only. Track R (WP3–WP5), WP6, WP7, WP8 are not started in this release.
 - Delivery: stacked PRs `phase6/wp0-baseline` → `phase6/wp1-reliability` → `phase6/wp2-restructure` →
   `phase6/wp9a-admin`; each merged only after the owner says so (merging to `main` deploys production).
+
+### WP0 — forensics (2026-10-31, read-only, aggregates only)
+Log window: production containers were recreated 2026-10-29 14:11 UTC (json-file, 5 × 10 MB), so logs cover
+2026-10-29 14:11 → 2026-10-31 05:40 UTC only; older symptoms are visible only in the database (baseline below).
+v1 does not log the busy line itself or reply texts, so customer-facing texts are inferred from the DB.
+| Evidence | Count | Root cause |
+|---|---|---|
+| `Agent turn failed` reason `AiProviderError`, tools `[]` (2026-10-30 18:38); same hour 2 images, 0 readings | 1 | R11 (no retry before tools) → R4 (busy line + pause); consistent with R1 for the image symptom |
+| worker `rx analysis failed` step `read` `AiProviderError` → api `rx_failed` follow-up (2026-10-29 17:39) | 1 | R11 (worker read step) + R12 (generic `rx_failed` text) |
+| DB: busy lines 2026-10-28/29/30, 3 different chats | 3 | R4; each was followed by the auto-pause |
+| DB: 4 inbound rows unanswered > 10 min, all while the chat was paused | 4 | R4 → R5/R6 (pause after busy) |
+| DB: inbound media `kind=other`, no stored file | 4 | R2 (unsupported type or failed download; v1 stores no reason) |
+| worker `Job failed` `alerts.sweep_pending` "Custom Id cannot contain :" (every run, ×3 attempts) | 7,107 | **R17 (new):** the repeatable alert sweep never runs, so admin alerts are not swept/escalated. Owner: WP9A (alerts) |
+| bridge `WhatsApp alert dropped` reason `disabled` | 24 | R18 candidate: probably the configured alert opt-out; verify in WP9A |
+| Baileys `stream:error` 503 + reconnect | 3 / 7 | R19 candidate (transport noise, no customer impact found); watch in the Health tab |
+No log evidence either way for R1/R2/R15 download paths (v1 logs no media download lines), R7–R10, R14, R16;
+they are covered by the red tests. Production images were built from `99d6782`; the turn-timeout stop-gap is
+not deployed yet (it ships with the WP0 PR).
+
+### WP0 — baseline (production DB, last 30 days, run 2026-10-31)
+| Measure | Value |
+|---|---|
+| Inbound / outbound / owner rows | 85 / 149 / 13 (6 chats) |
+| Busy lines | 3 (3 chats; one per day on 10-28, 10-29, 10-30) |
+| rx analyses (all / from WhatsApp) | done 82 / 10 · failed 2 / 1 · refunded 5 / 0 |
+| Inbound media | image/jpeg 20 · audio/ogg 3 · `other` 4 (all without a stored file) |
+| Inbound rows by status | all 85 `received` (v1 never sets another status on inbound) |
+| Unanswered inbound (> 10 min, no agent/owner row) | 4 (3 chats), all while paused |
+
+### WP1 — design decisions (main session)
+- Failure policy: `packages/shared/src/wa-agent/failure.ts` (+ 43 table/property tests). `effectsRan` counts
+  only side-effecting tools; a failure after read-only tools is retried as transient (amends §5.4 "any tool").
+- Idempotency, rx-start transaction, fencing and linking rules: `WA-AGENT-RUNTIME.md` §17. Deviations: fence
+  counter lives in Postgres (`wa_conversations.turn_fence`), not Redis, so the check is atomic with the writes;
+  the analysis id is derived from the idempotency key so the existing reservation key makes retries free of
+  double charges without touching credit code; enqueue failure no longer fails the analysis (reconciler).
+- `waAgent.runtime.jobAttempts` counts retries after the first run (20/60/180 s).
+- Scenario tests are typed TypeScript, not YAML (§15): no new dependency, refactor-safe.
+- WP2 note: the table name `wa_sessions` is taken (Baileys auth state); agent sessions use `wa_agent_sessions`.
+- Migration numbers: `0032_wa_agent_runtime` (WP1).

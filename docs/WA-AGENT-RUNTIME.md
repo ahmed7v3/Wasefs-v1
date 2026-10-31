@@ -312,6 +312,105 @@ whether credits were returned (from the ledger outcome, not assumed).
 - **Live smoke** (owner, T8 extended): photo, PDF, HEIC, burst of 3, `جديد`, `/analyze`, broken image, result +
   PDF arrives during an owner pause.
 
+## 17. WP1 implementation contract (main session, 2026-10-31)
+
+Binding for the WP1 builders. Where this section is more precise than §4–§9 it wins; deviations are listed in
+`phase6.md` Notes.
+
+### 17.1 Schema (migration `0032_wa_agent_runtime`)
+```
+wa_conversations  + turn_fence bigint not null default 0          -- fencing authority (17.4)
+wa_messages       + media_status text null  check in (ok, too_large, unsupported_type, download_failed,
+                                                       storage_unavailable, expired)
+                  + turn_id uuid null references wa_turns(id) on delete set null
+                  index (conversation_id) where direction = 'in' and turn_id is null   -- "unanswered"
+wa_turns          id uuid pk, conversation_id uuid not null fk cascade, session_id uuid null (WP2),
+                  state text not null check in WA_TURN_STATES, fence bigint not null, attempt int not null default 1,
+                  inbound_ids uuid[] not null default '{}', cause_class text null check in FAILURE_CLASSES,
+                  error_ref text null, trace jsonb not null default '{}' (object check), cost_usd_micros
+                  bigint not null default 0, started_at timestamptz not null default now(), ended_at timestamptz null
+                  index (conversation_id, started_at desc); index (state, started_at) where state in (queued, running, deferred)
+wa_tool_effects   key text pk (hex sha256), turn_id uuid not null fk wa_turns cascade, tool text not null,
+                  state text not null check in (pending, done), result jsonb null, created_at, updated_at
+wa_outbox         id uuid pk, conversation_id uuid not null fk cascade, kind text not null check in
+                  (rx_result, document, payment, notice), idempotency_key text not null unique,
+                  ref_id uuid null (rx id, document id …), payload jsonb not null default '{}',
+                  state text not null check in (waiting, ready, delivering, delivered, held, dead),
+                  paid_work boolean not null default false, attempts int not null default 0,
+                  next_attempt_at timestamptz not null default now(), last_error text null (class only),
+                  created_at, updated_at, delivered_at null
+                  index (state, next_attempt_at) where state in (ready, held); index (kind, ref_id)
+```
+Shared enums live in `packages/shared/src/wa-agent/failure.ts` (`WA_TURN_STATES`, `FAILURE_CLASSES`) and
+`packages/shared/src/schemas/wa-agent.ts` (`WA_MEDIA_STATUSES`, `WA_OUTBOX_KINDS`, `WA_OUTBOX_STATES`,
+`WA_TOOL_EFFECT_STATES`). Retention: `wa_turns`, `wa_tool_effects`, delivered/dead `wa_outbox` rows follow
+`waAgent.retentionDays` (extend the existing retention job). Traces hold codes, timings, counts — never text.
+
+### 17.2 Idempotency keys
+- Key = `sha256(turnId | toolName | canonicalJson(args))`, hex. `canonicalJson` sorts object keys recursively,
+  drops `undefined`. `turnId` is the `wa_turns.id` of the turn (stable across step retries and job re-runs of
+  the same turn, because a re-run reuses the `queued/deferred` turn row of the same inbound set).
+- **Effectful tools** (wrapped): `analyze_prescription`, `create_account`, `create_document`, `offer_discount`,
+  `start_subscription`, `attach_receipt`, `handoff_to_owner`, `send_media`, `ask_medical`, `login_link`.
+  **Read-only** (not wrapped, and they do not set `effectsRan`): `account_status`, `get_catalog`,
+  `search_medications`, `medication_alternatives`. A new tool must declare `effect: "write" | "read"` in its
+  definition; the wrapper is applied from that flag, not from a list in the runner.
+- `withToolEffect(ctx, key, tool, run)` in `agent/tools/tool.ts`:
+  1. `insert wa_tool_effects (key, turn_id, tool, state='pending') on conflict do nothing returning key`.
+  2. Conflict and `state='done'` → return the stored `result` (no effect). Conflict and `pending` → a previous
+     run died mid-effect: run again (step 3) — every effect below is idempotent downstream, so this is safe.
+  3. Run the effect. **Postgres effects** (coupon, order, account, receipt, rx start) run inside one
+     transaction that also does `update wa_tool_effects set state='done', result=$r where key=$k`.
+     **Non-Postgres effects** (document job, handoff alert, media send, medical answer) use a downstream id
+     derived from the key (BullMQ `jobId = key`, alert dedupe key, outbound `idempotencyKey = key`) and then
+     mark the row `done` with the result.
+  4. Return the result. The result is the typed tool outcome (`{ ok, data } | { ok:false, code, explain }`).
+- Keys are hashes; args are never stored in `wa_tool_effects` (they can contain customer text).
+
+### 17.3 The rx start transaction (fixes R10; credits untouched)
+Order inside `analyze_prescription` (v2):
+1. Outside any transaction (slow, idempotent): resolve and validate the media rows (session/handles in WP2;
+   v1 selection until then), import files with a per-row file key stored on the row
+   (`meta.fileId`, reused on retry, so a retry never imports twice), wait for processing.
+2. `analysisId = uuidFromKey(effectKey)` — a UUID (version 8, RFC 9562) built from the first 16 bytes of the
+   key. The same tool call therefore always means the same analysis id.
+3. `RxService.reserveFor(analysisId, …)` — the **existing** reservation call with its existing idempotency key
+   `rx:<analysisId>:reserve`. A retry gets the same reservation back. No credit code changes.
+4. **One transaction** (`RxService.createInTx(tx, …, { id: analysisId, reservationId })` + agent repo):
+   `wa_tool_effects` pending row → fence check (17.4) → claim the media rows
+   (`update wa_messages set meta = meta || {rxId} where id = any($ids) and not (meta ? 'rxId')`, all rows or
+   rollback with refusal `already_analysed`) → insert `rx_analyses` + pages → insert `wa_outbox`
+   (`kind='rx_result'`, `idempotency_key='rx:'||analysisId`, `ref_id=analysisId`, `state='waiting'`,
+   `paid_work=true`) → `wa_tool_effects` done with the result → commit.
+5. After commit: enqueue the rx job with `jobId = analysisId` (BullMQ dedupes). If the enqueue throws, do
+   **not** fail the analysis: the reconciler (step 6) re-enqueues it. A crash here is the same case.
+6. Reconciler (in the outbox deliverer's sweep, every 30 s): `rx_analyses` in `queued` older than 120 s that have a
+   `wa_outbox` route → enqueue again with `jobId = id` (no-op if the job exists). Reservation expiry stays
+   with the existing credit job; nothing here settles or releases credits.
+- The exact-match cache path (`fromCache`) runs inside the same transaction shape; its `rx_done` event is
+  emitted after commit and lands on the route like any other.
+- Redis `waAgentRxKey` stays as a cache for v1 readers only; v2 routes from `wa_outbox`.
+
+### 17.4 Fencing
+- Mutex: Redis `wa:agent:lock:<conversationId>` = random token, `SET NX PX 60000`; heartbeat every 15 s with a
+  Lua compare-and-extend; a failed extend aborts the turn's `AbortController` (stop work early).
+- **Fence authority is Postgres**: right after the Redis lock is taken,
+  `update wa_conversations set turn_fence = turn_fence + 1 where id = $c returning turn_fence` → `f`,
+  stored in `wa_turns.fence`. (Deviation from §4.4's Redis counter: the check must be atomic with the writes it
+  guards, and those writes are in Postgres.)
+- Every write that ends or commits a turn is conditional on `turn_fence = f` in the same statement or
+  transaction, and throws `StaleFenceError` (no retry, no customer text, counted) when it does not match:
+  inserting outbound `wa_messages` rows (before the `XADD`; the stream entry is only added after the row
+  insert succeeded), linking inbound rows (`turn_id`), closing the turn, every effect transaction in 17.2/17.3.
+- The deliverer and the command router take the same lock and fence for their sends.
+- The `XADD` after a successful fenced insert is not fenced (window of microseconds); the bridge dedupes by the
+  outbound row id it carries.
+
+### 17.5 What is linked when (fixes R7)
+Inbound rows get `turn_id` only in the transaction that queues the reply (or the failure/deferral text, or
+records `dropped_policy`). A crashed or stale turn leaves them unlinked, so the next run and the nightly audit
+(`direction='in' and turn_id is null and created_at < now() - 10 min`) see them.
+
 ## 16. Settings additions (`waAgent`)
 `runtime: { concurrency, stepTimeoutMs, turnTimeoutMs, maxRounds, jobAttempts }` · `sessions: { idleHours }` ·
 `commands: { enabled, extraAliases }` · `failures: { customerTextEveryMinutes, ownerAlertEveryMinutes }` ·
