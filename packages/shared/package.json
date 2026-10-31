@@ -380,6 +380,11 @@
       "import": "./dist/busy.js",
       "default": "./dist/busy.js"
     },
+    "./wa-agent/failure": {
+      "types": "./dist/wa-agent/failure.d.ts",
+      "import": "./dist/wa-agent/failure.js",
+      "default": "./dist/wa-agent/failure.js"
+    },
     "./rx-normalize": {
       "types": "./dist/rx-normalize.d.ts",
       "import": "./dist/rx-normalize.js",

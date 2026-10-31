@@ -1,6 +1,6 @@
 # ROADMAP — Wasfa AI
 
-> The whole product is built in **six phases (0–5)**. Phases 0–3 are built (owner-side items are listed in each phase file); Phase 4 is planned in detail and Phase 5 closes the launch.
+> The whole product is built in **seven phases (0–6)**; Phase 6 runs ahead of the rest of Phase 4 and Phase 5 by owner priority. Phases 0–3 are built (owner-side items are listed in each phase file); Phase 4 is planned in detail and Phase 5 closes the launch.
 > Each phase ends with something a real user can use. Testing, deployment, and hardening run **inside** every phase (CI and deploy already exist from Phase 0); they are not separate phases.
 > Executable detail lives in `docs/phases/phaseN.md`, which is written when the previous phase closes, so it always matches the real code.
 
@@ -12,6 +12,7 @@
 | 3 | Payments, plans, referrals & growth | pay (Kashier card, or InstaPay / Vodafone Cash approved by an admin), subscribe to flexible plans with promotions and coupons, invite friends and earn points to withdraw or convert into credits; institutions get special deals; admins see everything about a user and upgrade anyone; the product encourages subscription by showing real value | ✅ built (final verification 2026-10-18) — open items in `phase3.md` Notes |
 | 4 | Discoverability, content engine, campaigns & ad inventory | find the site on Google and in AI answers, read reviewed articles and medicine pages; the owner publishes from a phone or through the Publishing API; campaigns are tracked with consent; ad placements can be sold | planned — `phase4.md` plus `SEO-GEO.md`, `CONTENT-PLATFORM.md`, `PUBLISHING-API.md`, `TRACKING.md`, `ADS.md`, `BRAND-AND-HOMEPAGE.md` |
 | 5 | Support & launch readiness | open support tickets and get push and email replies; the launch checklist passes | planned |
+| 6 | WhatsApp agent v2 & Rx Engine v2 | get an answer to every WhatsApp message, start fresh with «جديد», analyse with `/analyze` and receive a full PDF report and phone calendar; trust prescription readings held to ≥ 95 % asserted precision in every handwriting stratum; check what the pharmacy dispensed and keep the treatment plan with Wasfa Companion | planned, **runs now, before Phase 4 WP4–WP8 and Phase 5** (decision 73) — `phase6.md` plus `WA-AGENT-RUNTIME.md`, `RX-ENGINE.md`, `RX-REPORT.md`, `WA-COMPANION.md` |
 
 ---
 
@@ -58,6 +59,12 @@ Three releases plus a final gate (details in `docs/phases/phase4.md`; specs `SEO
 - **A — Fast, credible front door:** live-site fixes (Cloudflare HTML rewriting behind hydration error #418 and the CSP violation), performance and Lighthouse CI, Arabic/English URL architecture, SEO core (robots from settings, sitemap index, hreflang, structured data, IndexNow, `llms.txt`, AI crawler policy); new logo and favicon system, media pipeline and OG renderer; homepage refresh, feature, audience and trust pages.
 - **B — Content engine:** blog, guides and glossary with authors, medical reviewers, review workflow, scheduling, revisions and an SEO panel, managed from a phone; the Publishing API for AI agents and automation; medicine pages from reviewed monographs; Search Console sync, SEO dashboard and health checks.
 - **C — Measure & monetise:** campaign links and attribution, consent management, pixels and server-side conversions with deduplication (the deferred Phase 3 Task 3.16); first-party advertising inventory that never touches sensitive pages or medical data.
+
+### Phase 6 — WhatsApp agent v2 & Rx Engine v2 (runs before the rest of Phase 4 and Phase 5)
+Three releases on two parallel tracks (details in `docs/phases/phase6.md`):
+- **A — Never silent:** reliability core (turn queue, lock with fencing, turn store, failure policy without the busy line, exactly-once tools, outbox delivery of paid results, media hardening incl. HEIC/PDF), the agent codebase restructured, sessions («جديد»), the command layer (`/analyze`, help, balance, report, privacy…), attachment handles, WhatsApp formatting.
+- **B — Reads anything:** gold set and evaluation v2 with recorded replay in CI; Rx Engine v2 (quality gate, master image and zoom crops, handwriting confusion model, evidence fusion, cross-model adjudication, calibrated tiers) promoted only through the holdout gate; the agent's drug lookup and grounding guards on the same engine.
+- **C — Stays with the patient:** PDF report v2 and `.ics` calendar; Wasfa Companion (dispense check, medicine cabinet, personal schedule, opt-in reminders, safety net, voice briefing).
 
 ### Phase 5 — Support & launch readiness
 - Support: tickets (user + admin inbox, canned replies, internal notes), Web Push + email replies, contact form into tickets, error-ref linking.
