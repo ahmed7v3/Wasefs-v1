@@ -26,12 +26,18 @@ import { ObjectStorage } from "../../../src/files/object-storage.js";
 import { PlansService } from "../../../src/plans/plans.service.js";
 import { RxService } from "../../../src/rx/rx.service.js";
 import { SettingsService } from "../../../src/settings/settings.service.js";
-import { WaAgentHandoffService, handoffFlagKey } from "../../../src/wa-agent/agent/handoff.service.js";
+import {
+  WaAgentHandoffService,
+  handoffFlagKey,
+} from "../../../src/wa-agent/agent/handoff.service.js";
 import { WaAgentToolDeps } from "../../../src/wa-agent/agent/tool-deps.js";
 import { WaAgentTurnService } from "../../../src/wa-agent/agent/wa-agent-turn.service.js";
 import { WaAgentCommerceRepo } from "../../../src/wa-agent/commerce/agent-commerce.repo.js";
 import { AgentRxService } from "../../../src/wa-agent/commerce/agent-rx.service.js";
 import { WaAgentEventsConsumer } from "../../../src/wa-agent/commerce/wa-agent-events.consumer.js";
+import { ConversationLock } from "../../../src/wa-agent/turn/lock.js";
+import { TurnRunner } from "../../../src/wa-agent/turn/turn-runner.js";
+import { TurnStore } from "../../../src/wa-agent/turn/turn.store.js";
 import { WaAgentVoiceService } from "../../../src/wa-agent/voice/voice.service.js";
 import { WaAgentStateService } from "../../../src/wa-agent/wa-agent-state.service.js";
 import { WaAgentRepo } from "../../../src/wa-agent/wa-agent.repo.js";
@@ -43,6 +49,8 @@ import { TINY_JPEG } from "./fixtures.js";
 
 import type { FilesService } from "../../../src/files/files.service.js";
 import type { AgentCall } from "../../../src/wa-agent/agent/tools/index.js";
+import type { AgentRound } from "../../../src/wa-agent/turn/agent-round.js";
+import type { TurnEnqueuer } from "../../../src/wa-agent/turn/turn.queue.js";
 
 /*
  * The WhatsApp agent scenario harness (docs/WA-AGENT-RUNTIME.md section 15). A scenario is a typed
@@ -161,7 +169,9 @@ export class Scenario {
       { enabled: true, guestsEnabled: true, spendCapUsdMicros: 5_000_000, ...options.settings },
       { actorId: null },
     );
-    await ctx.redis.del(`wa:agent:spend:${new Date().toISOString().slice(0, 10).replaceAll("-", "")}`);
+    await ctx.redis.del(
+      `wa:agent:spend:${new Date().toISOString().slice(0, 10).replaceAll("-", "")}`,
+    );
     services.handoff.timing.pollMs = 5;
     services.handoff.timing.sleep = (ms) =>
       new Promise<void>((resolve) => {
@@ -409,7 +419,9 @@ export class ScenarioServices {
     const fakeStorage = {
       getBytes: (key: string) => {
         const bytes = storage.get(key);
-        return bytes ? Promise.resolve(new Uint8Array(bytes)) : Promise.reject(new Error("missing"));
+        return bytes
+          ? Promise.resolve(new Uint8Array(bytes))
+          : Promise.reject(new Error("missing"));
       },
     } as unknown as ObjectStorage;
     const real = ctx.app.get(WaAgentToolDeps);
@@ -476,6 +488,21 @@ export class ScenarioServices {
     } as unknown as FilesService;
   }
 
+  /** The v2 runner: real lock, store, fencing and outbound; `round` is the thinking part, `queue` the re-enqueue sink. */
+  makeRunner(round: AgentRound, queue: TurnEnqueuer): TurnRunner {
+    const { ctx } = this;
+    return new TurnRunner(
+      new ConversationLock(ctx.redis),
+      ctx.app.get(TurnStore),
+      this.repo,
+      this.settings,
+      round,
+      this.outbound,
+      queue,
+      silentLogger,
+    );
+  }
+
   /** The real follow-up consumer; only the reading it prints is fixed (`RX_VIEW`). */
   eventsConsumer(): WaAgentEventsConsumer {
     const { ctx } = this;
@@ -524,5 +551,62 @@ export class V1Runtime implements ScenarioRuntime {
       }
     }
     await scenario.deliver();
+  }
+}
+
+/**
+ * v2: what the queue worker does, without the clock. Each `runTurns` is one job for the chat (`attempts`
+ * runs at most, BullMQ's retry with the backoff skipped); the runner's own re-enqueues (a message that
+ * arrived while it worked, a busy lock) run as the next job. Chats are independent: no shared lane.
+ */
+export class V2Runtime implements ScenarioRuntime {
+  /** Conversation ids the runner asked to queue again, since the last pass. */
+  readonly requeued: string[] = [];
+  /** Errors of jobs that exhausted their attempts (the worker would log them). */
+  readonly failures: unknown[] = [];
+
+  constructor(private readonly options: { attempts?: number } = {}) {}
+
+  /** The runner of this chat, wired to the harness' re-enqueue recorder. */
+  runner(scenario: Scenario): TurnRunner {
+    return scenario.services.makeRunner(scenario.turns, {
+      enqueue: (conversationId) => {
+        this.requeued.push(conversationId);
+        return Promise.resolve();
+      },
+    });
+  }
+
+  async runTurns(scenario: Scenario): Promise<void> {
+    scenario.unprocessed = 0;
+    const { settings } = scenario.services;
+    const current = await settings.get("waAgent");
+    await settings.set(
+      "waAgent",
+      { ...current, runtime: { ...current.runtime, v2: true } },
+      { actorId: null },
+    );
+    const runner = this.runner(scenario);
+    const attempts = this.options.attempts ?? 1;
+    for (let pass = 0; pass < 5; pass++) {
+      this.requeued.length = 0;
+      await this.job(runner, scenario.conversationId, attempts);
+      if (!this.requeued.includes(scenario.conversationId)) break;
+    }
+    await scenario.deliver();
+  }
+
+  private async job(runner: TurnRunner, conversationId: string, attempts: number): Promise<void> {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await runner.run(conversationId);
+        return;
+      } catch (error) {
+        if (attempt >= attempts) {
+          this.failures.push(error);
+          return;
+        }
+      }
+    }
   }
 }

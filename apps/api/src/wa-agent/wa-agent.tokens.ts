@@ -15,3 +15,6 @@ export class NoopTurnHandler implements WaAgentTurnHandler {
     return Promise.resolve();
   }
 }
+
+/** The part of the agent that thinks (`AgentRound`); the v2 turn runner calls it, `WaAgentTurnService` is it. */
+export const WA_AGENT_ROUND = Symbol("WA_AGENT_ROUND");
