@@ -31,20 +31,25 @@ import {
   WaAgentHandoffService,
   handoffFlagKey,
 } from "../../../src/wa-agent/agent/handoff.service.js";
+import { MediaInputService } from "../../../src/wa-agent/agent/media-input.js";
+import { AgentRoundService } from "../../../src/wa-agent/agent/round.service.js";
+import { SummaryService } from "../../../src/wa-agent/agent/summary.service.js";
 import { WaAgentToolDeps } from "../../../src/wa-agent/agent/tool-deps.js";
-import { WaAgentTurnService } from "../../../src/wa-agent/agent/wa-agent-turn.service.js";
 import { WaAgentCommerceRepo } from "../../../src/wa-agent/commerce/agent-commerce.repo.js";
 import { WaAgentEventsConsumer } from "../../../src/wa-agent/commerce/wa-agent-events.consumer.js";
 import { WaAgentRepo } from "../../../src/wa-agent/conversation/conversation.repo.js";
 import { WaAgentStateService } from "../../../src/wa-agent/conversation/state.service.js";
 import { OutboxDeliverer } from "../../../src/wa-agent/outbox/deliverer.js";
 import { WaOutboxRepo } from "../../../src/wa-agent/outbox/wa-outbox.repo.js";
+import { AgentRxRepo } from "../../../src/wa-agent/rx/agent-rx.repo.js";
 import { AgentRxService } from "../../../src/wa-agent/rx/agent-rx.service.js";
+import { RxStartService } from "../../../src/wa-agent/rx/rx-start.service.js";
 import { WaOutboundService } from "../../../src/wa-agent/transport/outbound.service.js";
 import { FailureActions } from "../../../src/wa-agent/turn/failure-actions.js";
 import { ConversationLock } from "../../../src/wa-agent/turn/lock.js";
 import { TurnRunner } from "../../../src/wa-agent/turn/turn-runner.js";
 import { TurnStore } from "../../../src/wa-agent/turn/turn.store.js";
+import { WaAgentTurnService } from "../../../src/wa-agent/turn/v1-turn.service.js";
 import { WaAgentVoiceService } from "../../../src/wa-agent/voice/voice.service.js";
 import { AdminTestContext } from "../../support/admin-context.js";
 import { fakeAi, silentLogger, type FakeAi } from "../../support/wa-agent-fakes.js";
@@ -152,6 +157,8 @@ export class Scenario {
   readonly jid = `${this.phone.slice(1)}@s.whatsapp.net`;
   /** The v1 turn service of this chat (a v2 runtime may leave it unused). */
   readonly turns: WaAgentTurnService;
+  /** The round of this chat: the v2 runner thinks through it. */
+  readonly round: AgentRoundService;
   /** Inbound messages stored since the runtime last ran (the consumer starts one turn per message). */
   unprocessed = 0;
   private id: string | null = null;
@@ -163,7 +170,9 @@ export class Scenario {
     private readonly runtime: ScenarioRuntime,
     readonly services: ScenarioServices,
   ) {
-    this.turns = services.makeTurns(ai, this.storage);
+    const made = services.makeTurns(ai, this.storage);
+    this.turns = made.turns;
+    this.round = made.round;
   }
 
   static async start(ctx: AdminTestContext, options: ScenarioOptions): Promise<Scenario> {
@@ -420,7 +429,10 @@ export class ScenarioServices {
   }
 
   /** The v1 turn service for one chat: real everything but the model, the storage and the image worker. */
-  makeTurns(ai: FakeAi, storage: Map<string, Buffer>): WaAgentTurnService {
+  makeTurns(
+    ai: FakeAi,
+    storage: Map<string, Buffer>,
+  ): { turns: WaAgentTurnService; round: AgentRoundService } {
     const { ctx } = this;
     const fakeStorage = {
       getBytes: (key: string) => {
@@ -431,9 +443,20 @@ export class ScenarioServices {
       },
     } as unknown as ObjectStorage;
     const real = ctx.app.get(WaAgentToolDeps);
+    const rxRepo = ctx.app.get(AgentRxRepo);
+    const processed = this.processedFiles();
     const reading = new AgentRxService(
       ctx.app.get(WaAgentCommerceRepo),
-      this.processedFiles(),
+      rxRepo,
+      new RxStartService(
+        rxRepo,
+        processed,
+        ctx.app.get(RxService),
+        ctx.app.get(CreditsService),
+        ctx.redis,
+        silentLogger,
+      ),
+      processed,
       ctx.app.get(RxService),
       ctx.app.get(PlansService),
       ctx.app.get(CreditsService),
@@ -450,24 +473,34 @@ export class ScenarioServices {
         },
       },
     }) as WaAgentToolDeps;
-    const service = new WaAgentTurnService(
+    const voice = ctx.app.get(WaAgentVoiceService);
+    const round = new AgentRoundService(
       this.repo,
       this.settings,
       ctx.redis,
       ai.service,
-      this.outbound,
       this.handoff,
       deps,
       ctx.app.get(PlansService),
-      fakeStorage,
       silentLogger,
-      ctx.app.get(WaAgentVoiceService),
+      voice,
+      new MediaInputService(this.repo, fakeStorage, voice),
+      new SummaryService(this.repo, ctx.redis, ai.service),
+    );
+    const service = new WaAgentTurnService(
+      this.repo,
+      this.settings,
+      ctx.redis,
+      this.outbound,
+      this.handoff,
+      round,
+      silentLogger,
     );
     // No waiting: the rows are already there, and a retry pause is not worth real seconds.
     service.timing.quietMs = 0;
     service.timing.maxQuietWaitMs = 0;
     service.timing.sleep = () => Promise.resolve();
-    return service;
+    return { turns: service, round };
   }
 
   /** The image worker, instant: an imported picture is a processed page of the viewer. */
@@ -596,7 +629,7 @@ export class V2Runtime implements ScenarioRuntime {
 
   /** The runner of this chat, wired to the harness' re-enqueue recorder. */
   runner(scenario: Scenario): TurnRunner {
-    return scenario.services.makeRunner(scenario.turns, {
+    return scenario.services.makeRunner(scenario.round, {
       enqueue: (conversationId) => {
         this.requeued.push(conversationId);
         return Promise.resolve();

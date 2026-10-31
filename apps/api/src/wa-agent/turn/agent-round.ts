@@ -1,5 +1,5 @@
+import type { BusyCause } from "./v1-turn.service.js";
 import type { ToolCallRecord, ToolOutput } from "../agent/tools/index.js";
-import type { BusyCause } from "../agent/wa-agent-turn.service.js";
 import type { NormalizedMessage } from "@wasfa/ai";
 import type { WaConversation, TurnMessage } from "@wasfa/db";
 import type { WaAgentOutboundPart } from "@wasfa/shared/schemas/wa-agent";
