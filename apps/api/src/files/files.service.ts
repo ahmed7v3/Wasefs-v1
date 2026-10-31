@@ -16,7 +16,7 @@ import {
   type ImportMime,
   type UploadRejectReason,
 } from "@wasfa/shared/schemas/files";
-import { isPdfObjectKey, originalObjectKey } from "@wasfa/shared/storage";
+import { isPdfObjectKey, originalObjectKey, processedObjectKey } from "@wasfa/shared/storage";
 
 import { AuthRateLimiter } from "../auth/rate-limiter.js";
 import { SettingsService } from "../settings/settings.service.js";
@@ -153,6 +153,20 @@ export class FilesService {
     });
     if (await this.repo.markUploaded(file)) await this.images.process(file.id);
     return fileId;
+  }
+
+  /**
+   * Takes back a file `importObject` made for a request that was then declined: the row and both stored
+   * objects go, unless an rx analysis already uses the file (then nothing changes). Someone else's
+   * file looks like no file.
+   */
+  async discardImported(user: FileViewer, fileId: string): Promise<void> {
+    const file = await this.repo.findFor(user, fileId);
+    if (file === null || file.ownerUserId === null) return;
+    // Row first: the guard is atomic, so an object is never removed from under an analysis.
+    if (!(await this.repo.deleteUnreferenced(file))) return;
+    await this.storage.remove(file.r2Key);
+    await this.storage.remove(processedObjectKey(file.ownerUserId, file.id));
   }
 
   /**
