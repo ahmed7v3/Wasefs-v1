@@ -41,9 +41,10 @@ const RX_FAILED = (rxId: string): WaAgentEvent => ({
   creditsReturned: true,
 });
 
-async function chat(): Promise<Scenario> {
+async function chat(options: { linked?: boolean } = {}): Promise<Scenario> {
   const defaults = settingDefault("waAgent");
   const scenario = await Scenario.start(ctx, {
+    ...options,
     model: () => "تمام",
     settings: { runtime: { ...defaults.runtime, v2: true } },
   });
@@ -179,7 +180,7 @@ describe("routes whose analysis ended without an event", () => {
   });
 
   it("an analysis that is still queued leaves its route waiting", async () => {
-    const scenario = await chat();
+    const scenario = await chat({ linked: true });
     const route = await routeWithAnalysis(scenario, "queued", 5);
     deliverer(scenario).timing.promoteEveryMs = 0;
     await deliverer(scenario).sweep();

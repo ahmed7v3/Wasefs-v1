@@ -37,6 +37,7 @@ import { WaAgentCommerceRepo } from "../../../src/wa-agent/commerce/agent-commer
 import { AgentRxService } from "../../../src/wa-agent/commerce/agent-rx.service.js";
 import { WaAgentEventsConsumer } from "../../../src/wa-agent/commerce/wa-agent-events.consumer.js";
 import { OutboxDeliverer } from "../../../src/wa-agent/outbox/deliverer.js";
+import { EventPartsBuilder } from "../../../src/wa-agent/outbox/outbox-parts.js";
 import { WaOutboxRepo } from "../../../src/wa-agent/outbox/wa-outbox.repo.js";
 import { FailureActions } from "../../../src/wa-agent/turn/failure-actions.js";
 import { ConversationLock } from "../../../src/wa-agent/turn/lock.js";
@@ -525,6 +526,12 @@ export class ScenarioServices {
   deliverer(): OutboxDeliverer {
     const deliverer = this.ctx.app.get(OutboxDeliverer);
     deliverer.timing.lockWaitMs = 0;
+    // Like the events consumer, the deliverer prints the fixed reading (`RX_VIEW`), not a real analysis.
+    (deliverer as unknown as { builder: EventPartsBuilder }).builder = new EventPartsBuilder(
+      this.ctx.env.WEB_ORIGIN[0] ?? "",
+      this.ctx.app.get(WaAgentCommerceRepo),
+      { get: () => Promise.resolve(RX_VIEW) } as unknown as RxService,
+    );
     return deliverer;
   }
 
