@@ -9,7 +9,8 @@ function canonical(value: unknown): unknown {
   if (typeof value === "object" && value !== null) {
     const withJson = value as { toJSON?: () => unknown };
     if (typeof withJson.toJSON === "function") return canonical(withJson.toJSON());
-    const out: Record<string, unknown> = {};
+    // No prototype: a key named "__proto__" must stay an own property, not set the prototype.
+    const out: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
     for (const key of Object.keys(value).sort()) {
       const item = (value as Record<string, unknown>)[key];
       if (!isDropped(item)) out[key] = canonical(item);

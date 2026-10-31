@@ -17,6 +17,10 @@ describe("canonicalJson", () => {
     expect(canonicalJson([1, undefined, 3])).toBe("[1,null,3]");
   });
 
+  it("keeps a key named __proto__", () => {
+    expect(canonicalJson(JSON.parse('{"__proto__":null,"a":1}'))).toBe('{"__proto__":null,"a":1}');
+  });
+
   it("is the same text whatever the key order", () => {
     fc.assert(
       fc.property(fc.dictionary(fc.string(), fc.jsonValue()), (record) => {
