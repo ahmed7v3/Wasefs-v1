@@ -6,9 +6,9 @@ import { composeText } from "../src/wa-agent/compose.js";
 import { toWhatsApp } from "../src/wa-agent/format.js";
 import { splitReply } from "../src/wa-agent/split.js";
 
-const RLM = "‏";
-const FSI = "⁨";
-const PDI = "⁩";
+const RLM = "\u200F";
+const FSI = "\u2068";
+const PDI = "\u2069";
 
 const count = (text: string, ch: string): number => text.split(ch).length - 1;
 const squash = (text: string): string => text.replace(/\s+/g, "");

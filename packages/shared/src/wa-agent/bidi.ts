@@ -6,9 +6,9 @@
  * copied as they are, never wrapped again and never nested.
  */
 
-const RLM = "‏";
-const FSI = "⁨";
-const PDI = "⁩";
+const RLM = "\u200F";
+const FSI = "\u2068";
+const PDI = "\u2069";
 
 const ARABIC = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
 const LATIN_LETTER = /[A-Za-zÀ-ɏ]/;
@@ -64,5 +64,5 @@ export function isolateBidi(text: string): string {
 
 /** Remove the direction marks `isolateBidi` adds (U+200E/U+200F, U+2066–U+2069), for tests and logs. */
 export function stripBidi(text: string): string {
-  return text.replace(/[‎‏⁦-⁩]/g, "");
+  return text.replace(/[\u200E\u200F\u2066-\u2069]/g, "");
 }

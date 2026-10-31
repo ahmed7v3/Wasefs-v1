@@ -12,8 +12,8 @@ export interface SplitOptions {
   maxParts: number;
 }
 
-const FSI = "⁨";
-const PDI = "⁩";
+const FSI = "\u2068";
+const PDI = "\u2069";
 const ELLIPSIS = "…";
 const SENTENCE_END = new Set([".", "!", "?", "؟", "…"]);
 const PARAGRAPH_BREAK = /[ \t]*\n[ \t]*\n/y;
