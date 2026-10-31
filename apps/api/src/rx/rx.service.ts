@@ -2,7 +2,13 @@ import { createHash } from "node:crypto";
 
 import { Inject, Injectable } from "@nestjs/common";
 import { skillVersion } from "@wasfa/ai";
-import { type FileRecord, type RxAnalysis } from "@wasfa/db";
+import {
+  type FileRecord,
+  type NewRxAnalysis,
+  type RuntimeUsageRow,
+  type RxAnalysis,
+  type Transaction,
+} from "@wasfa/db";
 import { classifyMatch } from "@wasfa/shared/drugs";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import { newErrorRef, newId } from "@wasfa/shared/ids";
@@ -83,7 +89,8 @@ export interface RxTasteOptions {
   routePlanId: string;
 }
 
-interface Started {
+/** Everything `create` checks before it reserves credits; the WhatsApp agent starts an analysis from the same pieces. */
+export interface PreparedRx {
   user: AuthenticatedUser;
   payer: PayerContext;
   /** Set for a taste: the job is routed by this plan. */
@@ -94,6 +101,20 @@ interface Started {
   creditsPerPage: number;
   ticket: QuotaTicket;
 }
+
+/** An identical finished analysis that answers without a provider call (Decision 7a). */
+export interface RxCacheHit {
+  cached: RxAnalysis;
+  result: RxResult;
+  /** What the cached answer costs: 0 for the owner's own re-upload within the free window. */
+  amount: number;
+  at: Date;
+}
+
+const inputHashOf = (pages: readonly Page[]): string =>
+  createHash("sha256")
+    .update(pages.map((page) => page.sha256).join(""))
+    .digest("hex");
 
 const isInFlight = (status: RxAnalysis["status"]): boolean =>
   (IN_FLIGHT as readonly string[]).includes(status);
@@ -132,6 +153,25 @@ export class RxService {
     input: RxCreateRequest,
     taste?: RxTasteOptions,
   ): Promise<RxCreateResponse> {
+    const prepared = await this.prepare(user, input, taste);
+    try {
+      return await this.start(prepared);
+    } catch (error) {
+      await prepared.ticket.release();
+      throw error;
+    }
+  }
+
+  /**
+   * The checks of `POST /rx` up to (not including) the credit hold: kill switch, payer, the files, the
+   * page limit, the route and the quota. The returned ticket is the caller's to release when no job
+   * will run.
+   */
+  async prepare(
+    user: AuthenticatedUser,
+    input: RxCreateRequest,
+    taste?: RxTasteOptions,
+  ): Promise<PreparedRx> {
     // The kill switch (and the daily spend cap) come before anything else is looked at.
     await this.ai.assertAvailable("rx_extract", { search: false });
 
@@ -163,20 +203,103 @@ export class RxService {
       mode: input.mode,
       ...(taste ? { modeGranted: true } : {}),
     });
+    return {
+      user,
+      payer,
+      routePlanId: taste?.routePlanId,
+      input,
+      pages,
+      routeVersion: route.version,
+      creditsPerPage: rx.creditsPerPage,
+      ticket,
+    };
+  }
+
+  /** The exact-match cache entry for these pages, if one answers (see `fromCache` for the price). */
+  async cacheHit(prepared: PreparedRx): Promise<RxCacheHit | null> {
+    const { user, input, pages } = prepared;
+    const cached = await this.repo.findCached(user.id, {
+      inputSha256: inputHashOf(pages),
+      skillVersion: skillVersion(RX_SKILL_NAME),
+      routeVersion: prepared.routeVersion,
+      mode: input.mode,
+    });
+    const copy = cached === null ? null : rxResultSchema.safeParse(cached.result);
+    if (cached === null || !copy?.success) return null;
+    const at = new Date();
+    const free =
+      cached.ownerUserId === user.id &&
+      cached.finishedAt !== null &&
+      at.getTime() - cached.finishedAt.getTime() < RX_FREE_CACHE_HOURS * HOUR_MS;
+    return {
+      cached,
+      result: copy.data,
+      amount: free ? 0 : pages.length * prepared.creditsPerPage,
+      at,
+    };
+  }
+
+  /** The credit hold of analysis `id`: its existing key `rx:<id>:reserve` returns the same hold on a retry. */
+  reserveFor(prepared: PreparedRx, id: string, hit: RxCacheHit | null): Promise<string | null> {
+    return this.reserve(
+      prepared.payer,
+      id,
+      hit ? hit.amount : prepared.pages.length * prepared.creditsPerPage,
+    );
+  }
+
+  /** The analysis row and its pages inside the caller's transaction: queued, or done from the cache. */
+  async createInTx(
+    tx: Transaction,
+    prepared: PreparedRx,
+    args: { id: string; reservationId: string | null; hit: RxCacheHit | null },
+  ): Promise<void> {
+    const { user, input, pages } = prepared;
+    const { id, reservationId, hit } = args;
+    const fileIds = pages.map((page) => page.fileId);
+    if (hit !== null) {
+      await this.repo.insertIn(tx, this.cacheRow(prepared, id, reservationId, hit), fileIds);
+      return;
+    }
+    await this.repo.insertIn(
+      tx,
+      {
+        id,
+        ownerUserId: user.id,
+        createdBy: user.id,
+        status: "queued",
+        mode: input.mode,
+        reservationId,
+        skillVersion: skillVersion(RX_SKILL_NAME),
+        inputSha256: inputHashOf(pages),
+      },
+      fileIds,
+    );
+  }
+
+  /** Queues the worker job (one per analysis: asking twice does not analyse twice). */
+  enqueue(id: string, prepared: PreparedRx): Promise<void> {
+    return this.queue.analyze(id, {
+      planOrgId: prepared.payer.orgId ?? undefined,
+      routePlanId: prepared.routePlanId,
+    });
+  }
+
+  /** The usage row and the settlement of a cache answer whose row `createInTx` stored; frees the user's lock. */
+  async settleCacheHit(
+    prepared: PreparedRx,
+    args: { id: string; reservationId: string | null; hit: RxCacheHit },
+  ): Promise<void> {
     try {
-      return await this.start({
-        user,
-        payer,
-        routePlanId: taste?.routePlanId,
-        input,
-        pages,
-        routeVersion: route.version,
-        creditsPerPage: rx.creditsPerPage,
-        ticket,
-      });
+      const usageId = await this.repo.recordUsage(this.cacheUsage(prepared, args.id, args.hit));
+      if (args.reservationId !== null) {
+        await this.credits.settle(args.reservationId, args.hit.amount, { aiUsageId: usageId });
+      }
     } catch (error) {
-      await ticket.release();
+      await this.releaseQuietly(args.reservationId, "rx_cache_failed");
       throw error;
+    } finally {
+      await prepared.ticket.release();
     }
   }
 
@@ -416,23 +539,15 @@ export class RxService {
     });
   }
 
-  private async start(args: Started): Promise<RxCreateResponse> {
+  private async start(args: PreparedRx): Promise<RxCreateResponse> {
     const { user, input, pages } = args;
     const id = newId();
     const skill = skillVersion(RX_SKILL_NAME);
-    const inputSha256 = createHash("sha256")
-      .update(pages.map((page) => page.sha256).join(""))
-      .digest("hex");
+    const inputSha256 = inputHashOf(pages);
 
-    const cached = await this.repo.findCached(user.id, {
-      inputSha256,
-      skillVersion: skill,
-      routeVersion: args.routeVersion,
-      mode: input.mode,
-    });
-    const copy = cached === null ? null : rxResultSchema.safeParse(cached.result);
-    if (cached !== null && copy?.success) {
-      await this.fromCache({ ...args, id, skill, inputSha256, cached, result: copy.data });
+    const hit = await this.cacheHit(args);
+    if (hit !== null) {
+      await this.fromCache(args, id, hit);
       return { id, nearDuplicate: null };
     }
 
@@ -463,10 +578,7 @@ export class RxService {
       throw error;
     }
     try {
-      await this.queue.analyze(id, {
-        planOrgId: args.payer.orgId ?? undefined,
-        routePlanId: args.routePlanId,
-      });
+      await this.enqueue(id, args);
     } catch (error) {
       // Nothing will ever pick it up: end it here, give the credits back, free the user.
       const errorRef = newErrorRef();
@@ -488,70 +600,18 @@ export class RxService {
    * An identical earlier analysis answers: no provider call, no queue. The owner's own re-upload
    * within 24 hours is free; any other hit is billed at the normal price (Decision 7).
    */
-  private async fromCache(
-    args: Started & {
-      id: string;
-      skill: string;
-      inputSha256: string;
-      cached: RxAnalysis;
-      result: RxResult;
-    },
-  ): Promise<void> {
-    const { user, payer, input, pages, id, cached } = args;
-    const now = new Date();
-    const free =
-      cached.ownerUserId === user.id &&
-      cached.finishedAt !== null &&
-      now.getTime() - cached.finishedAt.getTime() < RX_FREE_CACHE_HOURS * HOUR_MS;
-    const amount = free ? 0 : pages.length * args.creditsPerPage;
+  private async fromCache(args: PreparedRx, id: string, hit: RxCacheHit): Promise<void> {
+    const { pages } = args;
 
-    const reservationId = await this.reserve(payer, id, amount);
+    const reservationId = await this.reserveFor(args, id, hit);
     try {
-      const usageId = await this.repo.recordUsage({
-        task: "rx_extract",
-        routeVersion: args.routeVersion,
-        modelId: null,
-        providerId: null,
-        modelKey: "cache",
-        ownerUserId: user.id,
-        ownerOrgId: null,
-        userId: user.id,
-        inputTokens: 0,
-        cachedInputTokens: 0,
-        outputTokens: 0,
-        thinkingTokens: 0,
-        searchCount: 0,
-        costUsdMicros: 0,
-        creditsCharged: amount,
-        latencyMs: 0,
-        outcome: "cache_hit",
-        cacheHit: true,
-        requestId: id,
-      });
+      const usageId = await this.repo.recordUsage(this.cacheUsage(args, id, hit));
       await this.repo.insert(
-        {
-          id,
-          ownerUserId: user.id,
-          createdBy: user.id,
-          status: "done",
-          mode: input.mode,
-          creditsCharged: amount,
-          reservationId,
-          skillVersion: args.skill,
-          routeVersion: args.routeVersion,
-          inputSha256: args.inputSha256,
-          cacheOf: cached.id,
-          result: args.result,
-          patientInitials: cached.patientInitials,
-          prescriberInitials: cached.prescriberInitials,
-          queuedAt: now,
-          startedAt: now,
-          finishedAt: now,
-        },
+        this.cacheRow(args, id, reservationId, hit),
         pages.map((page) => page.fileId),
       );
       if (reservationId !== null) {
-        await this.credits.settle(reservationId, amount, { aiUsageId: usageId });
+        await this.credits.settle(reservationId, hit.amount, { aiUsageId: usageId });
       }
     } catch (error) {
       await this.releaseQuietly(reservationId, "rx_cache_failed");
@@ -560,6 +620,57 @@ export class RxService {
       // No job will run, so nobody else frees the user's lock.
       await args.ticket.release();
     }
+  }
+
+  private cacheUsage(args: PreparedRx, id: string, hit: RxCacheHit): RuntimeUsageRow {
+    return {
+      task: "rx_extract",
+      routeVersion: args.routeVersion,
+      modelId: null,
+      providerId: null,
+      modelKey: "cache",
+      ownerUserId: args.user.id,
+      ownerOrgId: null,
+      userId: args.user.id,
+      inputTokens: 0,
+      cachedInputTokens: 0,
+      outputTokens: 0,
+      thinkingTokens: 0,
+      searchCount: 0,
+      costUsdMicros: 0,
+      creditsCharged: hit.amount,
+      latencyMs: 0,
+      outcome: "cache_hit",
+      cacheHit: true,
+      requestId: id,
+    };
+  }
+
+  private cacheRow(
+    args: PreparedRx,
+    id: string,
+    reservationId: string | null,
+    hit: RxCacheHit,
+  ): NewRxAnalysis {
+    return {
+      id,
+      ownerUserId: args.user.id,
+      createdBy: args.user.id,
+      status: "done",
+      mode: args.input.mode,
+      creditsCharged: hit.amount,
+      reservationId,
+      skillVersion: skillVersion(RX_SKILL_NAME),
+      routeVersion: args.routeVersion,
+      inputSha256: inputHashOf(args.pages),
+      cacheOf: hit.cached.id,
+      result: hit.result,
+      patientInitials: hit.cached.patientInitials,
+      prescriberInitials: hit.cached.prescriberInitials,
+      queuedAt: hit.at,
+      startedAt: hit.at,
+      finishedAt: hit.at,
+    };
   }
 
   /** Holds the price of the analysis; `QUOTA_EXCEEDED` (`insufficient_credits`) when the wallet is short. */

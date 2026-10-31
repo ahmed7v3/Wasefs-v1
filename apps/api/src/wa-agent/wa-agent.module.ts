@@ -19,6 +19,7 @@ import { AgentAccountService } from "./agent/account-facts.service.js";
 import { AgentSignupService } from "./agent/agent-signup.service.js";
 import { WaAgentHandoffService } from "./agent/handoff.service.js";
 import { WaAgentToolDeps } from "./agent/tool-deps.js";
+import { ToolEffectsRepo } from "./agent/tools/tool-effects.repo.js";
 import { WaAgentTurnService } from "./agent/wa-agent-turn.service.js";
 import { WaAgentCommerceRepo } from "./commerce/agent-commerce.repo.js";
 import { AgentDiscountService } from "./commerce/agent-discount.service.js";
@@ -28,6 +29,8 @@ import { AgentSubscriptionService } from "./commerce/agent-subscription.service.
 import { WaAgentEventsConsumer } from "./commerce/wa-agent-events.consumer.js";
 import { AgentDocumentService } from "./documents/agent-document.service.js";
 import { WaDocumentQueue } from "./documents/wa-document-queue.js";
+import { RxReconciler } from "./outbox/rx-reconciler.js";
+import { RxReconcilerRepo } from "./outbox/rx-reconciler.repo.js";
 import { DlqService } from "./transport/dlq.service.js";
 import { ConversationLock } from "./turn/lock.js";
 import { TurnRunner } from "./turn/turn-runner.js";
@@ -83,7 +86,10 @@ import type { Redis } from "ioredis";
     AgentMedicalService,
     WaDocumentQueue,
     AgentDocumentService,
+    ToolEffectsRepo,
     WaAgentToolDeps,
+    RxReconcilerRepo,
+    RxReconciler,
     VoiceKeyService,
     ElevenLabsClient,
     WaAgentVoiceService,
@@ -112,6 +118,7 @@ import type { Redis } from "ioredis";
     WaAgentVoiceService,
     VoiceKeyService,
     DlqService,
+    RxReconciler,
     WA_AGENT_TURN_HANDLER,
   ],
 })

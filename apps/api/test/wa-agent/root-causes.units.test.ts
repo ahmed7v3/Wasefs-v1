@@ -1,6 +1,8 @@
 import { settingDefault } from "@wasfa/shared/settings";
+import { uuidFromKey } from "@wasfa/shared/wa-agent/uuid-from-key";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { RxAlreadyAnalysedError } from "../../src/wa-agent/commerce/agent-commerce.repo.js";
 import { AgentRxService } from "../../src/wa-agent/commerce/agent-rx.service.js";
 import { WaAgentEventsConsumer } from "../../src/wa-agent/commerce/wa-agent-events.consumer.js";
 import { ConversationLock, LOCK_TTL_MS } from "../../src/wa-agent/turn/lock.js";
@@ -126,18 +128,27 @@ const IMAGE = {
   mediaMime: "image/jpeg",
   mediaBytes: 1234,
   createdAt: new Date("2026-10-26T09:50:00.000Z"),
+  fileId: null,
 };
 
+const EFFECT_KEY = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const TURN_ID = "018f0000-0000-7000-8000-0000000000f1";
+
 interface RxSetup {
-  metaError?: Error;
   fileStatus?: string;
+  /** Redis and the queue are down after the start committed. */
+  downstreamDown?: boolean;
 }
 
 function rxService(setup: RxSetup = {}) {
   const redis = new MemoryRedis();
+  if (setup.downstreamDown) {
+    redis.set = () => Promise.reject(new Error("redis down"));
+  }
   const claimed = new Set<string>();
   const released: string[] = [];
   const created: unknown[] = [];
+  const commits: Array<{ analysisId: string; conversationId: string; mediaIds: string[] }> = [];
   const fileCalls: Array<{ method: string; args: unknown[] }> = [];
   const config = settingDefault("rx");
   const baseFiles = {
@@ -177,14 +188,44 @@ function rxService(setup: RxSetup = {}) {
         claimed.delete(id);
         return Promise.resolve();
       },
-      setMediaMeta: () => (setup.metaError ? Promise.reject(setup.metaError) : Promise.resolve()),
+      setMediaMeta: () => Promise.resolve(),
+      dropMediaFileId: () => Promise.resolve(),
+      // The real one is one transaction: the second start of the same picture claims nothing.
+      commitRxStart: (input: {
+        analysisId: string;
+        conversationId: string;
+        mediaIds: string[];
+        create: (tx: unknown) => Promise<void>;
+      }) => {
+        if (input.mediaIds.some((id) => claimed.has(id))) {
+          return Promise.reject(new RxAlreadyAnalysedError());
+        }
+        for (const id of input.mediaIds) claimed.add(id);
+        commits.push({
+          analysisId: input.analysisId,
+          conversationId: input.conversationId,
+          mediaIds: input.mediaIds,
+        });
+        return input.create({});
+      },
     }),
     fake(files),
     fake({
+      // v1: the web entry.
       create: (...args: unknown[]) => {
         created.push(args);
-        return Promise.resolve({ id: "018f0000-0000-7000-8000-0000000000d1" });
+        return Promise.resolve({ id: RX_ID });
       },
+      // v2: the pieces.
+      prepare: () => Promise.resolve({ ticket: { release: () => Promise.resolve() } }),
+      cacheHit: () => Promise.resolve(null),
+      reserveFor: () => Promise.resolve("reservation-1"),
+      createInTx: (...args: unknown[]) => {
+        created.push(args);
+        return Promise.resolve();
+      },
+      enqueue: () =>
+        setup.downstreamDown ? Promise.reject(new Error("queue down")) : Promise.resolve(),
     }),
     fake({ entitlement: () => Promise.resolve({ maxPagesPerRx: null }) }),
     fake({ forUser: () => Promise.resolve({ wallet: { balance: 2 } }) }),
@@ -192,59 +233,58 @@ function rxService(setup: RxSetup = {}) {
     fake(redis),
     quietLogger,
   );
-  return { service, redis, claimed, released, created, fileCalls };
+  return { service, redis, claimed, released, created, commits, fileCalls };
 }
 
 const RX_ID = "018f0000-0000-7000-8000-0000000000d1";
 
 describe("R10 analyze_prescription", () => {
-  redTest(
-    {
-      id: "R10",
-      fixedIn: "WP1",
-      title: "a started analysis keeps its claim and its route when the follow-up write fails",
-      reason: /^R10: /,
-    },
-    async () => {
-      const { service, redis, released, created } = rxService({
-        metaError: new Error("meta write failed"),
-      });
-      const call = commerceCall();
-      await service.analyze(call).catch(() => undefined);
-      expect(created, "R10: the analysis was started").toHaveLength(1);
-      expect(released, "R10: the media claim stays held for a created analysis").toEqual([]);
-      expect(
-        redis.values.get(`wa:agent:rx:${RX_ID}`),
-        "R10: the started analysis is still routed to the conversation",
-      ).toBe(COMMERCE_CONVERSATION_ID);
-      await service.analyze(call).catch(() => undefined);
-      expect(created, "R10: a retry of the same call starts no second analysis").toHaveLength(1);
-    },
-  );
+  it("R10 a started analysis keeps its claim and its route when redis and the queue fail after it", async () => {
+    const { service, released, created, commits } = rxService({ downstreamDown: true });
+    const call = commerceCall({ effect: { key: EFFECT_KEY, turnId: TURN_ID, fence: 4 } });
+    const result = await service.analyze(call);
+    expect(result, "R10: the analysis is reported as started").toMatchObject({ started: true });
+    expect(created, "R10: the analysis was started").toHaveLength(1);
+    expect(commits, "R10: claim, analysis and route are one commit").toEqual([
+      {
+        analysisId: uuidFromKey(EFFECT_KEY),
+        conversationId: COMMERCE_CONVERSATION_ID,
+        mediaIds: [IMAGE.id],
+      },
+    ]);
+    expect(released, "R10: the media claim stays held for a created analysis").toEqual([]);
+    const again = await service.analyze(call);
+    expect(again, "R10: the picture is taken").toMatchObject({
+      started: false,
+      reason: "already_analysed",
+    });
+    expect(created, "R10: a retry of the same call starts no second analysis").toHaveLength(1);
+  });
 });
 
 describe("R16 declined prescription import", () => {
-  redTest(
-    {
-      id: "R16",
-      fixedIn: "WP1",
-      title: "files imported for a declined request are deleted",
-      reason: /^R16: /,
-    },
-    async () => {
-      const { service, fileCalls } = rxService({ fileStatus: "rejected" });
-      const result = await service.analyze(commerceCall());
-      expect(result, "R16: the request is declined").toMatchObject({ started: false });
-      const cleanup = fileCalls.filter(
-        (entry) =>
-          /delete|remove|discard|purge|cleanup/i.test(entry.method) &&
-          JSON.stringify(entry.args).includes("file-1"),
-      );
-      expect(cleanup, "R16: the imported file is deleted from storage on decline").not.toHaveLength(
-        0,
-      );
-    },
-  );
+  it("R16 files imported for a declined request are deleted", async () => {
+    const { service, fileCalls } = rxService({ fileStatus: "rejected" });
+    const result = await service.analyze(commerceCall());
+    expect(result, "R16: the request is declined").toMatchObject({ started: false });
+    const cleanup = fileCalls.filter(
+      (entry) =>
+        /delete|remove|discard|purge|cleanup/i.test(entry.method) &&
+        JSON.stringify(entry.args).includes("file-1"),
+    );
+    expect(cleanup, "R16: the imported file is deleted from storage on decline").not.toHaveLength(
+      0,
+    );
+  });
+
+  it("R16 the v2 start deletes them too and forgets them on the picture", async () => {
+    const { service, fileCalls } = rxService({ fileStatus: "uploaded" });
+    const result = await service.analyze(
+      commerceCall({ effect: { key: EFFECT_KEY, turnId: TURN_ID } }),
+    );
+    expect(result).toMatchObject({ started: false, reason: "still_processing" });
+    expect(fileCalls.map((entry) => entry.method)).toContain("discardImported");
+  });
 });
 
 // --- R12: rx_failed texts --------------------------------------------------------------------------
