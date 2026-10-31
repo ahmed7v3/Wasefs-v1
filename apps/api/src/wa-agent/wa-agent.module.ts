@@ -27,9 +27,10 @@ import { WaAgentTurnService } from "./agent/wa-agent-turn.service.js";
 import { WaAgentCommerceRepo } from "./commerce/agent-commerce.repo.js";
 import { AgentDiscountService } from "./commerce/agent-discount.service.js";
 import { AgentMedicalService } from "./commerce/agent-medical.service.js";
-import { AgentRxService } from "./commerce/agent-rx.service.js";
 import { AgentSubscriptionService } from "./commerce/agent-subscription.service.js";
 import { WaAgentEventsConsumer } from "./commerce/wa-agent-events.consumer.js";
+import { WaAgentRepo } from "./conversation/conversation.repo.js";
+import { WaAgentStateService } from "./conversation/state.service.js";
 import { AgentDocumentService } from "./documents/agent-document.service.js";
 import { WaDocumentQueue } from "./documents/wa-document-queue.js";
 import { OutboxDeliverer } from "./outbox/deliverer.js";
@@ -37,7 +38,11 @@ import { EventPartsBuilder } from "./outbox/outbox-parts.js";
 import { RxReconciler } from "./outbox/rx-reconciler.js";
 import { RxReconcilerRepo } from "./outbox/rx-reconciler.repo.js";
 import { WaOutboxRepo } from "./outbox/wa-outbox.repo.js";
+import { AgentRxService } from "./rx/agent-rx.service.js";
 import { DlqService } from "./transport/dlq.service.js";
+import { WaAgentInboundConsumer } from "./transport/inbound.consumer.js";
+import { WaOutboundService } from "./transport/outbound.service.js";
+import { WaAgentSentConsumer } from "./transport/sent.consumer.js";
 import { FailureActions } from "./turn/failure-actions.js";
 import { ConversationLock } from "./turn/lock.js";
 import { TurnRunner } from "./turn/turn-runner.js";
@@ -48,17 +53,12 @@ import { TurnWorker } from "./turn/turn.worker.js";
 import { ElevenLabsClient } from "./voice/elevenlabs.client.js";
 import { VoiceKeyService } from "./voice/voice-key.service.js";
 import { WaAgentVoiceService } from "./voice/voice.service.js";
-import { WaAgentInboundConsumer } from "./wa-agent-inbound.consumer.js";
-import { WaAgentSentConsumer } from "./wa-agent-sent.consumer.js";
-import { WaAgentStateService } from "./wa-agent-state.service.js";
-import { WaAgentRepo } from "./wa-agent.repo.js";
 import {
   WA_AGENT_ROUND,
   WA_AGENT_TURN_HANDLER,
   WA_OUTBOX_SWEEPS,
   type OutboxSweep,
 } from "./wa-agent.tokens.js";
-import { WaOutboundService } from "./wa-outbound.service.js";
 
 import type { ApiEnv } from "../config/env.js";
 import type { Redis } from "ioredis";

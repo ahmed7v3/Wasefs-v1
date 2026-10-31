@@ -3,8 +3,8 @@ import { WA_AGENT_DLQ_STREAM } from "@wasfa/shared/schemas/phone";
 import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { StreamConsumer } from "../../src/wa-agent/stream-consumer.js";
 import { DlqService } from "../../src/wa-agent/transport/dlq.service.js";
+import { StreamConsumer } from "../../src/wa-agent/transport/stream-consumer.js";
 import { quietLogger } from "../support/wa-agent-commerce-fakes.js";
 
 import type { ApiEnv } from "../../src/config/env.js";

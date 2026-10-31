@@ -15,9 +15,9 @@ import {
   rxFailedText,
 } from "../src/wa-agent/commerce/agent-event-messages.js";
 import { AgentMedicalService } from "../src/wa-agent/commerce/agent-medical.service.js";
-import { AgentRxService } from "../src/wa-agent/commerce/agent-rx.service.js";
 import { AgentSubscriptionService } from "../src/wa-agent/commerce/agent-subscription.service.js";
 import { WaAgentEventsConsumer } from "../src/wa-agent/commerce/wa-agent-events.consumer.js";
+import { AgentRxService } from "../src/wa-agent/rx/agent-rx.service.js";
 
 import {
   COMMERCE_CONVERSATION_ID,

@@ -14,9 +14,9 @@ import { SettingsService } from "../src/settings/settings.service.js";
 import { WaAgentHandoffService } from "../src/wa-agent/agent/handoff.service.js";
 import { WaAgentToolDeps } from "../src/wa-agent/agent/tool-deps.js";
 import { WaAgentTurnService } from "../src/wa-agent/agent/wa-agent-turn.service.js";
+import { WaAgentRepo } from "../src/wa-agent/conversation/conversation.repo.js";
+import { WaOutboundService } from "../src/wa-agent/transport/outbound.service.js";
 import { WaAgentVoiceService } from "../src/wa-agent/voice/voice.service.js";
-import { WaAgentRepo } from "../src/wa-agent/wa-agent.repo.js";
-import { WaOutboundService } from "../src/wa-agent/wa-outbound.service.js";
 
 import { AdminTestContext } from "./support/admin-context.js";
 import { fakeAi, silentLogger } from "./support/wa-agent-fakes.js";

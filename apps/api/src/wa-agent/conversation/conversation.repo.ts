@@ -25,7 +25,7 @@ import {
   type WaConversation,
 } from "@wasfa/db";
 
-import { DB, type DbHandle } from "../common/database.js";
+import { DB, type DbHandle } from "../../common/database.js";
 
 import type { WaAgentInbound } from "@wasfa/shared/schemas/wa-agent";
 

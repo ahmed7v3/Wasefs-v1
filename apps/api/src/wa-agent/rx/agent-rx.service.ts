@@ -13,14 +13,13 @@ import { PlansService } from "../../plans/plans.service.js";
 import { RxService, type PreparedRx, type RxCacheHit } from "../../rx/rx.service.js";
 import { SettingsService } from "../../settings/settings.service.js";
 import { StaleFenceError } from "../agent/tools/tool.js";
-
 import {
   RxAlreadyAnalysedError,
   WaAgentCommerceRepo,
   type InboundMedia,
-} from "./agent-commerce.repo.js";
-import { agentUser } from "./agent-user.js";
-import { usageReason } from "./usage-errors.js";
+} from "../commerce/agent-commerce.repo.js";
+import { agentUser } from "../commerce/agent-user.js";
+import { usageReason } from "../commerce/usage-errors.js";
 
 import type { AuthenticatedUser } from "../../common/current-user.js";
 import type { FileViewer } from "../../files/files.repo.js";

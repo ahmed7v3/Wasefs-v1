@@ -22,12 +22,12 @@ import { API_ENV } from "../../config/config.module.js";
 import { ObjectStorage } from "../../files/object-storage.js";
 import { SettingsService } from "../../settings/settings.service.js";
 import { HANDOFF_ALERT_KIND } from "../agent/handoff.service.js";
+import { WaAgentRepo } from "../conversation/conversation.repo.js";
+import { WaAgentStateService } from "../conversation/state.service.js";
+import { WaOutboundService } from "../transport/outbound.service.js";
 import { ConversationLock, StaleFenceError } from "../turn/lock.js";
 import { TurnRepo } from "../turn/turn.repo.js";
-import { WaAgentStateService } from "../wa-agent-state.service.js";
-import { WaAgentRepo } from "../wa-agent.repo.js";
 import { WA_OUTBOX_SWEEPS, type OutboxSweep } from "../wa-agent.tokens.js";
-import { WaOutboundService } from "../wa-outbound.service.js";
 
 import { EventPartsBuilder } from "./outbox-parts.js";
 import { WaOutboxRepo } from "./wa-outbox.repo.js";

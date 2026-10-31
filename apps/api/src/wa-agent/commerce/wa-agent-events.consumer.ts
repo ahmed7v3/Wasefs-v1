@@ -17,12 +17,12 @@ import { API_ENV } from "../../config/config.module.js";
 import { ObjectStorage } from "../../files/object-storage.js";
 import { RxService } from "../../rx/rx.service.js";
 import { SettingsService } from "../../settings/settings.service.js";
+import { WaAgentRepo } from "../conversation/conversation.repo.js";
 import { OutboxDeliverer } from "../outbox/deliverer.js";
 import { EventPartsBuilder } from "../outbox/outbox-parts.js";
 import { WaOutboxRepo } from "../outbox/wa-outbox.repo.js";
-import { StreamConsumer } from "../stream-consumer.js";
-import { WaAgentRepo } from "../wa-agent.repo.js";
-import { WaOutboundService } from "../wa-outbound.service.js";
+import { WaOutboundService } from "../transport/outbound.service.js";
+import { StreamConsumer } from "../transport/stream-consumer.js";
 
 import { WaAgentCommerceRepo } from "./agent-commerce.repo.js";
 

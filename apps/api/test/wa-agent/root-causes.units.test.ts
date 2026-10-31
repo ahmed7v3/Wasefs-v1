@@ -3,8 +3,8 @@ import { uuidFromKey } from "@wasfa/shared/wa-agent/uuid-from-key";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { RxAlreadyAnalysedError } from "../../src/wa-agent/commerce/agent-commerce.repo.js";
-import { AgentRxService } from "../../src/wa-agent/commerce/agent-rx.service.js";
 import { WaAgentEventsConsumer } from "../../src/wa-agent/commerce/wa-agent-events.consumer.js";
+import { AgentRxService } from "../../src/wa-agent/rx/agent-rx.service.js";
 import { ConversationLock, LOCK_TTL_MS } from "../../src/wa-agent/turn/lock.js";
 import { TurnRunner } from "../../src/wa-agent/turn/turn-runner.js";
 import {

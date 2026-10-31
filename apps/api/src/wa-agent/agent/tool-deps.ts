@@ -9,9 +9,9 @@ import { MediaService } from "../../media/media.service.js";
 import { SettingsService } from "../../settings/settings.service.js";
 import { AgentDiscountService } from "../commerce/agent-discount.service.js";
 import { AgentMedicalService } from "../commerce/agent-medical.service.js";
-import { AgentRxService } from "../commerce/agent-rx.service.js";
 import { AgentSubscriptionService } from "../commerce/agent-subscription.service.js";
 import { AgentDocumentService, type DocumentCall } from "../documents/agent-document.service.js";
+import { AgentRxService } from "../rx/agent-rx.service.js";
 
 import { AgentAccountService } from "./account-facts.service.js";
 import { AgentSignupService } from "./agent-signup.service.js";

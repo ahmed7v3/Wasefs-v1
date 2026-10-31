@@ -17,7 +17,7 @@ import { FilesService } from "../../files/files.service.js";
 import { OrdersService } from "../../orders/orders.service.js";
 import { ManualPaymentsService } from "../../payments/manual/manual-payments.service.js";
 import { SettingsService } from "../../settings/settings.service.js";
-import { WaAgentRepo } from "../wa-agent.repo.js";
+import { WaAgentRepo } from "../conversation/conversation.repo.js";
 
 import { WaAgentCommerceRepo, type OrderWithPayment } from "./agent-commerce.repo.js";
 import { cairoStamp } from "./agent-discount.service.js";
