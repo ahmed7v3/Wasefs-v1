@@ -15,7 +15,6 @@ import {
 } from "../support/wa-agent-commerce-fakes.js";
 import { ExpiringRedis, MemoryRedis, silentLogger } from "../support/wa-agent-fakes.js";
 
-import { redTest } from "./red.js";
 
 import type { RoundOutcome } from "../../src/wa-agent/turn/agent-round.js";
 import type { ActiveTurn } from "../../src/wa-agent/turn/turn.store.js";

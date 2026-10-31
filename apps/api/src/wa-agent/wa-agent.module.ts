@@ -32,10 +32,10 @@ import { AgentSubscriptionService } from "./commerce/agent-subscription.service.
 import { WaAgentEventsConsumer } from "./commerce/wa-agent-events.consumer.js";
 import { AgentDocumentService } from "./documents/agent-document.service.js";
 import { WaDocumentQueue } from "./documents/wa-document-queue.js";
-import { RxReconciler } from "./outbox/rx-reconciler.js";
-import { RxReconcilerRepo } from "./outbox/rx-reconciler.repo.js";
 import { OutboxDeliverer } from "./outbox/deliverer.js";
 import { EventPartsBuilder } from "./outbox/outbox-parts.js";
+import { RxReconciler } from "./outbox/rx-reconciler.js";
+import { RxReconcilerRepo } from "./outbox/rx-reconciler.repo.js";
 import { WaOutboxRepo } from "./outbox/wa-outbox.repo.js";
 import { DlqService } from "./transport/dlq.service.js";
 import { FailureActions } from "./turn/failure-actions.js";
@@ -52,11 +52,18 @@ import { WaAgentInboundConsumer } from "./wa-agent-inbound.consumer.js";
 import { WaAgentSentConsumer } from "./wa-agent-sent.consumer.js";
 import { WaAgentStateService } from "./wa-agent-state.service.js";
 import { WaAgentRepo } from "./wa-agent.repo.js";
-import { WA_AGENT_ROUND, WA_AGENT_TURN_HANDLER, WA_OUTBOX_SWEEPS } from "./wa-agent.tokens.js";
+import {
+  WA_AGENT_ROUND,
+  WA_AGENT_TURN_HANDLER,
+  WA_OUTBOX_SWEEPS,
+  type OutboxSweep,
+} from "./wa-agent.tokens.js";
 import { WaOutboundService } from "./wa-outbound.service.js";
 
 import type { ApiEnv } from "../config/env.js";
 import type { Redis } from "ioredis";
+
+const RX_RECONCILE_EVERY_MS = 30_000;
 
 /**
  * The WhatsApp AI agent's transport and data layer (docs/WA-AGENT.md work package A): transcript
@@ -123,7 +130,21 @@ import type { Redis } from "ioredis";
     TurnWorker,
     // Results of paid work and worker events, delivered from `wa_outbox` (behind `waAgent.runtime.v2`).
     WaOutboxRepo,
-    { provide: WA_OUTBOX_SWEEPS, useValue: [] },
+    {
+      // The deliverer ticks every 5 s; the rx reconciler runs on every sixth tick (30 s).
+      provide: WA_OUTBOX_SWEEPS,
+      inject: [RxReconciler],
+      useFactory: (reconciler: RxReconciler): OutboxSweep[] => {
+        let last = 0;
+        return [
+          async () => {
+            if (Date.now() - last < RX_RECONCILE_EVERY_MS) return;
+            last = Date.now();
+            await reconciler.sweep();
+          },
+        ];
+      },
+    },
     {
       provide: EventPartsBuilder,
       inject: [API_ENV, WaAgentCommerceRepo, RxService],
