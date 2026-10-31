@@ -654,6 +654,18 @@ const waAgentVoiceSchema = z.object({
   similarityBoost: z.number().min(0).max(1).optional(),
 });
 
+/** The v2 turn engine (docs/WA-AGENT-RUNTIME.md §4.3, §16). `v2` off = the v1 inline path answers. */
+const waAgentRuntimeSchema = z.object({
+  v2: z.boolean().default(false),
+  /** Turns one api replica runs at once (read when the worker starts). */
+  concurrency: z.number().int().min(1).max(32).default(8),
+  stepTimeoutMs: z.number().int().min(5_000).max(120_000).default(45_000),
+  turnTimeoutMs: z.number().int().min(30_000).max(300_000).default(150_000),
+  /** Rounds one job drains (a round answers the messages that arrived during the previous one). */
+  maxRounds: z.number().int().min(1).max(6).default(4),
+  jobAttempts: z.number().int().min(0).max(5).default(3),
+});
+
 /**
  * The WhatsApp AI agent (docs/WA-AGENT.md §7). Off by default and independent from
  * `auth.phoneVerification`. The ElevenLabs key is a secret and never lives here.
@@ -678,6 +690,7 @@ export const waAgentSettingsSchema = z.object({
   discounts: waAgentDiscountsSchema.default(() => waAgentDiscountsSchema.parse({})),
   media: z.array(waAgentMediaItemSchema).max(30).default([]),
   voice: waAgentVoiceSchema.default(() => waAgentVoiceSchema.parse({})),
+  runtime: waAgentRuntimeSchema.default(() => waAgentRuntimeSchema.parse({})),
 });
 export type WaAgentSettings = z.output<typeof waAgentSettingsSchema>;
 
