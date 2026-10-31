@@ -36,9 +36,9 @@ import { WaAgentTurnService } from "../../../src/wa-agent/agent/wa-agent-turn.se
 import { WaAgentCommerceRepo } from "../../../src/wa-agent/commerce/agent-commerce.repo.js";
 import { AgentRxService } from "../../../src/wa-agent/commerce/agent-rx.service.js";
 import { WaAgentEventsConsumer } from "../../../src/wa-agent/commerce/wa-agent-events.consumer.js";
-import { FailureActions } from "../../../src/wa-agent/turn/failure-actions.js";
 import { OutboxDeliverer } from "../../../src/wa-agent/outbox/deliverer.js";
 import { WaOutboxRepo } from "../../../src/wa-agent/outbox/wa-outbox.repo.js";
+import { FailureActions } from "../../../src/wa-agent/turn/failure-actions.js";
 import { ConversationLock } from "../../../src/wa-agent/turn/lock.js";
 import { TurnRunner } from "../../../src/wa-agent/turn/turn-runner.js";
 import { TurnStore } from "../../../src/wa-agent/turn/turn.store.js";
