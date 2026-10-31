@@ -58,7 +58,14 @@ export const WA_AGENT_MAX_TEXT = 8_000;
 export const WA_AGENT_MAX_FILE_BYTES = 10 * 1024 * 1024;
 export const WA_AGENT_MAX_AUDIO_BYTES = 3 * 1024 * 1024;
 export const WA_AGENT_MAX_AUDIO_SECONDS = 180;
-export const WA_AGENT_IMAGE_MIMES = ["image/jpeg", "image/png", "image/webp"] as const;
+export const WA_AGENT_IMAGE_MIMES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  // The worker's image pipeline decodes these to JPEG (docs/RX-ENGINE.md S0).
+  "image/heic",
+  "image/heif",
+] as const;
 export const WA_AGENT_DOCUMENT_MIMES = ["application/pdf"] as const;
 
 /** Where inbound media lives in the uploads bucket: `wa/<yyyy>/<mm>/<uuid>`. */
@@ -97,6 +104,8 @@ export const waAgentInboundSchema = z.object({
       seconds: z.number().int().min(0).optional(),
     })
     .optional(),
+  /** Why a media message has no stored file; `ok` with media. Absent for text. */
+  mediaStatus: z.enum(WA_MEDIA_STATUSES).optional(),
   pushName: z.string().max(100).optional(),
   /** Epoch milliseconds the message was sent. */
   ts: z.number().int().positive(),

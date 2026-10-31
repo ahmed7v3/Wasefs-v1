@@ -15,7 +15,7 @@ import {
 } from "@wasfa/shared/schemas/wa-agent";
 import { settingDefault, type WaAgentSettings } from "@wasfa/shared/settings";
 import { pino } from "pino";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { routeInbound, type InboundRouterDeps } from "../src/wa-bridge/agent-inbound.js";
 import {
@@ -343,52 +343,92 @@ describe("inbound media", () => {
     [
       "an image over 10 MB",
       { imageMessage: { mimetype: "image/png", fileLength: 11 * 1024 * 1024 } },
+      "image",
+      "too_large",
     ],
     [
       "a PDF over 10 MB",
       { documentMessage: { mimetype: "application/pdf", fileLength: 11 * 1024 * 1024 } },
+      "document",
+      "too_large",
     ],
     [
       "a voice note over 3 MB",
       { audioMessage: { mimetype: "audio/ogg", seconds: 30, fileLength: 4 * 1024 * 1024 } },
+      "audio",
+      "too_large",
     ],
     [
       "a voice note over 180 s",
       { audioMessage: { mimetype: "audio/ogg", seconds: 181, fileLength: 1_000 } },
+      "audio",
+      "too_large",
     ],
-    ["a gif", { imageMessage: { mimetype: "image/gif", fileLength: 100 } }],
-    ["a Word file", { documentMessage: { mimetype: "application/msword", fileLength: 100 } }],
+    [
+      "a gif",
+      { imageMessage: { mimetype: "image/gif", fileLength: 100 } },
+      "image",
+      "unsupported_type",
+    ],
+    [
+      "a Word file",
+      { documentMessage: { mimetype: "application/msword", fileLength: 100 } },
+      "document",
+      "unsupported_type",
+    ],
+  ] as const)(
+    "keeps %s as its kind with a typed reason, without downloading it",
+    async (_name, message, kind, mediaStatus) => {
+      const fake = io();
+      const h = harness({ agentEnabled: true, verificationOn: true, media: fake.media });
+      await h.route(withMessage(message));
+      const [entry] = agentEntries(h);
+      expect(entry).toMatchObject({ kind, mediaStatus });
+      expect(entry?.media).toBeUndefined();
+      expect(fake.downloads()).toBe(0);
+      expect(fake.puts).toHaveLength(0);
+    },
+  );
+
+  it.each([
     ["a video", { videoMessage: {} }],
     ["a sticker", { stickerMessage: {} }],
     ["a location", { locationMessage: {} }],
     ["a contact", { contactMessage: {} }],
-  ] as const)("turns %s into kind other without downloading it", async (_name, message) => {
+  ] as const)("turns %s into kind other without media or reason", async (_name, message) => {
     const fake = io();
     const h = harness({ agentEnabled: true, verificationOn: true, media: fake.media });
     await h.route(withMessage(message));
     const [entry] = agentEntries(h);
     expect(entry).toMatchObject({ kind: "other" });
     expect(entry?.media).toBeUndefined();
+    expect(entry?.mediaStatus).toBeUndefined();
     expect(fake.downloads()).toBe(0);
-    expect(fake.puts).toHaveLength(0);
   });
 
-  it("falls back to other when the real size is over the limit, the download fails or storage is off", async () => {
+  it("keeps the kind with a reason when the real size is over the limit, the download fails or storage is off", async () => {
     const big = io({ download: () => Promise.resolve(Buffer.alloc(3 * 1024 * 1024 + 1)) });
     const image = { imageMessage: { mimetype: "image/png", fileLength: 1_000 } };
     const audio = { audioMessage: { mimetype: "audio/ogg", seconds: 10, fileLength: 1_000 } };
     const hBig = harness({ agentEnabled: true, verificationOn: true, media: big.media });
     await hBig.route(withMessage(audio));
-    expect(agentEntries(hBig)[0]).toMatchObject({ kind: "other" });
+    expect(agentEntries(hBig)[0]).toMatchObject({ kind: "audio", mediaStatus: "too_large" });
 
+    vi.useFakeTimers();
     const failing = io({ download: () => Promise.reject(new Error("boom")) });
     const hFail = harness({ agentEnabled: true, verificationOn: true, media: failing.media });
-    await hFail.route(withMessage(image));
-    expect(agentEntries(hFail)[0]).toMatchObject({ kind: "other" });
+    const routed = hFail.route(withMessage(image));
+    await vi.advanceTimersByTimeAsync(10_000);
+    await routed;
+    vi.useRealTimers();
+    expect(agentEntries(hFail)[0]).toMatchObject({ kind: "image", mediaStatus: "download_failed" });
 
     const hOff = harness({ agentEnabled: true, verificationOn: true, media: null });
     await hOff.route(withMessage(image));
-    expect(agentEntries(hOff)[0]).toMatchObject({ kind: "other" });
+    expect(agentEntries(hOff)[0]).toMatchObject({
+      kind: "image",
+      mediaStatus: "storage_unavailable",
+    });
   });
 
   it("ignores reactions and other protocol messages", async () => {

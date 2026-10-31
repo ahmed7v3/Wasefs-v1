@@ -29,6 +29,13 @@ export const arMessaging = {
   "whatsapp.agent.event.rxFailed":
     "تعذّرت قراءة الروشتة، وأعدنا الرصيد المخصوم إلى حسابك. جرّب صورة أوضح وإضاءة أفضل وأرسلها مرة أخرى.",
   "whatsapp.agent.event.documentFailed": "تعذّر إنشاء الملف الآن. جرّب طلبه مرة أخرى بعد قليل.",
+  "whatsapp.agent.media.too_large": "الملف كبير شوية، ابعته بحجم أصغر لو سمحت",
+  "whatsapp.agent.media.unsupported_type":
+    "أنا بفتح الصور وملفات PDF بس، ابعته كصورة أو PDF لو سمحت",
+  "whatsapp.agent.media.download_failed": "الصورة موصلتش كاملة، ابعتها تاني لو سمحت",
+  "whatsapp.agent.media.storage_unavailable":
+    "معرفتش أحفظ الملف دلوقتي، ابعته تاني بعد شوية لو سمحت",
+  "whatsapp.agent.media.expired": "الملف ده مبقاش متاح، ابعته تاني لو سمحت",
   "whatsapp.agent.event.rxPdfName": "نتيجة-قراءة-الروشتة",
   "document.generatedOn": "تاريخ الإنشاء: {date}",
   "document.page": "صفحة",

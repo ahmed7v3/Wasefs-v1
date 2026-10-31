@@ -33,6 +33,14 @@ export const enMessaging: Partial<Record<keyof typeof arMessaging, string>> = {
     "We could not read the prescription, and the credits that were held have been returned to your account. Try a clearer picture with better light and send it again.",
   "whatsapp.agent.event.documentFailed":
     "We could not create the file right now. Please ask for it again in a little while.",
+  "whatsapp.agent.media.too_large": "That file is a bit too big. Please send a smaller one.",
+  "whatsapp.agent.media.unsupported_type":
+    "I can only open photos and PDF files. Please send it as a photo or a PDF.",
+  "whatsapp.agent.media.download_failed":
+    "The picture did not arrive complete. Please send it again.",
+  "whatsapp.agent.media.storage_unavailable":
+    "I could not save that file right now. Please send it again in a little while.",
+  "whatsapp.agent.media.expired": "That file is no longer available. Please send it again.",
   "whatsapp.agent.event.rxPdfName": "prescription-result",
   "document.generatedOn": "Generated on: {date}",
   "document.page": "Page",
