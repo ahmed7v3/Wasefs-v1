@@ -11,6 +11,7 @@ import {
   buildSystemPrompt,
   firstNameOf,
 } from "../src/wa-agent/agent/agent-prompt.js";
+import { replyParts } from "../src/wa-agent/agent/round-helpers.js";
 import {
   bindTools,
   toolsFor,
@@ -18,7 +19,6 @@ import {
   type ToolCallRecord,
 } from "../src/wa-agent/agent/tools/index.js";
 import { pickImageVariant, sendMediaTool } from "../src/wa-agent/agent/tools/send-media.js";
-import { replyParts } from "../src/wa-agent/agent/wa-agent-turn.service.js";
 
 import { unusedCommerceDeps } from "./support/wa-agent-commerce-fakes.js";
 

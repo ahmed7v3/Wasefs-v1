@@ -32,7 +32,9 @@ import { WaAgentCommerceRepo } from "../../src/wa-agent/commerce/agent-commerce.
 import { WaAgentRepo } from "../../src/wa-agent/conversation/conversation.repo.js";
 import { RxReconciler } from "../../src/wa-agent/outbox/rx-reconciler.js";
 import { RxReconcilerRepo } from "../../src/wa-agent/outbox/rx-reconciler.repo.js";
+import { AgentRxRepo } from "../../src/wa-agent/rx/agent-rx.repo.js";
 import { AgentRxService } from "../../src/wa-agent/rx/agent-rx.service.js";
+import { RxStartService } from "../../src/wa-agent/rx/rx-start.service.js";
 import { AdminTestContext } from "../support/admin-context.js";
 import { buyer } from "../support/billing-console-fixtures.js";
 import { quietLogger } from "../support/wa-agent-commerce-fakes.js";
@@ -317,6 +319,15 @@ describe("the rx start is one transaction", () => {
       vi.spyOn(rx, "createInTx").mockImplementationOnce(overrides.createInTx);
     return new AgentRxService(
       ctx.app.get(WaAgentCommerceRepo),
+      ctx.app.get(AgentRxRepo),
+      new RxStartService(
+        ctx.app.get(AgentRxRepo),
+        filesFake,
+        rx,
+        ctx.app.get(CreditsService),
+        ctx.redis,
+        quietLogger,
+      ),
       filesFake,
       rx,
       ctx.app.get(PlansService),
@@ -510,7 +521,7 @@ describe("the rx start is one transaction", () => {
     ).toMatchObject({ started: false, reason: "no_image" });
 
     // Taken between the selection and the commit: all or nothing.
-    const commerce = ctx.app.get(WaAgentCommerceRepo);
+    const commerce = ctx.app.get(AgentRxRepo);
     const second = await setup();
     const other = second.messageIds[0] ?? "";
     await expect(

@@ -2,9 +2,11 @@ import { settingDefault } from "@wasfa/shared/settings";
 import { uuidFromKey } from "@wasfa/shared/wa-agent/uuid-from-key";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { RxAlreadyAnalysedError } from "../../src/wa-agent/commerce/agent-commerce.repo.js";
+
 import { WaAgentEventsConsumer } from "../../src/wa-agent/commerce/wa-agent-events.consumer.js";
+import { RxAlreadyAnalysedError } from "../../src/wa-agent/rx/agent-rx.repo.js";
 import { AgentRxService } from "../../src/wa-agent/rx/agent-rx.service.js";
+import { RxStartService } from "../../src/wa-agent/rx/rx-start.service.js";
 import { ConversationLock, LOCK_TTL_MS } from "../../src/wa-agent/turn/lock.js";
 import { TurnRunner } from "../../src/wa-agent/turn/turn-runner.js";
 import {
@@ -167,8 +169,7 @@ function rxService(setup: RxSetup = {}) {
       };
     },
   });
-  const service = new AgentRxService(
-    fake({
+  const repo = {
       user: () =>
         Promise.resolve({
           id: COMMERCE_USER_ID,
@@ -209,9 +210,8 @@ function rxService(setup: RxSetup = {}) {
         });
         return input.create({});
       },
-    }),
-    fake(files),
-    fake({
+  };
+  const rx = {
       // v1: the web entry.
       create: (...args: unknown[]) => {
         created.push(args);
@@ -227,9 +227,23 @@ function rxService(setup: RxSetup = {}) {
       },
       enqueue: () =>
         setup.downstreamDown ? Promise.reject(new Error("queue down")) : Promise.resolve(),
-    }),
+  };
+  const credits = { forUser: () => Promise.resolve({ wallet: { balance: 2 } }) };
+  const service = new AgentRxService(
+    fake(repo),
+    fake(repo),
+    new RxStartService(
+      fake(repo),
+      fake(files),
+      fake(rx),
+      fake(credits),
+      fake(redis),
+      quietLogger,
+    ),
+    fake(files),
+    fake(rx),
     fake({ entitlement: () => Promise.resolve({ maxPagesPerRx: null }) }),
-    fake({ forUser: () => Promise.resolve({ wallet: { balance: 2 } }) }),
+    fake(credits),
     fake({ get: () => Promise.resolve({ ...config, creditsPerPage: 3, maxPages: 2 }) }),
     fake(redis),
     quietLogger,
