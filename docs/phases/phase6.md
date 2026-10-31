@@ -261,12 +261,16 @@ files, settings `waAgent.runtime/failures/delivery`.
 | typecheck/lint/test runs, i18n key additions | runner | every wave |
 
 ### Acceptance
-- [ ] Red tests R4–R16 green; chaos suite: provider timeouts at each step, 429 storm, Redis drop, crash after a
+- [x] Red tests R4–R16 green; chaos suite: provider timeouts at each step, 429 storm, Redis drop, crash after a
       tool ran, lock expiry, duplicate stream delivery, 2 replicas → 0 silent drops, 0 duplicate effects.
-- [ ] A paid analysis whose turn failed after the tool ran is delivered (result + PDF) — also during an owner
-      pause.
-- [ ] HEIC photo, PDF prescription, image-as-document and a broken download each produce the right outcome.
-- [ ] DLQ receives a poison entry after 5 deliveries; admin can replay it (API; screen in WP9).
+      (CI run 41216689306: root-causes.{units,int,scenarios.int}, failure-policy.int, effects.int, turn.int,
+      turn-lock.units, stream-consumer.int, outbox.int, chaos.int.)
+- [x] A paid analysis whose turn failed after the tool ran is delivered (result + PDF) — also during an owner
+      pause. (chaos.int "B", R5.)
+- [x] HEIC photo, PDF prescription, image-as-document and a broken download each produce the right outcome.
+      (worker wa-agent-root-causes.units R2/R15, heic-photo.units, image.units, agent media units.)
+- [x] DLQ receives a poison entry after 5 deliveries; admin can replay it (API; screen in WP9).
+      (stream-consumer.int "dead-letters after 5 failed deliveries … replays and discards".)
 **Tests:** failure-policy table tests, lock/fencing unit + int (Testcontainers Redis), stream consumer int,
 outbox int, idempotency int (repeat each tool 3× → one effect), bridge media units with fake downloads.
 **Security:** fencing prevents a stale holder from sending; DLQ payloads contain ids only; no message text in
