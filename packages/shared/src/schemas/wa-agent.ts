@@ -23,6 +23,34 @@ export type WaAgentMessageStatus = (typeof WA_AGENT_MESSAGE_STATUSES)[number];
 export const WA_AGENT_CONVERSATION_STATUSES = ["active", "paused", "blocked"] as const;
 export type WaAgentConversationStatus = (typeof WA_AGENT_CONVERSATION_STATUSES)[number];
 
+/** Why an inbound media message has (or lacks) a stored file; null for non-media rows. */
+export const WA_MEDIA_STATUSES = [
+  "ok",
+  "too_large",
+  "unsupported_type",
+  "download_failed",
+  "storage_unavailable",
+  "expired",
+] as const;
+export type WaMediaStatus = (typeof WA_MEDIA_STATUSES)[number];
+
+/** What a `wa_outbox` row delivers to the customer. */
+export const WA_OUTBOX_KINDS = ["rx_result", "document", "payment", "notice"] as const;
+export type WaOutboxKind = (typeof WA_OUTBOX_KINDS)[number];
+
+export const WA_OUTBOX_STATES = [
+  "waiting",
+  "ready",
+  "delivering",
+  "delivered",
+  "held",
+  "dead",
+] as const;
+export type WaOutboxState = (typeof WA_OUTBOX_STATES)[number];
+
+export const WA_TOOL_EFFECT_STATES = ["pending", "done"] as const;
+export type WaToolEffectState = (typeof WA_TOOL_EFFECT_STATES)[number];
+
 /** Upper bound of a stored message text. */
 export const WA_AGENT_MAX_TEXT = 8_000;
 
