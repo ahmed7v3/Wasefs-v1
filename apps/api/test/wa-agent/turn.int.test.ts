@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { waTurns } from "@wasfa/db";
 import { Queue } from "bullmq";
 import { eq } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { SettingsService } from "../../src/settings/settings.service.js";
 import { StaleFenceError } from "../../src/wa-agent/turn/lock.js";
@@ -137,18 +137,15 @@ describe("the runner", () => {
   });
 
   it("a crash leaves the rows unlinked and the retry replies on the same turn", async () => {
-    let calls = 0;
     const runtime = new V2Runtime();
-    const scenario = await Scenario.start(ctx, {
-      runtime,
-      model: () => {
-        calls += 1;
-        if (calls === 1) throw new Error("boom");
-        return "بعد الإعادة";
-      },
-    });
+    const scenario = await Scenario.start(ctx, { runtime, model: () => "بعد الإعادة" });
     await scenario.inbound({ text: "سؤال" });
     const runner = runtime.runner(scenario);
+    // A thrown model error is a failure the policy answers (failed_replied), not a crash. A crash is the
+    // process dying where nothing catches it: here the fenced write that would queue the reply fails once.
+    vi.spyOn(scenario.services.outbound, "enqueueFenced").mockRejectedValueOnce(
+      new Error("process crashed"),
+    );
 
     await expect(runner.run(scenario.conversationId)).rejects.toThrow();
     expect((await scenario.inboundRows()).every((row) => row.turnId === null)).toBe(true);
