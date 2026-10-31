@@ -24,6 +24,13 @@ import { REDIS } from "../../common/redis.js";
 import { ObjectStorage } from "../../files/object-storage.js";
 import { PlansService } from "../../plans/plans.service.js";
 import { SettingsService } from "../../settings/settings.service.js";
+import {
+  RoundRefused,
+  effectsRanOf,
+  type AgentRound,
+  type RoundOutcome,
+  type TurnTraceStep,
+} from "../turn/agent-round.js";
 import { VoiceError } from "../voice/elevenlabs.client.js";
 import { textOnlyReason } from "../voice/voice-text.js";
 import { WaAgentVoiceService } from "../voice/voice.service.js";
@@ -115,6 +122,22 @@ const busyKey = (conversationId: string, at: Date) =>
 // Deletes the lock only while it is still ours (it may have expired and been taken by another turn).
 const RELEASE_LOCK = `if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) end return 0`;
 
+/** What one round needs, gathered by the caller (v1 `runTurn`, v2 `compose`). */
+interface ComposeInput {
+  conversation: WaConversation;
+  /** The customer messages this round answers. */
+  pending: readonly TurnMessage[];
+  /** The recent transcript, `pending` included. */
+  rows: readonly TurnMessage[];
+  config: WaAgentSettings;
+  now: Date;
+  /** Aborts the model calls early (v2: the conversation lock was lost). */
+  signal?: AbortSignal;
+  limits: { stepMs: number; turnMs: number };
+  /** v1 stamps the messages it takes; v2 does not (it links them when the reply is queued). */
+  onTaken?: (messageIds: string[], requestId: string) => Promise<void>;
+}
+
 /** The waits of a turn; tests replace them to run without real time. */
 export interface TurnTiming {
   /** How long the chat must stay quiet after the customer's last message before a turn starts. */
@@ -133,7 +156,7 @@ export interface TurnTiming {
  * never phone numbers, message texts, tool arguments or results.
  */
 @Injectable()
-export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShutdown {
+export class WaAgentTurnService implements WaAgentTurnHandler, AgentRound, OnApplicationShutdown {
   readonly timing: TurnTiming = {
     quietMs: 2_500,
     maxQuietWaitMs: 8_000,
@@ -222,22 +245,132 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
     const pending = pendingMessages(rows, now.getTime());
     if (pending.length === 0) return;
 
+    let outcome: RoundOutcome | null;
+    try {
+      outcome = await this.composeReply({
+        conversation,
+        pending,
+        rows,
+        config,
+        now,
+        limits: { stepMs: STEP_TIMEOUT_MS, turnMs: TURN_TIMEOUT_MS },
+        // Taken: a message that arrives from here on is not part of this turn and gets the next one.
+        onTaken: (messageIds, requestId) => this.repo.setMeta(messageIds, { turn: requestId }),
+      });
+    } catch (error) {
+      if (!(error instanceof RoundRefused)) throw error;
+      if (error.refusal.kind === "account_unavailable") {
+        await this.accountUnavailable(conversation, config);
+      } else {
+        await this.busy(conversation, config, now, error.refusal.cause, error.refusal.detail);
+      }
+      return;
+    }
+    if (outcome === null) return;
+
+    let messageIds: string[] = [];
+    if (outcome.parts.length > 0) {
+      try {
+        messageIds = await this.outbound.enqueue(conversationId, outcome.parts);
+      } catch (error) {
+        // Paused, blocked or switched off while the model worked: the reply is not wanted any more.
+        this.logger.info(
+          { conversationId, reason: error instanceof Error ? error.name : "unknown" },
+          "Agent reply not queued",
+        );
+        await this.discard(outcome);
+        return;
+      }
+    }
+    await this.afterReply(conversationId, messageIds, outcome);
+  }
+
+  /**
+   * The v2 entry (`AgentRound`): the checks v1 makes before it reads the chat, then the shared round. The
+   * caller hands over the unanswered customer messages; none of them is stamped here (v2 links them in
+   * the transaction that queues the reply).
+   */
+  async compose(
+    conversation: WaConversation,
+    pending: readonly TurnMessage[],
+    signal: AbortSignal,
+  ): Promise<RoundOutcome> {
+    const config = await this.settings.get("waAgent");
+    const now = new Date(this.timing.now());
+    const quiet = () => quietOutcome(conversation, now);
+    if (!config.enabled || WaAgentStateService.isHeld(conversation)) return quiet();
+    if ((await this.redis.exists(handoffFlagKey(conversation.id))) === 1) return quiet();
+    const rows = await this.repo.recentMessages(conversation.id, HISTORY_LIMIT);
+    const floor = answerFloor(rows, now.getTime());
+    const eligible = pending.filter((row) => row.createdAt.getTime() > floor);
+    if (eligible.length === 0) return quiet();
+    const outcome = await this.composeReply({
+      conversation,
+      pending: eligible,
+      rows,
+      config,
+      now,
+      signal,
+      limits: { stepMs: config.runtime.stepTimeoutMs, turnMs: config.runtime.turnTimeoutMs },
+    });
+    return outcome ?? quiet();
+  }
+
+  /** After the parts were queued as `messageIds` (none when the round had nothing to say). */
+  async afterReply(
+    conversationId: string,
+    messageIds: readonly string[],
+    outcome: RoundOutcome,
+  ): Promise<void> {
+    const { tail } = outcome;
+    if (messageIds.length > 0) {
+      await this.repo.setMeta(messageIds, {
+        tools: outcome.toolRecords,
+        steps: tail.steps,
+        costUsdMicros: outcome.costUsdMicros,
+        truncated: tail.truncated,
+      });
+      const voiceRowId = messageIds[0];
+      if (tail.spoken && voiceRowId !== undefined) {
+        // The words stay on the row: the inbox shows them and the next turn reads what was said.
+        // ElevenLabs characters are counted apart from the AI spend (their own daily cap).
+        await this.repo.setText(voiceRowId, toWhatsappText(tail.text).slice(0, WA_AGENT_MAX_TEXT), {
+          voice: { chars: tail.spoken.chars },
+        });
+      }
+    }
+    if (tail.handoffReason !== null) this.handoff.pauseWhenDelivered(conversationId, messageIds);
+    this.track(this.refreshSummary(tail.conversation, tail.planId, tail.now));
+  }
+
+  async discard(outcome: RoundOutcome): Promise<void> {
+    if (outcome.tail.spoken) await this.voice.discard(outcome.tail.spoken.mediaKey);
+  }
+
+  /**
+   * One round, shared by v1 and v2: identity and standing, spend and availability checks, the prompt,
+   * the tool loop, the voice decision and the parts. Returns null when the agent must stay quiet, throws
+   * `RoundRefused` for the cases v1 answers with a polite line. Queues nothing and marks nothing.
+   */
+  private async composeReply(input: ComposeInput): Promise<RoundOutcome | null> {
+    const { conversation, pending, rows, config, now, limits } = input;
+    const conversationId = conversation.id;
+
     // Identity: linked = the chat's account is active. A guest needs `guestsEnabled`.
     const user =
       conversation.userId === null ? null : await this.repo.findUser(conversation.userId);
     if (conversation.userId !== null && user?.status !== "active") {
-      await this.accountUnavailable(conversation, config);
-      return;
+      throw new RoundRefused({ kind: "account_unavailable" });
     }
-    if (conversation.userId === null && !config.guestsEnabled) return;
+    if (conversation.userId === null && !config.guestsEnabled) return null;
 
     const spent = Number((await this.redis.get(spendKey(now))) ?? 0);
     if (spent >= config.spendCapUsdMicros) {
-      await this.busy(conversation, config, now, "spend_cap", {
-        spentUsdMicros: spent,
-        capUsdMicros: config.spendCapUsdMicros,
+      throw new RoundRefused({
+        kind: "busy",
+        cause: "spend_cap",
+        detail: { spentUsdMicros: spent, capUsdMicros: config.spendCapUsdMicros },
       });
-      return;
     }
     const planId =
       conversation.userId === null
@@ -246,17 +379,17 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
     try {
       await this.ai.assertAvailable("wa_agent", { search: false });
     } catch (error) {
-      await this.busy(conversation, config, now, "ai_unavailable", {
-        errorName: error instanceof Error ? error.name : "unknown",
+      throw new RoundRefused({
+        kind: "busy",
+        cause: "ai_unavailable",
+        detail: { errorName: error instanceof Error ? error.name : "unknown" },
       });
-      return;
     }
 
-    // Taken: a message that arrives from here on is not part of this turn and gets the next one.
     const requestId = newId();
-    await this.repo.setMeta(
+    await input.onTaken?.(
       pending.map((message) => message.id),
-      { turn: requestId },
+      requestId,
     );
     const heard = await this.transcribePending(rows, pending, config);
     const images = await this.loadImages(pending);
@@ -296,7 +429,11 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
       ctx,
       records,
     );
-    const turnSignal = AbortSignal.timeout(TURN_TIMEOUT_MS);
+    const turnSignal = AbortSignal.any(
+      input.signal === undefined
+        ? [AbortSignal.timeout(limits.turnMs)]
+        : [input.signal, AbortSignal.timeout(limits.turnMs)],
+    );
 
     let result: ToolLoopResult;
     try {
@@ -306,7 +443,7 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
         handlers,
         maxSteps: MAX_STEPS,
         maxToolCallsPerStep: MAX_TOOL_CALLS_PER_STEP,
-        call: async (input) => {
+        call: async (step) => {
           const run = () =>
             collectCompletion(
               this.ai.run(
@@ -316,20 +453,20 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
                   planId,
                   request: {
                     system,
-                    messages: input.messages,
-                    tools: input.tools,
-                    toolChoice: input.toolChoice,
+                    messages: step.messages,
+                    tools: step.tools,
+                    toolChoice: step.toolChoice,
                     maxOutputTokens: MAX_OUTPUT_TOKENS,
                   },
                   ownerUserId: conversation.userId,
                   userId: conversation.userId,
                   requestId,
-                  estimateInputTokens: Math.ceil(promptChars(system, input.messages) / 3),
+                  estimateInputTokens: Math.ceil(promptChars(system, step.messages) / 3),
                   // Once a tool ran, a different model must not take over the half-done turn.
-                  noFallback: !input.allowFallback,
+                  noFallback: !step.allowFallback,
                 },
                 // Each step has its own limit, and every step stops when the whole turn runs out.
-                AbortSignal.any([turnSignal, AbortSignal.timeout(STEP_TIMEOUT_MS)]),
+                AbortSignal.any([turnSignal, AbortSignal.timeout(limits.stepMs)]),
               ),
             );
           try {
@@ -338,7 +475,7 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
             // Before any tool ran, a provider error (a rejected or overloaded request, which fails in
             // seconds and costs nothing) gets one more try. A route with a single model has no fallback,
             // so without this one blip became the busy line and a handoff to the owner.
-            if (!input.allowFallback || !(error instanceof AiProviderError)) throw error;
+            if (!step.allowFallback || !(error instanceof AiProviderError)) throw error;
             await this.timing.sleep(PROVIDER_RETRY_DELAY_MS);
             return run();
           }
@@ -358,8 +495,7 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
         { conversationId, ...detail, tools: records.map((record) => record.name) },
         "Agent turn failed",
       );
-      await this.busy(conversation, config, now, "model_failed", detail);
-      return;
+      throw new RoundRefused({ kind: "busy", cause: "model_failed", detail });
     }
     await this.addSpend(result.costUsdMicros, now);
     this.logger.info(
@@ -377,38 +513,30 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
     const parts: WaAgentOutboundPart[] = spoken
       ? [{ kind: "voice", mediaKey: spoken.mediaKey }]
       : replyParts(result.text, ctx.mediaParts, config.caps);
-    let messageIds: string[] = [];
-    if (parts.length > 0) {
-      try {
-        messageIds = await this.outbound.enqueue(conversationId, parts);
-      } catch (error) {
-        // Paused, blocked or switched off while the model worked: the reply is not wanted any more.
-        this.logger.info(
-          { conversationId, reason: error instanceof Error ? error.name : "unknown" },
-          "Agent reply not queued",
-        );
-        if (spoken) await this.voice.discard(spoken.mediaKey);
-        return;
-      }
-      await this.repo.setMeta(messageIds, {
-        tools: records,
+    return {
+      parts,
+      toolRecords: records,
+      effectsRan: effectsRanOf(records),
+      costUsdMicros: result.costUsdMicros,
+      trace: [
+        { code: "model", count: result.steps },
+        ...records.map((record): TurnTraceStep => ({
+          code: record.ok ? "tool" : `tool_${record.code ?? "error"}`,
+          name: record.name,
+          ok: record.ok,
+        })),
+      ],
+      tail: {
+        conversation,
+        planId,
+        now,
         steps: result.steps,
-        costUsdMicros: result.costUsdMicros,
         truncated: result.truncated,
-      });
-      const voiceRowId = messageIds[0];
-      if (spoken && voiceRowId !== undefined) {
-        // The words stay on the row: the inbox shows them and the next turn reads what was said.
-        // ElevenLabs characters are counted apart from the AI spend (their own daily cap).
-        await this.repo.setText(
-          voiceRowId,
-          toWhatsappText(result.text).slice(0, WA_AGENT_MAX_TEXT),
-          { voice: { chars: spoken.chars } },
-        );
-      }
-    }
-    if (ctx.handoffReason !== null) this.handoff.pauseWhenDelivered(conversationId, messageIds);
-    this.track(this.refreshSummary(conversation, planId, now));
+        text: result.text,
+        spoken,
+        handoffReason: ctx.handoffReason,
+      },
+    };
   }
 
   /** A suspended or deleted account gets one polite line per day, and nothing else. */
@@ -657,11 +785,37 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
  * message (the owner dealt with what came before it) and inside the 24 h reply window.
  */
 export function pendingMessages(rows: readonly TurnMessage[], now: number): TurnMessage[] {
-  const owner = rows.findLast((row) => row.direction === "owner");
-  const floor = Math.max(owner?.createdAt.getTime() ?? 0, now - REPLY_WINDOW_MS);
+  const floor = answerFloor(rows, now);
   return rows.filter(
     (row) => row.direction === "in" && !row.answered && row.createdAt.getTime() > floor,
   );
+}
+
+/** Messages at or before this time (ms) are not answered: the owner dealt with them, or they are too old. */
+export function answerFloor(rows: readonly TurnMessage[], now: number): number {
+  const owner = rows.findLast((row) => row.direction === "owner");
+  return Math.max(owner?.createdAt.getTime() ?? 0, now - REPLY_WINDOW_MS);
+}
+
+/** A round that found nothing to say (the agent is off, paused, or nothing is eligible). */
+function quietOutcome(conversation: WaConversation, now: Date): RoundOutcome {
+  return {
+    parts: [],
+    toolRecords: [],
+    effectsRan: false,
+    costUsdMicros: 0,
+    trace: [{ code: "quiet" }],
+    tail: {
+      conversation,
+      planId: null,
+      now,
+      steps: 0,
+      truncated: false,
+      text: "",
+      spoken: null,
+      handoffReason: null,
+    },
+  };
 }
 
 /** Media first, then the text split to what is left of the turn's message budget. */
