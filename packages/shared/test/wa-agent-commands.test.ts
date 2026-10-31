@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   WA_COMMANDS,
   WA_COMMAND_ALIASES,
+  WA_FUZZY_BLOCKLIST,
   WA_PRIVACY_CONFIRM,
   type WaCommand,
 } from "../src/i18n/wa-commands.js";
@@ -150,10 +151,11 @@ describe("matchCommand: positives", () => {
     expect(m("ابدا من جيد")).toEqual({ command: "new", via: "fuzzy" });
     expect(m("ابدا من جديد")?.via).toBe("alias");
     expect(m("analyse")?.via).toBe("alias");
-    expect(m("anlyze")).toEqual({ command: "analyze", via: "fuzzy" });
-    expect(m("blance")).toEqual({ command: "balance", via: "fuzzy" });
     expect(m("english", {})?.via).toBe("alias");
-    expect(m("engilsh")).toEqual({ command: "lang", via: "fuzzy", arg: "en" });
+    // Latin aliases match exactly only: English near-words are common chat
+    for (const w of ["anlyze", "blance", "engilsh", "rest", "menus", "helps", "news", "repot"]) {
+      expect(m(w)).toBeNull();
+    }
     // 1-4 letter aliases never fuzzy
     expect(m("hepl")).toBeNull();
     expect(m("nwe")).toBeNull();
@@ -165,14 +167,22 @@ describe("matchCommand: positives", () => {
   });
 
   it("refuses a fuzzy hit that is one typo from two commands", () => {
-    // Both aliases are within 1 of «aaaaab»: ambiguous, so no match.
-    const aliases = { new: ["aaaaaa"], help: ["aaaaac"] };
-    expect(m("aaaaab", { aliases })).toBeNull();
-    expect(m("aaaaaa", { aliases })?.command).toBe("new");
+    // Both aliases are within 1 of «كككككن»: ambiguous, so no match.
+    const aliases = { new: ["كككككك"], help: ["كككككم"] };
+    expect(m("كككككن", { aliases })).toBeNull();
+    expect(m("كككككك", { aliases })?.command).toBe("new");
   });
 
   it("does not fuzzy-match ordinary words that sit one typo from an alias", () => {
-    for (const word of ["تحاليل", "الملح", "مواعيد"]) expect(m(word)).toBeNull();
+    for (const word of WA_FUZZY_BLOCKLIST) expect(m(word)).toBeNull();
+  });
+
+  it("keeps every blocklist word in the corpus as a hard negative", () => {
+    const normalizedCorpus = new Set(corpus.map((l) => normalizeCommandText(l)));
+    const missing = WA_FUZZY_BLOCKLIST.filter(
+      (w) => !normalizedCorpus.has(normalizeCommandText(w)),
+    );
+    expect(missing).toEqual([]);
   });
 
   it("merges extra aliases with the defaults, normalised the same way", () => {
