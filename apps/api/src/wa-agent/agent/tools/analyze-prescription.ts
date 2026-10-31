@@ -15,8 +15,11 @@ export const analyzePrescriptionTool = defineTool({
   },
   schema: z.object({}),
   linkedOnly: true,
-  handler: (ctx) => {
-    const call = callOf(ctx);
+  effect: "write",
+  // A refusal (no picture yet, still processing, no credits) did nothing and may succeed on a retry.
+  settled: (result) => (result as { started?: unknown }).started === true,
+  handler: (ctx, _args, effect) => {
+    const call = callOf(ctx, effect);
     if (call === null) return toolError("not_linked");
     return ctx.deps.usage.analyzePrescription(call);
   },

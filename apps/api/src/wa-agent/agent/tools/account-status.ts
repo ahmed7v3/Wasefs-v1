@@ -12,6 +12,7 @@ export const accountStatusTool = defineTool({
   },
   schema: z.object({}),
   linkedOnly: true,
+  effect: "read",
   handler: async (ctx) => {
     // The server binds the account; a guest never reaches this, and a stray call gets a plain refusal.
     if (ctx.userId === null) return toolError("not_linked");

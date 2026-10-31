@@ -49,8 +49,10 @@ export const createDocumentTool = defineTool({
   },
   schema: waCreateDocumentArgsSchema,
   linkedOnly: false,
-  handler: (ctx, args) =>
+  effect: "write",
+  handler: (ctx, args, effect) =>
     ctx.deps.documents.create({
+      ...(effect === undefined ? {} : { effectKey: effect.key }),
       conversationId: ctx.conversationId,
       linked: ctx.userId !== null,
       language: ctx.config.language === "en" ? "en" : "ar",

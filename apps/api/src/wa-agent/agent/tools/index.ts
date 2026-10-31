@@ -11,7 +11,14 @@ import { medicationAlternativesTool, searchMedicationsTool } from "./medications
 import { offerDiscountTool } from "./offer-discount.js";
 import { sendMediaTool } from "./send-media.js";
 import { startSubscriptionTool } from "./start-subscription.js";
-import { toolError, type AgentTool, type AgentToolContext, type AgentToolFeature } from "./tool.js";
+import {
+  StaleFenceError,
+  toolError,
+  withToolEffect,
+  type AgentTool,
+  type AgentToolContext,
+  type AgentToolFeature,
+} from "./tool.js";
 
 import type { ToolDefinition, ToolHandler } from "@wasfa/ai";
 
@@ -21,8 +28,12 @@ export type {
   AgentTool,
   AgentToolContext,
   AgentToolDeps,
+  AgentToolEffect,
   AgentToolResult,
+  ToolEffectInfo,
+  ToolEffectsPort,
 } from "./tool.js";
+export { StaleFenceError } from "./tool.js";
 
 /** Every tool the agent has. A new tool is a new file in this folder plus one line here. */
 export const AGENT_TOOLS: readonly AgentTool[] = [
@@ -93,11 +104,23 @@ export function bindTools(
       const parsed = tool.schema.safeParse(raw);
       if (!parsed.success) return fail("invalid_arguments");
       try {
-        const result = await tool.handler(ctx, parsed.data);
+        // A write tool of a v2 turn (`ctx.turnId`) acts once per turn and arguments; v1 just calls it.
+        const result =
+          tool.effect === "write"
+            ? await withToolEffect(
+                ctx,
+                name,
+                parsed.data,
+                (effect) => tool.handler(ctx, parsed.data, effect),
+                tool,
+              )
+            : await tool.handler(ctx, parsed.data);
         const code = errorCode(result);
         records.push(code === null ? { name, ok: true } : { name, ok: false, code });
         return result;
-      } catch {
+      } catch (error) {
+        // The turn lost the chat to a newer one: nothing was done, and the runner must see why.
+        if (error instanceof StaleFenceError) return fail("stale_turn");
         return fail("tool_failed");
       }
     };
