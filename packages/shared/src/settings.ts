@@ -658,6 +658,16 @@ const waAgentVoiceSchema = z.object({
  * The WhatsApp AI agent (docs/WA-AGENT.md §7). Off by default and independent from
  * `auth.phoneVerification`. The ElevenLabs key is a secret and never lives here.
  */
+const waAgentRuntimeSchema = z.object({
+  /** Phase 6 runtime: stream entries acked after handling, dead letter, durable turns. Off = v1. */
+  v2: z.boolean().default(false),
+  concurrency: z.number().int().min(1).max(32).default(8),
+  stepTimeoutMs: z.number().int().min(5_000).max(120_000).default(45_000),
+  turnTimeoutMs: z.number().int().min(30_000).max(300_000).default(150_000),
+  maxRounds: z.number().int().min(1).max(6).default(4),
+  jobAttempts: z.number().int().min(0).max(5).default(3),
+});
+
 export const waAgentSettingsSchema = z.object({
   enabled: z.boolean().default(false),
   /** Answer numbers that are not linked to a verified account. */
@@ -678,6 +688,7 @@ export const waAgentSettingsSchema = z.object({
   discounts: waAgentDiscountsSchema.default(() => waAgentDiscountsSchema.parse({})),
   media: z.array(waAgentMediaItemSchema).max(30).default([]),
   voice: waAgentVoiceSchema.default(() => waAgentVoiceSchema.parse({})),
+  runtime: waAgentRuntimeSchema.default(() => waAgentRuntimeSchema.parse({})),
 });
 export type WaAgentSettings = z.output<typeof waAgentSettingsSchema>;
 
