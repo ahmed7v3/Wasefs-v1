@@ -6,6 +6,7 @@ import { PinoLogger } from "nestjs-pino";
 import { API_ENV } from "../config/config.module.js";
 import { SettingsService } from "../settings/settings.service.js";
 
+import { OutboxDeliverer } from "./outbox/deliverer.js";
 import { StreamConsumer } from "./stream-consumer.js";
 import { TurnQueue } from "./turn/turn.queue.js";
 import { TurnRepo } from "./turn/turn.repo.js";
@@ -40,6 +41,7 @@ export class WaAgentInboundConsumer extends StreamConsumer {
     @Inject(WA_AGENT_TURN_HANDLER) private readonly turns: WaAgentTurnHandler,
     private readonly turnQueue: TurnQueue,
     private readonly turnRows: TurnRepo,
+    private readonly outbox: OutboxDeliverer,
   ) {
     super(env, logger, WA_AGENT_IN_STREAM, GROUP, {
       isV2: async () => (await settings.get("waAgent")).runtime.v2,
@@ -75,6 +77,15 @@ export class WaAgentInboundConsumer extends StreamConsumer {
     if (entry.direction === "owner") {
       this.logger.info({ conversationId: conversation.id }, "Owner took over; agent paused");
       return;
+    }
+    if (config.runtime.v2) {
+      // Results held for the closed 24 h window are delivered first.
+      await this.outbox.onCustomerMessage(conversation.id).catch((error: unknown) => {
+        this.logger.warn(
+          { conversationId: conversation.id, reason: (error as Error).name },
+          "Held outbox items not released",
+        );
+      });
     }
     if (!config.enabled || WaAgentStateService.isHeld(conversation)) return;
     if (config.runtime.v2) {

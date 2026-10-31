@@ -180,6 +180,18 @@ export class TurnRepo {
     });
   }
 
+  /** Queues the rows of a delivery (no turn) under the fence; `StaleFenceError` when the lock was taken over. */
+  async commitDelivery(
+    conversationId: string,
+    fence: number,
+    parts: readonly OutboundPartRow[],
+  ): Promise<string[]> {
+    return this.handle.db.transaction(async (tx) => {
+      await assertFence(tx, conversationId, fence);
+      return insertOutbound(tx, conversationId, parts);
+    });
+  }
+
   /** Closes a turn that sends nothing (`dropped_policy`), linking its inbound rows, under the fence. */
   async closeQuietly(end: TurnEnd, state: WaTurnState): Promise<void> {
     await this.handle.db.transaction(async (tx) => {

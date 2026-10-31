@@ -37,6 +37,8 @@ import { WaAgentCommerceRepo } from "../../../src/wa-agent/commerce/agent-commer
 import { AgentRxService } from "../../../src/wa-agent/commerce/agent-rx.service.js";
 import { WaAgentEventsConsumer } from "../../../src/wa-agent/commerce/wa-agent-events.consumer.js";
 import { FailureActions } from "../../../src/wa-agent/turn/failure-actions.js";
+import { OutboxDeliverer } from "../../../src/wa-agent/outbox/deliverer.js";
+import { WaOutboxRepo } from "../../../src/wa-agent/outbox/wa-outbox.repo.js";
 import { ConversationLock } from "../../../src/wa-agent/turn/lock.js";
 import { TurnRunner } from "../../../src/wa-agent/turn/turn-runner.js";
 import { TurnStore } from "../../../src/wa-agent/turn/turn.store.js";
@@ -294,6 +296,8 @@ export class Scenario {
   /** A result event from the worker, through the real events consumer (the reading itself is a fixed fake). */
   async workerEvent(event: WaAgentEvent): Promise<void> {
     await this.services.eventsConsumer().process(event);
+    // v2 routes the result through wa_outbox; the deliverer's timer is off in tests.
+    await this.services.deliverer().sweep();
   }
 
   /** The owner types into the chat from the phone: the agent is paused. */
@@ -517,6 +521,13 @@ export class ScenarioServices {
     );
   }
 
+  /** The app's outbox deliverer (its timer is off in tests: scenarios call `sweep()`). */
+  deliverer(): OutboxDeliverer {
+    const deliverer = this.ctx.app.get(OutboxDeliverer);
+    deliverer.timing.lockWaitMs = 0;
+    return deliverer;
+  }
+
   /** The real follow-up consumer; only the reading it prints is fixed (`RX_VIEW`). */
   eventsConsumer(): WaAgentEventsConsumer {
     const { ctx } = this;
@@ -530,6 +541,8 @@ export class ScenarioServices {
       this.settings,
       ctx.redis,
       { remove: () => Promise.resolve() } as unknown as ObjectStorage,
+      ctx.app.get(WaOutboxRepo),
+      this.deliverer(),
     );
     consumer.timing.lockWaitMs = 0;
     return consumer;

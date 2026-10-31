@@ -674,6 +674,12 @@ const waAgentFailuresSchema = z.object({
   ownerAlertEveryMinutes: z.number().int().min(5).max(1_440).default(60),
 });
 
+/** Delivery of results through `wa_outbox` (docs/WA-AGENT-RUNTIME.md §9, §16). */
+const waAgentDeliverySchema = z.object({
+  /** A result the customer paid credits for is sent even while the owner has taken over the chat. */
+  paidWorkBypassesTakeover: z.boolean().default(true),
+});
+
 /**
  * The WhatsApp AI agent (docs/WA-AGENT.md §7). Off by default and independent from
  * `auth.phoneVerification`. The ElevenLabs key is a secret and never lives here.
@@ -700,6 +706,7 @@ export const waAgentSettingsSchema = z.object({
   voice: waAgentVoiceSchema.default(() => waAgentVoiceSchema.parse({})),
   runtime: waAgentRuntimeSchema.default(() => waAgentRuntimeSchema.parse({})),
   failures: waAgentFailuresSchema.default(() => waAgentFailuresSchema.parse({})),
+  delivery: waAgentDeliverySchema.default(() => waAgentDeliverySchema.parse({})),
 });
 export type WaAgentSettings = z.output<typeof waAgentSettingsSchema>;
 

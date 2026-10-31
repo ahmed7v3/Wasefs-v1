@@ -21,6 +21,9 @@ import type { TurnEnd } from "./turn/turn.repo.js";
 import type { OutboundPartRow, WaConversation } from "@wasfa/db";
 import type { WaTurnState } from "@wasfa/shared/wa-agent/failure";
 
+/** How long a delivered outbox key is remembered. */
+const PUBLISHED_TTL_SECONDS = 7 * 24 * 60 * 60;
+
 const refuse = (reason: string) => new AppError(ErrorCode.CONFLICT, { details: { reason } });
 
 function rowOf(part: WaAgentOutboundPart): OutboundPartRow {
@@ -83,7 +86,30 @@ export class WaOutboundService {
     return messageIds;
   }
 
-  private async prepare(conversationId: string, parts: unknown) {
+  /**
+   * An outbox delivery (docs/WA-AGENT-RUNTIME.md §9): rows inserted under the deliverer's fence. The pause
+   * refusal is skipped only for `bypassPause` (paid work); a block and the switch still refuse. A key that
+   * was already published returns no ids (a crash between the publish and the outbox update must not send twice).
+   */
+  async enqueueDelivery(
+    conversationId: string,
+    parts: unknown,
+    options: { fence: number; idempotencyKey: string; bypassPause: boolean },
+  ): Promise<string[]> {
+    const marker = `wa:agent:outbox:published:${options.idempotencyKey}`;
+    if ((await this.redis.exists(marker)) === 1) return [];
+    const { conversation, parsed } = await this.prepare(conversationId, parts, options.bypassPause);
+    const messageIds = await this.turns.commitDelivery(
+      conversationId,
+      options.fence,
+      parsed.map(rowOf),
+    );
+    await this.publish(conversation, messageIds, parsed, options.bypassPause);
+    await this.redis.set(marker, "1", "EX", PUBLISHED_TTL_SECONDS);
+    return messageIds;
+  }
+
+  private async prepare(conversationId: string, parts: unknown, bypassPause = false) {
     const config = await this.settings.get("waAgent");
     if (!config.enabled) throw refuse("agent_disabled");
     // A part that carries a url may only point into the public media library, never anywhere else.
@@ -101,7 +127,9 @@ export class WaOutboundService {
     const conversation = await this.repo.find(conversationId);
     if (!conversation) throw new AppError(ErrorCode.NOT_FOUND);
     if (conversation.status === "blocked") throw refuse("conversation_blocked");
-    if (WaAgentStateService.isHeld(conversation)) throw refuse("conversation_paused");
+    if (!bypassPause && WaAgentStateService.isHeld(conversation)) {
+      throw refuse("conversation_paused");
+    }
 
     return { conversation, parsed: parsed.data };
   }
@@ -111,12 +139,14 @@ export class WaOutboundService {
     conversation: WaConversation,
     messageIds: string[],
     parts: WaAgentOutboundPart[],
+    paidWork = false,
   ): Promise<void> {
     const entry: WaAgentOutEntry = {
       conversationId: conversation.id,
       messageIds,
       jid: conversation.jid,
       parts,
+      ...(paidWork ? { paidWork: true } : {}),
     };
     try {
       await this.redis.xadd(

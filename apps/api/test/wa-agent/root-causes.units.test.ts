@@ -329,32 +329,16 @@ async function failureText(event: Record<string, unknown>): Promise<string> {
 }
 
 describe("R12 rx_failed", () => {
-  redTest(
-    {
-      id: "R12",
-      fixedIn: "WP1",
-      title: "an unreadable image and an internal error get different texts",
-      reason: /^R12: /,
-    },
-    async () => {
-      const unreadable = await failureText({ reason: "unreadable_image", creditsReturned: true });
-      const internal = await failureText({ reason: "internal", creditsReturned: true });
-      expect(unreadable, "R12: the unreadable-image text is sent").not.toBe("");
-      expect(unreadable, "R12: unreadable image and internal error differ").not.toBe(internal);
-    },
-  );
+  it("R12 an unreadable image and an internal error get different texts", async () => {
+    const unreadable = await failureText({ reason: "unreadable_image", creditsReturned: true });
+    const internal = await failureText({ reason: "internal", creditsReturned: true });
+    expect(unreadable, "R12: the unreadable-image text is sent").not.toBe("");
+    expect(unreadable, "R12: unreadable image and internal error differ").not.toBe(internal);
+  });
 
-  redTest(
-    {
-      id: "R12",
-      fixedIn: "WP1",
-      title: "the text never claims credits were returned unless the event says so",
-      reason: /^R12: /,
-    },
-    async () => {
-      const text = await failureText({ reason: "internal", creditsReturned: false });
-      expect(text, "R12: a text is sent").not.toBe("");
-      expect(text, "R12: no refund claim when credits were not returned").not.toContain("أعدنا");
-    },
-  );
+  it("R12 the text never claims credits were returned unless the event says so", async () => {
+    const text = await failureText({ reason: "internal", creditsReturned: false });
+    expect(text, "R12: a text is sent").not.toBe("");
+    expect(text, "R12: no refund claim when credits were not returned").not.toContain("أعدنا");
+  });
 });
