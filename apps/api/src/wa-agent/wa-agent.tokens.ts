@@ -18,3 +18,7 @@ export class NoopTurnHandler implements WaAgentTurnHandler {
 
 /** The part of the agent that thinks (`AgentRound`); the v2 turn runner calls it, `WaAgentTurnService` is it. */
 export const WA_AGENT_ROUND = Symbol("WA_AGENT_ROUND");
+
+/** Extra work the outbox deliverer's sweep runs each tick (the rx reconciler registers here); errors are logged and isolated. */
+export const WA_OUTBOX_SWEEPS = Symbol("WA_OUTBOX_SWEEPS");
+export type OutboxSweep = () => Promise<void>;

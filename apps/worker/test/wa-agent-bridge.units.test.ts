@@ -515,7 +515,11 @@ describe("outbound guard and sending", () => {
     calls: string[];
     sleeps: number[];
     deps: AgentOutboundDeps;
-    run: (parts: unknown[], streamId?: string) => ReturnType<typeof processAgentOut>;
+    run: (
+      parts: unknown[],
+      streamId?: string,
+      extra?: { paidWork: boolean },
+    ) => ReturnType<typeof processAgentOut>;
     verdicts: () => WaAgentSent[];
   }
 
@@ -582,13 +586,14 @@ describe("outbound guard and sending", () => {
       calls,
       sleeps,
       deps,
-      run: (parts, streamId) =>
+      run: (parts, streamId, extra) =>
         processAgentOut(
           {
             conversationId: CONVERSATION,
             messageIds: MESSAGE_IDS.slice(0, parts.length),
             jid: PN,
             parts,
+            ...extra,
           },
           deps,
           streamId,
@@ -747,6 +752,21 @@ describe("outbound guard and sending", () => {
       const out = outbound();
       out.redis.values.set(waAgentPauseKey(PN), "1");
       await expectDropped(out, "paused");
+    });
+
+    it("a paid result passes the owner's pause, but never a block", async () => {
+      const paused = outbound();
+      paused.redis.values.set(waAgentPauseKey(PN), "1");
+      expect((await paused.run([text("result")], undefined, { paidWork: true })).outcome).toBe(
+        "sent",
+      );
+      const blocked = outbound();
+      blocked.redis.values.set(waAgentPauseKey(PN), "1");
+      blocked.redis.values.set(waAgentBlockKey(PN), "1");
+      expect(await blocked.run([text("result")], undefined, { paidWork: true })).toEqual({
+        outcome: "dropped",
+        reason: "blocked",
+      });
     });
 
     it("when the chat is blocked", async () => {

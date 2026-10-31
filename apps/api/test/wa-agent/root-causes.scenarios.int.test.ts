@@ -131,34 +131,26 @@ describe("root causes of the WhatsApp agent", () => {
     ).toBe("active");
   });
 
-  redTest(
-    {
-      id: "R5",
-      fixedIn: "WP1",
-      title: "a finished reading is delivered although the owner paused the chat meanwhile",
-      reason: /^R5: /,
-    },
-    async () => {
-      const scenario = await Scenario.start(ctx, {
-        linked: true,
-        model: (_request, call) =>
-          [toolCall("analyze_prescription"), "بقرأ الروشتة"][call] ?? "تمام",
-      });
-      await scenario.inbound({ image: TINY_JPEG });
-      await scenario.runTurns();
-      const [rxId] = await scenario.readings();
-      expect(rxId, "harness: the analysis should have started").toBeDefined();
+  it("R5 a finished reading is delivered although the owner paused the chat meanwhile", async () => {
+    const scenario = await Scenario.start(ctx, {
+      linked: true,
+      runtime: new V2Runtime(),
+      model: (_request, call) => [toolCall("analyze_prescription"), "بقرأ الروشتة"][call] ?? "تمام",
+    });
+    await scenario.inbound({ image: TINY_JPEG });
+    await scenario.runTurns();
+    const [rxId] = await scenario.readings();
+    expect(rxId, "harness: the analysis should have started").toBeDefined();
 
-      await scenario.ownerPause();
-      await scenario.workerEvent({ type: "rx_done", rxId: rxId ?? "" });
+    await scenario.ownerPause();
+    await scenario.workerEvent({ type: "rx_done", rxId: rxId ?? "" });
 
-      const texts = await scenario.outboundTexts();
-      expect(
-        texts.some((text) => text.includes("Panadol")),
-        "R5: the finished reading was not queued to the customer during the owner's pause",
-      ).toBe(true);
-    },
-  );
+    const texts = await scenario.outboundTexts();
+    expect(
+      texts.some((text) => text.includes("Panadol")),
+      "R5: the finished reading was not queued to the customer during the owner's pause",
+    ).toBe(true);
+  });
 
   it("R6 a second failure on a new message the same day is not silent", async () => {
     const scenario = await Scenario.start(ctx, {
