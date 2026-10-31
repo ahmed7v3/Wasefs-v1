@@ -51,12 +51,7 @@ export interface ToolEffectInfo {
 }
 
 /** The turn lost its conversation to a newer turn; nothing was done and the turn must stop (section 17.4). */
-export class StaleFenceError extends Error {
-  constructor() {
-    super("stale turn fence");
-    this.name = "StaleFenceError";
-  }
-}
+export { StaleFenceError } from "../../turn/lock.js";
 
 /** What `withToolEffect` needs from the store of `wa_tool_effects`, as a narrow port so a test can fake it. */
 export interface ToolEffectsPort {
@@ -154,9 +149,6 @@ export interface AgentToolContext {
   fence?: number;
   /** Set by `handoff_to_owner`: the turn pauses the chat once its last reply is delivered. */
   handoffReason: string | null;
-  /** The v2 turn this call belongs to (idempotency key) and its fence; absent in v1. */
-  turnId?: string;
-  fence?: number;
 }
 
 /** A tool as the registry keeps it: arguments arrive already parsed with `schema`. */

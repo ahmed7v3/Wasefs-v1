@@ -48,7 +48,7 @@ export async function assertFenceIn(
     .from(waConversations)
     .where(eq(waConversations.id, conversationId));
   const [row] = await (lock ? query.for("share") : query);
-  if (row?.fence !== fence) throw new StaleFenceError();
+  if (row?.fence !== fence) throw new StaleFenceError(conversationId);
 }
 
 /** The only place `wa_tool_effects` is read or written for the tools' exactly-once protocol. */
