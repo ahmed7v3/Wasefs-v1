@@ -73,10 +73,10 @@ function roundWithOutage(
         first = false;
         await outage(signal);
       }
-      return scenario.turns.compose(conversation, pending, signal, options);
+      return scenario.round.compose(conversation, pending, signal, options);
     },
-    afterReply: (id, messageIds, outcome) => scenario.turns.afterReply(id, messageIds, outcome),
-    discard: (outcome) => scenario.turns.discard(outcome),
+    afterReply: (id, messageIds, outcome) => scenario.round.afterReply(id, messageIds, outcome),
+    discard: (outcome) => scenario.round.discard(outcome),
   };
 }
 
