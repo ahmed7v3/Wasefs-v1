@@ -37,7 +37,12 @@ import { SummaryService } from "../../../src/wa-agent/agent/summary.service.js";
 import { WaAgentToolDeps } from "../../../src/wa-agent/agent/tool-deps.js";
 import { WaAgentCommerceRepo } from "../../../src/wa-agent/commerce/agent-commerce.repo.js";
 import { WaAgentEventsConsumer } from "../../../src/wa-agent/commerce/wa-agent-events.consumer.js";
-import { WaAgentRepo } from "../../../src/wa-agent/conversation/conversation.repo.js";
+import {
+  WaAgentRepo,
+  type AssignSession,
+} from "../../../src/wa-agent/conversation/conversation.repo.js";
+import { SessionRepo } from "../../../src/wa-agent/conversation/session.repo.js";
+import { SessionService } from "../../../src/wa-agent/conversation/session.service.js";
 import { WaAgentStateService } from "../../../src/wa-agent/conversation/state.service.js";
 import { OutboxDeliverer } from "../../../src/wa-agent/outbox/deliverer.js";
 import { EventPartsBuilder } from "../../../src/wa-agent/outbox/outbox-parts.js";
@@ -249,9 +254,11 @@ export class Scenario {
       this.storage.set(key, file.bytes);
       entry.media = { key, mime: file.mime, bytes: file.bytes.length };
     }
+    // v2 stores the session columns in the ingest transaction, as the inbound consumer does.
     const { conversation } = await this.services.repo.ingest(
       entry,
       new Date(Date.now() + 60 * MINUTE_MS),
+      this.runtime instanceof V2Runtime ? this.services.assignSession() : undefined,
     );
     this.id = conversation.id;
     await this.services.state.mirror(conversation);
@@ -486,7 +493,8 @@ export class ScenarioServices {
       silentLogger,
       voice,
       new MediaInputService(this.repo, fakeStorage, voice),
-      new SummaryService(this.repo, ctx.redis, ai.service),
+      new SummaryService(this.repo, ctx.redis, ai.service, ctx.app.get(SessionRepo)),
+      ctx.app.get(SessionService),
     );
     const service = new WaAgentTurnService(
       this.repo,
@@ -526,6 +534,13 @@ export class ScenarioServices {
       },
       awaitProcessed: () => Promise.resolve("processed" as const),
     } as unknown as FilesService;
+  }
+
+  /** The session assignment the inbound consumer passes to `ingest` while v2 is on (default settings). */
+  assignSession(): AssignSession {
+    const sessions = this.ctx.app.get(SessionService);
+    return (tx, conversation, row) =>
+      sessions.assignInTx(tx, conversation, row, new Date(), { idleHours: 12, maxPages: 4 });
   }
 
   /** The v2 runner: real lock, store, fencing and outbound; `round` is the thinking part, `queue` the re-enqueue sink. */

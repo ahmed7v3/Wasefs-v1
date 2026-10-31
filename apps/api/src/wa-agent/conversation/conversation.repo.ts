@@ -19,6 +19,7 @@ import {
   setMessagesMeta,
   turnMessagesAfter,
   upsertConversation,
+  type InsertedInbound,
   type OutboundPartRow,
   type TurnMessage,
   type TurnUser,
@@ -28,6 +29,15 @@ import {
 import { DB, type DbHandle } from "../../common/database.js";
 
 import type { WaAgentInbound } from "@wasfa/shared/schemas/wa-agent";
+
+type Tx = Parameters<Parameters<DbHandle["db"]["transaction"]>[0]>[0];
+
+/** v2 only: gives a newly stored row its session inside the ingest transaction; returns the session id. */
+export type AssignSession = (
+  tx: Tx,
+  conversation: WaConversation,
+  row: InsertedInbound,
+) => Promise<string | null>;
 
 export interface IngestResult {
   conversation: WaConversation;
@@ -44,7 +54,11 @@ export class WaAgentRepo {
    * Stores one inbound or owner message. The account is re-resolved from the sender's phone on every
    * message: only a VERIFIED phone links a chat to a user. An owner message also pauses the chat.
    */
-  async ingest(entry: WaAgentInbound, pauseUntil: Date): Promise<IngestResult> {
+  async ingest(
+    entry: WaAgentInbound,
+    pauseUntil: Date,
+    assignSession?: AssignSession,
+  ): Promise<IngestResult> {
     return this.handle.db.transaction(async (tx) => {
       const userId = entry.phone === null ? null : await findVerifiedUserIdByPhone(tx, entry.phone);
       let conversation = await upsertConversation(tx, {
@@ -52,16 +66,26 @@ export class WaAgentRepo {
         phone: entry.phone,
         userId,
       });
-      const messageId = await insertInbound(tx, {
-        conversationId: conversation.id,
-        direction: entry.direction,
-        kind: entry.kind,
-        text: entry.text,
-        media: entry.media,
-        mediaStatus: entry.mediaStatus,
-        waMessageId: entry.waMessageId,
-        ts: entry.ts,
-      });
+      const current = conversation;
+      const messageId = await insertInbound(
+        tx,
+        {
+          conversationId: conversation.id,
+          direction: entry.direction,
+          kind: entry.kind,
+          text: entry.text,
+          media: entry.media,
+          mediaStatus: entry.mediaStatus,
+          waMessageId: entry.waMessageId,
+          ts: entry.ts,
+        },
+        assignSession === undefined
+          ? undefined
+          : async (row) => {
+              const sessionId = await assignSession(tx, current, row);
+              if (sessionId !== null) conversation = { ...conversation, sessionId };
+            },
+      );
       if (messageId !== null && entry.direction === "owner") {
         conversation = (await pauseConversation(tx, conversation.id, pauseUntil)) ?? conversation;
       }

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { rxAnalyses, waOutbox, type WaOutboxRow } from "@wasfa/db";
+import { rxAnalyses, waMessages, waOutbox, type WaOutboxRow } from "@wasfa/db";
 import { and, asc, eq, inArray, lte, sql } from "drizzle-orm";
 
 import { DB, type DbHandle } from "../../common/database.js";
@@ -81,6 +81,25 @@ export class WaOutboxRepo {
       })
       .where(and(eq(waOutbox.state, "waiting"), inArray(waOutbox.id, finished)))
       .returning();
+  }
+
+  /** The session and time of the customer message the analysis started from (its first claimed media). */
+  async rxStart(
+    conversationId: string,
+    rxId: string,
+  ): Promise<{ sessionId: string | null; at: Date } | null> {
+    const [row] = await this.handle.db
+      .select({ sessionId: waMessages.sessionId, at: waMessages.createdAt })
+      .from(waMessages)
+      .where(
+        and(
+          eq(waMessages.conversationId, conversationId),
+          sql`${waMessages.meta} ->> 'rxId' = ${rxId}`,
+        ),
+      )
+      .orderBy(asc(waMessages.createdAt))
+      .limit(1);
+    return row ?? null;
   }
 
   /** Whether a route (in any state) exists for the analysis. */

@@ -6,6 +6,7 @@ import { PinoLogger } from "nestjs-pino";
 import { API_ENV } from "../../config/config.module.js";
 import { SettingsService } from "../../settings/settings.service.js";
 import { WaAgentRepo } from "../conversation/conversation.repo.js";
+import { SessionService } from "../conversation/session.service.js";
 import { WaAgentStateService } from "../conversation/state.service.js";
 import { OutboxDeliverer } from "../outbox/deliverer.js";
 import { TurnQueue } from "../turn/turn.queue.js";
@@ -42,6 +43,7 @@ export class WaAgentInboundConsumer extends StreamConsumer {
     private readonly turnQueue: TurnQueue,
     private readonly turnRows: TurnRepo,
     private readonly outbox: OutboxDeliverer,
+    private readonly sessions: SessionService,
   ) {
     super(env, logger, WA_AGENT_IN_STREAM, GROUP, {
       isV2: async () => (await settings.get("waAgent")).runtime.v2,
@@ -58,7 +60,17 @@ export class WaAgentInboundConsumer extends StreamConsumer {
     const entry = parsed.data;
     const config = await this.settings.get("waAgent");
     const pauseUntil = new Date(Date.now() + config.takeoverPauseMinutes * MINUTE_MS);
-    const { conversation, inserted } = await this.repo.ingest(entry, pauseUntil);
+    // v2 only: sessions are assigned in the transaction that stores the row; v1 writes none of it.
+    const sessionConfig = config.runtime.v2
+      ? { idleHours: config.sessions.idleHours, maxPages: (await this.settings.get("rx")).maxPages }
+      : null;
+    const { conversation, inserted } = await this.repo.ingest(
+      entry,
+      pauseUntil,
+      sessionConfig === null
+        ? undefined
+        : (tx, conv, row) => this.sessions.assignInTx(tx, conv, row, new Date(), sessionConfig),
+    );
     if (!inserted) {
       // A redelivered entry after a crash: its row may still wait for an answer (v2 only).
       if (

@@ -11,6 +11,7 @@ import {
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { DB, type DbHandle } from "../../common/database.js";
+import { SessionRepo } from "../conversation/session.repo.js";
 
 import { StaleFenceError } from "./lock.js";
 
@@ -50,7 +51,10 @@ export interface TurnEnd {
  */
 @Injectable()
 export class TurnRepo {
-  constructor(@Inject(DB) private readonly handle: DbHandle) {}
+  constructor(
+    @Inject(DB) private readonly handle: DbHandle,
+    private readonly sessions: SessionRepo,
+  ) {}
 
   /** Takes the conversation's next fence; call right after the Redis lock was acquired. */
   async bumpFence(conversationId: string): Promise<number> {
@@ -175,6 +179,8 @@ export class TurnRepo {
     return this.handle.db.transaction(async (tx) => {
       await assertFence(tx, end.conversationId, end.fence);
       const ids = await insertOutbound(tx, end.conversationId, parts, end.turnId);
+      // A no-op while the chat has no session (nothing is written then).
+      await this.sessions.stampOutbound(tx, end.conversationId, ids);
       await this.finish(tx, end, state);
       return ids;
     });
@@ -188,7 +194,9 @@ export class TurnRepo {
   ): Promise<string[]> {
     return this.handle.db.transaction(async (tx) => {
       await assertFence(tx, conversationId, fence);
-      return insertOutbound(tx, conversationId, parts);
+      const ids = await insertOutbound(tx, conversationId, parts);
+      await this.sessions.stampOutbound(tx, conversationId, ids);
+      return ids;
     });
   }
 

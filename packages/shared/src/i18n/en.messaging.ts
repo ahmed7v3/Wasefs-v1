@@ -74,6 +74,9 @@ export const enMessaging: Partial<Record<keyof typeof arMessaging, string>> = {
     "I could not save that file right now. Please send it again in a little while.",
   "whatsapp.agent.media.expired": "That file is no longer available. Please send it again.",
   "whatsapp.agent.event.rxPdfName": "prescription-result",
+  "whatsapp.agent.session.returning":
+    "A returning customer after a break; start fresh and do not assume old context.",
+  "whatsapp.agent.rx.fromEarlier": "The result of the prescription you sent at {time}:",
   "document.generatedOn": "Generated on: {date}",
   "document.page": "Page",
   "document.disclaimerTitle": "Medical notice",

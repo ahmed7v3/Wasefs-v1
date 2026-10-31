@@ -12,6 +12,7 @@ import {
   WA_AGENT_FOLLOW_UP_WINDOW_MS,
   waAgentEventSchema,
   type WaAgentEvent,
+  type WaAgentOutboundPart,
 } from "@wasfa/shared/schemas/wa-agent";
 import { Redis } from "ioredis";
 import { PinoLogger } from "nestjs-pino";
@@ -29,6 +30,7 @@ import { ConversationLock, StaleFenceError } from "../turn/lock.js";
 import { TurnRepo } from "../turn/turn.repo.js";
 import { WA_OUTBOX_SWEEPS, type OutboxSweep } from "../wa-agent.tokens.js";
 
+import { earlierLabel } from "./earlier-label.js";
 import { EventPartsBuilder } from "./outbox-parts.js";
 import { WaOutboxRepo } from "./wa-outbox.repo.js";
 
@@ -200,6 +202,7 @@ export class OutboxDeliverer implements OnModuleInit, OnApplicationShutdown {
     const locale: Locale = config.language === "en" ? "en" : "ar";
     const parts = await this.builder.parts(event.data, conversation, config.caps, locale);
     if (parts === null || parts.length === 0) return this.dead(row, row.attempts, "no_content");
+    await this.labelIfEarlier(event.data, conversation.sessionId, conversation.id, parts, locale);
 
     await this.outbound.enqueueDelivery(row.conversationId, parts, {
       fence,
@@ -208,6 +211,21 @@ export class OutboxDeliverer implements OnModuleInit, OnApplicationShutdown {
     });
     await this.rows.markDelivered(row.id);
     this.logger.info({ outboxId: row.id, kind: row.kind }, "Outbox item delivered");
+  }
+
+  /** A result whose analysis started in an earlier session says when the customer sent it (§18.2). */
+  private async labelIfEarlier(
+    event: WaAgentEvent,
+    currentSession: string | null,
+    conversationId: string,
+    parts: WaAgentOutboundPart[],
+    locale: Locale,
+  ): Promise<void> {
+    const first = parts[0];
+    if (event.type !== "rx_done" || currentSession === null || first?.kind !== "text") return;
+    const start = await this.rows.rxStart(conversationId, event.rxId);
+    if (start === null || start.sessionId === null || start.sessionId === currentSession) return;
+    first.text = `${earlierLabel(start.at, locale)}\n${first.text}`;
   }
 
   private async failed(row: WaOutboxRow, error: unknown): Promise<void> {

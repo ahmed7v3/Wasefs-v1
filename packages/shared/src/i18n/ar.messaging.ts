@@ -64,6 +64,8 @@ export const arMessaging = {
     "معرفتش أحفظ الملف دلوقتي، ابعته تاني بعد شوية لو سمحت",
   "whatsapp.agent.media.expired": "الملف ده مبقاش متاح، ابعته تاني لو سمحت",
   "whatsapp.agent.event.rxPdfName": "نتيجة-قراءة-الروشتة",
+  "whatsapp.agent.session.returning": "عميل راجع بعد فترة؛ ابدأ من غير ما تفترض سياق قديم.",
+  "whatsapp.agent.rx.fromEarlier": "نتيجة الروشتة اللي بعتها الساعة {time}:",
   "document.generatedOn": "تاريخ الإنشاء: {date}",
   "document.page": "صفحة",
   "document.disclaimerTitle": "تنبيه طبي",
