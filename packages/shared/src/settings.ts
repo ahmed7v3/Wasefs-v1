@@ -3,6 +3,7 @@ import { z } from "zod";
 import { accessSettingsSchema, authSettingsSchema } from "./auth-settings.js";
 import { LOCALES } from "./i18n/locales.js";
 import { emailSchema, phoneNumberSchema } from "./schemas/auth.js";
+import { WA_COMMAND_NAMES } from "./wa-agent/session.js";
 
 import type { AiTask } from "./ai.js";
 
@@ -666,6 +667,20 @@ const waAgentRuntimeSchema = z.object({
   jobAttempts: z.number().int().min(0).max(5).default(3),
 });
 
+/** When a chat's session rolls over by itself (docs/WA-AGENT-RUNTIME.md §6, §18.2). */
+const waAgentSessionsSchema = z.object({
+  /** Silence after which the next customer message opens a new session (a returning customer). */
+  idleHours: z.number().int().min(1).max(168).default(12),
+});
+
+/** The deterministic command layer (§7): admins add aliases for the fixed command names, never new commands. */
+const waAgentCommandsSchema = z.object({
+  enabled: z.boolean().default(true),
+  extraAliases: z
+    .partialRecord(z.enum(WA_COMMAND_NAMES), z.array(z.string().trim().min(1).max(40)).max(20))
+    .default({}),
+});
+
 /** How often the failure policy may speak or alert (docs/WA-AGENT-RUNTIME.md section 5.4). */
 const waAgentFailuresSchema = z.object({
   /** One failure text per chat per this many minutes; a further failure is deferred, never silent. */
@@ -705,6 +720,8 @@ export const waAgentSettingsSchema = z.object({
   media: z.array(waAgentMediaItemSchema).max(30).default([]),
   voice: waAgentVoiceSchema.default(() => waAgentVoiceSchema.parse({})),
   runtime: waAgentRuntimeSchema.default(() => waAgentRuntimeSchema.parse({})),
+  sessions: waAgentSessionsSchema.default(() => waAgentSessionsSchema.parse({})),
+  commands: waAgentCommandsSchema.default(() => waAgentCommandsSchema.parse({})),
   failures: waAgentFailuresSchema.default(() => waAgentFailuresSchema.parse({})),
   delivery: waAgentDeliverySchema.default(() => waAgentDeliverySchema.parse({})),
 });

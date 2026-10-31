@@ -21,6 +21,7 @@ export function roundSystemPrompt(input: {
   user: TurnUser | null;
   market: Market;
   conversation: WaConversation;
+  returningNote?: string | undefined;
 }): string {
   const { switches, config, user, market } = input;
   return buildSystemPrompt({
@@ -33,6 +34,7 @@ export function roundSystemPrompt(input: {
     firstName: user === null ? null : firstNameOf(user.name),
     currency: market.currency,
     summary: input.conversation.summary,
+    returningNote: input.returningNote ?? null,
   });
 }
 
@@ -66,8 +68,6 @@ export function roundToolContext(input: {
 /** The whole turn's abort signal: the caller's (v2: lock lost) and the turn's own time limit. */
 export function roundTurnSignal(signal: AbortSignal | undefined, turnMs: number): AbortSignal {
   return AbortSignal.any(
-    signal === undefined
-      ? [AbortSignal.timeout(turnMs)]
-      : [signal, AbortSignal.timeout(turnMs)],
+    signal === undefined ? [AbortSignal.timeout(turnMs)] : [signal, AbortSignal.timeout(turnMs)],
   );
 }

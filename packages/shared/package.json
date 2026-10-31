@@ -430,6 +430,11 @@
       "import": "./dist/i18n/wa-commands.js",
       "default": "./dist/i18n/wa-commands.js"
     },
+    "./wa-agent/session": {
+      "types": "./dist/wa-agent/session.d.ts",
+      "import": "./dist/wa-agent/session.js",
+      "default": "./dist/wa-agent/session.js"
+    },
     "./rx-normalize": {
       "types": "./dist/rx-normalize.d.ts",
       "import": "./dist/rx-normalize.js",
