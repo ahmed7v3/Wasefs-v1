@@ -40,10 +40,10 @@ describe("agent sessions migration (0033)", () => {
     const s = await session(c);
     const { db } = fixture.handle;
     const rows = await db.execute(
-      sql`select returning, summarized_count, next_handle, state, ended_at from wa_agent_sessions where id = ${s}`,
+      sql`select is_returning, summarized_count, next_handle, state, ended_at from wa_agent_sessions where id = ${s}`,
     );
     expect(rows[0]).toMatchObject({
-      returning: false,
+      is_returning: false,
       summarized_count: 0,
       next_handle: 1,
       state: {},

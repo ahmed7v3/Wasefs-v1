@@ -4,7 +4,7 @@ CREATE TABLE "wa_agent_sessions" (
 	"started_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"ended_at" timestamp with time zone,
 	"end_reason" text,
-	"returning" boolean DEFAULT false NOT NULL,
+	"is_returning" boolean DEFAULT false NOT NULL,
 	"summary" text,
 	"summarized_count" integer DEFAULT 0 NOT NULL,
 	"next_handle" integer DEFAULT 1 NOT NULL,

@@ -17057,8 +17057,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "returning": {
-          "name": "returning",
+        "is_returning": {
+          "name": "is_returning",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,

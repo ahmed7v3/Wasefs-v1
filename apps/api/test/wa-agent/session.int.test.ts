@@ -105,7 +105,7 @@ describe("session assignment", () => {
     const chat = new Chat();
     const id = await chat.send({});
     const [session] = await chat.sessionRows();
-    expect(session).toMatchObject({ returning: false, endedAt: null, endReason: null });
+    expect(session).toMatchObject({ isReturning: false, endedAt: null, endReason: null });
     expect((await chat.row(id)).sessionId).toBe(session?.id);
     const [conversation] = await ctx.owner.db
       .select()
@@ -120,9 +120,9 @@ describe("session assignment", () => {
     const later = await chat.send({ now: new Date(Date.now() + 13 * HOUR_MS) });
     const sessions = await chat.sessionRows();
     expect(sessions).toHaveLength(2);
-    expect(sessions[0]).toMatchObject({ endReason: "idle", returning: false });
+    expect(sessions[0]).toMatchObject({ endReason: "idle", isReturning: false });
     expect(sessions[0]?.endedAt).not.toBeNull();
-    expect(sessions[1]).toMatchObject({ returning: true, endedAt: null });
+    expect(sessions[1]).toMatchObject({ isReturning: true, endedAt: null });
     expect((await chat.row(later)).sessionId).toBe(sessions[1]?.id);
   });
 
@@ -206,7 +206,7 @@ describe("session assignment", () => {
     expect(sessions).toHaveLength(3);
     expect(sessions.map((s) => s.endReason)).toEqual(["command", "privacy", null]);
     expect(sessions.map((s) => s.id)).toEqual([(await chat.row(first)).sessionId, fresh, privacy]);
-    expect(sessions[2]?.returning).toBe(false);
+    expect(sessions[2]?.isReturning).toBe(false);
     expect((await chat.row(first)).sessionId).toBe(sessions[0]?.id);
   });
 

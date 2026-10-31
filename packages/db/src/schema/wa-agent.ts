@@ -86,7 +86,7 @@ export const waAgentSessions = pgTable(
     endedAt: timestamp({ withTimezone: true }),
     endReason: text({ enum: WA_SESSION_END_REASONS }),
     // Started by an idle rollover: the model gets a one-line "returning customer" note.
-    returning: boolean().notNull().default(false),
+    isReturning: boolean().notNull().default(false),
     summary: text(),
     summarizedCount: integer().notNull().default(0),
     // The next media handle to give out (handles restart at 1 in every session).

@@ -422,7 +422,7 @@ wa_agent_sessions  id uuid pk default gen_random_uuid(),
                    conversation_id uuid not null fk wa_conversations on delete cascade,
                    started_at timestamptz not null default now(), ended_at timestamptz null,
                    end_reason text null check (end_reason in ('command','idle','privacy')),
-                   returning boolean not null default false,   -- started by idle rollover
+                   is_returning boolean not null default false, -- started by idle rollover
                    summary text null, summarized_count integer not null default 0,
                    next_handle integer not null default 1,
                    state jsonb not null default '{}',           -- WaSessionState (18.3)
@@ -442,7 +442,7 @@ Deviations from §6: the table is `wa_agent_sessions` (`wa_sessions` is the Bail
 ### 18.2 Sessions (`conversation/session.service.ts`)
 - Assignment happens in the ingest transaction for every new row (in, out, owner). The current session is
   `wa_conversations.session_id`. It is replaced before assigning an **inbound** row when it is null, or when
-  `last_inbound_at` is older than `sessions.idleHours` (end_reason `idle`, the new one gets `returning = true`).
+  `last_inbound_at` is older than `sessions.idleHours` (end_reason `idle`, the new one gets `is_returning = true`).
 - `new` ends the current session (`command`) and opens a new one in one transaction. `privacy` ends it
   (`privacy`).
 - Media handles: an inbound `image` or `document` row gets `handle = next_handle` (`update … set next_handle =

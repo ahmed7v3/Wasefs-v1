@@ -27,7 +27,7 @@ export async function sessionView(
   if (session === null) return null;
   const rows = await sessions.history(conversation.id, session, HISTORY_LIMIT);
   const note =
-    session.returning && session.outboundCount < 2
+    session.isReturning && session.outboundCount < 2
       ? t("whatsapp.agent.session.returning", undefined, config.language === "en" ? "en" : "ar")
       : undefined;
   return {

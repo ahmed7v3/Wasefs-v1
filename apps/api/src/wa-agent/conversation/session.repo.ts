@@ -36,7 +36,7 @@ export interface SessionContext {
   id: string;
   summary: string | null;
   summarizedCount: number;
-  returning: boolean;
+  isReturning: boolean;
   startedAt: Date;
   /** Rows the agent sent in this session (the returning note fades once it has talked a little). */
   outboundCount: number;
@@ -68,10 +68,10 @@ export class SessionRepo {
   }
 
   /** Opens a session and makes it the conversation's current one. */
-  async open(tx: Tx, conversationId: string, returning: boolean, now: Date): Promise<string> {
+  async open(tx: Tx, conversationId: string, isReturning: boolean, now: Date): Promise<string> {
     const [row] = await tx
       .insert(waAgentSessions)
-      .values({ conversationId, returning, startedAt: now })
+      .values({ conversationId, isReturning, startedAt: now })
       .returning({ id: waAgentSessions.id });
     if (row === undefined) throw new Error("wa_agent_sessions insert returned no row");
     await tx
@@ -197,7 +197,7 @@ export class SessionRepo {
         id: waAgentSessions.id,
         summary: waAgentSessions.summary,
         summarizedCount: waAgentSessions.summarizedCount,
-        returning: waAgentSessions.returning,
+        isReturning: waAgentSessions.isReturning,
         startedAt: waAgentSessions.startedAt,
       })
       .from(waConversations)
