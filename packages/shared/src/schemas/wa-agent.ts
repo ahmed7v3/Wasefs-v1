@@ -34,6 +34,10 @@ export const WA_MEDIA_STATUSES = [
 ] as const;
 export type WaMediaStatus = (typeof WA_MEDIA_STATUSES)[number];
 
+/** Why a WhatsApp agent session ended (`wa_agent_sessions.end_reason`, docs/WA-AGENT-RUNTIME.md §18). */
+export const WA_SESSION_END_REASONS = ["command", "idle", "privacy"] as const;
+export type WaSessionEndReason = (typeof WA_SESSION_END_REASONS)[number];
+
 /** What a `wa_outbox` row delivers to the customer. */
 export const WA_OUTBOX_KINDS = ["rx_result", "document", "payment", "notice"] as const;
 export type WaOutboxKind = (typeof WA_OUTBOX_KINDS)[number];

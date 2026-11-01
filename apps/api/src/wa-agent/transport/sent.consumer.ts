@@ -3,13 +3,13 @@ import { WA_AGENT_SENT_STREAM } from "@wasfa/shared/schemas/phone";
 import { waAgentSentSchema } from "@wasfa/shared/schemas/wa-agent";
 import { PinoLogger } from "nestjs-pino";
 
-import { API_ENV } from "../config/config.module.js";
-import { SettingsService } from "../settings/settings.service.js";
+import { API_ENV } from "../../config/config.module.js";
+import { SettingsService } from "../../settings/settings.service.js";
+import { WaAgentRepo } from "../conversation/conversation.repo.js";
 
 import { StreamConsumer } from "./stream-consumer.js";
-import { WaAgentRepo } from "./wa-agent.repo.js";
 
-import type { ApiEnv } from "../config/env.js";
+import type { ApiEnv } from "../../config/env.js";
 
 const GROUP = "wa-agent";
 

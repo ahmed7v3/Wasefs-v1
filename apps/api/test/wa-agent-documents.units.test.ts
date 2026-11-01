@@ -210,8 +210,12 @@ describe("create_document tool", () => {
       fileName: "a",
       content: { title: "t", lines: Array.from({ length: 9 }, () => "l") },
     };
-    expect(await handlers["create_document"]?.(tooMany)).toEqual({ error: "invalid_arguments" });
-    expect(await handlers["create_document"]?.({ template: "poster", fileName: "a" })).toEqual({
+    expect(await handlers["create_document"]?.(tooMany)).toMatchObject({
+      error: "invalid_arguments",
+    });
+    expect(
+      await handlers["create_document"]?.({ template: "poster", fileName: "a" }),
+    ).toMatchObject({
       error: "invalid_arguments",
     });
     expect(calls).toHaveLength(0);

@@ -12,6 +12,7 @@ import {
   WA_AGENT_FOLLOW_UP_WINDOW_MS,
   waAgentEventSchema,
   type WaAgentEvent,
+  type WaAgentOutboundPart,
 } from "@wasfa/shared/schemas/wa-agent";
 import { Redis } from "ioredis";
 import { PinoLogger } from "nestjs-pino";
@@ -22,13 +23,16 @@ import { API_ENV } from "../../config/config.module.js";
 import { ObjectStorage } from "../../files/object-storage.js";
 import { SettingsService } from "../../settings/settings.service.js";
 import { HANDOFF_ALERT_KIND } from "../agent/handoff.service.js";
+import { composeTextParts } from "../compose/compose-parts.js";
+import { WaAgentRepo } from "../conversation/conversation.repo.js";
+import { localeOf } from "../conversation/profile-config.js";
+import { WaAgentStateService } from "../conversation/state.service.js";
+import { WaOutboundService } from "../transport/outbound.service.js";
 import { ConversationLock, StaleFenceError } from "../turn/lock.js";
 import { TurnRepo } from "../turn/turn.repo.js";
-import { WaAgentStateService } from "../wa-agent-state.service.js";
-import { WaAgentRepo } from "../wa-agent.repo.js";
 import { WA_OUTBOX_SWEEPS, type OutboxSweep } from "../wa-agent.tokens.js";
-import { WaOutboundService } from "../wa-outbound.service.js";
 
+import { earlierLabel } from "./earlier-label.js";
 import { EventPartsBuilder } from "./outbox-parts.js";
 import { WaOutboxRepo } from "./wa-outbox.repo.js";
 
@@ -197,9 +201,11 @@ export class OutboxDeliverer implements OnModuleInit, OnApplicationShutdown {
 
     const event = waAgentEventSchema.safeParse(row.payload);
     if (!event.success) return this.dead(row, row.attempts, "invalid_payload");
-    const locale: Locale = config.language === "en" ? "en" : "ar";
-    const parts = await this.builder.parts(event.data, conversation, config.caps, locale);
-    if (parts === null || parts.length === 0) return this.dead(row, row.attempts, "no_content");
+    const locale: Locale = localeOf(config, conversation.profile);
+    const built = await this.builder.parts(event.data, conversation, config.caps, locale);
+    if (built === null || built.length === 0) return this.dead(row, row.attempts, "no_content");
+    await this.labelIfEarlier(event.data, conversation.sessionId, conversation.id, built, locale);
+    const parts = composeTextParts(built, config.caps);
 
     await this.outbound.enqueueDelivery(row.conversationId, parts, {
       fence,
@@ -208,6 +214,21 @@ export class OutboxDeliverer implements OnModuleInit, OnApplicationShutdown {
     });
     await this.rows.markDelivered(row.id);
     this.logger.info({ outboxId: row.id, kind: row.kind }, "Outbox item delivered");
+  }
+
+  /** A result whose analysis started in an earlier session says when the customer sent it (§18.2). */
+  private async labelIfEarlier(
+    event: WaAgentEvent,
+    currentSession: string | null,
+    conversationId: string,
+    parts: WaAgentOutboundPart[],
+    locale: Locale,
+  ): Promise<void> {
+    const first = parts[0];
+    if (event.type !== "rx_done" || currentSession === null || first?.kind !== "text") return;
+    const start = await this.rows.rxStart(conversationId, event.rxId);
+    if (start === null || start.sessionId === null || start.sessionId === currentSession) return;
+    first.text = `${earlierLabel(start.at, locale)}\n${first.text}`;
   }
 
   private async failed(row: WaOutboxRow, error: unknown): Promise<void> {

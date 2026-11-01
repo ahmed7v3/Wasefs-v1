@@ -2,9 +2,10 @@ import { settingDefault } from "@wasfa/shared/settings";
 import { uuidFromKey } from "@wasfa/shared/wa-agent/uuid-from-key";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { RxAlreadyAnalysedError } from "../../src/wa-agent/commerce/agent-commerce.repo.js";
-import { AgentRxService } from "../../src/wa-agent/commerce/agent-rx.service.js";
 import { WaAgentEventsConsumer } from "../../src/wa-agent/commerce/wa-agent-events.consumer.js";
+import { RxAlreadyAnalysedError } from "../../src/wa-agent/rx/agent-rx.repo.js";
+import { AgentRxService } from "../../src/wa-agent/rx/agent-rx.service.js";
+import { RxStartService } from "../../src/wa-agent/rx/rx-start.service.js";
 import { ConversationLock, LOCK_TTL_MS } from "../../src/wa-agent/turn/lock.js";
 import { TurnRunner } from "../../src/wa-agent/turn/turn-runner.js";
 import {
@@ -166,69 +167,74 @@ function rxService(setup: RxSetup = {}) {
       };
     },
   });
+  const repo = {
+    user: () =>
+      Promise.resolve({
+        id: COMMERCE_USER_ID,
+        name: "منى",
+        email: "m@example.com",
+        emailVerified: true,
+        phoneVerified: true,
+        status: "active",
+      }),
+    newestUnusedMedia: () => Promise.resolve([IMAGE]),
+    claimMedia: (id: string) => {
+      if (claimed.has(id)) return Promise.resolve(false);
+      claimed.add(id);
+      return Promise.resolve(true);
+    },
+    releaseMedia: (id: string) => {
+      released.push(id);
+      claimed.delete(id);
+      return Promise.resolve();
+    },
+    setMediaMeta: () => Promise.resolve(),
+    dropMediaFileId: () => Promise.resolve(),
+    // The real one is one transaction: the second start of the same picture claims nothing.
+    commitRxStart: (input: {
+      analysisId: string;
+      conversationId: string;
+      mediaIds: string[];
+      create: (tx: unknown) => Promise<void>;
+    }) => {
+      if (input.mediaIds.some((id) => claimed.has(id))) {
+        return Promise.reject(new RxAlreadyAnalysedError());
+      }
+      for (const id of input.mediaIds) claimed.add(id);
+      commits.push({
+        analysisId: input.analysisId,
+        conversationId: input.conversationId,
+        mediaIds: input.mediaIds,
+      });
+      return input.create({});
+    },
+  };
+  const rx = {
+    // v1: the web entry.
+    create: (...args: unknown[]) => {
+      created.push(args);
+      return Promise.resolve({ id: RX_ID });
+    },
+    // v2: the pieces.
+    prepare: () => Promise.resolve({ ticket: { release: () => Promise.resolve() } }),
+    cacheHit: () => Promise.resolve(null),
+    reserveFor: () => Promise.resolve("reservation-1"),
+    createInTx: (...args: unknown[]) => {
+      created.push(args);
+      return Promise.resolve();
+    },
+    enqueue: () =>
+      setup.downstreamDown ? Promise.reject(new Error("queue down")) : Promise.resolve(),
+  };
+  const credits = { forUser: () => Promise.resolve({ wallet: { balance: 2 } }) };
   const service = new AgentRxService(
-    fake({
-      user: () =>
-        Promise.resolve({
-          id: COMMERCE_USER_ID,
-          name: "منى",
-          email: "m@example.com",
-          emailVerified: true,
-          phoneVerified: true,
-          status: "active",
-        }),
-      newestUnusedMedia: () => Promise.resolve([IMAGE]),
-      claimMedia: (id: string) => {
-        if (claimed.has(id)) return Promise.resolve(false);
-        claimed.add(id);
-        return Promise.resolve(true);
-      },
-      releaseMedia: (id: string) => {
-        released.push(id);
-        claimed.delete(id);
-        return Promise.resolve();
-      },
-      setMediaMeta: () => Promise.resolve(),
-      dropMediaFileId: () => Promise.resolve(),
-      // The real one is one transaction: the second start of the same picture claims nothing.
-      commitRxStart: (input: {
-        analysisId: string;
-        conversationId: string;
-        mediaIds: string[];
-        create: (tx: unknown) => Promise<void>;
-      }) => {
-        if (input.mediaIds.some((id) => claimed.has(id))) {
-          return Promise.reject(new RxAlreadyAnalysedError());
-        }
-        for (const id of input.mediaIds) claimed.add(id);
-        commits.push({
-          analysisId: input.analysisId,
-          conversationId: input.conversationId,
-          mediaIds: input.mediaIds,
-        });
-        return input.create({});
-      },
-    }),
+    fake(repo),
+    fake(repo),
+    new RxStartService(fake(repo), fake(files), fake(rx), fake(credits), fake(redis), quietLogger),
     fake(files),
-    fake({
-      // v1: the web entry.
-      create: (...args: unknown[]) => {
-        created.push(args);
-        return Promise.resolve({ id: RX_ID });
-      },
-      // v2: the pieces.
-      prepare: () => Promise.resolve({ ticket: { release: () => Promise.resolve() } }),
-      cacheHit: () => Promise.resolve(null),
-      reserveFor: () => Promise.resolve("reservation-1"),
-      createInTx: (...args: unknown[]) => {
-        created.push(args);
-        return Promise.resolve();
-      },
-      enqueue: () =>
-        setup.downstreamDown ? Promise.reject(new Error("queue down")) : Promise.resolve(),
-    }),
+    fake(rx),
     fake({ entitlement: () => Promise.resolve({ maxPagesPerRx: null }) }),
-    fake({ forUser: () => Promise.resolve({ wallet: { balance: 2 } }) }),
+    fake(credits),
     fake({ get: () => Promise.resolve({ ...config, creditsPerPage: 3, maxPages: 2 }) }),
     fake(redis),
     quietLogger,

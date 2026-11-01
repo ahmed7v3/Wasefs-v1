@@ -1,5 +1,5 @@
+import type { BusyCause } from "./v1-turn.service.js";
 import type { ToolCallRecord, ToolOutput } from "../agent/tools/index.js";
-import type { BusyCause } from "../agent/wa-agent-turn.service.js";
 import type { NormalizedMessage } from "@wasfa/ai";
 import type { WaConversation, TurnMessage } from "@wasfa/db";
 import type { WaAgentOutboundPart } from "@wasfa/shared/schemas/wa-agent";
@@ -19,6 +19,8 @@ export interface TurnTraceStep {
   code: string;
   name?: string;
   ok?: boolean;
+  /** A command step: how the row was recognised (`alias`, `fuzzy`, `menu`, `awaiting`). */
+  via?: string;
   ms?: number;
   count?: number;
 }
@@ -50,6 +52,8 @@ export interface RoundTail {
   text: string;
   spoken: { mediaKey: string; chars: number } | null;
   handoffReason: string | null;
+  /** v2: the session the round read; `afterReply` summarises it. */
+  sessionId?: string;
 }
 
 export interface RoundOutcome {
@@ -106,6 +110,7 @@ export const READ_ONLY_TOOLS: ReadonlySet<string> = new Set([
   "get_catalog",
   "search_medications",
   "medication_alternatives",
+  "view_attachment",
 ]);
 
 export function effectsRanOf(records: readonly ToolRecord[]): boolean {

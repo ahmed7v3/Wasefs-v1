@@ -4,13 +4,16 @@ import { settingDefault, type WaAgentSettings } from "@wasfa/shared/settings";
 import { describe, expect, it } from "vitest";
 
 import { WaAgentHandoffService } from "../src/wa-agent/agent/handoff.service.js";
+import { MediaInputService } from "../src/wa-agent/agent/media-input.js";
+import { AgentRoundService } from "../src/wa-agent/agent/round.service.js";
+import { SummaryService } from "../src/wa-agent/agent/summary.service.js";
 import {
   LOCK_MS,
   PROVIDER_RETRY_DELAY_MS,
   STEP_TIMEOUT_MS,
   TURN_TIMEOUT_MS,
   WaAgentTurnService,
-} from "../src/wa-agent/agent/wa-agent-turn.service.js";
+} from "../src/wa-agent/turn/v1-turn.service.js";
 
 import { MemoryRedis, fakeAi, silentLogger, type FakeAi } from "./support/wa-agent-fakes.js";
 
@@ -19,10 +22,10 @@ import type { ObjectStorage } from "../src/files/object-storage.js";
 import type { PlansService } from "../src/plans/plans.service.js";
 import type { SettingsService } from "../src/settings/settings.service.js";
 import type { WaAgentToolDeps } from "../src/wa-agent/agent/tool-deps.js";
+import type { WaAgentRepo } from "../src/wa-agent/conversation/conversation.repo.js";
+import type { WaAgentStateService } from "../src/wa-agent/conversation/state.service.js";
+import type { WaOutboundService } from "../src/wa-agent/transport/outbound.service.js";
 import type { WaAgentVoiceService } from "../src/wa-agent/voice/voice.service.js";
-import type { WaAgentStateService } from "../src/wa-agent/wa-agent-state.service.js";
-import type { WaAgentRepo } from "../src/wa-agent/wa-agent.repo.js";
-import type { WaOutboundService } from "../src/wa-agent/wa-outbound.service.js";
 import type { TurnMessage, TurnUser, WaConversation } from "@wasfa/db";
 import type { MediaAsset } from "@wasfa/shared/schemas/media";
 import type { Redis } from "ioredis";
@@ -51,6 +54,8 @@ class FakeRepo {
     lastOutboundAt: null,
     summary: null,
     turnFence: 0,
+    sessionId: null,
+    profile: {},
     createdAt: new Date(START),
     updatedAt: new Date(START),
   };
@@ -255,18 +260,28 @@ function harness(
     error: (data: Record<string, unknown>, message: string) =>
       logs.push({ level: "error", data, message }),
   } as unknown as typeof silentLogger;
-  const service = new WaAgentTurnService(
+  const voice = {} as WaAgentVoiceService;
+  const round = new AgentRoundService(
     repo as unknown as WaAgentRepo,
     settings,
     redis as unknown as Redis,
     ai.service,
-    outbound,
     handoff,
     toolDeps,
     plans,
-    storage,
     recordingLogger,
-    {} as WaAgentVoiceService,
+    voice,
+    new MediaInputService(repo as unknown as WaAgentRepo, storage, voice),
+    new SummaryService(repo as unknown as WaAgentRepo, redis as unknown as Redis, ai.service),
+  );
+  const service = new WaAgentTurnService(
+    repo as unknown as WaAgentRepo,
+    settings,
+    redis as unknown as Redis,
+    outbound,
+    handoff,
+    round,
+    recordingLogger,
   );
   service.timing.now = () => clock.now;
   service.timing.sleep = (ms) => {
@@ -672,7 +687,9 @@ describe("media", () => {
     await h.ask("hi");
     expect(h.sent[0]?.parts).toEqual([{ kind: "text", text: "آسف" }]);
     const toolMessage = h.ai.adapter.requests[1]?.messages.at(-1);
-    expect(toolMessage?.role === "tool" ? toolMessage.content : "").toBe('{"error":"unknown_key"}');
+    expect(toolMessage?.role === "tool" ? toolMessage.content : "").toContain(
+      '"error":"unknown_key"',
+    );
   });
 });
 

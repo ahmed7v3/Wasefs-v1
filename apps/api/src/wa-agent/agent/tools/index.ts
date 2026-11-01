@@ -1,9 +1,12 @@
+import { normalizeHandle, formatHandle } from "../../conversation/attachment-handle.js";
+
 import { accountStatusTool } from "./account-status.js";
 import { analyzePrescriptionTool } from "./analyze-prescription.js";
 import { askMedicalTool } from "./ask-medical.js";
 import { attachReceiptTool } from "./attach-receipt.js";
 import { createAccountTool } from "./create-account.js";
 import { createDocumentTool } from "./create-document.js";
+import { withExplain, refusalCodeOf } from "./explain.js";
 import { getCatalogTool } from "./get-catalog.js";
 import { handoffToOwnerTool } from "./handoff-to-owner.js";
 import { loginLinkTool } from "./login-link.js";
@@ -19,6 +22,7 @@ import {
   type AgentToolContext,
   type AgentToolFeature,
 } from "./tool.js";
+import { viewAttachmentTool } from "./view-attachment.js";
 
 import type { ToolDefinition, ToolHandler } from "@wasfa/ai";
 
@@ -51,6 +55,7 @@ export const AGENT_TOOLS: readonly AgentTool[] = [
   createAccountTool,
   loginLinkTool,
   handoffToOwnerTool,
+  viewAttachmentTool,
 ];
 
 /** Which feature-gated tools are on this turn (admin switches); every one is off unless named. */
@@ -74,6 +79,11 @@ export interface ToolCallRecord {
   name: string;
   ok: boolean;
   code?: string;
+  /** A declined result (`started: false, reason`) counts as `ok` to the policy; its tool note shows the reason. */
+  refusal?: string;
+  /** v2 tool memory (§8.3): the analysis a call started (first characters of its id) and the handles it used. */
+  rxRef?: string;
+  handles?: string[];
 }
 
 /**
@@ -90,6 +100,26 @@ function errorCode(result: unknown): string | null {
   return typeof result.error === "string" ? result.error : "error";
 }
 
+/** The analysis reference and the handles of a call, for the turn's tool note (from its result, else its arguments). */
+function noteDetails(result: unknown, args: unknown): Pick<ToolCallRecord, "rxRef" | "handles"> {
+  const read = (value: unknown, key: string): unknown =>
+    typeof value === "object" && value !== null
+      ? (value as Record<string, unknown>)[key]
+      : undefined;
+  const rxRef = read(result, "rxRef");
+  const fromResult = read(result, "handles");
+  const raw = Array.isArray(fromResult) ? fromResult : read(args, "handles");
+  const handles = (Array.isArray(raw) ? raw : []).flatMap((handle: unknown) => {
+    const n =
+      typeof handle === "string" || typeof handle === "number" ? normalizeHandle(handle) : null;
+    return n === null ? [] : [formatHandle(n)];
+  });
+  return {
+    ...(typeof rxRef === "string" ? { rxRef } : {}),
+    ...(handles.length === 0 ? {} : { handles }),
+  };
+}
+
 /**
  * The model-facing side of the tools for one turn: their definitions and handlers. Handlers validate
  * the arguments with the tool's zod schema, refuse a linked-only tool for a guest even if the model
@@ -102,12 +132,13 @@ export function bindTools(
   outputs?: ToolOutput[],
 ): { definitions: ToolDefinition[]; handlers: Record<string, ToolHandler> } {
   const handlers: Record<string, ToolHandler> = {};
+  const locale = ctx.config.language === "en" ? "en" : "ar";
   for (const tool of tools) {
     handlers[tool.definition.name] = async (raw) => {
       const name = tool.definition.name;
       const fail = (code: string) => {
         records.push({ name, ok: false, code });
-        return toolError(code);
+        return withExplain(toolError(code), locale);
       };
       if (tool.linkedOnly && ctx.userId === null) return fail("not_linked");
       if (tool.guestOnly === true && ctx.userId !== null) return fail("already_linked");
@@ -126,9 +157,16 @@ export function bindTools(
               )
             : await tool.handler(ctx, parsed.data);
         const code = errorCode(result);
-        records.push(code === null ? { name, ok: true } : { name, ok: false, code });
+        const refusal = refusalCodeOf(result);
+        const details = noteDetails(result, parsed.data);
+        records.push(
+          code === null
+            ? { name, ok: true, ...(refusal === null ? {} : { refusal }), ...details }
+            : { name, ok: false, code, ...details },
+        );
         if (code === null) outputs?.push({ name, result });
-        return result;
+        // A refusal carries a fixed sentence the model may paraphrase (docs/WA-AGENT-RUNTIME.md §18.5).
+        return withExplain(result, locale);
       } catch (error) {
         // The turn lost the chat to a newer one: nothing was done, and the runner must see why.
         if (error instanceof StaleFenceError) return fail("stale_turn");

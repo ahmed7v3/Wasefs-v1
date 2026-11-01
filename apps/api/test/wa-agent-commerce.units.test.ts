@@ -15,9 +15,10 @@ import {
   rxFailedText,
 } from "../src/wa-agent/commerce/agent-event-messages.js";
 import { AgentMedicalService } from "../src/wa-agent/commerce/agent-medical.service.js";
-import { AgentRxService } from "../src/wa-agent/commerce/agent-rx.service.js";
 import { AgentSubscriptionService } from "../src/wa-agent/commerce/agent-subscription.service.js";
 import { WaAgentEventsConsumer } from "../src/wa-agent/commerce/wa-agent-events.consumer.js";
+import { AgentRxService } from "../src/wa-agent/rx/agent-rx.service.js";
+import { RxStartService } from "../src/wa-agent/rx/rx-start.service.js";
 
 import {
   COMMERCE_CONVERSATION_ID,
@@ -308,14 +309,16 @@ describe("agent tools are bound to the chat's account", () => {
       ["ask_medical", { question: "x" }],
     ] as const) {
       const handler = handlers[name];
-      expect(await handler?.(args)).toEqual({ error: "not_linked" });
+      expect(await handler?.(args)).toMatchObject({ error: "not_linked" });
     }
     // A user id in the arguments is not part of any schema: the call is invalid, not honoured.
     const offer = handlers["offer_discount"];
-    expect(await offer?.({ planKey: "pro", months: 2 })).toEqual({ error: "not_linked" });
+    expect(await offer?.({ planKey: "pro", months: 2 })).toMatchObject({ error: "not_linked" });
     const linked = { ...guest, userId: COMMERCE_USER_ID };
     const bound = bindTools(toolsFor(true), linked, []).handlers["offer_discount"];
-    expect(await bound?.({ planKey: "pro", months: 2 })).toEqual({ error: "invalid_arguments" });
+    expect(await bound?.({ planKey: "pro", months: 2 })).toMatchObject({
+      error: "invalid_arguments",
+    });
   });
 });
 
@@ -354,6 +357,7 @@ function subscriptionService(setup: OrderSetup = {}) {
       Promise.resolve({ order: { number: "WSO-2026-000123" }, payment: { id: "pay-1" } }),
   };
   const service = new AgentSubscriptionService(
+    fake(commerce),
     fake(commerce),
     fake({ publicPlan: () => Promise.resolve("plan" in setup ? setup.plan : PLAN) }),
     fake({
@@ -541,6 +545,7 @@ function receiptService(setup: ReceiptSetup = {}) {
   };
   const service = new AgentSubscriptionService(
     fake(commerce),
+    fake(commerce),
     fake({}),
     fake({}),
     fake({}),
@@ -654,45 +659,51 @@ function rxService(setup: RxSetup = {}) {
   const asked: unknown[] = [];
   const redis = new MemoryRedis();
   const config = settingDefault("rx");
+  const repo = {
+    user: () =>
+      Promise.resolve({
+        id: COMMERCE_USER_ID,
+        name: "منى",
+        email: "m@example.com",
+        emailVerified: true,
+        phoneVerified: true,
+        status: "active",
+      }),
+    newestUnusedMedia: (...args: unknown[]) => {
+      asked.push(args);
+      return Promise.resolve(setup.images ?? [IMAGE]);
+    },
+    claimMedia: () => Promise.resolve(true),
+    releaseMedia: () => {
+      log.push("release");
+      return Promise.resolve();
+    },
+    setMediaMeta: (_id: string, meta: unknown) => {
+      log.push(`meta:${JSON.stringify(meta)}`);
+      return Promise.resolve();
+    },
+  };
+  const files = {
+    importObject: () => Promise.resolve("file-1"),
+    awaitProcessed: () => Promise.resolve(setup.fileStatus ?? "processed"),
+  };
+  const rx = {
+    create: (...args: unknown[]) => {
+      created.push(args);
+      return setup.createError
+        ? Promise.reject(setup.createError)
+        : Promise.resolve({ id: "rx-1" });
+    },
+  };
+  const credits = { forUser: () => Promise.resolve({ wallet: { balance: 2 } }) };
   const service = new AgentRxService(
-    fake({
-      user: () =>
-        Promise.resolve({
-          id: COMMERCE_USER_ID,
-          name: "منى",
-          email: "m@example.com",
-          emailVerified: true,
-          phoneVerified: true,
-          status: "active",
-        }),
-      newestUnusedMedia: (...args: unknown[]) => {
-        asked.push(args);
-        return Promise.resolve(setup.images ?? [IMAGE]);
-      },
-      claimMedia: () => Promise.resolve(true),
-      releaseMedia: () => {
-        log.push("release");
-        return Promise.resolve();
-      },
-      setMediaMeta: (_id: string, meta: unknown) => {
-        log.push(`meta:${JSON.stringify(meta)}`);
-        return Promise.resolve();
-      },
-    }),
-    fake({
-      importObject: () => Promise.resolve("file-1"),
-      awaitProcessed: () => Promise.resolve(setup.fileStatus ?? "processed"),
-    }),
-    fake({
-      create: (...args: unknown[]) => {
-        created.push(args);
-        return setup.createError
-          ? Promise.reject(setup.createError)
-          : Promise.resolve({ id: "rx-1" });
-      },
-    }),
+    fake(repo),
+    fake(repo),
+    new RxStartService(fake(repo), fake(files), fake(rx), fake(credits), fake(redis), quietLogger),
+    fake(files),
+    fake(rx),
     fake({ entitlement: () => Promise.resolve({ maxPagesPerRx: setup.maxPagesPerRx ?? null }) }),
-    fake({ forUser: () => Promise.resolve({ wallet: { balance: 2 } }) }),
+    fake(credits),
     fake({ get: () => Promise.resolve({ ...config, creditsPerPage: 3, maxPages: 2 }) }),
     fake(redis),
     quietLogger,

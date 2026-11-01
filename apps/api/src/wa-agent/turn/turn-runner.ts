@@ -4,9 +4,11 @@ import { actionFor, classify, type FailureSignal } from "@wasfa/shared/wa-agent/
 import { PinoLogger } from "nestjs-pino";
 
 import { SettingsService } from "../../settings/settings.service.js";
-import { WaAgentRepo } from "../wa-agent.repo.js";
+import { CommandRouter } from "../commands/command-router.js";
+import { WaAgentRepo } from "../conversation/conversation.repo.js";
+import { withProfile } from "../conversation/profile-config.js";
+import { WaOutboundService } from "../transport/outbound.service.js";
 import { WA_AGENT_ROUND } from "../wa-agent.tokens.js";
-import { WaOutboundService } from "../wa-outbound.service.js";
 
 import {
   RoundRefused,
@@ -42,6 +44,8 @@ export interface TurnRunnerPorts {
   queue: TurnEnqueuer;
   failures: Pick<FailureActions, "contextFor" | "execute">;
   logger: Pick<PinoLogger, "warn" | "info">;
+  /** The deterministic command layer (docs §7); absent = every row goes to the model. */
+  commands?: Pick<CommandRouter, "run">;
 }
 
 type RoundEnd = "done" | "stale" | "deferred";
@@ -67,9 +71,21 @@ export class TurnRunner {
     @Inject(TurnQueue) queue: TurnEnqueuer,
     failures: FailureActions,
     logger: PinoLogger,
+    commands?: CommandRouter,
   ) {
     logger.setContext("WaAgentTurnRunner");
-    this.ports = { lock, store, conversations, settings, round, outbound, queue, failures, logger };
+    this.ports = {
+      lock,
+      store,
+      conversations,
+      settings,
+      round,
+      outbound,
+      queue,
+      failures,
+      logger,
+      ...(commands === undefined ? {} : { commands }),
+    };
   }
 
   /** Ports given directly: how tests build a runner. */
@@ -104,16 +120,25 @@ export class TurnRunner {
   }
 
   private async drain(conversationId: string, lockLost: AbortSignal): Promise<RunResult> {
-    const { store, conversations, settings } = this.ports;
-    const config = await settings.get("waAgent");
+    const { store, conversations, settings, commands } = this.ports;
+    const base = await settings.get("waAgent");
     const fence = await store.bumpFence(conversationId);
     let result: RunResult = "idle";
-    for (let index = 0; index < config.runtime.maxRounds; index++) {
+    for (let index = 0; index < base.runtime.maxRounds; index++) {
       lockLost.throwIfAborted();
       const unanswered = await store.unanswered(conversationId);
       if (unanswered.length === 0) break;
       const conversation = await conversations.find(conversationId);
       if (!conversation) break;
+      // Leading command rows are answered by their handlers, with no model; the rest is the next round's.
+      const handled = await commands?.run(conversation, unanswered, fence, base);
+      if (handled === "stale") return "stale";
+      if (handled === "done") {
+        result = "answered";
+        continue;
+      }
+      // The customer's own language and voice choice (`lang`, `voice` commands) apply to the whole round.
+      const config = withProfile(base, conversation.profile);
       const turn = await store.begin(conversationId, fence, unanswered);
       const signal = AbortSignal.any([lockLost, AbortSignal.timeout(config.runtime.turnTimeoutMs)]);
       const ended = await this.answer(turn, conversation, unanswered, config, signal, lockLost);

@@ -21,15 +21,24 @@ import { SubscriptionsModule } from "../subscriptions/subscriptions.module.js";
 import { AgentAccountService } from "./agent/account-facts.service.js";
 import { AgentSignupService } from "./agent/agent-signup.service.js";
 import { WaAgentHandoffService } from "./agent/handoff.service.js";
+import { MediaInputService } from "./agent/media-input.js";
+import { AgentRoundService } from "./agent/round.service.js";
+import { SummaryService } from "./agent/summary.service.js";
 import { WaAgentToolDeps } from "./agent/tool-deps.js";
 import { ToolEffectsRepo } from "./agent/tools/tool-effects.repo.js";
-import { WaAgentTurnService } from "./agent/wa-agent-turn.service.js";
+import { CommandRouter } from "./commands/command-router.js";
+import { CommandsRepo } from "./commands/commands.repo.js";
 import { WaAgentCommerceRepo } from "./commerce/agent-commerce.repo.js";
 import { AgentDiscountService } from "./commerce/agent-discount.service.js";
 import { AgentMedicalService } from "./commerce/agent-medical.service.js";
-import { AgentRxService } from "./commerce/agent-rx.service.js";
 import { AgentSubscriptionService } from "./commerce/agent-subscription.service.js";
 import { WaAgentEventsConsumer } from "./commerce/wa-agent-events.consumer.js";
+import { AttachmentsRepo } from "./conversation/attachments.repo.js";
+import { AttachmentsService } from "./conversation/attachments.service.js";
+import { WaAgentRepo } from "./conversation/conversation.repo.js";
+import { SessionRepo } from "./conversation/session.repo.js";
+import { SessionService } from "./conversation/session.service.js";
+import { WaAgentStateService } from "./conversation/state.service.js";
 import { AgentDocumentService } from "./documents/agent-document.service.js";
 import { WaDocumentQueue } from "./documents/wa-document-queue.js";
 import { OutboxDeliverer } from "./outbox/deliverer.js";
@@ -37,7 +46,13 @@ import { EventPartsBuilder } from "./outbox/outbox-parts.js";
 import { RxReconciler } from "./outbox/rx-reconciler.js";
 import { RxReconcilerRepo } from "./outbox/rx-reconciler.repo.js";
 import { WaOutboxRepo } from "./outbox/wa-outbox.repo.js";
+import { AgentRxRepo } from "./rx/agent-rx.repo.js";
+import { AgentRxService } from "./rx/agent-rx.service.js";
+import { RxStartService } from "./rx/rx-start.service.js";
 import { DlqService } from "./transport/dlq.service.js";
+import { WaAgentInboundConsumer } from "./transport/inbound.consumer.js";
+import { WaOutboundService } from "./transport/outbound.service.js";
+import { WaAgentSentConsumer } from "./transport/sent.consumer.js";
 import { FailureActions } from "./turn/failure-actions.js";
 import { ConversationLock } from "./turn/lock.js";
 import { TurnRunner } from "./turn/turn-runner.js";
@@ -45,20 +60,16 @@ import { TurnQueue } from "./turn/turn.queue.js";
 import { TurnRepo } from "./turn/turn.repo.js";
 import { TurnStore } from "./turn/turn.store.js";
 import { TurnWorker } from "./turn/turn.worker.js";
+import { WaAgentTurnService } from "./turn/v1-turn.service.js";
 import { ElevenLabsClient } from "./voice/elevenlabs.client.js";
 import { VoiceKeyService } from "./voice/voice-key.service.js";
 import { WaAgentVoiceService } from "./voice/voice.service.js";
-import { WaAgentInboundConsumer } from "./wa-agent-inbound.consumer.js";
-import { WaAgentSentConsumer } from "./wa-agent-sent.consumer.js";
-import { WaAgentStateService } from "./wa-agent-state.service.js";
-import { WaAgentRepo } from "./wa-agent.repo.js";
 import {
   WA_AGENT_ROUND,
   WA_AGENT_TURN_HANDLER,
   WA_OUTBOX_SWEEPS,
   type OutboxSweep,
 } from "./wa-agent.tokens.js";
-import { WaOutboundService } from "./wa-outbound.service.js";
 
 import type { ApiEnv } from "../config/env.js";
 import type { Redis } from "ioredis";
@@ -89,6 +100,10 @@ const RX_RECONCILE_EVERY_MS = 30_000;
   ],
   providers: [
     WaAgentRepo,
+    SessionRepo,
+    SessionService,
+    AttachmentsRepo,
+    AttachmentsService,
     WaAgentStateService,
     WaOutboundService,
     AgentAccountService,
@@ -97,6 +112,8 @@ const RX_RECONCILE_EVERY_MS = 30_000;
     WaAgentCommerceRepo,
     AgentDiscountService,
     AgentSubscriptionService,
+    AgentRxRepo,
+    RxStartService,
     AgentRxService,
     AgentMedicalService,
     WaDocumentQueue,
@@ -108,6 +125,9 @@ const RX_RECONCILE_EVERY_MS = 30_000;
     VoiceKeyService,
     ElevenLabsClient,
     WaAgentVoiceService,
+    MediaInputService,
+    SummaryService,
+    AgentRoundService,
     WaAgentTurnService,
     WaAgentInboundConsumer,
     WaAgentSentConsumer,
@@ -115,7 +135,7 @@ const RX_RECONCILE_EVERY_MS = 30_000;
     DlqService,
     { provide: WA_AGENT_TURN_HANDLER, useExisting: WaAgentTurnService },
     // The v2 turn engine (behind `waAgent.runtime.v2`): queue, fenced lock, turn store, runner, worker.
-    { provide: WA_AGENT_ROUND, useExisting: WaAgentTurnService },
+    { provide: WA_AGENT_ROUND, useExisting: AgentRoundService },
     {
       provide: ConversationLock,
       inject: [REDIS],
@@ -126,6 +146,9 @@ const RX_RECONCILE_EVERY_MS = 30_000;
     TurnQueue,
     ErrorReporter,
     FailureActions,
+    // The deterministic command layer (`waAgent.commands.enabled`): answers leading command rows without a model.
+    CommandsRepo,
+    CommandRouter,
     TurnRunner,
     TurnWorker,
     // Results of paid work and worker events, delivered from `wa_outbox` (behind `waAgent.runtime.v2`).

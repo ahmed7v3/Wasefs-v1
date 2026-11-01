@@ -1,5 +1,7 @@
 import { Injectable } from "@nestjs/common";
 
+import { toolNotesOf } from "../agent/tool-notes.js";
+
 import { TurnRepo, type TurnEnd } from "./turn.repo.js";
 
 import type { RoundOutcome } from "./agent-round.js";
@@ -66,6 +68,7 @@ export class TurnStore {
       costUsdMicros: outcome.costUsdMicros,
       trace: outcome.trace,
       steps: outcome.steps ?? [],
+      toolNotes: toolNotesOf(outcome.toolRecords),
     };
   }
 

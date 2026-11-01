@@ -11,6 +11,7 @@ import {
   buildSystemPrompt,
   firstNameOf,
 } from "../src/wa-agent/agent/agent-prompt.js";
+import { replyParts } from "../src/wa-agent/agent/round-helpers.js";
 import {
   bindTools,
   toolsFor,
@@ -18,7 +19,6 @@ import {
   type ToolCallRecord,
 } from "../src/wa-agent/agent/tools/index.js";
 import { pickImageVariant, sendMediaTool } from "../src/wa-agent/agent/tools/send-media.js";
-import { replyParts } from "../src/wa-agent/agent/wa-agent-turn.service.js";
 
 import { unusedCommerceDeps } from "./support/wa-agent-commerce-fakes.js";
 
@@ -333,7 +333,7 @@ describe("tools", () => {
     const records: ToolCallRecord[] = [];
     const ctx = context();
     const { handlers } = bindTools(toolsFor(true), ctx, records);
-    expect(await handlers["account_status"]?.({})).toEqual({ error: "not_linked" });
+    expect(await handlers["account_status"]?.({})).toMatchObject({ error: "not_linked" });
     expect(records).toEqual([{ name: "account_status", ok: false, code: "not_linked" }]);
   });
 
@@ -407,13 +407,13 @@ describe("tools", () => {
   it("validates arguments with the tool's schema", async () => {
     const records: ToolCallRecord[] = [];
     const { handlers } = bindTools(toolsFor(false), context(), records);
-    expect(await handlers["handoff_to_owner"]?.({ reason: "" })).toEqual({
+    expect(await handlers["handoff_to_owner"]?.({ reason: "" })).toMatchObject({
       error: "invalid_arguments",
     });
-    expect(await handlers["handoff_to_owner"]?.({ reason: "x".repeat(201) })).toEqual({
+    expect(await handlers["handoff_to_owner"]?.({ reason: "x".repeat(201) })).toMatchObject({
       error: "invalid_arguments",
     });
-    expect(await handlers["send_media"]?.({})).toEqual({ error: "invalid_arguments" });
+    expect(await handlers["send_media"]?.({})).toMatchObject({ error: "invalid_arguments" });
     expect(records.every((record) => !record.ok)).toBe(true);
   });
 });

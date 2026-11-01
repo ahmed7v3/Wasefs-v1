@@ -411,6 +411,168 @@ Inbound rows get `turn_id` only in the transaction that queues the reply (or the
 records `dropped_policy`). A crashed or stale turn leaves them unlinked, so the next run and the nightly audit
 (`direction='in' and turn_id is null and created_at < now() - 10 min`) see them.
 
+## 18. WP2 implementation contract (main session, 2026-10-31)
+
+Binding for the WP2 builders. Where this section is more precise than §6–§8 and §11 it wins. Everything here
+runs only while `waAgent.runtime.v2` is on; v1 keeps its behaviour.
+
+### 18.1 Schema (migration `0033_wa_agent_sessions`)
+```
+wa_agent_sessions  id uuid pk default gen_random_uuid(),
+                   conversation_id uuid not null fk wa_conversations on delete cascade,
+                   started_at timestamptz not null default now(), ended_at timestamptz null,
+                   end_reason text null check (end_reason in ('command','idle','privacy')),
+                   is_returning boolean not null default false, -- started by idle rollover
+                   summary text null, summarized_count integer not null default 0,
+                   next_handle integer not null default 1,
+                   state jsonb not null default '{}',           -- WaSessionState (18.3)
+                   index (conversation_id, started_at desc)
+wa_conversations   + session_id uuid null fk wa_agent_sessions on delete set null
+                   + profile jsonb not null default '{}'        -- WaAgentProfile { lang?, voice?, preferredName? }
+wa_messages        + session_id uuid null fk wa_agent_sessions on delete set null
+                   + handle integer null, + set_label text null
+                   unique (session_id, handle) where handle is not null
+                   index (session_id, created_at)
+```
+Deviations from §6: the table is `wa_agent_sessions` (`wa_sessions` is the Baileys auth table); there is no
+`wa_conversations.session_started_at` (read `wa_agent_sessions.started_at`); per-chat language and voice live in
+`profile`, which survives a new session. `wa_conversations.summary` stays for v1 only. Zod schemas for
+`WaAgentProfile` and `WaSessionState` live in `packages/shared/src/wa-agent/session.ts`.
+
+### 18.2 Sessions (`conversation/session.service.ts`)
+- Assignment happens in the ingest transaction for every new row (in, out, owner). The current session is
+  `wa_conversations.session_id`. It is replaced before assigning an **inbound** row when it is null, or when
+  `last_inbound_at` is older than `sessions.idleHours` (end_reason `idle`, the new one gets `is_returning = true`).
+- `new` ends the current session (`command`) and opens a new one in one transaction. `privacy` ends it
+  (`privacy`).
+- Media handles: an inbound `image` or `document` row gets `handle = next_handle` (`update … set next_handle =
+  next_handle + 1 returning`, same transaction). `set_label`: the previous media row of the session arrived within
+  120 s and its set has fewer than `rx.maxPages` rows → same label. Otherwise the next label (A…Z, AA, AB…).
+- The model context is the current session only: the last 20 rows of the session, plus the session summary,
+  plus a one-line "returning customer" note when `returning`. In-flight outbox work is per conversation, so a
+  new session never cancels a running analysis. The result is labelled with its start time
+  (`whatsapp.agent.rx.fromEarlier`) when its session is no longer current.
+
+### 18.3 Session state (`WaSessionState`, all optional, each with `until` ISO time)
+`menu { until }` (numbered menu active, 10 min) · `awaitingRx { until }` (next images auto-analysed, 10 min) ·
+`privacyConfirm { until }` (5 min). They are read and cleared under the conversation lock, and an expired entry
+counts as absent.
+
+### 18.4 Commands
+- Pure code in `packages/shared/src/wa-agent/normalize.ts` (`normalizeCommandText`) and `commands.ts`
+  (`matchCommand(text, { aliases, isCaption, menuActive }) → { command, via: "alias"|"fuzzy"|"menu" } | null`).
+  Rules as in §7.1. The alias table is `WA_COMMAND_ALIASES` in `packages/shared/src/i18n/wa-commands.ts` (AR + EN),
+  merged with `waAgent.commands.extraAliases`.
+- Where it runs: the inbound consumer (v2) runs `matchCommand` on new text rows (and image/PDF captions). A match
+  enqueues the turn with **delay 0** instead of the debounce. The turn runner, under the lock and fence, answers
+  unanswered rows in order. A command row is answered by its handler (no model call) and linked to the turn. The
+  remaining rows go to `compose`. Handlers live in `commands/handlers/*.ts`, behind
+  `commands/command-router.ts`, and return `RoundOutcome`-compatible parts.
+- `analyze` goes through `RxStartService` with an effect key from (turnId, `"cmd:analyze"`, { set }), so it
+  is exactly-once like the tool. Without ready pages it sets `awaitingRx`.
+- `privacy`: the first call sets `privacyConfirm`. The confirm word (`تأكيد` / `confirm`) within 5 min deletes
+  this conversation's `wa_messages` and their stored wa media, ends the session, writes an audit row with no
+  content (`wa_agent.privacy_delete`, conversation id only), and replies. Rate limit 3 / day per conversation.
+- Rate limits (Redis): 20 commands / 10 min per conversation, `new` 10 / hour. Over the limit, the text goes to the
+  model as a normal message.
+- `schedule`, `meds`, `remind` reply `whatsapp.agent.commands.soon` («قريبًا»).
+
+### 18.5 Attachments and tools
+- Attachment status is derived, never stored: `expired` (media_key null) · `failed(reason)` (media_status
+  failed) · `in_progress` / `analysed(rxRef)` (meta.rxId, by the analysis status) · `ready`.
+- Prompt block: the last 8 attachments of the session (handle, kind, age, status, set), always present when the
+  session has media. Pixels go only for the current burst (≤ 4) and through `view_attachment({ handle })`
+  (≤ 2 per turn, read tool).
+- `analyze_prescription({ set?, handles? })`: handles must belong to the current session and be `ready`, else a
+  refusal. By default it takes the newest set with a `ready` page not yet analysed. No time window.
+- Refusals keep the WP1 marker `{ error: code }` and add `explain`: a fixed i18n sentence
+  (`whatsapp.agent.tools.explain.<code>`). Deviation from §8.2's `{ ok, data }` shape: the `error` key is what
+  `withToolEffect`, the failure policy and the tool records already read.
+- Tool memory: after the turn, `meta.toolNotes = [{ tool, outcome, rxRef?, handles? }]` on the reply row (no free
+  text). History renders it as `[أداة: analyze_prescription → started rx#<short> (#3 #4)]`.
+
+### 18.6 Composer (pure, `packages/shared/src/wa-agent/{format,bidi,split}.ts`)
+- `toWhatsApp(markdownish)`: `**x**`/`__x__` → `*x*`, headings → bold line, tables → bullet lines, `-`/`*`
+  bullets → «• », keeps code spans.
+- `isolateBidi(text)`: Latin runs (letters, digits, `.`, `-`, `/`, `%`, spaces between them) inside an Arabic
+  line are wrapped in U+2068…U+2069. A line whose first strong character is Arabic starts with U+200F. The
+  function is idempotent.
+- `splitReply(text, { maxChars, maxParts })`: paragraph, then sentence, then word boundaries; never splits inside
+  an isolate or a `*…*` span. The last part may be cut with «…» when `maxParts` is reached.
+- The v2 round applies `toWhatsApp` → `isolateBidi` → `splitReply` to model text and to every template.
+
+## 19. WP9 part A contract: admin operations (main session, 2026-11-01)
+
+Binding for the WP9A builders. Shapes live in `packages/shared/src/schemas/wa-agent-ops.ts` (written by main;
+builders import them and do not change them without asking). Responses carry ids, codes, numbers and times,
+never customer text or phone numbers.
+
+### 19.1 API (`apps/api/src/admin/wa-agent/`)
+| Route | Permission | Notes |
+|---|---|---|
+| `GET admin/wa-agent/conversations/:id/turns?limit` → `WaTurnList` | `wa_agent.inbox` | Newest first; read audited like the transcript (`audit.recordFor`, action `wa_agent.turns_read`). |
+| `GET admin/wa-agent/health?range=24h\|7d` → `WaHealth` | `wa_agent.read` | SQL aggregates (19.2); no audit (no personal data). |
+| `POST admin/wa-agent/simulator` (`WaSimulatorRequest`) → `WaSimulatorResponse` | `wa_agent.write` + fresh auth 10 min | Rate limit 20/hour per admin; audited `wa_agent.simulate` (counts only). |
+| `POST admin/wa-agent/turns/:id/replay` → `WaReplayResponse` | `wa_agent.write` + fresh auth 10 min | Dry run; rate limit 20/hour; audited `wa_agent.replay`. |
+| existing DLQ routes | unchanged | The web screen uses them. |
+
+### 19.2 Health definitions (range = last 24 h or 7 UTC days)
+- turns: `wa_turns.started_at` in range. Failure rate = `failed_replied` / ended turns (states other than
+  `queued`/`running`), with `dropped_policy` excluded from both sides, in basis points. Latency =
+  `ended_at - started_at` over ended turns (p50/p95 with `percentile_cont`). Cost = sum `cost_usd_micros`.
+- unanswered: `wa_messages` direction `in`, `turn_id` null, `created_at` in range and older than 10 min, chat
+  not blocked, and only when `runtime.v2` is on (otherwise 0: v1 never links rows).
+- droppedByReason: outbound rows with status `dropped`, by `drop_reason`. mediaFailuresByReason: inbound rows
+  with `media_status = 'failed'`, by `meta->>'mediaFailure'` (or `unknown`). commandUses: `wa_turns.trace.events`
+  entries with a `via`, by event name. dlqSize: `XLEN wa:agent:dlq`. Spend: the Redis day counter
+  `wa:agent:spend:<utcDay>` and `waAgent.spendCapUsdMicros`.
+- Deviation from §13: counters come from SQL over `wa_turns`/`wa_messages`, not Redis daily counters. They are
+  exact, need no write path, and the volume is small; Redis counters can come later if the queries get slow.
+
+### 19.3 Alerts (worker job `wa-agent.health_check`, every 5 min, queue `payments`)
+Migration `0034_wa_agent_alert_kinds` re-creates `admin_alerts_kind_check` with `WA_AGENT_ALERT_KINDS` added;
+`ALERT_KINDS` and the permission map get them (`wa_agent.read`). Rules over the last
+`WA_AGENT_ALERT_RULES.windowMinutes` (15): failure rate > 5 % with ≥ 10 ended turns; p95 > 45 s with ≥ 10 ended
+turns; DLQ size > 0; ≥ 5 media failures; today's spend ≥ cap. Each kind alerts at most once per 60 min (Redis
+`SET NX EX`). Summary text: counts and thresholds only. The job runs only while `waAgent.enabled`.
+
+### 19.4 Nightly audit (worker job `wa-agent.unanswered_audit`, 03:30 UTC, queue `payments`)
+Only while `runtime.v2` is on: count inbound rows of the last 24 h older than 10 min with `turn_id` null in
+chats that are not blocked. If > 0, raise `wa_agent.unanswered` with the count and up to 10 conversation ids in
+`refId`/summary (ids only). It does not re-queue turns (a late answer can be worse than none; the owner decides).
+
+### 19.5 Dry run (simulator and replay)
+- A `dryRun` flag on the round: write tools (`effect: "write"`) are not executed. `bindTools` returns
+  `{ dryRun: true }` to the model and records the tool in `skippedEffects`. Read tools run normally. Nothing is
+  queued to the bridge, nothing is written to `wa_messages`/`wa_turns`/`wa_tool_effects`, and no credits move.
+  The model call is real and is billed to the agent spend (it is admin testing).
+- Simulator: an in-memory conversation (no DB rows). `linked: true` uses the admin's own account for read
+  tools (account status, catalog). The command layer runs first, as in production.
+- Replay: loads the turn's inbound rows (by `inbound_ids`) and the history the round would have read, then runs
+  the round in dry run. A turn whose rows were deleted (privacy) answers 404.
+
+### 19.6 R17 fix
+`alert-delivery:<id>` job ids (`apps/worker/src/alerts/pending-delivery-sweep.job.ts`,
+`apps/worker/src/jobs/outbox.job.ts`) go through the existing `jobIdFor` sanitizer (no `:`). A unit test checks
+the id.
+
+### 19.7 Web (`apps/web/src/components/admin/`)
+- `wa-agent-view.tsx` gets tabs **Health** (`wa_agent.read`), **DLQ** (`wa_agent.read`; actions need
+  `wa_agent.write`) and **Simulator** (`wa_agent.write`), next to Settings, Inbox and Usage.
+- Inbox: a **Turns** panel for the open conversation (a `DetailDrawer` or a collapsible side panel). Each turn
+  shows state, cause, attempt, latency, cost and steps (model, latency, tools with outcomes, error code). A
+  **Replay (dry run)** action needs `wa_agent.write` and fresh auth.
+- Health: stat cards (turns, failure rate, p95, unanswered, DLQ, spend versus cap), a 24 h/7 d toggle, and tables
+  for causes, drops, media failures and commands. A 7-day daily table, not a chart, in Release A.
+- DLQ: a `DataTable` with replay and discard (confirm dialog, fresh auth), and an empty state.
+- Simulator: a chat panel. Each run sends the whole script; it shows the reply parts, a command badge, steps and
+  skipped effects, with a dry-run notice.
+- Settings: new sections for runtime (v2 switch with a warning, step/turn timeouts, max rounds, job
+  attempts), sessions (idle hours), commands (enabled, extra aliases per command: chips with add/remove,
+  validated by the shared schema), failures, and delivery.
+- `DESIGN-SYSTEM.md`: works at 360 px (cards instead of tables on phones), RTL logical properties, i18n keys for
+  every string (AR + EN), axe clean.
+
 ## 16. Settings additions (`waAgent`)
 `runtime: { concurrency, stepTimeoutMs, turnTimeoutMs, maxRounds, jobAttempts }` · `sessions: { idleHours }` ·
 `commands: { enabled, extraAliases }` · `failures: { customerTextEveryMinutes, ownerAlertEveryMinutes }` ·

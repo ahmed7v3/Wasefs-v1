@@ -14,7 +14,7 @@ import { whatsappLoginRefusal } from "../../auth/whatsapp-login/refusal.js";
 import { WhatsAppLoginRepo } from "../../auth/whatsapp-login/whatsapp-login.repo.js";
 import { WhatsAppLoginService } from "../../auth/whatsapp-login/whatsapp-login.service.js";
 import { SettingsService } from "../../settings/settings.service.js";
-import { WaAgentRepo } from "../wa-agent.repo.js";
+import { WaAgentRepo } from "../conversation/conversation.repo.js";
 
 import type { AgentToolResult } from "./tools/index.js";
 

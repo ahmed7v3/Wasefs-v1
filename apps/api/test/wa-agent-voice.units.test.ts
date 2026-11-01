@@ -2,7 +2,10 @@ import { scriptQueue, type FakeScript } from "@wasfa/ai";
 import { settingDefault, type WaAgentSettings } from "@wasfa/shared/settings";
 import { describe, expect, it } from "vitest";
 
-import { WaAgentTurnService } from "../src/wa-agent/agent/wa-agent-turn.service.js";
+import { MediaInputService } from "../src/wa-agent/agent/media-input.js";
+import { AgentRoundService } from "../src/wa-agent/agent/round.service.js";
+import { SummaryService } from "../src/wa-agent/agent/summary.service.js";
+import { WaAgentTurnService } from "../src/wa-agent/turn/v1-turn.service.js";
 import {
   ElevenLabsClient,
   VoiceError,
@@ -19,9 +22,9 @@ import type { PlansService } from "../src/plans/plans.service.js";
 import type { SettingsService } from "../src/settings/settings.service.js";
 import type { WaAgentHandoffService } from "../src/wa-agent/agent/handoff.service.js";
 import type { WaAgentToolDeps } from "../src/wa-agent/agent/tool-deps.js";
+import type { WaAgentRepo } from "../src/wa-agent/conversation/conversation.repo.js";
+import type { WaOutboundService } from "../src/wa-agent/transport/outbound.service.js";
 import type { VoiceKeyService } from "../src/wa-agent/voice/voice-key.service.js";
-import type { WaAgentRepo } from "../src/wa-agent/wa-agent.repo.js";
-import type { WaOutboundService } from "../src/wa-agent/wa-outbound.service.js";
 import type { TurnMessage, WaConversation } from "@wasfa/db";
 import type { Redis } from "ioredis";
 
@@ -395,6 +398,8 @@ class FakeRepo {
     lastOutboundAt: null,
     summary: null,
     turnFence: 0,
+    sessionId: null,
+    profile: {},
     createdAt: new Date(START),
     updatedAt: new Date(START),
   };
@@ -529,18 +534,27 @@ function harness(options: HarnessOptions = {}) {
   } as unknown as WaAgentToolDeps;
   const handoff = { pauseWhenDelivered: () => undefined } as unknown as WaAgentHandoffService;
   const ai = fakeAi(options.script ?? scriptQueue(["تمام، الباقة برو بـ 199 جنيه"]));
-  const service = new WaAgentTurnService(
+  const round = new AgentRoundService(
     repo as unknown as WaAgentRepo,
     settings,
     redis as unknown as Redis,
     ai.service,
-    outbound,
     handoff,
     toolDeps,
     { effectivePlan: () => Promise.resolve({ id: "plan-1" }) } as unknown as PlansService,
-    storage,
     silentLogger,
     voice,
+    new MediaInputService(repo as unknown as WaAgentRepo, storage, voice),
+    new SummaryService(repo as unknown as WaAgentRepo, redis as unknown as Redis, ai.service),
+  );
+  const service = new WaAgentTurnService(
+    repo as unknown as WaAgentRepo,
+    settings,
+    redis as unknown as Redis,
+    outbound,
+    handoff,
+    round,
+    silentLogger,
   );
   const clock = { now: START };
   service.timing.now = () => clock.now;

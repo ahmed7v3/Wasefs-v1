@@ -340,6 +340,11 @@
       "import": "./dist/schemas/wa-agent.js",
       "default": "./dist/schemas/wa-agent.js"
     },
+    "./schemas/wa-agent-ops": {
+      "types": "./dist/schemas/wa-agent-ops.d.ts",
+      "import": "./dist/schemas/wa-agent-ops.js",
+      "default": "./dist/schemas/wa-agent-ops.js"
+    },
     "./schemas/wa-document": {
       "types": "./dist/schemas/wa-document.d.ts",
       "import": "./dist/schemas/wa-document.js",
@@ -394,6 +399,46 @@
       "types": "./dist/wa-agent/failure.d.ts",
       "import": "./dist/wa-agent/failure.js",
       "default": "./dist/wa-agent/failure.js"
+    },
+    "./wa-agent/format": {
+      "types": "./dist/wa-agent/format.d.ts",
+      "import": "./dist/wa-agent/format.js",
+      "default": "./dist/wa-agent/format.js"
+    },
+    "./wa-agent/bidi": {
+      "types": "./dist/wa-agent/bidi.d.ts",
+      "import": "./dist/wa-agent/bidi.js",
+      "default": "./dist/wa-agent/bidi.js"
+    },
+    "./wa-agent/split": {
+      "types": "./dist/wa-agent/split.d.ts",
+      "import": "./dist/wa-agent/split.js",
+      "default": "./dist/wa-agent/split.js"
+    },
+    "./wa-agent/compose": {
+      "types": "./dist/wa-agent/compose.d.ts",
+      "import": "./dist/wa-agent/compose.js",
+      "default": "./dist/wa-agent/compose.js"
+    },
+    "./wa-agent/normalize": {
+      "types": "./dist/wa-agent/normalize.d.ts",
+      "import": "./dist/wa-agent/normalize.js",
+      "default": "./dist/wa-agent/normalize.js"
+    },
+    "./wa-agent/commands": {
+      "types": "./dist/wa-agent/commands.d.ts",
+      "import": "./dist/wa-agent/commands.js",
+      "default": "./dist/wa-agent/commands.js"
+    },
+    "./i18n/wa-commands": {
+      "types": "./dist/i18n/wa-commands.d.ts",
+      "import": "./dist/i18n/wa-commands.js",
+      "default": "./dist/i18n/wa-commands.js"
+    },
+    "./wa-agent/session": {
+      "types": "./dist/wa-agent/session.d.ts",
+      "import": "./dist/wa-agent/session.js",
+      "default": "./dist/wa-agent/session.js"
     },
     "./rx-normalize": {
       "types": "./dist/rx-normalize.d.ts",
