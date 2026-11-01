@@ -105,12 +105,6 @@ export const enMessaging: Partial<Record<keyof typeof arMessaging, string>> = {
   "whatsapp.agent.tools.explain.not_linked":
     "This service is for confirmed accounts only, and this number is not linked to one.",
   "whatsapp.agent.tools.explain.already_linked": "This number is already linked to an account.",
-  "whatsapp.agent.tools.explain.invalid_arguments":
-    "The request was incomplete or malformed; try again with the right details.",
-  "whatsapp.agent.tools.explain.tool_failed":
-    "The tool had a temporary problem and nothing changed; we can try again shortly.",
-  "whatsapp.agent.tools.explain.stale_turn":
-    "A newer message arrived, so this request was cancelled with no change.",
   "whatsapp.agent.tools.explain.no_image":
     "There is no prescription picture ready to read. Ask the customer to send the prescription.",
   "whatsapp.agent.tools.explain.still_processing":

@@ -337,7 +337,9 @@ describe("explain texts", () => {
   });
 
   it("has an Arabic and an English sentence for every refusal code a tool returns", () => {
+    const internal = new Set(["invalid_arguments", "tool_failed", "stale_turn"]);
     const missing = [...codes].filter((code) => {
+      if (internal.has(code)) return false;
       const key = explainKey(code);
       return key === null || !Object.hasOwn(en, key) || !Object.hasOwn(ar, key);
     });
@@ -388,12 +390,13 @@ describe("bindTools refusals and notes", () => {
     ]);
   });
 
-  it("explains an invalid call in the configured language", async () => {
-    const { call } = setup({}, "en");
-    expect(await call?.({ set: "123" })).toMatchObject({
-      error: "invalid_arguments",
-      explain: expect.stringContaining("incomplete or malformed"),
+  it("explains in the configured language, and leaves internal codes bare", async () => {
+    const english = setup({ started: false, reason: "no_image" }, "en");
+    expect(await english.call?.({})).toMatchObject({
+      explain: expect.stringContaining("no prescription picture"),
     });
+    // Internal failures are for the failure policy, not for the model to paraphrase.
+    expect(await setup({}).call?.({ set: "123" })).toEqual({ error: "invalid_arguments" });
   });
 });
 
