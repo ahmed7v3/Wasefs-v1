@@ -60,6 +60,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 function wrap(ui: React.ReactNode) {
@@ -310,6 +311,9 @@ describe("ContentReviewView", () => {
 
 describe("ContentCalendarView", () => {
   it("shows scheduled and published items on their zone day, as a grid and as a phone agenda", async () => {
+    // "Next" from the current month drops the month parameter, so pin today to the month under test.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-15T12:00:00Z"));
     search = "month=2026-10";
     routes({
       "GET /admin/settings": () => json({ items: [] }),
