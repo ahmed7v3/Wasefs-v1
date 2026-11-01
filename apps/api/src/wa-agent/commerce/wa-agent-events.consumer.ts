@@ -24,6 +24,7 @@ import { WaOutboundService } from "../wa-outbound.service.js";
 import { WaAgentCommerceRepo } from "./agent-commerce.repo.js";
 import {
   documentFailedText,
+  hasReadLines,
   paymentMessage,
   rxDoneParts,
   rxFailedText,
@@ -202,15 +203,28 @@ export class WaAgentEventsConsumer extends StreamConsumer {
     locale: Locale,
     withPdf: boolean,
   ): Promise<string[] | null> {
-    if (event.type === "rx_failed") return [rxFailedText(locale)];
-    if (conversation.userId === null) return null;
+    const failed = event.type === "rx_failed";
+    if (conversation.userId === null) return failed ? [rxFailedText(locale)] : null;
     const row = await this.commerce.user(conversation.userId);
-    if (row?.status !== "active") return null;
+    if (row?.status !== "active") return failed ? [rxFailedText(locale)] : null;
     // The analysis is read as its owner: someone else's analysis id is simply not found.
-    const view = await this.rx.get(agentUser(row, new Date()), event.rxId);
-    if (view.result === null) return [rxFailedText(locale)];
+    const view = failed
+      ? await this.rx.get(agentUser(row, new Date()), event.rxId).catch(() => null)
+      : await this.rx.get(agentUser(row, new Date()), event.rxId);
+    // A refunded reading (the worker sends rx_failed for it) that still read some lines is given free,
+    // with the unsure lines marked. Only a reading with nothing in it, or a crashed one, is "could not read".
+    const partial =
+      failed && view?.status === "refunded" && view.result !== null && hasReadLines(view.result);
+    if (view?.result == null || (failed && !partial)) return [rxFailedText(locale)];
     const origin = this.apiEnv.WEB_ORIGIN[0] ?? "";
-    return rxDoneParts(view.result, `${origin}/analyze/${event.rxId}`, caps, locale, withPdf);
+    return rxDoneParts(
+      view.result,
+      `${origin}/analyze/${event.rxId}`,
+      caps,
+      locale,
+      withPdf,
+      partial,
+    );
   }
 
   /** Queues the parts while holding the chat's turn lock, so they do not land inside an agent turn. */

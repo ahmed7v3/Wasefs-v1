@@ -209,6 +209,8 @@ function findingLines(result: RxResult, locale: Locale): string[] {
  * result. When the full reading does not fit the budget, the short one-line-per-medicine list is sent
  * instead (cut from its end if it is long). With a single message allowed, the list gives way to the
  * closing text. `withPdf`: a PDF follows, so the closing says so.
+ * `partial`: a refunded reading that still found lines; one honest line leads the list, because the
+ * lines are given free but may be wrong.
  */
 export function rxDoneParts(
   result: RxResult,
@@ -216,6 +218,7 @@ export function rxDoneParts(
   caps: MessageCaps,
   locale: Locale,
   withPdf = false,
+  partial = false,
 ): string[] {
   const named = result.items.filter((item) => itemName(item) !== "");
   const closing = [
@@ -228,7 +231,11 @@ export function rxDoneParts(
   ]
     .filter((part) => part !== "")
     .join("\n\n");
-  const header = t("whatsapp.agent.event.rxDone.header", { count: named.length }, locale);
+  const header = [
+    partial ? `${t("whatsapp.agent.event.rxPartial", {}, locale)}
+` : "",
+    t("whatsapp.agent.event.rxDone.header", { count: named.length }, locale),
+  ].join("");
   const date = filled(result.date)
     ? t("whatsapp.agent.event.rxDone.date", { date: result.date.trim() }, locale)
     : "";
@@ -270,6 +277,10 @@ export function rxDoneParts(
   }
   return [...list, ...splitReply(closing, 1, caps.maxReplyChars)];
 }
+
+/** True when a stored result holds at least one line with a name or raw text (what the worker counts as read). */
+export const hasReadLines = (result: RxResult): boolean =>
+  result.items.some((item) => itemName(item) !== "");
 
 export const rxFailedText = (locale: Locale): string =>
   t("whatsapp.agent.event.rxFailed", {}, locale);
