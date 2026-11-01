@@ -1,6 +1,14 @@
 import { randomUUID } from "node:crypto";
 
-import { creditLedger, creditWallets, orders, planEntitlements, plans, users } from "@wasfa/db";
+import {
+  creditLedger,
+  creditWallets,
+  grantPeriod,
+  orders,
+  planEntitlements,
+  plans,
+  users,
+} from "@wasfa/db";
 import {
   adminAdjustResponseSchema,
   adminCreditWalletPageSchema,
@@ -807,7 +815,7 @@ describe("credits admin", () => {
 
   it("refuses to take a wallet below zero (409) and an unknown owner (404)", async () => {
     const owner = await newUser();
-    await credits.grant(owner, 5, "2026-10");
+    await credits.grant(owner, 5, grantPeriod(new Date()));
     expectError(
       await call("POST", "/admin/credits/adjust", boss, {
         owner,
@@ -855,7 +863,7 @@ describe("credits admin", () => {
   it("lists wallets with owner and plan, filters by name and pages", async () => {
     const owner = await newUser("Searchable Zebra");
     const name = "Searchable Zebra";
-    await credits.grant(owner, 9, "2026-10");
+    await credits.grant(owner, 9, grantPeriod(new Date()));
 
     const all = adminCreditWalletPageSchema.parse(
       (await call("GET", "/admin/credits/wallets", boss)).json(),
@@ -886,7 +894,7 @@ describe("credits admin", () => {
 
   it("shows a wallet's ledger newest first, without idempotency keys", async () => {
     const owner = await newUser();
-    await credits.grant(owner, 10, "2026-10");
+    await credits.grant(owner, 10, grantPeriod(new Date()));
     const { reservation } = await credits.reserve(owner, 4, {
       idempotencyKey: randomUUID(),
       purpose: "rx",
@@ -1017,7 +1025,7 @@ describe("GET /me/credits", () => {
       planId: plan.id,
       reason: REASON,
     });
-    await credits.grant({ type: "user", id: person.userId }, 33, "2026-10");
+    await credits.grant({ type: "user", id: person.userId }, 33, grantPeriod(new Date()));
 
     const body = meCreditsResponseSchema.parse((await call("GET", "/me/credits", person)).json());
     expect(body.wallet.balance).toBe(33);
