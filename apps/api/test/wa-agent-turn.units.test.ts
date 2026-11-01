@@ -523,19 +523,19 @@ describe("prompt", () => {
 });
 
 describe("spend cap and failures", () => {
-  it("at the daily cap: a busy line once per chat per day, owner alert, pause, no AI", async () => {
+  it("at the daily cap: nothing to the customer, no pause, one owner alert naming the cap, no AI", async () => {
     const h = harness({ config: { spendCapUsdMicros: 1_000 } });
     h.redis.values.set(`wa:agent:spend:${day(h)}`, "1000");
     await h.ask("hello");
     expect(h.ai.inputs).toHaveLength(0);
-    expect(h.sent).toEqual([{ parts: [{ kind: "text", text: t("whatsapp.agent.busy") }] }]);
+    expect(h.sent).toEqual([]);
     expect(h.alerts).toHaveLength(1);
+    expect(JSON.stringify(h.alerts[0])).toContain("سقف إنفاق الوكيل");
     await h.handoff.drain();
-    expect(h.pauses).toHaveLength(1);
-    expect(h.events).toEqual(["enqueue", "pause"]);
-    // Again the same day: the flag keeps the agent quiet, and no second line goes out.
+    expect(h.pauses).toHaveLength(0);
+    // Again soon after: still nothing sent, and the alert is not repeated.
     await h.ask("hello?");
-    expect(h.sent).toHaveLength(1);
+    expect(h.sent).toEqual([]);
     expect(h.alerts).toHaveLength(1);
   });
 
@@ -546,18 +546,37 @@ describe("spend cap and failures", () => {
     expect(h.redis.ttls.get(`wa:agent:spend:${day(h)}`)).toBe(2 * 86_400_000);
   });
 
-  it("a model error takes the busy path and shows the customer nothing technical", async () => {
+  it("a model error is retried once; if it fails again the owner is alerted and the customer sent nothing", async () => {
     const h = harness({ script: () => new AiProviderError("unavailable") });
     await h.ask("hi");
-    expect(h.sent).toEqual([{ parts: [{ kind: "text", text: t("whatsapp.agent.busy") }] }]);
+    expect(h.ai.inputs.length).toBeGreaterThanOrEqual(2);
+    expect(h.sent).toEqual([]);
+    expect(h.alerts).toHaveLength(1);
+    expect(JSON.stringify(h.alerts[0])).toContain("صندوق واتساب");
+    await h.handoff.drain();
+    expect(h.pauses).toHaveLength(0);
+  });
+
+  it("a model error followed by a good answer: the retry answers and nobody is alerted", async () => {
+    const h = harness({ script: scriptQueue([new AiProviderError("unavailable"), "تمام"]) });
+    await h.ask("hi");
+    expect(h.sent).toEqual([{ parts: [{ kind: "text", text: "تمام" }] }]);
+    expect(h.alerts).toHaveLength(0);
+  });
+
+  it("an empty model answer is retried; empty twice alerts the owner, never a canned line", async () => {
+    const h = harness({ script: scriptQueue([""]) });
+    await h.ask("hi");
+    expect(h.ai.inputs).toHaveLength(2);
+    expect(h.sent).toEqual([]);
     expect(h.alerts).toHaveLength(1);
   });
 
-  it("an empty model answer is a failure (busy line), never silence", async () => {
-    const h = harness({ script: scriptQueue([""]) });
+  it("an empty answer then a real one: the customer gets the real one", async () => {
+    const h = harness({ script: scriptQueue(["", "أهلًا بيك"]) });
     await h.ask("hi");
-    expect(h.sent).toEqual([{ parts: [{ kind: "text", text: t("whatsapp.agent.busy") }] }]);
-    expect(h.alerts).toHaveLength(1);
+    expect(h.sent).toEqual([{ parts: [{ kind: "text", text: "أهلًا بيك" }] }]);
+    expect(h.alerts).toHaveLength(0);
   });
 
   it("sends the pictures on the first model step only", async () => {
@@ -578,23 +597,37 @@ describe("spend cap and failures", () => {
     expect(partsOf(1)).toContainEqual({ type: "text", text: "[صورة]" });
   });
 
-  it("the kill switch or the global cap takes the same path", async () => {
+  it("the kill switch or the global cap: no AI call, nothing sent, the owner is alerted", async () => {
     const h = harness({ unavailable: new Error("ai_paused") });
     await h.ask("hi");
     expect(h.ai.inputs).toHaveLength(0);
-    expect(h.sent).toEqual([{ parts: [{ kind: "text", text: t("whatsapp.agent.busy") }] }]);
+    expect(h.sent).toEqual([]);
+    expect(h.alerts).toHaveLength(1);
   });
 
-  it("a failure after a tool ran still ends in the busy line, and its cost is booked", async () => {
+  it("a failure after a tool that changed something is not re-run (no double effect)", async () => {
     const h = harness({
-      costUsdMicros: 300,
-      script: scriptQueue([toolCall("get_catalog"), new AiProviderError("unavailable")]),
+      script: scriptQueue([
+        toolCall("handoff_to_owner", { reason: "طلب المالك" }),
+        new AiProviderError("unavailable"),
+      ]),
     });
     await h.ask("hi");
-    expect(h.sent).toEqual([{ parts: [{ kind: "text", text: t("whatsapp.agent.busy") }] }]);
-    // The second call asked for no fallback model because a tool had run.
-    expect(h.ai.inputs.map((input) => input.noFallback)).toEqual([false, true]);
-    expect(h.redis.values.get(`wa:agent:spend:${day(h)}`)).toBe("300");
+    // One attempt only: the handoff tool ran, then the model failed.
+    expect(h.ai.inputs).toHaveLength(2);
+    expect(h.sent).toEqual([]);
+  });
+
+  it("a failure after a read-only tool is retried, and its cost is booked", async () => {
+    const h = harness({
+      costUsdMicros: 300,
+      script: scriptQueue([toolCall("get_catalog"), new AiProviderError("unavailable"), "تمام"]),
+    });
+    await h.ask("hi");
+    expect(h.sent).toEqual([{ parts: [{ kind: "text", text: "تمام" }] }]);
+    // The second call asked for no fallback model because a tool had run; the retry starts fresh.
+    expect(h.ai.inputs.map((input) => input.noFallback)).toEqual([false, true, false]);
+    expect(Number(h.redis.values.get(`wa:agent:spend:${day(h)}`))).toBeGreaterThanOrEqual(300);
   });
 });
 
@@ -692,10 +725,11 @@ describe("output and bookkeeping", () => {
     }
   });
 
-  it("a blank answer is a failure, so the customer gets the busy line instead of silence", async () => {
+  it("a blank answer is a failure: retried, then the owner is alerted; no canned line is sent", async () => {
     const h = harness({ script: scriptQueue(["   "]) });
     await h.ask("hi");
-    expect(h.sent).toEqual([{ parts: [{ kind: "text", text: t("whatsapp.agent.busy") }] }]);
+    expect(h.sent).toEqual([]);
+    expect(h.alerts).toHaveLength(1);
   });
 
   it("stores tool names, outcomes, steps and cost on the reply rows, never arguments or results", async () => {

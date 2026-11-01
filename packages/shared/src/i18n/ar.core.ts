@@ -77,8 +77,6 @@ export const arCore = {
   "whatsapp.customer.footer": "وصفة AI · لإيقاف رسائل واتساب أرسل كلمة: إيقاف",
   "whatsapp.agent.accountUnavailable":
     "نعتذر، لا يمكننا المساعدة في هذا الحساب حاليًا. يرجى التواصل مع فريق وصفة AI عبر الموقع.",
-  "whatsapp.agent.busy":
-    "نعتذر، الضغط علينا كبير الآن. سجّلنا رسالتك وسيردّ عليك فريقنا في أقرب وقت.",
   "whatsapp.agent.coupon.title": "خصم خاص لك",
   "whatsapp.agent.medical.lengthHint":
     "(الرد سيصل عبر واتساب: اكتب إجابة موجزة لا تتجاوز {chars} حرفًا.)",
