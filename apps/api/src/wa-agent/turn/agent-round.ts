@@ -19,6 +19,8 @@ export interface TurnTraceStep {
   code: string;
   name?: string;
   ok?: boolean;
+  /** A command step: how the row was recognised (`alias`, `fuzzy`, `menu`, `awaiting`). */
+  via?: string;
   ms?: number;
   count?: number;
 }

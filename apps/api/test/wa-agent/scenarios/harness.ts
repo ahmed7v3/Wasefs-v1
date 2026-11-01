@@ -35,6 +35,10 @@ import { MediaInputService } from "../../../src/wa-agent/agent/media-input.js";
 import { AgentRoundService } from "../../../src/wa-agent/agent/round.service.js";
 import { SummaryService } from "../../../src/wa-agent/agent/summary.service.js";
 import { WaAgentToolDeps } from "../../../src/wa-agent/agent/tool-deps.js";
+import {
+  CommandRouter,
+  type CommandRouterPorts,
+} from "../../../src/wa-agent/commands/command-router.js";
 import { WaAgentCommerceRepo } from "../../../src/wa-agent/commerce/agent-commerce.repo.js";
 import { WaAgentEventsConsumer } from "../../../src/wa-agent/commerce/wa-agent-events.consumer.js";
 import { AttachmentsService } from "../../../src/wa-agent/conversation/attachments.service.js";
@@ -452,28 +456,7 @@ export class ScenarioServices {
       },
     } as unknown as ObjectStorage;
     const real = ctx.app.get(WaAgentToolDeps);
-    const rxRepo = ctx.app.get(AgentRxRepo);
-    const processed = this.processedFiles();
-    const reading = new AgentRxService(
-      ctx.app.get(WaAgentCommerceRepo),
-      rxRepo,
-      new RxStartService(
-        rxRepo,
-        processed,
-        ctx.app.get(RxService),
-        ctx.app.get(CreditsService),
-        ctx.redis,
-        silentLogger,
-      ),
-      processed,
-      ctx.app.get(RxService),
-      ctx.app.get(PlansService),
-      ctx.app.get(CreditsService),
-      this.settings,
-      ctx.redis,
-      silentLogger,
-      ctx.app.get(AttachmentsService),
-    );
+    const { reading } = this.rxServices();
     // Only the reading is replaced: the real one would copy the picture from the bucket.
     const deps = Object.create(real, {
       usage: {
@@ -513,6 +496,61 @@ export class ScenarioServices {
     service.timing.maxQuietWaitMs = 0;
     service.timing.sleep = () => Promise.resolve();
     return { turns: service, round };
+  }
+
+  /** The prescription start with the instant image worker: what the tool and the `analyze` command both use. */
+  private rxServices(): { reading: AgentRxService; start: RxStartService } {
+    const { ctx } = this;
+    const rxRepo = ctx.app.get(AgentRxRepo);
+    const processed = this.processedFiles();
+    const start = new RxStartService(
+      rxRepo,
+      processed,
+      ctx.app.get(RxService),
+      ctx.app.get(CreditsService),
+      ctx.redis,
+      silentLogger,
+    );
+    const reading = new AgentRxService(
+      ctx.app.get(WaAgentCommerceRepo),
+      rxRepo,
+      start,
+      processed,
+      ctx.app.get(RxService),
+      ctx.app.get(PlansService),
+      ctx.app.get(CreditsService),
+      this.settings,
+      ctx.redis,
+      silentLogger,
+      ctx.app.get(AttachmentsService),
+    );
+    return { reading, start };
+  }
+
+  /** Files the `privacy` command asked storage to remove (the real bucket is not touched). */
+  readonly removedKeys: string[] = [];
+
+  /** The app's command router, with the instant image worker behind `analyze` and a recording storage. */
+  commandRouter(): CommandRouter {
+    const real = (this.ctx.app.get(CommandRouter) as unknown as { ports: CommandRouterPorts })
+      .ports;
+    const { reading, start } = this.rxServices();
+    return CommandRouter.of({
+      ...real,
+      deps: {
+        ...real.deps,
+        rx: {
+          startBase: (call) => reading.startBase(call),
+          start: (call, effect, base, picked) => start.analyzeOnce(call, effect, base, picked),
+        },
+        storage: {
+          remove: (key) => {
+            this.removedKeys.push(key);
+            return Promise.resolve();
+          },
+        },
+      },
+    });
   }
 
   /** The image worker, instant: an imported picture is a processed page of the viewer. */
@@ -574,6 +612,7 @@ export class ScenarioServices {
       queue,
       failures,
       silentLogger,
+      this.commandRouter(),
     );
   }
 

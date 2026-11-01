@@ -20,6 +20,11 @@ export function rxStartLine(outputs: readonly ToolOutput[], locale: Locale): str
   const started = startedOutput(outputs);
   if (started === null) return null;
   const pages = typeof started.pages === "number" && started.pages >= 1 ? started.pages : 1;
+  return rxStartText(pages, locale);
+}
+
+/** The start line for `pages` pages; the command layer sends it too, so both read the same. */
+export function rxStartText(pages: number, locale: Locale): string {
   return t("whatsapp.agent.rx.starting", { pages: pagesLabel(pages, locale) }, locale);
 }
 

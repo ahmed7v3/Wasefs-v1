@@ -185,6 +185,48 @@ export const enMessaging: Partial<Record<keyof typeof arMessaging, string>> = {
     "A sign-in link is not available for this account. Ask them to sign in on the website.",
   "whatsapp.agent.tools.explain.view_limit": "You can look at two pictures per reply only.",
   "whatsapp.agent.tools.explain.view_unavailable": "I cannot show that attachment right now.",
+  "whatsapp.agent.commands.new":
+    'We started a fresh page 👋\n• Send me a photo of the prescription and I will read it\n• Ask me about any medicine\n• Type "help" to see the menu',
+  "whatsapp.agent.commands.help.header": "I can help you with:",
+  "whatsapp.agent.commands.help.footer":
+    "Type the number of your choice within 10 minutes, or just ask me in your own words.",
+  "whatsapp.agent.commands.menu.analyze": "Read a prescription",
+  "whatsapp.agent.commands.menu.report": "Resend the prescription report",
+  "whatsapp.agent.commands.menu.balance": "My balance and plan",
+  "whatsapp.agent.commands.menu.schedule": "Medicine schedule",
+  "whatsapp.agent.commands.menu.voice": "Voice replies (on or off)",
+  "whatsapp.agent.commands.menu.lang": "Change language",
+  "whatsapp.agent.commands.menu.human": "Talk to a person",
+  "whatsapp.agent.commands.menu.new": "Start a new conversation",
+  "whatsapp.agent.commands.menu.privacy": "Delete this chat's data",
+  "whatsapp.agent.commands.guest":
+    'That is for account holders. To open an account, write "I want an account" and I will help you right here 🙂',
+  "whatsapp.agent.commands.analyze.awaiting":
+    "Send a photo of the prescription and I will read it right away",
+  "whatsapp.agent.commands.analyze.notReady":
+    "The picture is not ready or did not arrive completely. Please send it again.",
+  "whatsapp.agent.commands.analyze.alreadyAnalysed":
+    "That prescription was already read, the result is in the message above.",
+  "whatsapp.agent.commands.analyze.stillProcessing":
+    'The picture is still being prepared. Write "analyze" again in a moment.',
+  "whatsapp.agent.commands.analyze.failed":
+    "I could not start reading the prescription right now and nothing was charged. Please try again shortly.",
+  "whatsapp.agent.commands.balance.header": "📊 Your account",
+  "whatsapp.agent.commands.balance.plan": "• Plan: {plan}",
+  "whatsapp.agent.commands.balance.credits": "• Credits: {balance}",
+  "whatsapp.agent.commands.balance.renews": "• Renews on: {date}",
+  "whatsapp.agent.commands.balance.ends": "• Ends on: {date}",
+  "whatsapp.agent.commands.balance.nextGrant": "• Next monthly credits on: {date}",
+  "whatsapp.agent.commands.balance.pending": "• Order waiting for payment: {number}",
+  "whatsapp.agent.commands.report.none": "There is no report yet",
+  "whatsapp.agent.commands.voice.on": "Done, voice replies are available again 🎙️",
+  "whatsapp.agent.commands.voice.off": "Done, I will reply in writing from now on",
+  "whatsapp.agent.commands.lang.ar": "تمام، هكلمك بالعربي 👍",
+  "whatsapp.agent.commands.lang.en": "Sure, I will reply in English from now on 👍",
+  "whatsapp.agent.commands.privacy.ask":
+    'Write "confirm" within 5 minutes and I will delete this chat\'s data',
+  "whatsapp.agent.commands.privacy.done": "This chat's data was deleted.",
+  "whatsapp.agent.commands.soon": "Coming soon 🙂",
   "document.generatedOn": "Generated on: {date}",
   "document.page": "Page",
   "document.disclaimerTitle": "Medical notice",
