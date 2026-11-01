@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { grantPeriod } from "@wasfa/db";
 import { AppError } from "@wasfa/shared/errors";
 import { meCreditsResponseSchema, meUsagePageSchema } from "@wasfa/shared/schemas/credits";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -205,7 +206,7 @@ describe("GET /me/usage", () => {
     const person = await ctx.harness.signedInUser();
     const stranger = await ctx.harness.signedInUser();
     const owner = { type: "user" as const, id: person.userId };
-    await credits.grant(owner, 30, "2026-10");
+    await credits.grant(owner, 30, grantPeriod(new Date()));
     const held = await credits.reserve(owner, 5, { idempotencyKey: randomUUID(), purpose: "rx" });
     await credits.settle(held.reservation.id, 3);
     await credits.adjust(owner, 4, {
@@ -213,7 +214,7 @@ describe("GET /me/usage", () => {
       actorId: stranger.userId,
       idempotencyKey: randomUUID(),
     });
-    await credits.grant({ type: "user", id: stranger.userId }, 99, "2026-10");
+    await credits.grant({ type: "user", id: stranger.userId }, 99, grantPeriod(new Date()));
 
     const seen = [];
     let cursor: string | null = null;
@@ -244,7 +245,9 @@ describe("GET /me/usage", () => {
     const text = JSON.stringify(seen);
     expect(text).not.toContain("private admin note");
     expect(seen.find((item) => item.kind === "admin_adjust")?.reason).toBeNull();
-    expect(seen.find((item) => item.kind === "grant")?.reason).toBe("monthly:2026-10");
+    expect(seen.find((item) => item.kind === "grant")?.reason).toBe(
+      `monthly:${grantPeriod(new Date())}`,
+    );
     // Only the documented fields leave the API.
     for (const item of seen) {
       expect(Object.keys(item).sort()).toEqual(
