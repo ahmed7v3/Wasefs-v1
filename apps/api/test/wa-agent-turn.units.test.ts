@@ -4,7 +4,13 @@ import { settingDefault, type WaAgentSettings } from "@wasfa/shared/settings";
 import { describe, expect, it } from "vitest";
 
 import { WaAgentHandoffService } from "../src/wa-agent/agent/handoff.service.js";
-import { WaAgentTurnService } from "../src/wa-agent/agent/wa-agent-turn.service.js";
+import {
+  LOCK_MS,
+  PROVIDER_RETRY_DELAY_MS,
+  STEP_TIMEOUT_MS,
+  TURN_TIMEOUT_MS,
+  WaAgentTurnService,
+} from "../src/wa-agent/agent/wa-agent-turn.service.js";
 
 import { MemoryRedis, fakeAi, silentLogger, type FakeAi } from "./support/wa-agent-fakes.js";
 
@@ -111,8 +117,17 @@ interface Harness {
   storageReads: string[];
   handoff: WaAgentHandoffService;
   sleeps: number[];
+  /** Every service log call, in order. */
+  logs: LogEntry[];
   /** Stores a customer text and runs the turn like the stream consumer does. */
   ask: (text: string) => Promise<void>;
+}
+
+/** One warn/info/error call of the service logger, for asserting the reason a turn ended. */
+interface LogEntry {
+  level: "info" | "warn" | "error";
+  data: Record<string, unknown>;
+  message: string;
 }
 
 function harness(
@@ -229,6 +244,16 @@ function harness(
     },
   } as unknown as ObjectStorage;
 
+  const logs: LogEntry[] = [];
+  const recordingLogger = {
+    setContext: () => undefined,
+    info: (data: Record<string, unknown>, message: string) =>
+      logs.push({ level: "info", data, message }),
+    warn: (data: Record<string, unknown>, message: string) =>
+      logs.push({ level: "warn", data, message }),
+    error: (data: Record<string, unknown>, message: string) =>
+      logs.push({ level: "error", data, message }),
+  } as unknown as typeof silentLogger;
   const service = new WaAgentTurnService(
     repo as unknown as WaAgentRepo,
     settings,
@@ -239,7 +264,7 @@ function harness(
     toolDeps,
     plans,
     storage,
-    silentLogger,
+    recordingLogger,
     {} as WaAgentVoiceService,
   );
   service.timing.now = () => clock.now;
@@ -263,6 +288,7 @@ function harness(
     storageReads,
     handoff,
     sleeps,
+    logs,
     ask: async (text) => {
       repo.add("in", { text });
       await service.onInbound(CONVERSATION_ID);
@@ -739,5 +765,89 @@ describe("summary", () => {
     await h.ask("hi");
     await h.service.drain();
     expect(h.ai.inputs.map((input) => input.task)).toEqual(["wa_agent"]);
+  });
+});
+
+describe("why the agent could not answer", () => {
+  it("logs the spend cap with the spend and the cap, before the line goes out", async () => {
+    const h = harness({ config: { spendCapUsdMicros: 1_000 } });
+    h.redis.values.set(`wa:agent:spend:${day(h)}`, "1000");
+    await h.ask("hello");
+    expect(h.logs).toEqual([
+      expect.objectContaining({
+        level: "warn",
+        message: "Agent cannot answer",
+        data: expect.objectContaining({
+          cause: "spend_cap",
+          spentUsdMicros: 1000,
+          capUsdMicros: 1000,
+        }),
+      }),
+    ]);
+  });
+
+  it("logs an unavailable AI as ai_unavailable with the error name", async () => {
+    const h = harness({ unavailable: new Error("ai_paused") });
+    await h.ask("hi");
+    expect(h.logs).toHaveLength(1);
+    expect(h.logs[0]?.data).toMatchObject({ cause: "ai_unavailable", errorName: "Error" });
+  });
+
+  it("logs a failed model call as model_failed, with the failure and the tools that ran", async () => {
+    const h = harness({
+      script: scriptQueue([toolCall("get_catalog"), new AiProviderError("unavailable")]),
+    });
+    await h.ask("hi");
+    expect(h.logs.filter((entry) => entry.message === "Agent turn failed")).toHaveLength(1);
+    expect(h.logs.find((entry) => entry.message === "Agent turn failed")?.data).toMatchObject({
+      errorName: "AiProviderError",
+      code: "unavailable",
+      toolsRan: 1,
+    });
+    expect(h.logs.find((entry) => entry.message === "Agent cannot answer")?.data).toMatchObject({
+      cause: "model_failed",
+    });
+  });
+
+  it("logs once per chat per day: the repeat is quiet, like the line itself", async () => {
+    const h = harness({ script: () => new AiProviderError("unavailable") });
+    await h.ask("hi");
+    await h.ask("hello again");
+    expect(h.logs.filter((entry) => entry.message === "Agent cannot answer")).toHaveLength(1);
+  });
+
+  it("the turn budget ends before the lock does, and a step is never longer than the turn", () => {
+    expect(STEP_TIMEOUT_MS).toBeLessThan(TURN_TIMEOUT_MS);
+    expect(TURN_TIMEOUT_MS).toBeLessThan(LOCK_MS);
+    expect(STEP_TIMEOUT_MS).toBeGreaterThanOrEqual(30_000);
+  });
+});
+
+describe("one retry for a provider error before any tool ran", () => {
+  it("a provider error before any tool is retried once, and the customer gets the reply", async () => {
+    const h = harness({ script: scriptQueue([new AiProviderError("unavailable"), "أهلاً بك"]) });
+    await h.ask("hi");
+    expect(h.sent).toEqual([{ parts: [{ kind: "text", text: "أهلاً بك" }] }]);
+    expect(h.ai.inputs).toHaveLength(2);
+    expect(h.alerts).toHaveLength(0);
+    expect(h.sleeps).toContain(PROVIDER_RETRY_DELAY_MS);
+  });
+
+  it("the retry is not repeated: a second failure in a row still ends in the busy line", async () => {
+    const h = harness({
+      script: scriptQueue([new AiProviderError("unavailable"), new AiProviderError("unavailable")]),
+    });
+    await h.ask("hi");
+    expect(h.ai.inputs).toHaveLength(2);
+    expect(h.sent).toEqual([{ parts: [{ kind: "text", text: t("whatsapp.agent.busy") }] }]);
+  });
+
+  it("after a tool ran there is no retry: the half-done turn is not re-sent", async () => {
+    const h = harness({
+      script: scriptQueue([toolCall("get_catalog"), new AiProviderError("unavailable")]),
+    });
+    await h.ask("hi");
+    expect(h.ai.inputs).toHaveLength(2);
+    expect(h.sleeps).not.toContain(PROVIDER_RETRY_DELAY_MS);
   });
 });
