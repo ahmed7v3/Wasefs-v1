@@ -5,7 +5,15 @@ import {
   type MatchVia,
   type RankedCandidate,
 } from "@wasfa/shared/drug-decision";
-import { normalizeDrugName, parseStrength } from "@wasfa/shared/normalize";
+import {
+  canonicalForm,
+  formFromDirections,
+  formGroup,
+  formGroupFromDirections,
+  normalizeDrugName,
+  parseStrength,
+} from "@wasfa/shared/normalize";
+import { NAME_AGREE_SIMILARITY, nameAgrees } from "@wasfa/shared/rx-name-integrity";
 import { normalizeDose, normalizeDuration, normalizeFrequency } from "@wasfa/shared/rx-normalize";
 import {
   RX_FLAG_CONFIDENCE,
@@ -79,6 +87,98 @@ export type RecognitionSettings = Pick<
   | "useAlternatives"
 >;
 
+/**
+ * Whether a database product may be shown AS the name that was read. An exact alias is a statement of
+ * fact; otherwise the reading and the product's brand name must agree strongly (`nameAgrees`) and the
+ * written strength must not conflict. A fuzzy alias or a guessed transliteration agrees only on a
+ * high name score. Everything else (shape hits, same-ingredient brands, similar-looking brands) is a
+ * "did you mean", never the line's name. Pure.
+ */
+export function readingAgrees(reading: string, candidate: RankedCandidate): boolean {
+  const { matchedOn, nameScore, strength } = candidate.explanation;
+  if (strength === "conflict") return false;
+  if (matchedOn === "alias_exact") return true;
+  if (nameAgrees(reading, candidate)) return true;
+  return (
+    (matchedOn === "alias" || candidate.transliterated === true) &&
+    nameScore >= NAME_AGREE_SIMILARITY
+  );
+}
+
+/** The name a line is read as: the re-read when there is one, else the model's name, else the raw line. */
+const readingOf = (item: WorkItem): string =>
+  (item.nameOverride ?? item.extracted.name ?? displayName(item.extracted.rawText)).trim();
+
+/** What the doctor wrote about the dosage form: the form itself and the directions text. */
+export interface FormTargets {
+  written: string | null;
+  directions: string;
+}
+
+type DirectionParts = Pick<ExtractedItem, "dose" | "frequency" | "duration" | "route" | "notes">;
+
+const targetsOf = (line: Pick<ExtractedItem, "form"> & Partial<DirectionParts>): FormTargets => ({
+  written: line.form,
+  directions: [line.dose, line.frequency, line.duration, line.route, line.notes]
+    .map((part) => (part ?? "").trim())
+    .filter((part) => part !== "")
+    .join(" "),
+});
+
+/** How well a product form fits a wanted one: 2 same form, 1 same oral group, 0 unknown, -1 contradicts. */
+function formFit(productForm: string | null, wanted: string | null): number {
+  const product = canonicalForm(productForm);
+  const want = canonicalForm(wanted);
+  if (product === null || want === null) return 0;
+  if (product === want) return 2;
+  const [a, b] = [formGroup(product), formGroup(want)];
+  if (a === null || b === null) return 0;
+  return a === b ? 1 : -1;
+}
+
+/** Fit of a product form to what the directions say: their form when named, else their oral group. */
+function directionsFit(productForm: string | null, directions: string): number {
+  const named = formFromDirections(directions);
+  if (named !== null) return formFit(productForm, named);
+  const group = formGroupFromDirections(directions);
+  const own = formGroup(productForm);
+  if (group === null || own === null) return 0;
+  return group === own ? 1 : -1;
+}
+
+/**
+ * Better variant first: the strength the prescription wrote, then a form agreeing with the written
+ * form, then one agreeing with the directions; ties keep the matcher's order (score). A variant whose
+ * form group contradicts ranks below any that does not. Pure.
+ */
+export function compareVariants(
+  a: RankedCandidate,
+  b: RankedCandidate,
+  targets: FormTargets,
+): number {
+  const strength = (c: RankedCandidate): number => (c.explanation.strength === "match" ? 1 : 0);
+  return (
+    strength(b) - strength(a) ||
+    formFit(b.form, targets.written) - formFit(a.form, targets.written) ||
+    directionsFit(b.form, targets.directions) - directionsFit(a.form, targets.directions) ||
+    b.score - a.score
+  );
+}
+
+/** The best variant of the chosen drug's brand family among the candidates (the drug itself when alone). */
+export function pickVariant(
+  chosen: RankedCandidate,
+  candidates: readonly RankedCandidate[],
+  targets: FormTargets,
+): RankedCandidate {
+  const family = candidates.filter(
+    (candidate) =>
+      candidate.drugId === chosen.drugId ||
+      (chosen.brandKey !== "" && candidate.brandKey === chosen.brandKey),
+  );
+  return [chosen, ...family].sort((a, b) => compareVariants(a, b, targets))[0] ?? chosen;
+}
+
 /** `value.slice` on code points, so a trim never splits a surrogate pair. */
 const clamp = (value: string | null, max: number): string | null => {
   if (value === null) return null;
@@ -98,7 +198,8 @@ export async function matchLine(
   line: Pick<
     ExtractedItem,
     "name" | "rawText" | "strength" | "form" | "alternatives" | "legibility"
-  >,
+  > &
+    Partial<DirectionParts>,
   settings: RecognitionSettings,
   nameOverride: string | null = null,
 ): Promise<MatchOutcome> {
@@ -173,8 +274,14 @@ export async function matchLine(
         }
       }
     }
-    candidates = oneVariantPerFamily([...merged.values()]);
+    candidates = oneVariantPerFamily([...merged.values()], targetsOf(line));
     decision = decideMatch({ candidates, legibility, strengthWritten }, settings);
+  }
+
+  // Name integrity: a product that does not agree with the name as written is never accepted as that
+  // name. It stays among the candidates, offered as a "did you mean" and to the verification step.
+  if (decision.chosen !== null && !readingAgrees(primary, decision.chosen)) {
+    decision = { matchClass: "verify", chosen: null, familyOnly: false, reason: "below_accept" };
   }
   return { candidates, decision };
 }
@@ -184,14 +291,18 @@ export const WIDE_CANDIDATES = 8;
 
 /**
  * One candidate per brand family, best first: the variant whose strength the prescription wrote when
- * there is one, otherwise the best score. Families without a brand key stand alone. Pure.
+ * there is one, then the one whose form agrees with the written form and the directions, otherwise
+ * the best score. Families without a brand key stand alone. Pure.
  */
-export function oneVariantPerFamily(candidates: readonly RankedCandidate[]): RankedCandidate[] {
+export function oneVariantPerFamily(
+  candidates: readonly RankedCandidate[],
+  targets: FormTargets = { written: null, directions: "" },
+): RankedCandidate[] {
   const best = new Map<string, RankedCandidate>();
   for (const candidate of candidates) {
     const family = candidate.brandKey === "" ? candidate.drugId : candidate.brandKey;
     const known = best.get(family);
-    if (known === undefined || rankOfVariant(candidate) > rankOfVariant(known)) {
+    if (known === undefined || compareVariants(candidate, known, targets) < 0) {
       best.set(family, candidate);
     }
   }
@@ -199,9 +310,6 @@ export function oneVariantPerFamily(candidates: readonly RankedCandidate[]): Ran
     .sort((a, b) => b.score - a.score || a.brandEn.localeCompare(b.brandEn))
     .slice(0, WIDE_CANDIDATES);
 }
-
-const rankOfVariant = (candidate: RankedCandidate): number =>
-  (candidate.explanation.strength === "match" ? 10 : 0) + candidate.score;
 
 /** Step 2: match every line and normalize dose, frequency and duration. Flagging is decided here. */
 export async function matchItems(
@@ -356,7 +464,12 @@ export async function applyVerification(
       if (picked !== undefined) {
         const same = picked.drugId === item.candidates[0]?.drugId;
         item.verified = same ? "confirmed" : "corrected";
-        if (verifiedCandidateOutcome(answer.confidence) === "likely") {
+        // Sure enough AND the written name agrees with the product: a similar-looking brand is only
+        // offered ("did you mean"), never shown as what was written.
+        if (
+          verifiedCandidateOutcome(answer.confidence) === "likely" &&
+          readingAgrees(readingOf(item), picked)
+        ) {
           item.chosen = picked;
           item.likely = true;
           item.suggestion = null;
@@ -373,7 +486,8 @@ export async function applyVerification(
             );
           item.verifyCeiling = Math.min(answer.confidence, RX_VERIFY_CONFIDENCE.candidate);
         } else {
-          // Not sure enough: the model's reading stands and the candidate is offered first on "عدّل".
+          // Not sure enough, or the name differs: the model's reading stands and the candidate is
+          // offered first on "عدّل".
           item.chosen = null;
           item.likely = false;
           item.familyOnly = false;
@@ -434,6 +548,75 @@ export function isReadable(item: RxResultItem): boolean {
   );
 }
 
+/** Most "did you mean" products offered on a line. */
+const MAX_SUGGESTIONS = 3;
+
+/**
+ * The database products a line that kept its own reading may offer as "did you mean": the one the
+ * verification leaned to first, then the candidates of a line that was not judged "none of these" or
+ * unreadable, one per brand family. Pure.
+ */
+function didYouMean(item: WorkItem): { drugId: string; name: string }[] {
+  const pool: RankedCandidate[] = item.suggestion === null ? [] : [item.suggestion];
+  if (item.matchClass !== "unmatched" && item.verified !== "unreadable") {
+    pool.push(...oneVariantPerFamily(item.candidates, targetsOf(item.extracted)));
+  }
+  const seen = new Set<string>();
+  const out: { drugId: string; name: string }[] = [];
+  for (const candidate of pool) {
+    const family = candidate.brandKey === "" ? candidate.drugId : candidate.brandKey;
+    if (seen.has(family)) continue;
+    seen.add(family);
+    out.push({ drugId: candidate.drugId, name: candidate.brandEn.slice(0, 200) });
+    if (out.length === MAX_SUGGESTIONS) break;
+  }
+  return out;
+}
+
+const SPECIFIC_TABLET_FORMS: ReadonlySet<string> = new Set([
+  "chewable tablet",
+  "effervescent",
+  "dispersible",
+  "sublingual",
+  "orally disintegrating",
+]);
+
+/**
+ * The form to show: the one the model read on the paper, else the one the directions imply, else the
+ * matched product's. A plain "tablet" is refined by a specific tablet form of the product (same
+ * group). When the product's form group contradicts the written / directions group, the written or
+ * directions form is shown and the conflict is flagged: a contradicting database form is never shown
+ * silently. Pure.
+ */
+export function reconcileForm(
+  writtenForm: string | null,
+  directions: string,
+  productForm: string | null,
+): { form: string | null; conflict: boolean } {
+  const written = clamp(writtenForm, 200);
+  const product = clamp(productForm, 200);
+  const named = formFromDirections(directions);
+  const expectedGroup = formGroup(written) ?? formGroupFromDirections(directions);
+  const productGroup = formGroup(product);
+  const conflict =
+    expectedGroup !== null && productGroup !== null && expectedGroup !== productGroup;
+
+  let form: string | null = written ?? named;
+  if (conflict) return { form, conflict };
+  if (form === null) return { form: product, conflict };
+  const productCanonical = canonicalForm(product);
+  const formCanonical = canonicalForm(form);
+  if (
+    productCanonical !== null &&
+    (formCanonical === productCanonical ||
+      (formCanonical === "tablet" && SPECIFIC_TABLET_FORMS.has(productCanonical)))
+  ) {
+    // The same form (the database spells it out: "tab" is "tablet"), or a specific kind of tablet.
+    form = product;
+  }
+  return { form, conflict };
+}
+
 /**
  * Step 4: merges everything into the stored result and validates it with the shared schema. Pure.
  * `ingredients` maps a drug id to its active ingredients.
@@ -451,7 +634,16 @@ export function buildResult(
 ): RxResult {
   const modelOnly = matching === "model";
   const resultItems = items.map((item): RxResultItem => {
-    const { extracted, chosen } = item;
+    const { extracted } = item;
+    const targets = targetsOf(extracted);
+    // The variant of the matched family that fits the strength, the written form and the directions.
+    const chosen = item.chosen === null ? null : pickVariant(item.chosen, item.candidates, targets);
+    const { form, conflict: formConflict } = reconcileForm(
+      extracted.form,
+      targets.directions,
+      chosen?.form ?? null,
+    );
+    const suggestions = chosen === null && !modelOnly ? didYouMean(item) : [];
     const confidence = finalConfidence({
       model: extracted.confidence,
       match: chosen === null ? null : chosen.score,
@@ -461,7 +653,11 @@ export function buildResult(
     // The cap in finalConfidence already keeps an unmatched line below "high"; this is the seat belt.
     // Without the database every line is unmatched, so the belt does not apply.
     const rawBadge = confidenceBadge(confidence);
-    const badge = !modelOnly && chosen === null && rawBadge === "high" ? "medium" : rawBadge;
+    const badge =
+      (!modelOnly && chosen === null && rawBadge === "high") ||
+      (formConflict && rawBadge === "high")
+        ? "medium"
+        : rawBadge;
     const generic = clamp(extracted.activeIngredient, 120);
     const outcome: RxMatchOutcome = chosen === null ? "ai" : item.likely ? "likely" : "confirmed";
     // Only a confirmed line takes the database strength. A `likely` line shows the prescription's
@@ -483,10 +679,9 @@ export function buildResult(
       matchScore: chosen?.score ?? null,
       source: chosen === null ? "ai" : "database",
       match: outcome,
-      suggestion:
-        chosen === null && item.suggestion !== null
-          ? { drugId: item.suggestion.drugId, name: item.suggestion.brandEn.slice(0, 200) }
-          : null,
+      suggestion: suggestions[0] ?? null,
+      ...(suggestions.length > 0 ? { suggestions } : {}),
+      ...(formConflict ? { formConflict: true } : {}),
       reading: clamp(item.nameOverride ?? extracted.name, 200),
       activeIngredients:
         chosen === null
@@ -495,7 +690,7 @@ export function buildResult(
             : [generic]
           : [...(ingredients.get(chosen.drugId) ?? [])].slice(0, 10),
       strength: databaseStrength ?? clamp(extracted.strength, 200),
-      form: (chosen === null ? null : clamp(chosen.form, 200)) ?? clamp(extracted.form, 200),
+      form,
       dose: clamp(extracted.dose, 200),
       frequency: clamp(extracted.frequency, 200),
       duration: clamp(extracted.duration, 200),

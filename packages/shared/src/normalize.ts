@@ -151,6 +151,10 @@ export const DRUG_FORMS = [
   "sachet",
   "suppository",
   "effervescent",
+  "chewable tablet",
+  "dispersible",
+  "sublingual",
+  "orally disintegrating",
 ] as const;
 export type DrugForm = (typeof DRUG_FORMS)[number];
 
@@ -194,17 +198,44 @@ const FORM_WORDS: readonly (readonly [string, DrugForm])[] = [
   ["بخاخ", "spray"],
   ["sachet", "sachet"],
   ["اكياس", "sachet"],
+  ["كيس", "sachet"],
   ["supp", "suppository"],
   ["suppository", "suppository"],
   ["لبوس", "suppository"],
   ["effervescent", "effervescent"],
   ["فوار", "effervescent"],
+  ["chewable", "chewable tablet"],
+  ["chew", "chewable tablet"],
+  ["مضغ", "chewable tablet"],
+  ["للمضغ", "chewable tablet"],
+  ["dispersible", "dispersible"],
+  ["sublingual", "sublingual"],
+  ["odt", "orally disintegrating"],
+  ["قطرات", "drops"],
+  ["قطره", "drops"],
 ];
 const FORM_LOOKUP = new Map<string, DrugForm>(FORM_WORDS);
 const TWO_WORD_FORMS = new Map<string, DrugForm>([
   ["eye drops", "eye drops"],
   ["ear drops", "ear drops"],
+  ["قابل للمضغ", "chewable tablet"],
+  ["تحت اللسان", "sublingual"],
+  ["orally disintegrating", "orally disintegrating"],
 ]);
+
+/** A specific solid form replaces a plain "tablet"/"capsule" seen earlier in the same text ("tabs chewable"). */
+const SPECIFIC_SOLID_FORMS: ReadonlySet<DrugForm> = new Set([
+  "chewable tablet",
+  "dispersible",
+  "sublingual",
+  "orally disintegrating",
+  "effervescent",
+]);
+const refineForm = (current: DrugForm | null, found: DrugForm): DrugForm => {
+  if (current === null) return found;
+  const generic = current === "tablet" || current === "capsule";
+  return generic && SPECIFIC_SOLID_FORMS.has(found) ? found : current;
+};
 
 export interface NormalizedDrugName {
   /** Lowercased, marks and punctuation removed, strength and form words taken out. */
@@ -252,17 +283,84 @@ export function normalizeDrugName(text: string): NormalizedDrugName {
     const token = tokens[i] ?? "";
     const twoWord = TWO_WORD_FORMS.get(`${token} ${tokens[i + 1] ?? ""}`);
     if (twoWord !== undefined) {
-      form ??= twoWord;
+      form = refineForm(form, twoWord);
       i++;
       continue;
     }
     const single = FORM_LOOKUP.get(token);
     if (single !== undefined) {
-      form ??= single;
+      form = refineForm(form, single);
       continue;
     }
     kept.push(token);
   }
   const name = (kept.length > 0 ? kept : tokens).join(" ");
   return { name, form, lang, strength: strengths[0]?.strength ?? null };
+}
+
+/*
+ * Dosage-form groups and the form the directions imply. A form that contradicts the written form or the
+ * directions by group (drops where the directions say "chew") is never shown from the database silently.
+ */
+
+export type FormGroup = "solid_oral" | "liquid_oral";
+
+const FORM_GROUP: ReadonlyMap<DrugForm, FormGroup> = new Map<DrugForm, FormGroup>([
+  ["tablet", "solid_oral"],
+  ["capsule", "solid_oral"],
+  ["chewable tablet", "solid_oral"],
+  ["effervescent", "solid_oral"],
+  ["dispersible", "solid_oral"],
+  ["sublingual", "solid_oral"],
+  ["orally disintegrating", "solid_oral"],
+  ["syrup", "liquid_oral"],
+  ["suspension", "liquid_oral"],
+  ["drops", "liquid_oral"],
+]);
+
+/** The form of free text ("Chewable Tabs", "قرص مضغ") in its canonical spelling, or `null` when none is named. */
+export function canonicalForm(text: string | null | undefined): DrugForm | null {
+  if (text === null || text === undefined) return null;
+  return normalizeDrugName(text).form;
+}
+
+/** Solid or liquid oral group of a form; `null` for injectables, topicals, unknown text and no form. */
+export function formGroup(form: string | null | undefined): FormGroup | null {
+  const canonical = canonicalForm(form);
+  return canonical === null ? null : (FORM_GROUP.get(canonical) ?? null);
+}
+
+/** Letters on both sides are not part of the word (a regex word boundary does not work for Arabic). */
+const word = (pattern: string): RegExp => new RegExp(`(?<![\\p{L}])${pattern}(?![\\p{L}])`, "u");
+const DIRECTION_FORMS: readonly (readonly [RegExp, DrugForm])[] = [
+  [word("(?:chew\\w*|[وبل]?يمضغ\\S*|[وبل]?تمضغ\\S*|[وبل]?مضغ|للمضغ)"), "chewable tablet"],
+  [word("(?:effervescent|فوار)"), "effervescent"],
+  [word("(?:sublingual|تحت اللسان)"), "sublingual"],
+  [word("(?:dispersible)"), "dispersible"],
+  [word("(?:drops?|[وبل]?نقط|[وبل]?نقطه|[وبل]?قطره|[وبل]?قطرات|[وبل]?نقاط)"), "drops"],
+  [word("(?:tabs?|tablets?|[وبل]?قرص|[وبل]?اقراص|[وبل]?حبه|[وبل]?حبوب)"), "tablet"],
+  [word("(?:caps?|capsules?|[وبل]?كبسوله|[وبل]?كبسولات)"), "capsule"],
+];
+const LIQUID_DIRECTION = word(
+  "(?:ml|cc|tsp|tbsp|spoons?|مل|سم|سم3|[وبل]?ملعقه|[وبل]?معلقه|[وبل]?معالق)",
+);
+
+/**
+ * The dosage form the written directions imply ("يمضغ" / "قرص مضغ" / "chew" → chewable tablet,
+ * «نقط» / «قطرة» → drops, «قرص» → tablet), or `null` when they do not say. A volume or spoon
+ * («معلقة», "ml", «سم») names a liquid group but no specific form: see `formGroupFromDirections`.
+ */
+export function formFromDirections(text: string | null | undefined): DrugForm | null {
+  if (text === null || text === undefined || text.trim() === "") return null;
+  const prepared = prepare(text);
+  for (const [pattern, form] of DIRECTION_FORMS) if (pattern.test(prepared)) return form;
+  return null;
+}
+
+/** The oral group the directions imply: a form they name, else liquid when they measure a volume or spoon. */
+export function formGroupFromDirections(text: string | null | undefined): FormGroup | null {
+  const form = formFromDirections(text);
+  if (form !== null) return formGroup(form);
+  if (text === null || text === undefined || text.trim() === "") return null;
+  return LIQUID_DIRECTION.test(prepare(text)) ? "liquid_oral" : null;
 }
