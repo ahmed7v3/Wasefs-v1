@@ -29,6 +29,8 @@ export const arMessaging = {
   "whatsapp.agent.event.rxDone.link": "النتيجة الكاملة وتفاصيل كل دواء:",
   "whatsapp.agent.event.rxFailed":
     "تعذّرت قراءة الروشتة، وأعدنا الرصيد المخصوم إلى حسابك. جرّب صورة أوضح وإضاءة أفضل وأرسلها مرة أخرى.",
+  "whatsapp.agent.event.rxPartial":
+    "قريت اللي قدرت أقراه من الروشتة 👇 السطور المعلّمة مش مؤكدة، راجعها مع الصيدلي. القراءة دي مجانية.",
   "whatsapp.agent.event.documentFailed": "تعذّر إنشاء الملف الآن. جرّب طلبه مرة أخرى بعد قليل.",
   "whatsapp.agent.event.rxPdfName": "نتيجة-قراءة-الروشتة",
   "document.generatedOn": "تاريخ الإنشاء: {date}",

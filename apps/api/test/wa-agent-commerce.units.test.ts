@@ -1068,6 +1068,20 @@ describe("follow-up messages", () => {
     expect(single[0]).toContain("هذه قراءة آلية");
   });
 
+  it("leads a partial reading with the honest line and marks every unsure line", () => {
+    const items = [
+      item(),
+      item({ name: "B", verified: "unreadable" }),
+      item({ name: "C", verified: "unreadable" }),
+    ];
+    const caps = { maxReplyChars: 3000, maxMessagesPerTurn: 4 };
+    const text = rxDoneParts(result(items), "https://x.test/a", caps, "ar", false, true).join("\n");
+    expect(text.indexOf("قريت اللي قدرت أقراه")).toBeLessThan(text.indexOf("*Panadol*"));
+    expect(text.split("(قراءة غير مؤكدة").length - 1).toBe(2);
+    const plain = rxDoneParts(result(items), "https://x.test/a", caps, "ar").join("\n");
+    expect(plain).not.toContain("قريت اللي قدرت أقراه");
+  });
+
   it("says the prescription could not be read and the credits were returned", () => {
     expect(rxFailedText("ar")).toContain("أعدنا الرصيد");
   });
@@ -1197,6 +1211,51 @@ describe("WaAgentEventsConsumer", () => {
     const { consumer, sent } = eventsConsumer();
     await consumer.process({ type: "rx_failed", rxId: RX_ID });
     expect(sent[0]?.parts[0]?.text).toContain("أعدنا الرصيد");
+  });
+
+  it("gives a refunded reading's lines free, the unsure ones marked, instead of 'could not read'", async () => {
+    const view = {
+      status: "refunded",
+      result: result([
+        item(),
+        item({ name: "Maybe", verified: "unreadable" }),
+        item({ name: null, rawText: "scribble", verified: "unreadable" }),
+      ]),
+    };
+    const { consumer, sent } = eventsConsumer({ rxView: view });
+    await consumer.process({ type: "rx_failed", rxId: RX_ID });
+    expect(sent).toHaveLength(1);
+    const all = (sent[0]?.parts ?? []).map((part) => part.text).join("\n");
+    expect(all).toContain("قريت اللي قدرت أقراه");
+    expect(all).toContain("القراءة دي مجانية");
+    expect(all).not.toContain("أعدنا الرصيد");
+    expect(all).toContain("*Panadol* 500 mg");
+    expect(all).toContain("Maybe");
+    expect(all).toContain("scribble");
+    expect(all.split("(قراءة غير مؤكدة").length - 1).toBe(2);
+  });
+
+  it("keeps 'could not read' for a refunded reading with no lines, or a failed one", async () => {
+    const empty = eventsConsumer({ rxView: { status: "refunded", result: result([]) } });
+    await empty.consumer.process({ type: "rx_failed", rxId: RX_ID });
+    expect(empty.sent[0]?.parts[0]?.text).toContain("أعدنا الرصيد");
+    const blank = eventsConsumer({
+      rxView: { status: "refunded", result: result([item({ name: null, rawText: " " })]) },
+    });
+    await blank.consumer.process({ type: "rx_failed", rxId: RX_ID });
+    expect(blank.sent[0]?.parts[0]?.text).toContain("أعدنا الرصيد");
+    const crashed = eventsConsumer({ rxView: { status: "failed", result: null } });
+    await crashed.consumer.process({ type: "rx_failed", rxId: RX_ID });
+    expect(crashed.sent[0]?.parts[0]?.text).toContain("أعدنا الرصيد");
+  });
+
+  it("does not add the partial line to a done reading", async () => {
+    const { consumer, sent } = eventsConsumer({
+      rxView: { status: "done", result: result([item()]) },
+    });
+    await consumer.process({ type: "rx_done", rxId: RX_ID });
+    const all = (sent[0]?.parts ?? []).map((part) => part.text).join("\n");
+    expect(all).not.toContain("القراءة دي مجانية");
   });
 
   it("drops a malformed entry and releases the turn lock after sending", async () => {

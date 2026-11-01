@@ -32,6 +32,8 @@ export const enMessaging: Partial<Record<keyof typeof arMessaging, string>> = {
   "whatsapp.agent.event.rxDone.link": "The full result and details of each medicine:",
   "whatsapp.agent.event.rxFailed":
     "We could not read the prescription, and the credits that were held have been returned to your account. Try a clearer picture with better light and send it again.",
+  "whatsapp.agent.event.rxPartial":
+    "I read what I could from the prescription 👇 Marked lines are not certain, so check them with your pharmacist. This reading is free.",
   "whatsapp.agent.event.documentFailed":
     "We could not create the file right now. Please ask for it again in a little while.",
   "whatsapp.agent.event.rxPdfName": "prescription-result",
