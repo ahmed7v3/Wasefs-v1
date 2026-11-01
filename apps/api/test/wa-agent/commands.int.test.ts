@@ -1,8 +1,10 @@
 import { auditLogs, waAgentSessions, waMessages } from "@wasfa/db";
 import { t } from "@wasfa/shared/i18n";
+import { stripBidi } from "@wasfa/shared/wa-agent/bidi";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { rxStartText } from "../../src/wa-agent/agent/rx-progress.js";
 import { AdminTestContext } from "../support/admin-context.js";
 
 import { TINY_JPEG } from "./scenarios/fixtures.js";
@@ -49,8 +51,7 @@ async function sessionState(scenario: Scenario): Promise<WaSessionState> {
   return row?.state ?? {};
 }
 
-const startLine = (pages: number) =>
-  t("whatsapp.agent.rx.starting", { pages: pages === 1 ? "صفحة" : `${String(pages)} صفحات` });
+const startLine = (pages: number) => rxStartText(pages, "ar");
 
 describe("«جديد»", () => {
   it("starts a clean session without a model call, and an analysis in flight is still delivered", async () => {
@@ -211,7 +212,8 @@ describe("commands mixed with text", () => {
     expect(texts[0]).toContain(t("whatsapp.agent.commands.balance.header"));
     expect(texts[1]).toBe("أهلا");
     expect(scenario.modelInputs()).toHaveLength(1);
-    expect(scenario.modelSaw(0)).not.toContain("رصيدي");
+    // The history keeps the answered command and shows its reply, so the model does not answer it again.
+    expect(scenario.modelSaw(0)).toContain("📊");
   });
 
   it("gives the whole batch to the model when text comes first", async () => {
@@ -274,7 +276,9 @@ describe("privacy", () => {
       .select({ text: waMessages.text, direction: waMessages.direction })
       .from(waMessages)
       .where(eq(waMessages.conversationId, conversationId));
-    expect(left.map((row) => row.text)).toEqual([t("whatsapp.agent.commands.privacy.done")]);
+    expect(left.map((row) => stripBidi(row.text ?? ""))).toEqual([
+      t("whatsapp.agent.commands.privacy.done"),
+    ]);
     expect(scenario.services.removedKeys).toHaveLength(1);
     const audit = (await ctx.owner.db.select().from(auditLogs)).filter(
       (row) => row.action === "wa_agent.privacy_delete" && row.targetId === conversationId,
