@@ -4,6 +4,7 @@ import type {
   AIProviderAdapter,
   ConnectionResult,
   DiscoveredModel,
+  NormalizedCompletion,
   NormalizedEvent,
   NormalizedRequest,
   ToolCall,
@@ -154,6 +155,22 @@ export class FakeAdapter implements AIProviderAdapter {
       },
     };
     yield { type: "done", finishReason: "stop" };
+  }
+
+  /** Drains its own stream, so scripts and the abort behaviour are shared with `stream`. */
+  async complete(req: NormalizedRequest, signal: AbortSignal): Promise<NormalizedCompletion> {
+    let text = "";
+    const toolCalls: ToolCall[] = [];
+    let usage: Usage | undefined;
+    let finishReason: NormalizedCompletion["finishReason"] = "stop";
+    for await (const event of this.stream(req, signal)) {
+      if (event.type === "text") text += event.text;
+      else if (event.type === "tool_calls") toolCalls.push(...event.toolCalls);
+      else if (event.type === "usage") usage = event.usage;
+      else if (event.type === "done") finishReason = event.finishReason;
+    }
+    if (signal.aborted) throw new AiProviderError("timeout");
+    return { text, toolCalls, usage, finishReason };
   }
 
   listModels(): Promise<DiscoveredModel[]> {

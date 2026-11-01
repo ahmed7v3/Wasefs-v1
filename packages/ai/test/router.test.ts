@@ -535,3 +535,104 @@ describe("router: tool calling (wa_agent)", () => {
     expect(isAiSwitchedOff({ ...off, wa_agent: true }, "chat", { search: false })).toBe(false);
   });
 });
+
+describe("router: complete (non-streaming)", () => {
+  function completing(
+    outcomes: (Error | { text: string })[],
+    seen: NormalizedRequest[] = [],
+  ): AIProviderAdapter {
+    let call = 0;
+    return {
+      stream() {
+        throw new Error("stream must not be used");
+      },
+      complete: (req) => {
+        seen.push(req);
+        const next = outcomes[Math.min(call++, outcomes.length - 1)];
+        if (next instanceof Error) return Promise.reject(next);
+        return Promise.resolve({
+          text: next?.text ?? "",
+          toolCalls: [],
+          usage: USAGE,
+          finishReason: "stop" as const,
+        });
+      },
+      listModels: () => Promise.resolve([]),
+      testConnection: () => Promise.resolve({ ok: true, latencyMs: 0 }),
+    };
+  }
+
+  /** Never settles until its signal aborts, like a provider that stopped answering. */
+  function hanging(): AIProviderAdapter {
+    return {
+      ...completing([{ text: "" }]),
+      complete: (_req, signal) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener("abort", () => {
+            reject(new AiProviderError("timeout"));
+          });
+        }),
+    };
+  }
+
+  function completeHarness(adapters: Record<string, AIProviderAdapter>) {
+    const h = harness(Object.fromEntries(Object.keys(adapters).map((id) => [id, okScript])));
+    h.ports.adapterFor = (m) => adapters[m.id] ?? completing([{ text: "" }]);
+    return h;
+  }
+
+  it("returns the collected result with cost and usage rows", async () => {
+    const h = completeHarness({ m1: completing([{ text: "hello" }]) });
+    const result = await createRouter(h.ports).complete(input(), new AbortController().signal);
+    expect(result).toMatchObject({ text: "hello", costUsdMicros: USAGE_COST, usage: USAGE });
+    expect(h.usage).toHaveLength(1);
+  });
+
+  it("falls back to the next candidate when the first times out", async () => {
+    const h = completeHarness({
+      m1: completing([new AiProviderError("timeout")]),
+      m2: completing([{ text: "from m2" }]),
+    });
+    const result = await createRouter(h.ports).complete(input(), new AbortController().signal);
+    expect(result.text).toBe("from m2");
+    expect(h.usage.map((row) => row.outcome)).toEqual(["timeout", "ok"]);
+  });
+
+  it("throws (never resolves empty) when the caller aborts", async () => {
+    const controller = new AbortController();
+    const h = completeHarness({ m1: hanging() });
+    const pending = createRouter(h.ports).complete(input(), controller.signal);
+    setTimeout(() => {
+      controller.abort();
+    }, 10);
+    await expect(pending).rejects.toMatchObject({ code: "timeout" });
+  });
+
+  it("applies the attempt timeout as a retryable timeout and falls back", async () => {
+    const h = completeHarness({ m1: hanging(), m2: completing([{ text: "ok" }]) });
+    const result = await createRouter(h.ports).complete(
+      input({ attemptTimeoutMs: 20 }),
+      new AbortController().signal,
+    );
+    expect(result.text).toBe("ok");
+  });
+
+  it("ignores search for rx_ tasks but keeps it for other tasks", async () => {
+    const rxSeen: NormalizedRequest[] = [];
+    const chatSeen: NormalizedRequest[] = [];
+    const rxHarness = completeHarness({ m1: completing([{ text: "x" }], rxSeen) });
+    const chatHarness = completeHarness({ m1: completing([{ text: "x" }], chatSeen) });
+    const withSearch = (task: AiTask) =>
+      input({ task, request: { ...input().request, search: true } });
+    await createRouter(rxHarness.ports).complete(
+      withSearch("rx_extract"),
+      new AbortController().signal,
+    );
+    await createRouter(chatHarness.ports).complete(
+      withSearch("chat"),
+      new AbortController().signal,
+    );
+    expect(rxSeen[0]?.search).toBeUndefined();
+    expect(chatSeen[0]?.search).toBe(true);
+  });
+});

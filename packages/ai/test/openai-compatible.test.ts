@@ -273,3 +273,68 @@ describe("parseSse", () => {
     expect(out).toEqual(["مرحبا"]);
   });
 });
+
+describe("openai-compatible complete (non-streaming)", () => {
+  it("sends stream:false and maps content, tool calls and usage", async () => {
+    let body: Record<string, unknown> = {};
+    server.use(
+      http.post(`${BASE}/chat/completions`, async ({ request: req }) => {
+        body = (await req.json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          choices: [
+            {
+              message: {
+                content: "Hi",
+                tool_calls: [
+                  {
+                    id: "t1",
+                    type: "function",
+                    function: { name: "lookup", arguments: '{"q":1}' },
+                  },
+                ],
+              },
+              finish_reason: "tool_calls",
+            },
+          ],
+          usage: { prompt_tokens: 10, completion_tokens: 4 },
+        });
+      }),
+    );
+    const done = await adapter().complete?.(request(), new AbortController().signal);
+    expect(body.stream).toBe(false);
+    expect(body).not.toHaveProperty("stream_options");
+    expect(done).toEqual({
+      text: "Hi",
+      toolCalls: [{ id: "t1", name: "lookup", arguments: { q: 1 } }],
+      usage: {
+        inputTokens: 10,
+        cachedInputTokens: 0,
+        outputTokens: 4,
+        thinkingTokens: 0,
+        searchCount: 0,
+      },
+      finishReason: "stop",
+    });
+  });
+
+  it("maps an HTTP error without provider text", async () => {
+    server.use(
+      http.post(`${BASE}/chat/completions`, () =>
+        HttpResponse.json({ error: { message: "SECRET" } }, { status: 503 }),
+      ),
+    );
+    await expect(
+      adapter().complete?.(request(), new AbortController().signal),
+    ).rejects.toMatchObject({ code: "unavailable", retryable: true });
+  });
+
+  it("throws a timeout when aborted while the call hangs", async () => {
+    server.use(http.post(`${BASE}/chat/completions`, () => new Promise<Response>(() => undefined)));
+    const controller = new AbortController();
+    const pending = adapter().complete?.(request(), controller.signal);
+    setTimeout(() => {
+      controller.abort();
+    }, 20);
+    await expect(pending).rejects.toMatchObject({ code: "timeout", retryable: true });
+  });
+});

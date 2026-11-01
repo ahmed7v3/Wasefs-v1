@@ -3,13 +3,14 @@ import { z } from "zod";
 import { usdPerTokenToMicrosPerM, usdToMicros } from "../pricing.js";
 
 import { timedProbe, classifyUnknown } from "./errors.js";
-import { getJson, joinUrl, streamChat } from "./openai-shared.js";
+import { completeChat, getJson, joinUrl, streamChat, type ChatCall } from "./openai-shared.js";
 
 import type {
   AIProviderAdapter,
   ConnectionResult,
   DiscoveredModel,
   ModelPricing,
+  NormalizedCompletion,
   NormalizedEvent,
   NormalizedRequest,
 } from "../types.js";
@@ -92,24 +93,29 @@ export class OpenRouterAdapter implements AIProviderAdapter {
     return this.config.baseUrl ?? OPENROUTER_BASE_URL;
   }
 
-  stream(req: NormalizedRequest, signal: AbortSignal): AsyncGenerator<NormalizedEvent> {
+  private chatCall(req: NormalizedRequest): ChatCall {
     const reasoning = reasoningBody(req);
-    return streamChat(
-      {
-        baseUrl: this.baseUrl,
-        apiKey: this.config.apiKey,
-        headers: ATTRIBUTION_HEADERS,
-        flavor: "openrouter",
-        fetch: this.fetchFn,
-        req,
-        extraBody: {
-          provider: providerRouting(this.config.dataPolicy),
-          ...(reasoning ? { reasoning } : {}),
-          ...(req.search ? { plugins: [{ id: "web" }] } : {}),
-        },
+    return {
+      baseUrl: this.baseUrl,
+      apiKey: this.config.apiKey,
+      headers: ATTRIBUTION_HEADERS,
+      flavor: "openrouter",
+      fetch: this.fetchFn,
+      req,
+      extraBody: {
+        provider: providerRouting(this.config.dataPolicy),
+        ...(reasoning ? { reasoning } : {}),
+        ...(req.search ? { plugins: [{ id: "web" }] } : {}),
       },
-      signal,
-    );
+    };
+  }
+
+  stream(req: NormalizedRequest, signal: AbortSignal): AsyncGenerator<NormalizedEvent> {
+    return streamChat(this.chatCall(req), signal);
+  }
+
+  complete(req: NormalizedRequest, signal: AbortSignal): Promise<NormalizedCompletion> {
+    return completeChat(this.chatCall(req), signal);
   }
 
   async listModels(signal: AbortSignal): Promise<DiscoveredModel[]> {

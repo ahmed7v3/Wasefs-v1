@@ -1,12 +1,13 @@
 import { z } from "zod";
 
 import { classifyUnknown, timedProbe } from "./errors.js";
-import { getJson, joinUrl, streamChat } from "./openai-shared.js";
+import { completeChat, getJson, joinUrl, streamChat } from "./openai-shared.js";
 
 import type {
   AIProviderAdapter,
   ConnectionResult,
   DiscoveredModel,
+  NormalizedCompletion,
   NormalizedEvent,
   NormalizedRequest,
 } from "../types.js";
@@ -22,6 +23,19 @@ export class OpenAiCompatibleAdapter implements AIProviderAdapter {
 
   stream(req: NormalizedRequest, signal: AbortSignal): AsyncGenerator<NormalizedEvent> {
     return streamChat(
+      {
+        baseUrl: this.config.baseUrl,
+        apiKey: this.config.apiKey,
+        flavor: "compatible",
+        fetch: this.fetchFn,
+        req,
+      },
+      signal,
+    );
+  }
+
+  complete(req: NormalizedRequest, signal: AbortSignal): Promise<NormalizedCompletion> {
+    return completeChat(
       {
         baseUrl: this.config.baseUrl,
         apiKey: this.config.apiKey,

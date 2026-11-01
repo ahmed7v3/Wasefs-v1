@@ -37,3 +37,22 @@ export async function* abortable<T>(
     if (onAbort) signal.removeEventListener("abort", onAbort);
   }
 }
+
+/** Rejects with a retryable "timeout" as soon as `signal` aborts, even if `work` never settles. */
+export async function raceAbort<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
+  let onAbort: (() => void) | undefined;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    onAbort = () => {
+      reject(new AiProviderError("timeout"));
+    };
+    if (signal.aborted) onAbort();
+    else signal.addEventListener("abort", onAbort, { once: true });
+  });
+  // The losing promise may reject later (abort tears the transport down); that is expected.
+  work.catch(() => undefined);
+  try {
+    return await Promise.race([work, aborted]);
+  } finally {
+    if (onAbort) signal.removeEventListener("abort", onAbort);
+  }
+}

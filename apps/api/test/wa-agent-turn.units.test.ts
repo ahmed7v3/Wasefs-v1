@@ -553,6 +553,31 @@ describe("spend cap and failures", () => {
     expect(h.alerts).toHaveLength(1);
   });
 
+  it("an empty model answer is a failure (busy line), never silence", async () => {
+    const h = harness({ script: scriptQueue([""]) });
+    await h.ask("hi");
+    expect(h.sent).toEqual([{ parts: [{ kind: "text", text: t("whatsapp.agent.busy") }] }]);
+    expect(h.alerts).toHaveLength(1);
+  });
+
+  it("sends the pictures on the first model step only", async () => {
+    const h = harness({ script: scriptQueue([toolCall("get_catalog"), "تمام"]) });
+    h.repo.add("in", {
+      kind: "image",
+      mediaKey: "wa/2026/10/image-0-abcdef",
+      mediaMime: "image/jpeg",
+      mediaBytes: 1_000,
+    });
+    await h.service.onInbound(CONVERSATION_ID);
+    const partsOf = (index: number) =>
+      (h.ai.adapter.requests[index]?.messages ?? []).flatMap((message) =>
+        message.role === "tool" ? [] : message.parts,
+      );
+    expect(partsOf(0).some((part) => part.type === "image")).toBe(true);
+    expect(partsOf(1).some((part) => part.type === "image")).toBe(false);
+    expect(partsOf(1)).toContainEqual({ type: "text", text: "[صورة]" });
+  });
+
   it("the kill switch or the global cap takes the same path", async () => {
     const h = harness({ unavailable: new Error("ai_paused") });
     await h.ask("hi");
@@ -667,10 +692,10 @@ describe("output and bookkeeping", () => {
     }
   });
 
-  it("sends nothing for an empty answer", async () => {
+  it("a blank answer is a failure, so the customer gets the busy line instead of silence", async () => {
     const h = harness({ script: scriptQueue(["   "]) });
     await h.ask("hi");
-    expect(h.sent).toHaveLength(0);
+    expect(h.sent).toEqual([{ parts: [{ kind: "text", text: t("whatsapp.agent.busy") }] }]);
   });
 
   it("stores tool names, outcomes, steps and cost on the reply rows, never arguments or results", async () => {

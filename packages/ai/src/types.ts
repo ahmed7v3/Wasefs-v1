@@ -86,6 +86,14 @@ export type NormalizedEvent =
   | { type: "usage"; usage: Usage }
   | { type: "done"; finishReason: "stop" | "length" | "safety" | "other" };
 
+/** One finished non-streaming provider response, before the router adds cost. */
+export interface NormalizedCompletion {
+  text: string;
+  toolCalls: ToolCall[];
+  usage: Usage | undefined;
+  finishReason: "stop" | "length" | "safety" | "other";
+}
+
 /** One finished model call with the stream collected: what a non-streaming caller sees. */
 export interface CompletionResult {
   text: string;
@@ -161,6 +169,11 @@ export interface ProviderConfig {
 
 export interface AIProviderAdapter {
   stream(req: NormalizedRequest, signal: AbortSignal): AsyncIterable<NormalizedEvent>;
+  /**
+   * One plain request/response call, no streaming: a cut stream cannot leave a half answer. An
+   * abort or timeout THROWS (`AiProviderError("timeout")`), it never resolves with empty output.
+   */
+  complete?(req: NormalizedRequest, signal: AbortSignal): Promise<NormalizedCompletion>;
   listModels(signal: AbortSignal): Promise<DiscoveredModel[]>;
   /** Never throws; maps errors to `errorCode`. */
   testConnection(signal: AbortSignal): Promise<ConnectionResult>;

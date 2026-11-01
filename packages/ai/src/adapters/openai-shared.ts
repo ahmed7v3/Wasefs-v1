@@ -2,11 +2,12 @@ import { z } from "zod";
 
 import { AiProviderError } from "../types.js";
 
-import { abortable } from "./abortable.js";
+import { abortable, raceAbort } from "./abortable.js";
 import { classifyUnknown, codeForStatus, errorForStatus } from "./errors.js";
 
 import type {
   ChatMessage,
+  NormalizedCompletion,
   NormalizedEvent,
   NormalizedMessage,
   NormalizedRequest,
@@ -116,6 +117,7 @@ export function buildChatBody(
   extra?: Record<string, unknown>,
   schemaInPrompt = false,
   tokenParam: "max_tokens" | "max_completion_tokens" = "max_tokens",
+  stream = true,
 ): Record<string, unknown> {
   const messages: unknown[] = [];
   const schemaNote =
@@ -133,8 +135,8 @@ ${JSON.stringify(req.jsonSchema)}`
   const body: Record<string, unknown> = {
     model: req.model,
     messages,
-    stream: true,
-    stream_options: { include_usage: true },
+    stream,
+    ...(stream ? { stream_options: { include_usage: true } } : {}),
     [tokenParam]: req.maxOutputTokens,
   };
   if (req.temperature !== undefined) body.temperature = req.temperature;
@@ -292,6 +294,45 @@ function errorFromChunkCode(code: number | string | null | undefined): AiProvide
     : new AiProviderError("unknown");
 }
 
+/**
+ * POSTs one chat completion (streaming or not) and returns the OK response. Throws AiProviderError
+ * for a refused request.
+ */
+async function postChat(call: ChatCall, signal: AbortSignal, stream: boolean): Promise<Response> {
+  const compatible = call.flavor === "compatible";
+  const send = (tokenParam: "max_tokens" | "max_completion_tokens") =>
+    call.fetch(joinUrl(call.baseUrl, "/chat/completions"), {
+      method: "POST",
+      headers: {
+        ...call.headers,
+        "Content-Type": "application/json",
+        Accept: stream ? "text/event-stream" : "application/json",
+        Authorization: `Bearer ${call.apiKey}`,
+      },
+      body: JSON.stringify(buildChatBody(call.req, call.extraBody, compatible, tokenParam, stream)),
+      signal,
+    });
+  // OpenAI's reasoning models (often behind a gateway) refuse `max_tokens`, while older servers
+  // (Ollama, some vLLM builds) only know it. Generic servers start with the newer name and switch
+  // once if the answer names the parameter; the other flavours keep `max_tokens`.
+  let tokenParam: "max_tokens" | "max_completion_tokens" = compatible
+    ? "max_completion_tokens"
+    : "max_tokens";
+  let response = await send(tokenParam);
+  if (!response.ok && compatible && [400, 422, 500].includes(response.status)) {
+    const detail = await response.text().catch(() => "");
+    if (/max_completion_tokens|max_tokens/i.test(detail)) {
+      tokenParam = tokenParam === "max_tokens" ? "max_completion_tokens" : "max_tokens";
+      response = await send(tokenParam);
+    }
+  }
+  if (!response.ok) {
+    void response.body?.cancel().catch(() => undefined);
+    throw errorForStatus(response.status);
+  }
+  return response;
+}
+
 /** POSTs a streaming chat completion and maps it to normalized events. Throws only AiProviderError. */
 export async function* streamChat(
   call: ChatCall,
@@ -299,37 +340,7 @@ export async function* streamChat(
 ): AsyncGenerator<NormalizedEvent> {
   try {
     if (signal.aborted) throw new AiProviderError("timeout");
-    const compatible = call.flavor === "compatible";
-    const send = (tokenParam: "max_tokens" | "max_completion_tokens") =>
-      call.fetch(joinUrl(call.baseUrl, "/chat/completions"), {
-        method: "POST",
-        headers: {
-          ...call.headers,
-          "Content-Type": "application/json",
-          Accept: "text/event-stream",
-          Authorization: `Bearer ${call.apiKey}`,
-        },
-        body: JSON.stringify(buildChatBody(call.req, call.extraBody, compatible, tokenParam)),
-        signal,
-      });
-    // OpenAI's reasoning models (often behind a gateway) refuse `max_tokens`, while older servers
-    // (Ollama, some vLLM builds) only know it. Generic servers start with the newer name and switch
-    // once if the answer names the parameter; the other flavours keep `max_tokens`.
-    let tokenParam: "max_tokens" | "max_completion_tokens" = compatible
-      ? "max_completion_tokens"
-      : "max_tokens";
-    let response = await send(tokenParam);
-    if (!response.ok && compatible && [400, 422, 500].includes(response.status)) {
-      const detail = await response.text().catch(() => "");
-      if (/max_completion_tokens|max_tokens/i.test(detail)) {
-        tokenParam = tokenParam === "max_tokens" ? "max_completion_tokens" : "max_tokens";
-        response = await send(tokenParam);
-      }
-    }
-    if (!response.ok) {
-      void response.body?.cancel().catch(() => undefined);
-      throw errorForStatus(response.status);
-    }
+    const response = await postChat(call, signal, true);
     if (!response.body) throw new AiProviderError("unavailable");
 
     const seenUrls = new Set<string>();
@@ -404,6 +415,78 @@ export async function* streamChat(
     if (toolCalls.length > 0) yield { type: "tool_calls", toolCalls };
     if (usage) yield { type: "usage", usage: toUsage(usage, seenUrls.size > 0) };
     yield { type: "done", finishReason: finishReason ? mapFinishReason(finishReason) : "stop" };
+  } catch (error) {
+    throw error instanceof AiProviderError ? error : classifyUnknown(error);
+  }
+}
+
+const completionSchema = z.object({
+  choices: z
+    .array(
+      z.object({
+        message: z
+          .object({
+            content: z.union([z.string(), z.null()]).optional(),
+            tool_calls: z
+              .array(
+                z.object({
+                  id: z.string().nullish(),
+                  function: z
+                    .object({ name: z.string().nullish(), arguments: z.string().nullish() })
+                    .nullish(),
+                }),
+              )
+              .nullish(),
+            annotations: z.array(annotationSchema).nullish(),
+          })
+          .nullish(),
+        finish_reason: z.string().nullish(),
+      }),
+    )
+    .nullish(),
+  usage: usageSchema.nullish(),
+  error: z.object({ code: z.union([z.number(), z.string()]).nullish() }).nullish(),
+});
+
+/**
+ * POSTs a non-streaming chat completion (`stream: false`) and maps the JSON body. Same request
+ * as `streamChat`; an abort or a timeout throws, it never returns a partial result.
+ */
+export async function completeChat(
+  call: ChatCall,
+  signal: AbortSignal,
+): Promise<NormalizedCompletion> {
+  try {
+    if (signal.aborted) throw new AiProviderError("timeout");
+    const response = await postChat(call, signal, false);
+    // Transports do not all tear a hanging body down on abort: race the read against the signal.
+    const json = await raceAbort(response.json() as Promise<unknown>, signal);
+    if (signal.aborted) throw new AiProviderError("timeout");
+    const parsed = completionSchema.safeParse(json);
+    if (!parsed.success) throw new AiProviderError("unavailable");
+    const body = parsed.data;
+    if (body.error) throw errorFromChunkCode(body.error.code);
+
+    const choice = body.choices?.[0];
+    const sources = new Set<string>();
+    for (const annotation of choice?.message?.annotations ?? []) {
+      if (annotation.type === "url_citation" && annotation.url_citation) {
+        sources.add(annotation.url_citation.url);
+      }
+    }
+    const toolCalls: ToolCall[] = (choice?.message?.tool_calls ?? [])
+      .map((raw, index) => ({
+        id: raw.id ? raw.id : `call_${String(index)}`,
+        name: raw.function?.name ?? "",
+        arguments: parseToolArguments(raw.function?.arguments ?? ""),
+      }))
+      .filter((raw) => raw.name !== "");
+    return {
+      text: choice?.message?.content ?? "",
+      toolCalls,
+      usage: body.usage ? toUsage(body.usage, sources.size > 0) : undefined,
+      finishReason: choice?.finish_reason ? mapFinishReason(choice.finish_reason) : "stop",
+    };
   } catch (error) {
     throw error instanceof AiProviderError ? error : classifyUnknown(error);
   }

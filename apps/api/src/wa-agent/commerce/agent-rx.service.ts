@@ -21,6 +21,7 @@ import type { WA_AGENT_IMAGE_MIMES } from "@wasfa/shared/schemas/wa-agent";
 
 /** Pictures older than this are not "the prescription the customer just sent". */
 const IMAGE_WINDOW_MS = 15 * 60 * 1_000;
+/** Total wait for every page together (they are awaited in parallel). */
 const PROCESSING_WAIT_MS = 30_000;
 const PROCESSING_POLL_MS = 1_000;
 /** What the agent may tell the customer about the wait. */
@@ -100,19 +101,22 @@ export class AgentRxService {
           }),
         );
       }
-      for (const fileId of fileIds) {
-        const status = await this.files.awaitProcessed(viewer, fileId, {
-          timeoutMs: PROCESSING_WAIT_MS,
-          pollMs: PROCESSING_POLL_MS,
-        });
-        if (status === "rejected") {
-          await giveBack();
-          return declined("unreadable_image");
-        }
-        if (status !== "processed") {
-          await giveBack();
-          return declined("still_processing");
-        }
+      // In parallel, so PROCESSING_WAIT_MS is the total wait for all pages, not per page.
+      const statuses = await Promise.all(
+        fileIds.map((fileId) =>
+          this.files.awaitProcessed(viewer, fileId, {
+            timeoutMs: PROCESSING_WAIT_MS,
+            pollMs: PROCESSING_POLL_MS,
+          }),
+        ),
+      );
+      if (statuses.includes("rejected")) {
+        await giveBack();
+        return declined("unreadable_image");
+      }
+      if (statuses.some((status) => status !== "processed")) {
+        await giveBack();
+        return declined("still_processing");
       }
       const created = await this.rx.create(user, { fileIds, mode: "balanced" });
       for (const image of claimed) {

@@ -1,5 +1,5 @@
 import { settingDefault } from "@wasfa/shared/settings";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   bindTools,
@@ -646,12 +646,15 @@ interface RxSetup {
   createError?: Error;
   fileStatus?: string;
   maxPagesPerRx?: number | null;
+  /** Replaces `awaitProcessed` (to observe concurrency). */
+  awaitProcessed?: (fileId: string) => Promise<string>;
 }
 
 function rxService(setup: RxSetup = {}) {
   const log: string[] = [];
   const created: unknown[] = [];
   const asked: unknown[] = [];
+  const waits: unknown[] = [];
   const redis = new MemoryRedis();
   const config = settingDefault("rx");
   const service = new AgentRxService(
@@ -680,8 +683,14 @@ function rxService(setup: RxSetup = {}) {
       },
     }),
     fake({
-      importObject: () => Promise.resolve("file-1"),
-      awaitProcessed: () => Promise.resolve(setup.fileStatus ?? "processed"),
+      importObject: (_viewer: unknown, input: { sourceKey: string }) =>
+        Promise.resolve(setup.awaitProcessed ? `file-${input.sourceKey}` : "file-1"),
+      awaitProcessed: (_viewer: unknown, fileId: string, options: unknown) => {
+        waits.push(options);
+        return setup.awaitProcessed
+          ? setup.awaitProcessed(fileId)
+          : Promise.resolve(setup.fileStatus ?? "processed");
+      },
     }),
     fake({
       create: (...args: unknown[]) => {
@@ -697,7 +706,7 @@ function rxService(setup: RxSetup = {}) {
     fake(redis),
     quietLogger,
   );
-  return { service, log, created, asked, redis };
+  return { service, log, created, asked, redis, waits };
 }
 
 describe("analyze_prescription", () => {
@@ -756,6 +765,33 @@ describe("analyze_prescription", () => {
     await expect(
       rxService({ createError: new Error("boom") }).service.analyze(call),
     ).rejects.toThrow("boom");
+  });
+
+  it("waits for all pages at once, within one 30 s total", async () => {
+    const started: string[] = [];
+    const release: Array<() => void> = [];
+    const { service, waits } = rxService({
+      images: [IMAGE, { ...IMAGE, id: "msg-2", mediaKey: "wa/2026/10/other" }],
+      awaitProcessed: (fileId) => {
+        started.push(fileId);
+        return new Promise<string>((resolve) => {
+          release.push(() => {
+            resolve("processed");
+          });
+        });
+      },
+    });
+    const pending = service.analyze(call);
+    await vi.waitFor(() => {
+      // Both pages are being awaited before either has finished.
+      expect(started).toHaveLength(2);
+    });
+    for (const done of release) done();
+    await expect(pending).resolves.toMatchObject({ started: true, pages: 2 });
+    expect(waits).toEqual([
+      { timeoutMs: 30_000, pollMs: 1_000 },
+      { timeoutMs: 30_000, pollMs: 1_000 },
+    ]);
   });
 
   it("reports a rejected or unfinished picture instead of starting", async () => {
