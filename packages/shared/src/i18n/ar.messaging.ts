@@ -93,12 +93,6 @@ export const arMessaging = {
   "whatsapp.agent.tools.explain.not_linked":
     "الخدمة دي لأصحاب الحسابات المؤكدة بس، والرقم ده مش مربوط بحساب.",
   "whatsapp.agent.tools.explain.already_linked": "الرقم ده مربوط بحساب بالفعل.",
-  "whatsapp.agent.tools.explain.invalid_arguments":
-    "الطلب مكانش مكتمل أو شكله غلط، جرّب تاني بالبيانات الصح.",
-  "whatsapp.agent.tools.explain.tool_failed":
-    "حصلت مشكلة مؤقتة في الأداة ومحصلش أي تغيير، ممكن نحاول تاني بعد شوية.",
-  "whatsapp.agent.tools.explain.stale_turn":
-    "المحادثة اتحدّثت برسالة أحدث، فالطلب ده اتلغى من غير أي تغيير.",
   "whatsapp.agent.tools.explain.no_image":
     "مفيش صورة روشتة جاهزة للتحليل. اطلب من العميل يبعت صورة الروشتة.",
   "whatsapp.agent.tools.explain.still_processing": "الملف لسه بيتجهز. جرّب تاني بعد لحظات.",

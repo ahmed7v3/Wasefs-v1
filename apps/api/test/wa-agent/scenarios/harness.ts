@@ -19,6 +19,7 @@ import {
   type WaAgentOutboundPart,
 } from "@wasfa/shared/schemas/wa-agent";
 import { type WaAgentSettings } from "@wasfa/shared/settings";
+import { stripBidi } from "@wasfa/shared/wa-agent/bidi";
 import { and, asc, eq, sql } from "drizzle-orm";
 
 import { ErrorReporter } from "../../../src/common/errors.js";
@@ -312,7 +313,9 @@ export class Scenario {
   }
 
   async outboundTexts(): Promise<string[]> {
-    return (await this.outbound()).flatMap((part) => (part.kind === "text" ? [part.text] : []));
+    return (await this.outbound()).flatMap((part) =>
+      part.kind === "text" ? [stripBidi(part.text)] : [],
+    );
   }
 
   /** A result event from the worker, through the real events consumer (the reading itself is a fixed fake). */

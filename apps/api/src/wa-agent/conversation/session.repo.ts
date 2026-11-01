@@ -6,7 +6,7 @@ import {
   type WaAgentProfile,
   type WaSessionState,
 } from "@wasfa/shared/wa-agent/session";
-import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
 
 import { DB, type DbHandle } from "../../common/database.js";
 
@@ -229,7 +229,7 @@ export class SessionRepo {
           ne(waMessages.status, "dropped"),
           or(
             eq(waMessages.sessionId, session.id),
-            and(isNull(waMessages.sessionId), sql`${waMessages.createdAt} >= ${session.startedAt}`),
+            and(isNull(waMessages.sessionId), gte(waMessages.createdAt, session.startedAt)),
           ),
         ),
       )
@@ -247,7 +247,7 @@ export class SessionRepo {
         and(
           eq(waMessages.sessionId, sessionId),
           ne(waMessages.status, "dropped"),
-          after === null ? undefined : sql`${waMessages.createdAt} > ${after}`,
+          after === null ? undefined : gt(waMessages.createdAt, after),
         ),
       )
       .orderBy(asc(waMessages.createdAt), asc(waMessages.id))
@@ -263,7 +263,7 @@ export class SessionRepo {
         and(
           eq(waMessages.sessionId, sessionId),
           ne(waMessages.status, "dropped"),
-          after === null ? undefined : sql`${waMessages.createdAt} > ${after}`,
+          after === null ? undefined : gt(waMessages.createdAt, after),
         ),
       );
     return row?.total ?? 0;

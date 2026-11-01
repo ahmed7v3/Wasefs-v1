@@ -26,8 +26,8 @@ export type ToolNote = z.infer<typeof toolNoteSchema>;
 const toolNotesSchema = z.array(toolNoteSchema).max(20);
 
 /** The notes of a turn's tool calls; read-only tools leave none (they changed nothing). */
-export function toolNotesOf(records: readonly ToolCallRecord[]): ToolNote[] {
-  return records
+export function toolNotesOf(records: readonly ToolCallRecord[] | undefined): ToolNote[] {
+  return (records ?? [])
     .filter((record) => !READ_ONLY_TOOLS.has(record.name))
     .slice(0, 20)
     .map((record) => ({

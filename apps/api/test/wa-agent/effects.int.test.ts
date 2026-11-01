@@ -214,7 +214,13 @@ describe("every write tool acts once per turn and arguments", () => {
       AGENT_TOOLS.filter((tool) => tool.effect === "read")
         .map((tool) => tool.definition.name)
         .sort(),
-    ).toEqual(["account_status", "get_catalog", "medication_alternatives", "search_medications"]);
+    ).toEqual([
+      "account_status",
+      "get_catalog",
+      "medication_alternatives",
+      "search_medications",
+      "view_attachment",
+    ]);
   });
 
   it.each(CASES)("%s: three identical calls are one effect", async (name, linked, args, other) => {
