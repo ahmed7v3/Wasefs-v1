@@ -295,7 +295,7 @@ describe("handoff", () => {
 });
 
 describe("spend cap and failures", () => {
-  it("at the daily cap: one busy line, an owner alert, a pause, and no model call", async () => {
+  it("at the daily cap: nothing to the customer, one owner alert, no pause, no model call", async () => {
     await settings.set(
       "waAgent",
       { enabled: true, guestsEnabled: true, spendCapUsdMicros: 1_000 },
@@ -307,40 +307,30 @@ describe("spend cap and failures", () => {
     await service.onInbound(conversation.id);
 
     expect(ai.inputs).toHaveLength(0);
-    expect((await outRows(conversation.id)).map((row) => row.text)).toEqual([
-      t("whatsapp.agent.busy"),
-    ]);
+    expect(await outRows(conversation.id)).toEqual([]);
     expect(
       await ctx.owner.db.select().from(adminAlerts).where(eq(adminAlerts.refId, conversation.id)),
     ).toHaveLength(1);
-    await ctx.owner.db
-      .update(waMessages)
-      .set({ status: "sent" })
-      .where(eq(waMessages.conversationId, conversation.id));
     await handoff.drain();
     const [after] = await ctx.owner.db
       .select()
       .from(waConversations)
       .where(eq(waConversations.id, conversation.id));
-    expect(after?.status).toBe("paused");
+    expect(after?.status).toBe("active");
   });
 
-  it("a model error shows the customer only the busy line, and the cost spent so far is booked", async () => {
+  it("a model error that persists sends the customer nothing, alerts the owner, and books the cost", async () => {
     const conversation = await receive(phone(), "hello");
     const { service } = turnsWith(
       scriptQueue([toolCall("get_catalog"), new AiProviderError("unavailable")]),
       { costUsdMicros: 300 },
     );
     await service.onInbound(conversation.id);
-    expect((await outRows(conversation.id)).map((row) => row.text)).toEqual([
-      t("whatsapp.agent.busy"),
-    ]);
+    expect(await outRows(conversation.id)).toEqual([]);
+    expect(
+      await ctx.owner.db.select().from(adminAlerts).where(eq(adminAlerts.refId, conversation.id)),
+    ).toHaveLength(1);
     expect(Number(await ctx.redis.get(`wa:agent:spend:${today()}`))).toBeGreaterThanOrEqual(300);
-    // The deferred pause waits for the bridge's "sent" report, which no bridge sends here.
-    await ctx.owner.db
-      .update(waMessages)
-      .set({ status: "sent" })
-      .where(eq(waMessages.conversationId, conversation.id));
     await handoff.drain();
   });
 });
