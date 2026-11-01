@@ -1,4 +1,3 @@
-import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -20,23 +19,21 @@ describe("nextSetLabel", () => {
   });
 
   it("is strictly increasing by (length, alphabet) and never repeats", () => {
-    fc.assert(
-      fc.property(fc.integer({ min: 1, max: 1_500 }), (steps) => {
-        const seen = new Set<string>();
-        let label: string | null = null;
-        let previous = "";
-        for (let step = 0; step < steps; step += 1) {
-          label = nextSetLabel(label);
-          expect(seen.has(label)).toBe(false);
-          seen.add(label);
-          const later =
-            label.length > previous.length ||
-            (label.length === previous.length && label > previous);
-          expect(later).toBe(true);
-          previous = label;
-        }
-      }),
-    );
+    // The sequence is deterministic, so one long walk covers every prefix a random length would.
+    const seen = new Set<string>();
+    let label: string | null = null;
+    let previous = "";
+    let broken: string | null = null;
+    for (let step = 0; step < 2_000 && broken === null; step += 1) {
+      label = nextSetLabel(label);
+      const later =
+        label.length > previous.length || (label.length === previous.length && label > previous);
+      if (seen.has(label) || !later) broken = `${previous} -> ${label}`;
+      seen.add(label);
+      previous = label;
+    }
+    expect(broken).toBeNull();
+    expect(seen.size).toBe(2_000);
   });
 });
 
