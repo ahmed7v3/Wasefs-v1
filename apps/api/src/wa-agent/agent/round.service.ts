@@ -11,6 +11,7 @@ import { PlansService } from "../../plans/plans.service.js";
 import { SettingsService } from "../../settings/settings.service.js";
 import { AttachmentsService } from "../conversation/attachments.service.js";
 import { WaAgentRepo } from "../conversation/conversation.repo.js";
+import { withProfile } from "../conversation/profile-config.js";
 import { SessionService } from "../conversation/session.service.js";
 import { WaAgentStateService } from "../conversation/state.service.js";
 import { ladderRetry } from "../turn/retry-ladder.js";
@@ -99,7 +100,7 @@ export class AgentRoundService implements AgentRound {
     signal: AbortSignal,
     options: ComposeOptions = {},
   ): Promise<RoundOutcome> {
-    const config = await this.settings.get("waAgent");
+    const config = withProfile(await this.settings.get("waAgent"), conversation.profile);
     const now = new Date(this.timing.now());
     const quiet = () => quietOutcome(conversation, now);
     if (!config.enabled || WaAgentStateService.isHeld(conversation)) return quiet();

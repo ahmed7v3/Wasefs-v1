@@ -26,8 +26,15 @@ import {
   declined,
 } from "./rx-start.service.js";
 
+import type { AuthenticatedUser } from "../../common/current-user.js";
 import type { AgentCall, AgentToolResult } from "../agent/tools/tool.js";
 import type { WA_AGENT_IMAGE_MIMES } from "@wasfa/shared/schemas/wa-agent";
+
+export interface RxStartBase {
+  user: AuthenticatedUser;
+  creditsPerPage: number;
+  maxPages: number;
+}
 
 /**
  * `analyze_prescription`: the customer's recent pictures become `rx_page` files of their own and go
@@ -52,11 +59,10 @@ export class AgentRxService {
     this.logger.setContext("WaAgentRx");
   }
 
-  async analyze(call: AgentCall): Promise<AgentToolResult> {
+  /** The account and limits a reading starts with; null when the account is not active. Shared with the command layer. */
+  async startBase(call: AgentCall): Promise<RxStartBase | null> {
     const row = await this.commerce.user(call.userId);
-    if (row?.status !== "active") return declined("account_unavailable");
-    const user = agentUser(row, call.now);
-
+    if (row?.status !== "active") return null;
     const [rxSettings, entitlement] = await Promise.all([
       this.settings.get("rx"),
       this.plans.entitlement({ type: "user", id: call.userId }, "rx_extract"),
@@ -66,8 +72,14 @@ export class AgentRxService {
       rxSettings.maxPages,
       entitlement?.maxPagesPerRx ?? RX_MAX_PAGES,
     );
+    return { user: agentUser(row, call.now), creditsPerPage: rxSettings.creditsPerPage, maxPages };
+  }
+
+  async analyze(call: AgentCall): Promise<AgentToolResult> {
+    const base = await this.startBase(call);
+    if (base === null) return declined("account_unavailable");
+    const { user, maxPages } = base;
     if (call.effect !== undefined) {
-      const base = { user, creditsPerPage: rxSettings.creditsPerPage, maxPages };
       // v2 (docs/WA-AGENT-RUNTIME.md §18.5): the session's registry decides which pictures, no time window.
       if (call.sessionId === undefined || this.attachments === undefined) {
         return this.start.analyzeOnce(call, call.effect, base);
@@ -143,7 +155,7 @@ export class AgentRxService {
       return {
         started: true,
         pages: fileIds.length,
-        credits: fileIds.length * rxSettings.creditsPerPage,
+        credits: fileIds.length * base.creditsPerPage,
         etaSeconds: ETA_SECONDS,
       };
     } catch (error) {
@@ -156,7 +168,7 @@ export class AgentRxService {
         const wallet = await this.credits.forUser(call.userId, call.now);
         return declined(reason, {
           balance: wallet.wallet.balance,
-          costPerPage: rxSettings.creditsPerPage,
+          costPerPage: base.creditsPerPage,
         });
       }
       return declined(reason);

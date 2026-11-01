@@ -25,6 +25,7 @@ import { SettingsService } from "../../settings/settings.service.js";
 import { HANDOFF_ALERT_KIND } from "../agent/handoff.service.js";
 import { composeTextParts } from "../compose/compose-parts.js";
 import { WaAgentRepo } from "../conversation/conversation.repo.js";
+import { localeOf } from "../conversation/profile-config.js";
 import { WaAgentStateService } from "../conversation/state.service.js";
 import { WaOutboundService } from "../transport/outbound.service.js";
 import { ConversationLock, StaleFenceError } from "../turn/lock.js";
@@ -200,7 +201,7 @@ export class OutboxDeliverer implements OnModuleInit, OnApplicationShutdown {
 
     const event = waAgentEventSchema.safeParse(row.payload);
     if (!event.success) return this.dead(row, row.attempts, "invalid_payload");
-    const locale: Locale = config.language === "en" ? "en" : "ar";
+    const locale: Locale = localeOf(config, conversation.profile);
     const built = await this.builder.parts(event.data, conversation, config.caps, locale);
     if (built === null || built.length === 0) return this.dead(row, row.attempts, "no_content");
     await this.labelIfEarlier(event.data, conversation.sessionId, conversation.id, built, locale);

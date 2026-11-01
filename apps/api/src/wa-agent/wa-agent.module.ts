@@ -26,6 +26,8 @@ import { AgentRoundService } from "./agent/round.service.js";
 import { SummaryService } from "./agent/summary.service.js";
 import { WaAgentToolDeps } from "./agent/tool-deps.js";
 import { ToolEffectsRepo } from "./agent/tools/tool-effects.repo.js";
+import { CommandRouter } from "./commands/command-router.js";
+import { CommandsRepo } from "./commands/commands.repo.js";
 import { WaAgentCommerceRepo } from "./commerce/agent-commerce.repo.js";
 import { AgentDiscountService } from "./commerce/agent-discount.service.js";
 import { AgentMedicalService } from "./commerce/agent-medical.service.js";
@@ -144,6 +146,9 @@ const RX_RECONCILE_EVERY_MS = 30_000;
     TurnQueue,
     ErrorReporter,
     FailureActions,
+    // The deterministic command layer (`waAgent.commands.enabled`): answers leading command rows without a model.
+    CommandsRepo,
+    CommandRouter,
     TurnRunner,
     TurnWorker,
     // Results of paid work and worker events, delivered from `wa_outbox` (behind `waAgent.runtime.v2`).
