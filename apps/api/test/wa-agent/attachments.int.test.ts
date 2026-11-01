@@ -84,7 +84,6 @@ describe("attachments in the v2 runner", () => {
     const scenario = await start([
       analyze(),
       "قريت المجموعة الأخيرة",
-      "تحب أقرأ الباقي؟",
       analyze({ set: "A" }),
       "قريت الباقي",
     ]);
@@ -98,6 +97,8 @@ describe("attachments in the v2 runner", () => {
     expect(scenario.modelSaw(0).split("[صورة]")).toHaveLength(1);
     expect(scenario.imagesSeen(0)).toBe(4);
 
+    // The first reading finished: only one reading may run per account at a time.
+    await scenario.finishReadings();
     await scenario.inbound({ text: "آه كمل" });
     await scenario.runTurns();
     expect(await scenario.readings()).toHaveLength(2);
@@ -129,7 +130,8 @@ describe("attachments in the v2 runner", () => {
     await scenario.inbound({ image: TINY_JPEG });
     await scenario.runTurns();
     await scenario.passTime(90);
-    await scenario.inbound({ text: "حلل الروشتة" });
+    // Not a command alias («حلل الروشتة» is one and would skip the model): the model decides to read.
+    await scenario.inbound({ text: "ممكن تقراها لي دلوقتي" });
     await scenario.runTurns();
 
     expect(await scenario.readings()).toHaveLength(1);

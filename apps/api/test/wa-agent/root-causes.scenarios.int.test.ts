@@ -67,6 +67,8 @@ describe("root causes of the WhatsApp agent", () => {
     await scenario.inbound({ image: TINY_JPEG });
     await scenario.runTurns();
     await scenario.passTime(20);
+    // The first reading finished meanwhile (one reading may run per account at a time).
+    await scenario.finishReadings();
     await scenario.inbound({ text: "حلل الصورة التانية" });
     await scenario.runTurns();
 

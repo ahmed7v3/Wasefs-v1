@@ -11,6 +11,7 @@ import {
   type WaConversation,
   type WaMessage,
 } from "@wasfa/db";
+import { busyLockKey } from "@wasfa/shared/busy";
 import { WA_AGENT_OUT_STREAM } from "@wasfa/shared/schemas/phone";
 import {
   type WaAgentEvent,
@@ -414,6 +415,14 @@ export class Scenario {
       .where(eq(waConversations.id, this.conversationId));
     if (!row) throw new Error("conversation not found");
     return row;
+  }
+
+  /**
+   * The worker finished the readings started so far: the account's «one reading at a time» lock is free
+   * (the real worker frees it when its job ends; no worker runs in scenarios).
+   */
+  async finishReadings(): Promise<void> {
+    if (this.userId !== null) await this.ctx.redis.del(busyLockKey(this.userId, "rx"));
   }
 
   /** The prescription readings of the linked account, oldest first. */
