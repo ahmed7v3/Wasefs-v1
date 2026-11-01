@@ -312,14 +312,18 @@ migration (`session_id`, `session_started_at`, `wa_sessions`, attachment handle/
 
 ### Acceptance
 - [ ] No file in `apps/api/src/wa-agent` above 300 lines; the old flat files are gone; suite green after step 1
-      alone.
-- [ ] «جديد» starts a clean session: the next answer does not reference earlier context (scenario test), an
+      alone. (Line cap and flat files: met, checked on 79c7704. "Step 1 alone": only unit tests (148) and
+      typecheck/lint ran on the move-only commit; its int suites were not run separately, so not ticked.)
+- [x] «جديد» starts a clean session: the next answer does not reference earlier context (scenario test), an
       in-flight analysis still arrives; `/analyze` with a photo starts an analysis with **no model call**.
-- [ ] Red tests R1–R3 green; the model never says it cannot see an image that is `ready` (scenarios with 1, 3
-      and 6 images, a PDF, an old image, a second request).
-- [ ] Command corpus: 0 false positives; numbered menu works; `privacy` deletes with confirmation and audits.
+      (CI run 41286207560: commands.int, session.int.)
+- [x] Red tests R1–R3 green; the model never says it cannot see an image that is `ready` (scenarios with 1, 3
+      and 6 images, a PDF, an old image, a second request). (CI run 41286207560: root-causes.scenarios.int
+      R1/R3, R2 bridge units, attachments.int.)
+- [x] Command corpus: 0 false positives; numbered menu works; `privacy` deletes with confirmation and audits.
+      (wa-agent-commands.test 2,785-line corpus; commands.int menu and privacy.)
 - [ ] Mixed Arabic/Latin lines render correctly in WhatsApp (manual check on Android + iOS, screenshots in
-      Notes).
+      Notes). (Owner: part of the live smoke test with runtime.v2 on.)
 **Tests:** normaliser/matcher properties, session rollover, attachment validation (wrong session/handle →
 refusal), composer snapshots, scenario transcripts for every command.
 **Security:** handles scoped to the session; `privacy` rate-limited and confirmed; commands audited where they
