@@ -2,6 +2,7 @@ import { MEDICAL_AI_TASKS } from "@wasfa/shared/ai";
 import { isAppError } from "@wasfa/shared/errors";
 import { routeModelParamsSchema, type RouteModelParams } from "@wasfa/shared/schemas/admin-ai";
 
+import { collectCompletion } from "./completion.js";
 import { costUsdMicros } from "./pricing.js";
 import { aiPausedError, noModelError } from "./refusals.js";
 import {
@@ -10,10 +11,17 @@ import {
   type RunnerCandidate,
   type RunnerEvent,
 } from "./runner.js";
+import { AiProviderError } from "./types.js";
 
 import type { BreakerStore } from "./breaker.js";
 import type { SpendGuard, SpendLimits } from "./spend-guard.js";
-import type { AIProviderAdapter, ModelPricing, NormalizedRequest, Usage } from "./types.js";
+import type {
+  AIProviderAdapter,
+  CompletionResult,
+  ModelPricing,
+  NormalizedRequest,
+  Usage,
+} from "./types.js";
 import type {
   AiCapability,
   AiDataPolicy,
@@ -163,6 +171,17 @@ export interface Router {
    * ends the stream quietly (the `result` event still follows when an attempt had started).
    */
   run(input: RouterInput, signal: AbortSignal): AsyncGenerator<RouterEvent>;
+  /**
+   * Same policy, fallback, timeout and accounting as `run`, but each attempt is ONE non-streaming
+   * provider call. Never resolves with an empty result because of an abort: an aborted call throws
+   * `AiProviderError("timeout")`.
+   */
+  complete(input: RouterInput, signal: AbortSignal): Promise<RouterCompletion>;
+}
+
+/** A finished non-streaming call plus the router's `result` (model, route version, usage row id). */
+export interface RouterCompletion extends CompletionResult {
+  result: RouterResult;
 }
 
 interface Planned {
@@ -185,6 +204,7 @@ function parseParams(raw: Record<string, unknown>): RouteModelParams {
 
 /** The request shaped for one route entry; admin-set params win over the caller's defaults. */
 function shapeRequest(
+  task: AiTask,
   base: Omit<NormalizedRequest, "model">,
   model: RouterModel,
   params: RouteModelParams,
@@ -193,7 +213,9 @@ function shapeRequest(
   const useSchema = jsonSchema !== undefined && params.jsonSchema !== false;
   // Web search and function declarations do not mix on every provider: tools win.
   const withTools = base.tools !== undefined && base.tools.length > 0;
-  const useSearch = withTools ? undefined : (params.search ?? search);
+  // Prescription tasks never search: grounded search can inject brand names that are not on the paper.
+  const noSearch = withTools || task.startsWith("rx_");
+  const useSearch = noSearch ? undefined : (params.search ?? search);
   return {
     ...rest,
     model: model.modelId,
@@ -274,7 +296,7 @@ export function createRouter(ports: RouterPorts): Router {
         continue;
       }
       const params = parseParams(rawParams);
-      const request = shapeRequest(input.request, model, params);
+      const request = shapeRequest(input.task, input.request, model, params);
       if (request.search === true && searchOff) {
         skip("search_off");
         continue;
@@ -288,7 +310,11 @@ export function createRouter(ports: RouterPorts): Router {
     return planned;
   }
 
-  async function* run(input: RouterInput, signal: AbortSignal): AsyncGenerator<RouterEvent> {
+  async function* runEvents(
+    input: RouterInput,
+    signal: AbortSignal,
+    nonStreaming: boolean,
+  ): AsyncGenerator<RouterEvent> {
     // 1. Switches and the spend cap come before anything else: a paused service touches no provider.
     if (await ports.killSwitch(input.task, { search: false })) throw aiPausedError();
     const limits = await ports.limits();
@@ -391,7 +417,12 @@ export function createRouter(ports: RouterPorts): Router {
           isOpen: (key) => tolerate("breaker", false, () => ports.breaker.isOpen(key)),
           onAttempt,
         },
-        input.attemptTimeoutMs === undefined ? {} : { attemptTimeoutMs: input.attemptTimeoutMs },
+        {
+          ...(input.attemptTimeoutMs === undefined
+            ? {}
+            : { attemptTimeoutMs: input.attemptTimeoutMs }),
+          ...(nonStreaming ? { nonStreaming } : {}),
+        },
       )) {
         yield event;
       }
@@ -419,5 +450,24 @@ export function createRouter(ports: RouterPorts): Router {
     }
   }
 
-  return { run };
+  const run = (input: RouterInput, signal: AbortSignal): AsyncGenerator<RouterEvent> =>
+    runEvents(input, signal, false);
+
+  async function complete(input: RouterInput, signal: AbortSignal): Promise<RouterCompletion> {
+    let answered: RouterResult | undefined;
+    const events = (async function* (): AsyncGenerator<RouterEvent> {
+      for await (const event of runEvents(input, signal, true)) {
+        if (event.type === "result") answered = event.result;
+        yield event;
+      }
+    })();
+    const completion = await collectCompletion(events);
+    // The runner ends quietly on an outer abort; a non-streaming caller must not mistake that for "".
+    if (signal.aborted) throw new AiProviderError("timeout");
+    // No result event means no attempt ran to an answer.
+    if (!answered) throw new AiProviderError("unavailable");
+    return { ...completion, result: answered };
+  }
+
+  return { run, complete };
 }

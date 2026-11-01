@@ -1,7 +1,13 @@
 import { classifyUnknown } from "./adapters/errors.js";
 import { AiProviderError } from "./types.js";
 
-import type { AIProviderAdapter, NormalizedEvent, NormalizedRequest, Usage } from "./types.js";
+import type {
+  AIProviderAdapter,
+  NormalizedCompletion,
+  NormalizedEvent,
+  NormalizedRequest,
+  Usage,
+} from "./types.js";
 
 /** One route entry: a model on a provider, with the request already shaped for it. */
 export interface RunnerCandidate {
@@ -30,11 +36,27 @@ export interface RunnerHooks {
 
 export interface RunnerOptions {
   attemptTimeoutMs?: number;
+  /**
+   * Call `adapter.complete` (one request/response, no stream) and replay it as events. An adapter
+   * without `complete` falls back to its stream.
+   */
+  nonStreaming?: boolean;
 }
 
 export type RunnerEvent = NormalizedEvent & { candidate?: string };
 
 const DEFAULT_ATTEMPT_TIMEOUT_MS = 60_000;
+
+async function* completionEvents(
+  complete: () => Promise<NormalizedCompletion>,
+): AsyncGenerator<NormalizedEvent> {
+  const completion = await complete();
+  if (completion.text !== "") yield { type: "text", text: completion.text };
+  if (completion.toolCalls.length > 0)
+    yield { type: "tool_calls", toolCalls: completion.toolCalls };
+  if (completion.usage) yield { type: "usage", usage: completion.usage };
+  yield { type: "done", finishReason: completion.finishReason };
+}
 
 /**
  * Tries candidates in order. Only a retryable error that arrives BEFORE any text/thinking has
@@ -78,7 +100,12 @@ export async function* runWithFallbacks(
     };
 
     try {
-      for await (const event of candidate.adapter.stream(candidate.request, attemptSignal)) {
+      const { adapter } = candidate;
+      const complete = options.nonStreaming === true ? adapter.complete?.bind(adapter) : undefined;
+      const events = complete
+        ? completionEvents(() => complete(candidate.request, attemptSignal))
+        : adapter.stream(candidate.request, attemptSignal);
+      for await (const event of events) {
         // Nothing may reach the caller after an abort, even if the adapter had it buffered.
         if (signal.aborted) break;
         if (event.type === "usage") usage = event.usage;

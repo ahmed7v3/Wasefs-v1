@@ -9,7 +9,7 @@ import {
 
 import { AiProviderError } from "../types.js";
 
-import { abortable } from "./abortable.js";
+import { abortable, raceAbort } from "./abortable.js";
 import { classifyUnknown, errorForStatus, timedProbe } from "./errors.js";
 
 import type {
@@ -18,6 +18,7 @@ import type {
   ConnectionResult,
   DiscoveredModel,
   MediaResolution,
+  NormalizedCompletion,
   NormalizedEvent,
   NormalizedMessage,
   NormalizedRequest,
@@ -271,6 +272,49 @@ export class GeminiAdapter implements AIProviderAdapter {
       // Usage is cumulative across chunks; only the last figure counts, and only if the provider sent one.
       if (usage) yield { type: "usage", usage: { ...usage, searchCount: searched ? 1 : 0 } };
       yield { type: "done", finishReason: mapFinishReason(finishReason) };
+    } catch (error) {
+      throw mapError(error);
+    }
+  }
+
+  async complete(req: NormalizedRequest, signal: AbortSignal): Promise<NormalizedCompletion> {
+    try {
+      if (signal.aborted) throw new AiProviderError("timeout");
+      // The SDK honours abortSignal, but a stalled transport may not reject: race it ourselves.
+      const response = await raceAbort(
+        this.client.models.generateContent({
+          model: req.model,
+          contents: toContents(req.messages),
+          config: buildConfig(req, signal),
+        }),
+        signal,
+      );
+      if (signal.aborted) throw new AiProviderError("timeout");
+      if (response.promptFeedback?.blockReason) throw new AiProviderError("content_blocked");
+
+      const candidate = response.candidates?.[0];
+      let text = "";
+      const toolCalls: ToolCall[] = [];
+      for (const part of candidate?.content?.parts ?? []) {
+        if (part.functionCall?.name) {
+          const call = part.functionCall;
+          toolCalls.push({
+            id: call.id ?? `call_${String(toolCalls.length)}`,
+            name: call.name ?? "",
+            arguments: call.args ?? {},
+            ...(part.thoughtSignature === undefined ? {} : { opaque: part.thoughtSignature }),
+          });
+          continue;
+        }
+        if (part.text && part.thought !== true) text += part.text;
+      }
+      const searched = candidate?.groundingMetadata !== undefined;
+      return {
+        text,
+        toolCalls,
+        usage: response.usageMetadata ? toUsage(response.usageMetadata, searched) : undefined,
+        finishReason: mapFinishReason(candidate?.finishReason),
+      };
     } catch (error) {
       throw mapError(error);
     }

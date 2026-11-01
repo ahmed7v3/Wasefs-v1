@@ -39,24 +39,29 @@ function describeFailure(error: z.ZodError | "not_json"): string {
     .join("; ");
 }
 
+/**
+ * One non-streaming router call. A cut or timed-out call throws (the router retries/falls back
+ * across the route first), so a half answer can never reach the JSON parser as if it were whole.
+ */
 async function collect(
   router: Router,
   input: RouterInput,
   signal: AbortSignal,
 ): Promise<{ text: string; costUsdMicros: number; usageId: string | null; routeVersion: number }> {
-  let text = "";
-  let result;
-  for await (const event of router.run(input, signal)) {
-    if (event.type === "text") text += event.text;
-    else if (event.type === "result") result = event.result;
+  let done;
+  try {
+    done = await router.complete(input, signal);
+  } catch (error) {
+    // The job's own budget ran out: not a provider failure.
+    if (signal.aborted) throw new RxStepError("budget_exceeded");
+    throw error;
   }
-  if (signal.aborted) throw new RxStepError("budget_exceeded");
-  if (result?.outcome !== "ok") throw new RxStepError("no_answer");
+  if (done.result.outcome !== "ok") throw new RxStepError("no_answer");
   return {
-    text,
-    costUsdMicros: result.totalCostUsdMicros,
-    usageId: result.usageId,
-    routeVersion: result.routeVersion,
+    text: done.text,
+    costUsdMicros: done.result.totalCostUsdMicros,
+    usageId: done.result.usageId,
+    routeVersion: done.result.routeVersion,
   };
 }
 

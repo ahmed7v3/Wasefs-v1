@@ -315,3 +315,72 @@ describe("gemini listModels / testConnection", () => {
     expect(failed).toMatchObject({ ok: false, errorCode: "auth" });
   });
 });
+
+describe("gemini complete (non-streaming)", () => {
+  it("maps text, function calls (with signature) and usage from one JSON body", async () => {
+    let body: Record<string, unknown> = {};
+    server.use(
+      http.post(STREAM_URL, async ({ request: req }) => {
+        body = (await req.json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          candidates: [
+            {
+              content: {
+                role: "model",
+                parts: [
+                  { text: "Hello" },
+                  { text: "hidden", thought: true },
+                  {
+                    functionCall: { name: "lookup", args: { q: "x" } },
+                    thoughtSignature: "sig",
+                  },
+                ],
+              },
+              finishReason: "STOP",
+            },
+          ],
+          usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 4, thoughtsTokenCount: 2 },
+        });
+      }),
+    );
+    const done = await adapter().complete?.(
+      request({
+        tools: [{ name: "lookup", description: "d", parameters: { type: "object" } }],
+        toolChoice: "auto",
+      }),
+      new AbortController().signal,
+    );
+    expect(done).toEqual({
+      text: "Hello",
+      toolCalls: [{ id: "call_0", name: "lookup", arguments: { q: "x" }, opaque: "sig" }],
+      usage: {
+        inputTokens: 10,
+        cachedInputTokens: 0,
+        outputTokens: 4,
+        thinkingTokens: 2,
+        searchCount: 0,
+      },
+      finishReason: "stop",
+    });
+    expect(JSON.stringify(body)).toContain("functionDeclarations");
+  });
+
+  it("throws a timeout (never an empty result) when aborted while the call hangs", async () => {
+    server.use(http.post(STREAM_URL, () => new Promise<Response>(() => undefined)));
+    const controller = new AbortController();
+    const pending = adapter().complete?.(request(), controller.signal);
+    setTimeout(() => {
+      controller.abort();
+    }, 20);
+    await expect(pending).rejects.toMatchObject({ code: "timeout", retryable: true });
+  });
+
+  it("reports a blocked prompt as content_blocked", async () => {
+    server.use(
+      http.post(STREAM_URL, () => HttpResponse.json({ promptFeedback: { blockReason: "SAFETY" } })),
+    );
+    await expect(
+      adapter().complete?.(request(), new AbortController().signal),
+    ).rejects.toMatchObject({ code: "content_blocked" });
+  });
+});

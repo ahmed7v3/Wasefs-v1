@@ -1,4 +1,10 @@
-import { FakeAdapter, type FakeScript, type RouterEvent, type RouterInput } from "@wasfa/ai";
+import {
+  FakeAdapter,
+  type CompletionResult,
+  type FakeScript,
+  type RouterEvent,
+  type RouterInput,
+} from "@wasfa/ai";
 
 import type { AiRuntimeService } from "../../src/ai-runtime/ai-runtime.service.js";
 import type { PinoLogger } from "nestjs-pino";
@@ -47,6 +53,11 @@ export function fakeAi(script: FakeScript, options: FakeAiOptions = {}): FakeAi 
           attempts: 1,
         },
       };
+    },
+    async complete(input: RouterInput, signal: AbortSignal): Promise<CompletionResult> {
+      inputs.push(input);
+      const done = await adapter.complete({ ...input.request, model: "fake" }, signal);
+      return { ...done, costUsdMicros: cost };
     },
   } as unknown as AiRuntimeService;
   return { service, adapter, inputs };

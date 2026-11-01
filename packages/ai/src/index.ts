@@ -47,6 +47,7 @@ export type {
   RouterEvent,
   RouterInput,
   RouterModel,
+  RouterCompletion,
   RouterNote,
   RouterPorts,
   RouterProvider,

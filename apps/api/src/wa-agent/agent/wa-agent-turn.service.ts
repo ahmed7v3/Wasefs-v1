@@ -1,5 +1,5 @@
 import { Inject, Injectable, type OnApplicationShutdown } from "@nestjs/common";
-import { ToolLoopError, collectCompletion, runToolLoop, type ToolLoopResult } from "@wasfa/ai";
+import { ToolLoopError, runToolLoop, type NormalizedMessage, type ToolLoopResult } from "@wasfa/ai";
 import { t } from "@wasfa/shared/i18n";
 import { newId } from "@wasfa/shared/ids";
 import {
@@ -56,6 +56,22 @@ const LOCK_MS = 120_000;
 const MAX_EXTRA_TURNS = 3;
 
 const MAX_IMAGES = 4;
+/** What a photo becomes after the first model step: the prescription engine reads it, the chat model needs it once. */
+const IMAGE_PLACEHOLDER = "[صورة]";
+
+/** The same messages with every image part replaced by a short text part (order and roles kept). */
+function withoutImages(messages: readonly NormalizedMessage[]): NormalizedMessage[] {
+  return messages.map((message) =>
+    message.role === "tool"
+      ? message
+      : {
+          ...message,
+          parts: message.parts.map((part) =>
+            part.type === "image" ? { type: "text" as const, text: IMAGE_PLACEHOLDER } : part,
+          ),
+        },
+  );
+}
 /** Voice notes transcribed per turn (each one costs ElevenLabs time). */
 const MAX_TRANSCRIPTS = 5;
 const REPLY_WINDOW_MS = 24 * 60 * 60 * 1_000;
@@ -264,6 +280,7 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
     const signal = AbortSignal.timeout(MODEL_TIMEOUT_MS);
 
     let result: ToolLoopResult;
+    let modelCalls = 0;
     try {
       result = await runToolLoop({
         messages,
@@ -271,30 +288,32 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
         handlers,
         maxSteps: MAX_STEPS,
         maxToolCallsPerStep: MAX_TOOL_CALLS_PER_STEP,
-        call: (input) =>
-          collectCompletion(
-            this.ai.run(
-              {
-                task: "wa_agent",
-                mode: "balanced",
-                planId,
-                request: {
-                  system,
-                  messages: input.messages,
-                  tools: input.tools,
-                  toolChoice: input.toolChoice,
-                  maxOutputTokens: MAX_OUTPUT_TOKENS,
-                },
-                ownerUserId: conversation.userId,
-                userId: conversation.userId,
-                requestId,
-                estimateInputTokens: Math.ceil(promptChars(system, input.messages) / 3),
-                // Once a tool ran, a different model must not take over the half-done turn.
-                noFallback: !input.allowFallback,
+        call: (input) => {
+          // Photos travel with the first step only: later steps re-send the whole history.
+          const sent = modelCalls === 0 ? input.messages : withoutImages(input.messages);
+          modelCalls += 1;
+          return this.ai.complete(
+            {
+              task: "wa_agent",
+              mode: "balanced",
+              planId,
+              request: {
+                system,
+                messages: sent,
+                tools: input.tools,
+                toolChoice: input.toolChoice,
+                maxOutputTokens: MAX_OUTPUT_TOKENS,
               },
-              signal,
-            ),
-          ),
+              ownerUserId: conversation.userId,
+              userId: conversation.userId,
+              requestId,
+              estimateInputTokens: Math.ceil(promptChars(system, sent) / 3),
+              // Once a tool ran, a different model must not take over the half-done turn.
+              noFallback: !input.allowFallback,
+            },
+            signal,
+          );
+        },
       });
     } catch (error) {
       if (error instanceof ToolLoopError) await this.addSpend(error.costUsdMicros, now);
@@ -311,6 +330,12 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
       return;
     }
     await this.addSpend(result.costUsdMicros, now);
+    // A turn that ends with nothing to send must not end in silence: treat it like a thrown error.
+    if (signal.aborted || (result.text.trim() === "" && ctx.mediaParts.length === 0)) {
+      this.logger.warn({ conversationId, reason: "empty_or_aborted" }, "Agent turn failed");
+      await this.busy(conversation, config, now, BUSY_REASON_ERROR);
+      return;
+    }
     this.logger.info(
       {
         conversationId,
@@ -558,22 +583,20 @@ export class WaAgentTurnService implements WaAgentTurnHandler, OnApplicationShut
     if (body === "") return;
     const previous = conversation.summary;
     const prompt = `${previous ? `Previous summary:\n${previous}\n\n` : ""}New messages:\n${body}`;
-    const completion = await collectCompletion(
-      this.ai.run(
-        {
-          task: "summarize",
-          mode: "fast",
-          planId,
-          request: {
-            system: SUMMARY_SYSTEM_PROMPT,
-            messages: [{ role: "user", parts: [{ type: "text", text: prompt }] }],
-            maxOutputTokens: 700,
-          },
-          ownerUserId: conversation.userId,
-          userId: conversation.userId,
+    const completion = await this.ai.complete(
+      {
+        task: "summarize",
+        mode: "fast",
+        planId,
+        request: {
+          system: SUMMARY_SYSTEM_PROMPT,
+          messages: [{ role: "user", parts: [{ type: "text", text: prompt }] }],
+          maxOutputTokens: 700,
         },
-        AbortSignal.timeout(SUMMARY_TIMEOUT_MS),
-      ),
+        ownerUserId: conversation.userId,
+        userId: conversation.userId,
+      },
+      AbortSignal.timeout(SUMMARY_TIMEOUT_MS),
     );
     await this.addSpend(completion.costUsdMicros, now);
     const summary = completion.text.trim();

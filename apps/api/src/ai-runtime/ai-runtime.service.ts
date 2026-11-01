@@ -5,6 +5,7 @@ import {
   createAdapter,
   createRouter,
   createSpendGuard,
+  type RouterCompletion,
   type ResolvedRoute,
   type Router,
   type RouterEvent,
@@ -129,6 +130,15 @@ export class AiRuntimeService {
   /** Streams the answer and ends with a `result` event; see `Router.run` for the refusals it throws. */
   run(input: RouterInput, signal: AbortSignal): AsyncGenerator<RouterEvent> {
     return this.router.run(input, signal);
+  }
+
+  /**
+   * Non-streaming `run`: same kill switches, spend guard, fallback and usage rows, but each attempt
+   * is one plain provider call. Resolves with the whole answer or throws (an abort or timeout
+   * included), so an agent never mistakes a cut call for an empty reply.
+   */
+  complete(input: RouterInput, signal: AbortSignal): Promise<RouterCompletion> {
+    return this.router.complete(input, signal);
   }
 
   /**
