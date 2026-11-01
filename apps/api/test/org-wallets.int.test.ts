@@ -4,6 +4,7 @@ import {
   creditLedger,
   creditReservations,
   creditWallets,
+  grantPeriod,
   onboardingProgress,
   organizationMemberLimits,
   organizationMembers,
@@ -37,7 +38,7 @@ import { wrongOwnerIsHidden } from "./support/wrong-owner.js";
 const ctx = new AdminTestContext();
 let payer: PayerService;
 let credits: CreditsService;
-const PERIOD = "2026-10";
+const PERIOD = grantPeriod(new Date());
 
 beforeAll(async () => {
   await ctx.start();
