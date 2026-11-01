@@ -29,7 +29,8 @@ import type { Logger } from "pino";
 const NOW = new Date("2026-10-27T10:00:00Z");
 const CONVERSATION = "018f0000-0000-7000-8000-0000000000c1";
 const RX_ID = "018f0000-0000-7000-8000-0000000000d1";
-const KEY_PATTERN = /^wa\/out\/2026\/10\/[0-9a-f-]{36}\.(pdf|png)$/;
+// Keys carry the current year and month, so the pattern must not pin a date.
+const KEY_PATTERN = /^wa\/out\/\d{4}\/\d{2}\/[0-9a-f-]{36}\.(pdf|png)$/;
 
 const logger = { warn: () => undefined, info: () => undefined } as unknown as Logger;
 
