@@ -376,8 +376,9 @@ describe("POST /rx: queueing", () => {
       .from(rxAnalyses)
       .where(eq(rxAnalyses.ownerUserId, who.userId));
     expect(rows).toHaveLength(0);
-    // Topping up lets the very same user go on.
-    await grant(owner.db, { type: "user", id: who.userId }, 5, "2026-11");
+    // Topping up lets the very same user go on. The top-up uses a period that is never the current
+    // month, so it cannot collide with the (used-up) grant of this month.
+    await grant(owner.db, { type: "user", id: who.userId }, 5, "2000-01");
     expect((await create(who, { fileIds: [await page(who)] })).statusCode).toBe(201);
   });
 

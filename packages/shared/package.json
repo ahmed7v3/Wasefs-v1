@@ -385,6 +385,11 @@
       "import": "./dist/busy.js",
       "default": "./dist/busy.js"
     },
+    "./rx-name-integrity": {
+      "types": "./dist/rx-name-integrity.d.ts",
+      "import": "./dist/rx-name-integrity.js",
+      "default": "./dist/rx-name-integrity.js"
+    },
     "./rx-normalize": {
       "types": "./dist/rx-normalize.d.ts",
       "import": "./dist/rx-normalize.js",

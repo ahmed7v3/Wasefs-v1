@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import {
   couponRedemptions,
+  grantPeriod,
   coupons,
   orders,
   paymentMethods,
@@ -515,7 +516,7 @@ describe("GET /me/recommendation", () => {
     const user = await ctx.harness.signedInUser();
     const owner = { type: "user", id: user.userId } as const;
     const credits = ctx.app.get(CreditsService);
-    await credits.grant(owner, 200, "2026-10");
+    await credits.grant(owner, 200, grantPeriod(new Date()));
     const { reservation } = await credits.reserve(owner, 140, {
       idempotencyKey: `rec-${randomUUID()}`,
       purpose: "test",
