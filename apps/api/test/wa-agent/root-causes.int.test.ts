@@ -1,11 +1,9 @@
 import { RedisContainer, type StartedRedisContainer } from "@testcontainers/redis";
 import { Redis } from "ioredis";
-import { afterAll, beforeAll, describe, expect } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { StreamConsumer } from "../../src/wa-agent/stream-consumer.js";
 import { quietLogger } from "../support/wa-agent-commerce-fakes.js";
-
-import { redTest } from "./red.js";
 
 import type { ApiEnv } from "../../src/config/env.js";
 
@@ -22,7 +20,7 @@ class ThrowingConsumer extends StreamConsumer {
   deliveries = 0;
 
   constructor(env: ApiEnv, stream: string) {
-    super(env, quietLogger, stream, "r14");
+    super(env, quietLogger, stream, "r14", { isV2: () => Promise.resolve(true) });
   }
 
   override process(): Promise<void> {
@@ -81,58 +79,38 @@ function fake<T>(value: object): T {
 }
 
 describe("R14 stream retries and dead letter", () => {
-  redTest(
-    {
-      id: "R14",
-      fixedIn: "WP1",
-      title: "an entry whose handler threw stays pending",
-      reason: /^R14: /,
-    },
-    async () => {
-      const { stream, consumer } = await startWithOneEntry();
-      try {
-        expect(consumer.deliveries, "R14: the handler ran for the entry").toBeGreaterThanOrEqual(1);
-        expect(
-          await pendingCount(stream),
-          "R14: a failed entry is not acked, it stays pending",
-        ).toBe(1);
-      } finally {
-        await consumer.onApplicationShutdown();
-      }
-    },
-    60_000,
-  );
+  it("R14 ", async () => {
+    const { stream, consumer } = await startWithOneEntry();
+    try {
+      expect(consumer.deliveries, "R14: the handler ran for the entry").toBeGreaterThanOrEqual(1);
+      expect(await pendingCount(stream), "R14: a failed entry is not acked, it stays pending").toBe(
+        1,
+      );
+    } finally {
+      await consumer.onApplicationShutdown();
+    }
+  }, 60_000);
 
-  redTest(
-    {
-      id: "R14",
-      fixedIn: "WP1",
-      title: "after 5 deliveries the entry lands in wa:agent:dlq",
-      reason: /^R14: /,
-    },
-    async () => {
-      const { stream, consumer, id } = await startWithOneEntry();
-      try {
-        // Age the pending entry so the consumer's idle-claim sees it as abandoned (JUSTID: the
-        // delivery count is not touched), until it is dead-lettered or the wait runs out.
-        for (let waited = 0; waited < 40_000; waited += 500) {
-          if ((await redis.xlen(DLQ)) > 0 || (await pendingCount(stream)) === 0) break;
-          await redis.xclaim(stream, "r14", "aging", 0, id, "IDLE", 120_000, "JUSTID");
-          await sleep(500);
-        }
-        expect(
-          consumer.deliveries,
-          "R14: the handler is delivered 5 times before dead-letter",
-        ).toBe(MAX_DELIVERIES);
-        const dead = await redis.xrange(DLQ, "-", "+");
-        const flat = JSON.stringify(dead);
-        expect(flat, "R14: the dead-letter entry names the stream").toContain(stream);
-        expect(flat, "R14: the dead-letter entry names the original id").toContain(id);
-        expect(await pendingCount(stream), "R14: the dead-lettered entry is acked").toBe(0);
-      } finally {
-        await consumer.onApplicationShutdown();
+  it("R14 ", async () => {
+    const { stream, consumer, id } = await startWithOneEntry();
+    try {
+      // Age the pending entry so the consumer's idle-claim sees it as abandoned (JUSTID: the
+      // delivery count is not touched), until it is dead-lettered or the wait runs out.
+      for (let waited = 0; waited < 40_000; waited += 500) {
+        if ((await redis.xlen(DLQ)) > 0 || (await pendingCount(stream)) === 0) break;
+        await redis.xclaim(stream, "r14", "aging", 0, id, "IDLE", 120_000, "JUSTID");
+        await sleep(500);
       }
-    },
-    90_000,
-  );
+      expect(consumer.deliveries, "R14: the handler is delivered 5 times before dead-letter").toBe(
+        MAX_DELIVERIES,
+      );
+      const dead = await redis.xrange(DLQ, "-", "+");
+      const flat = JSON.stringify(dead);
+      expect(flat, "R14: the dead-letter entry names the stream").toContain(stream);
+      expect(flat, "R14: the dead-letter entry names the original id").toContain(id);
+      expect(await pendingCount(stream), "R14: the dead-lettered entry is acked").toBe(0);
+    } finally {
+      await consumer.onApplicationShutdown();
+    }
+  }, 90_000);
 });

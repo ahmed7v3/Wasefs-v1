@@ -168,8 +168,13 @@ async function releaseCaps(
   );
 }
 
-async function holdReason(deps: AgentOutboundDeps, jid: string): Promise<WaAgentDropReason | null> {
-  if ((await deps.redis.exists(waAgentPauseKey(jid))) === 1) return "paused";
+/** `paidWork`: a result the customer paid for passes the owner's takeover pause, never a block. */
+async function holdReason(
+  deps: AgentOutboundDeps,
+  jid: string,
+  paidWork = false,
+): Promise<WaAgentDropReason | null> {
+  if (!paidWork && (await deps.redis.exists(waAgentPauseKey(jid))) === 1) return "paused";
   if ((await deps.redis.exists(waAgentBlockKey(jid))) === 1) return "blocked";
   return null;
 }
@@ -271,7 +276,8 @@ export async function processAgentOut(
   if (!Number.isFinite(lastIn) || now() - lastIn > INBOUND_WINDOW_SECONDS * 1_000) {
     return drop("no_recent_inbound");
   }
-  const held = await holdReason(deps, jid);
+  const paidWork = entry.paidWork === true;
+  const held = await holdReason(deps, jid, paidWork);
   if (held !== null) return drop(held);
 
   const reserved = await reserveCaps(deps, jid, entry.parts.length, agent.caps, now());
@@ -290,7 +296,7 @@ export async function processAgentOut(
     );
     // The owner may have taken over, or the agent been switched off, while "typing".
     const recheck = (await deps.settings.current()).agent.enabled
-      ? await holdReason(deps, jid)
+      ? await holdReason(deps, jid, paidWork)
       : "disabled";
     if (recheck !== null) {
       await releaseCaps(deps, jid, entry.parts.length, reservedAt);

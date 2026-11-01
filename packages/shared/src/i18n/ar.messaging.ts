@@ -1,6 +1,19 @@
 /** Texts the server sends, never a page: WhatsApp agent follow-ups and generated document labels.
  * Kept out of `ar.core.ts` so the public client catalogue (`public.ts`) does not ship them. */
 export const arMessaging = {
+  "whatsapp.agent.deferred": "معلش، هرد عليك خلال دقايق 🙏",
+  "whatsapp.agent.failed":
+    "حصلت مشكلة عندنا ومقدرتش أرد دلوقتي. لو اتكررت ابعت الكود ده لخدمة العملاء: {ref}",
+  "whatsapp.agent.aiPaused": "الخدمة الذكية واقفة مؤقتًا، وهنرد عليك أول ما ترجع 🙏",
+  "whatsapp.agent.fallback.ack": "تمام، محتاج مني إيه كمان؟",
+  "whatsapp.agent.fallback.analyze_prescription":
+    "⏳ بقرأ الروشتة دلوقتي، النتيجة هتوصلك خلال دقيقة",
+  "whatsapp.agent.fallback.start_subscription":
+    "تمام، طلبك {orderRef} اتفتح. المبلغ: {amount}\nالتحويل على: {bank}\nاسم الحساب: {holder}\nالحساب: {account}\nالمرجع: {reference}",
+  "whatsapp.agent.fallback.start_subscription.free": "تمام، طلبك {orderRef} اتفعّل من غير مبلغ.",
+  "whatsapp.agent.fallback.offer_discount": "كود الخصم بتاعك: {code}، وبيخلص {expires}",
+  "whatsapp.agent.fallback.create_document": "بجهزلك الملف وهيوصلك حالًا",
+  "whatsapp.agent.fallback.handoff_to_owner": "حولت كلامك لزميلي وهيرد عليك",
   "whatsapp.agent.event.paid": "تم اعتماد دفع الطلب {number} وتفعيل {item}. شكرًا لثقتك بوصفة AI.",
   "whatsapp.agent.event.rejected":
     "لم نتمكن من اعتماد دفع الطلب {number} ({item}): {reason}. يمكنك إرسال إيصال جديد هنا في المحادثة وسنراجعه.",
@@ -28,7 +41,28 @@ export const arMessaging = {
   "whatsapp.agent.event.rxDone.link": "النتيجة الكاملة وتفاصيل كل دواء:",
   "whatsapp.agent.event.rxFailed":
     "تعذّرت قراءة الروشتة، وأعدنا الرصيد المخصوم إلى حسابك. جرّب صورة أوضح وإضاءة أفضل وأرسلها مرة أخرى.",
+  "whatsapp.agent.event.rxFailed.unreadable_image":
+    "الصورة مش واضحة كفاية عشان أقراها 🙏 صورها في نور كويس ومن فوق، وابعتها تاني.",
+  "whatsapp.agent.event.rxFailed.not_a_prescription":
+    "دي مش شكل روشتة 🤔 ابعتلي صورة الروشتة نفسها وأنا أقراها لك.",
+  "whatsapp.agent.event.rxFailed.too_many_pages":
+    "الروشتة صفحاتها أكتر من المسموح. ابعتها على دفعات أقل لو سمحت.",
+  "whatsapp.agent.event.rxFailed.insufficient_credits":
+    "رصيدك مش كفاية لقراءة الروشتة دي. اشحن رصيدك أو اختار باقة من الموقع وابعتها تاني.",
+  "whatsapp.agent.event.rxFailed.model_unavailable":
+    "الخدمة مشغولة دلوقتي ومقدرناش نقرأ الروشتة. ابعتها تاني بعد شوية.",
+  "whatsapp.agent.event.rxFailed.internal":
+    "حصلت مشكلة من عندنا ومقدرناش نقرأ الروشتة. ابعتها تاني بعد شوية.",
+  "whatsapp.agent.event.rxFailed.creditsReturned": "ورجّعنا لك الرصيد.",
+  "whatsapp.agent.event.rxFailed.creditsNotReturned": "ولو اتخصم منك رصيد هيرجعلك تلقائي.",
   "whatsapp.agent.event.documentFailed": "تعذّر إنشاء الملف الآن. جرّب طلبه مرة أخرى بعد قليل.",
+  "whatsapp.agent.media.too_large": "الملف كبير شوية، ابعته بحجم أصغر لو سمحت",
+  "whatsapp.agent.media.unsupported_type":
+    "أنا بفتح الصور وملفات PDF بس، ابعته كصورة أو PDF لو سمحت",
+  "whatsapp.agent.media.download_failed": "الصورة موصلتش كاملة، ابعتها تاني لو سمحت",
+  "whatsapp.agent.media.storage_unavailable":
+    "معرفتش أحفظ الملف دلوقتي، ابعته تاني بعد شوية لو سمحت",
+  "whatsapp.agent.media.expired": "الملف ده مبقاش متاح، ابعته تاني لو سمحت",
   "whatsapp.agent.event.rxPdfName": "نتيجة-قراءة-الروشتة",
   "document.generatedOn": "تاريخ الإنشاء: {date}",
   "document.page": "صفحة",

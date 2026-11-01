@@ -7,6 +7,7 @@ import { dayOrder, formatClock, scheduleOf, type DoseSchedule } from "@wasfa/sha
 import { splitReply } from "../agent/agent-output.js";
 
 import type { RxResult, RxResultItem } from "@wasfa/shared/schemas/rx";
+import type { WaRxFailureReason } from "@wasfa/shared/schemas/wa-agent";
 
 /*
  * The fixed follow-up messages of the WhatsApp agent (docs/WA-AGENT.md work package C): a payment
@@ -266,8 +267,31 @@ export function rxDoneParts(
   return [...list, ...splitReply(closing, 1, caps.maxReplyChars)];
 }
 
+/** The legacy line, for events from a worker that did not say why (and for a result that went missing). */
 export const rxFailedText = (locale: Locale): string =>
   t("whatsapp.agent.event.rxFailed", {}, locale);
+
+/**
+ * The failure text of a typed event. A refund is claimed only when `creditsReturned` is true (the
+ * worker observed the ledger); otherwise the line says what is true either way. Pure.
+ */
+export function rxFailureText(
+  reason: WaRxFailureReason,
+  creditsReturned: boolean,
+  locale: Locale,
+): string {
+  const body = t(`whatsapp.agent.event.rxFailed.${reason}`, {}, locale);
+  // Nothing was started, so there is no credit to talk about.
+  if (reason === "insufficient_credits" || reason === "too_many_pages") return body;
+  const credits = t(
+    creditsReturned
+      ? "whatsapp.agent.event.rxFailed.creditsReturned"
+      : "whatsapp.agent.event.rxFailed.creditsNotReturned",
+    {},
+    locale,
+  );
+  return `${body} ${credits}`;
+}
 
 export const documentFailedText = (locale: Locale): string =>
   t("whatsapp.agent.event.documentFailed", {}, locale);

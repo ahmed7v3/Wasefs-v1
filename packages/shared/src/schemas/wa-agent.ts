@@ -23,6 +23,34 @@ export type WaAgentMessageStatus = (typeof WA_AGENT_MESSAGE_STATUSES)[number];
 export const WA_AGENT_CONVERSATION_STATUSES = ["active", "paused", "blocked"] as const;
 export type WaAgentConversationStatus = (typeof WA_AGENT_CONVERSATION_STATUSES)[number];
 
+/** Why an inbound media message has (or lacks) a stored file; null for non-media rows. */
+export const WA_MEDIA_STATUSES = [
+  "ok",
+  "too_large",
+  "unsupported_type",
+  "download_failed",
+  "storage_unavailable",
+  "expired",
+] as const;
+export type WaMediaStatus = (typeof WA_MEDIA_STATUSES)[number];
+
+/** What a `wa_outbox` row delivers to the customer. */
+export const WA_OUTBOX_KINDS = ["rx_result", "document", "payment", "notice"] as const;
+export type WaOutboxKind = (typeof WA_OUTBOX_KINDS)[number];
+
+export const WA_OUTBOX_STATES = [
+  "waiting",
+  "ready",
+  "delivering",
+  "delivered",
+  "held",
+  "dead",
+] as const;
+export type WaOutboxState = (typeof WA_OUTBOX_STATES)[number];
+
+export const WA_TOOL_EFFECT_STATES = ["pending", "done"] as const;
+export type WaToolEffectState = (typeof WA_TOOL_EFFECT_STATES)[number];
+
 /** Upper bound of a stored message text. */
 export const WA_AGENT_MAX_TEXT = 8_000;
 
@@ -30,7 +58,16 @@ export const WA_AGENT_MAX_TEXT = 8_000;
 export const WA_AGENT_MAX_FILE_BYTES = 10 * 1024 * 1024;
 export const WA_AGENT_MAX_AUDIO_BYTES = 3 * 1024 * 1024;
 export const WA_AGENT_MAX_AUDIO_SECONDS = 180;
-export const WA_AGENT_IMAGE_MIMES = ["image/jpeg", "image/png", "image/webp"] as const;
+export const WA_AGENT_IMAGE_MIMES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  // The worker's image pipeline decodes these to JPEG (docs/RX-ENGINE.md S0).
+  "image/heic",
+  "image/heif",
+] as const;
+/** Image types a vision model is shown directly; HEIC/HEIF reach it only after the worker converts them. */
+export const WA_AGENT_VISION_MIMES = ["image/jpeg", "image/png", "image/webp"] as const;
 export const WA_AGENT_DOCUMENT_MIMES = ["application/pdf"] as const;
 
 /** Where inbound media lives in the uploads bucket: `wa/<yyyy>/<mm>/<uuid>`. */
@@ -69,6 +106,8 @@ export const waAgentInboundSchema = z.object({
       seconds: z.number().int().min(0).optional(),
     })
     .optional(),
+  /** Why a media message has no stored file; `ok` with media. Absent for text. */
+  mediaStatus: z.enum(WA_MEDIA_STATUSES).optional(),
   pushName: z.string().max(100).optional(),
   /** Epoch milliseconds the message was sent. */
   ts: z.number().int().positive(),
@@ -163,6 +202,8 @@ export const waAgentOutEntrySchema = z
     messageIds: z.array(z.uuid()).min(1).max(WA_AGENT_HARD_MAX_PARTS),
     jid: jidSchema,
     parts: waAgentOutboundSchema,
+    // A result the customer paid for: the bridge sends it although the owner paused the chat (never a block).
+    paidWork: z.boolean().optional(),
   })
   .refine((entry) => entry.messageIds.length === entry.parts.length, {
     message: "messageIds and parts must have the same length",
@@ -210,13 +251,30 @@ export const WA_AGENT_RX_TTL_SECONDS = 24 * 60 * 60;
 /** A customer message newer than this lets the agent follow up (the bridge's reply window). */
 export const WA_AGENT_FOLLOW_UP_WINDOW_MS = 24 * 60 * 60 * 1_000;
 
+/** Why a prescription reading ended without a result (docs/WA-AGENT-RUNTIME.md §9.2); picks the customer's text. */
+export const WA_RX_FAILURE_REASONS = [
+  "unreadable_image",
+  "not_a_prescription",
+  "too_many_pages",
+  "insufficient_credits",
+  "model_unavailable",
+  "internal",
+] as const;
+export type WaRxFailureReason = (typeof WA_RX_FAILURE_REASONS)[number];
+
 export const waAgentEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("order_paid"), userId: z.uuid(), orderId: z.uuid() }),
   z.object({ type: z.literal("payment_rejected"), userId: z.uuid(), orderId: z.uuid() }),
   z.object({ type: z.literal("payment_resubmit"), userId: z.uuid(), orderId: z.uuid() }),
   // `pdfKey`: the PDF of the result the worker rendered (absent when rendering failed or is off).
   z.object({ type: z.literal("rx_done"), rxId: z.uuid(), pdfKey: waDocumentKeySchema.optional() }),
-  z.object({ type: z.literal("rx_failed"), rxId: z.uuid() }),
+  // `reason` and `creditsReturned` come from what the worker did (optional: events queued before the upgrade have none).
+  z.object({
+    type: z.literal("rx_failed"),
+    rxId: z.uuid(),
+    reason: z.enum(WA_RX_FAILURE_REASONS).optional(),
+    creditsReturned: z.boolean().optional(),
+  }),
   // A file the agent asked for (`create_document`) is stored and ready to send, or could not be made.
   z.object({
     type: z.literal("document_ready"),
@@ -228,3 +286,43 @@ export const waAgentEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("document_failed"), conversationId: z.uuid() }),
 ]);
 export type WaAgentEvent = z.output<typeof waAgentEventSchema>;
+
+/*
+ * `wa:agent:dlq`: entries a stream consumer gave up on (5 deliveries, handler kept throwing). A row
+ * names the source entry and the error class; it never carries customer text or phones (the
+ * inbound stream keeps only `waMessageId` and `kind`). Replay re-adds the source entry.
+ */
+
+/** A Redis stream entry id, e.g. `1730000000000-0`. */
+export const streamEntryIdSchema = z.string().regex(/^\d{1,16}-\d{1,10}$/);
+
+export const waAgentDlqIdParamSchema = z.object({ id: streamEntryIdSchema });
+
+export const waAgentDlqQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+
+export const waAgentDlqEntrySchema = z.object({
+  id: streamEntryIdSchema,
+  stream: z.string().max(100),
+  entryId: z.string().max(40),
+  group: z.string().max(100),
+  errorClass: z.string().max(100),
+  deliveries: z.number().int().min(1),
+  at: z.iso.datetime({ offset: true }),
+  /** Ids and statuses only; present for the events and sent streams. */
+  data: z.string().max(2_000).nullable(),
+  waMessageId: z.string().max(128).nullable(),
+  kind: z.string().max(40).nullable(),
+});
+export type WaAgentDlqEntry = z.output<typeof waAgentDlqEntrySchema>;
+
+export const waAgentDlqListSchema = z.object({
+  total: z.number().int().min(0),
+  entries: z.array(waAgentDlqEntrySchema),
+});
+export type WaAgentDlqList = z.output<typeof waAgentDlqListSchema>;
+
+/** `gone`: the source entry was trimmed from its stream, so there is nothing to re-add. */
+export const waAgentDlqReplaySchema = z.object({ status: z.enum(["replayed", "gone"]) });
+export type WaAgentDlqReplay = z.output<typeof waAgentDlqReplaySchema>;

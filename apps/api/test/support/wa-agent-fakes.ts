@@ -121,3 +121,64 @@ export class MemoryRedis {
     return Promise.resolve(1);
   }
 }
+
+/** MemoryRedis with expiry on the (fake) clock, and the commands a conversation lock uses. */
+export class ExpiringRedis extends MemoryRedis {
+  private readonly expiresAt = new Map<string, number>();
+
+  private live(key: string): boolean {
+    const at = this.expiresAt.get(key);
+    if (at !== undefined && at <= Date.now()) {
+      this.values.delete(key);
+      this.expiresAt.delete(key);
+    }
+    return this.values.has(key);
+  }
+
+  override set(key: string, value: string, ...flags: Array<string | number>): Promise<"OK" | null> {
+    const exists = this.live(key);
+    if (flags.includes("NX") && exists) return Promise.resolve(null);
+    if (flags.includes("XX") && !exists) return Promise.resolve(null);
+    const unit = flags.find((flag) => flag === "EX" || flag === "PX");
+    const amount = unit === undefined ? undefined : Number(flags[flags.indexOf(unit) + 1]);
+    this.values.set(key, value);
+    if (amount !== undefined) {
+      this.expiresAt.set(key, Date.now() + (unit === "EX" ? amount * 1_000 : amount));
+    } else {
+      this.expiresAt.delete(key);
+    }
+    return Promise.resolve("OK");
+  }
+
+  override get(key: string): Promise<string | null> {
+    return Promise.resolve(this.live(key) ? (this.values.get(key) ?? null) : null);
+  }
+
+  override getdel(key: string): Promise<string | null> {
+    const value = this.live(key) ? (this.values.get(key) ?? null) : null;
+    this.values.delete(key);
+    this.expiresAt.delete(key);
+    return Promise.resolve(value);
+  }
+
+  override exists(key: string): Promise<number> {
+    return Promise.resolve(this.live(key) ? 1 : 0);
+  }
+
+  /** Milliseconds left on the key's expiry, or null when it has none or is gone. */
+  ttlMs(key: string): number | null {
+    const at = this.expiresAt.get(key);
+    return this.live(key) && at !== undefined ? at - Date.now() : null;
+  }
+
+  /** The unlock script (compare and delete) and a compare-and-extend heartbeat script. */
+  override eval(script: string, keys: number, key: string, ...args: string[]): Promise<number> {
+    const token = args[0];
+    if (!this.live(key) || this.values.get(key) !== token) return Promise.resolve(0);
+    if (/pexpire|expire/i.test(script)) {
+      this.expiresAt.set(key, Date.now() + Number(args[1] ?? 60_000));
+      return Promise.resolve(1);
+    }
+    return super.eval(script, keys, key, token ?? "");
+  }
+}

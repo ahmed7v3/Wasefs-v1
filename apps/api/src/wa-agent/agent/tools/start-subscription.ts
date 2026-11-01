@@ -31,6 +31,7 @@ export const startSubscriptionTool = defineTool({
     couponCode: couponCodeSchema.optional(),
   }),
   linkedOnly: true,
+  effect: "write",
   handler: (ctx, args) => {
     const call = callOf(ctx);
     if (call === null) return toolError("not_linked");

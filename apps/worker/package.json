@@ -30,6 +30,7 @@
     "drizzle-orm": "^0.45.4",
     "exceljs": "^4.4.0",
     "file-type": "22.1.1",
+    "heic-decode": "2.1.0",
     "ioredis": "^5.11.1",
     "nodemailer": "^10.1.0",
     "pdfjs-dist": "6.4.299",

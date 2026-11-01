@@ -33,6 +33,8 @@ export interface DocumentCall {
   language: "ar" | "en";
   args: WaCreateDocumentArgs;
   now: Date;
+  /** The tool-effect key of a v2 turn: the render job id derives from it, so a repeat renders once. */
+  effectKey?: string;
 }
 
 /**
@@ -97,6 +99,7 @@ export class AgentDocumentService {
           conversationId,
           language: args.language ?? call.language,
         }),
+        call.effectKey === undefined ? undefined : `doc-${call.effectKey.slice(0, 32)}`,
       );
     } catch (error) {
       await giveBack();

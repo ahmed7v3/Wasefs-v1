@@ -6,18 +6,23 @@ import { AuthModule } from "../auth/auth.module.js";
 import { BillingModule } from "../billing/billing.module.js";
 import { CatalogModule } from "../catalog/catalog.module.js";
 import { ChatModule } from "../chat/chat.module.js";
+import { ErrorReporter } from "../common/errors.js";
+import { REDIS } from "../common/redis.js";
+import { API_ENV } from "../config/config.module.js";
 import { CreditsModule } from "../credits/credits.module.js";
 import { FilesModule } from "../files/files.module.js";
 import { MediaModule } from "../media/media.module.js";
 import { PaymentsModule } from "../payments/payments.module.js";
 import { PlansModule } from "../plans/plans.module.js";
 import { RxModule } from "../rx/rx.module.js";
+import { RxService } from "../rx/rx.service.js";
 import { SubscriptionsModule } from "../subscriptions/subscriptions.module.js";
 
 import { AgentAccountService } from "./agent/account-facts.service.js";
 import { AgentSignupService } from "./agent/agent-signup.service.js";
 import { WaAgentHandoffService } from "./agent/handoff.service.js";
 import { WaAgentToolDeps } from "./agent/tool-deps.js";
+import { ToolEffectsRepo } from "./agent/tools/tool-effects.repo.js";
 import { WaAgentTurnService } from "./agent/wa-agent-turn.service.js";
 import { WaAgentCommerceRepo } from "./commerce/agent-commerce.repo.js";
 import { AgentDiscountService } from "./commerce/agent-discount.service.js";
@@ -27,6 +32,19 @@ import { AgentSubscriptionService } from "./commerce/agent-subscription.service.
 import { WaAgentEventsConsumer } from "./commerce/wa-agent-events.consumer.js";
 import { AgentDocumentService } from "./documents/agent-document.service.js";
 import { WaDocumentQueue } from "./documents/wa-document-queue.js";
+import { OutboxDeliverer } from "./outbox/deliverer.js";
+import { EventPartsBuilder } from "./outbox/outbox-parts.js";
+import { RxReconciler } from "./outbox/rx-reconciler.js";
+import { RxReconcilerRepo } from "./outbox/rx-reconciler.repo.js";
+import { WaOutboxRepo } from "./outbox/wa-outbox.repo.js";
+import { DlqService } from "./transport/dlq.service.js";
+import { FailureActions } from "./turn/failure-actions.js";
+import { ConversationLock } from "./turn/lock.js";
+import { TurnRunner } from "./turn/turn-runner.js";
+import { TurnQueue } from "./turn/turn.queue.js";
+import { TurnRepo } from "./turn/turn.repo.js";
+import { TurnStore } from "./turn/turn.store.js";
+import { TurnWorker } from "./turn/turn.worker.js";
 import { ElevenLabsClient } from "./voice/elevenlabs.client.js";
 import { VoiceKeyService } from "./voice/voice-key.service.js";
 import { WaAgentVoiceService } from "./voice/voice.service.js";
@@ -34,8 +52,18 @@ import { WaAgentInboundConsumer } from "./wa-agent-inbound.consumer.js";
 import { WaAgentSentConsumer } from "./wa-agent-sent.consumer.js";
 import { WaAgentStateService } from "./wa-agent-state.service.js";
 import { WaAgentRepo } from "./wa-agent.repo.js";
-import { WA_AGENT_TURN_HANDLER } from "./wa-agent.tokens.js";
+import {
+  WA_AGENT_ROUND,
+  WA_AGENT_TURN_HANDLER,
+  WA_OUTBOX_SWEEPS,
+  type OutboxSweep,
+} from "./wa-agent.tokens.js";
 import { WaOutboundService } from "./wa-outbound.service.js";
+
+import type { ApiEnv } from "../config/env.js";
+import type { Redis } from "ioredis";
+
+const RX_RECONCILE_EVERY_MS = 30_000;
 
 /**
  * The WhatsApp AI agent's transport and data layer (docs/WA-AGENT.md work package A): transcript
@@ -73,7 +101,10 @@ import { WaOutboundService } from "./wa-outbound.service.js";
     AgentMedicalService,
     WaDocumentQueue,
     AgentDocumentService,
+    ToolEffectsRepo,
     WaAgentToolDeps,
+    RxReconcilerRepo,
+    RxReconciler,
     VoiceKeyService,
     ElevenLabsClient,
     WaAgentVoiceService,
@@ -81,14 +112,57 @@ import { WaOutboundService } from "./wa-outbound.service.js";
     WaAgentInboundConsumer,
     WaAgentSentConsumer,
     WaAgentEventsConsumer,
+    DlqService,
     { provide: WA_AGENT_TURN_HANDLER, useExisting: WaAgentTurnService },
+    // The v2 turn engine (behind `waAgent.runtime.v2`): queue, fenced lock, turn store, runner, worker.
+    { provide: WA_AGENT_ROUND, useExisting: WaAgentTurnService },
+    {
+      provide: ConversationLock,
+      inject: [REDIS],
+      useFactory: (redis: Redis) => new ConversationLock(redis),
+    },
+    TurnRepo,
+    TurnStore,
+    TurnQueue,
+    ErrorReporter,
+    FailureActions,
+    TurnRunner,
+    TurnWorker,
+    // Results of paid work and worker events, delivered from `wa_outbox` (behind `waAgent.runtime.v2`).
+    WaOutboxRepo,
+    {
+      // The deliverer ticks every 5 s; the rx reconciler runs on every sixth tick (30 s).
+      provide: WA_OUTBOX_SWEEPS,
+      inject: [RxReconciler],
+      useFactory: (reconciler: RxReconciler): OutboxSweep[] => {
+        let last = 0;
+        return [
+          async () => {
+            if (Date.now() - last < RX_RECONCILE_EVERY_MS) return;
+            last = Date.now();
+            await reconciler.sweep();
+          },
+        ];
+      },
+    },
+    {
+      provide: EventPartsBuilder,
+      inject: [API_ENV, WaAgentCommerceRepo, RxService],
+      useFactory: (env: ApiEnv, commerce: WaAgentCommerceRepo, rx: RxService) =>
+        new EventPartsBuilder(env.WEB_ORIGIN[0] ?? "", commerce, rx),
+    },
+    OutboxDeliverer,
   ],
   exports: [
     WaOutboundService,
     WaAgentStateService,
     WaAgentVoiceService,
     VoiceKeyService,
+    DlqService,
+    RxReconciler,
     WA_AGENT_TURN_HANDLER,
+    OutboxDeliverer,
+    WA_OUTBOX_SWEEPS,
   ],
 })
 export class WaAgentModule {}

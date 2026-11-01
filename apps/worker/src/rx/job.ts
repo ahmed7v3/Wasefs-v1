@@ -10,6 +10,7 @@ import { readSetting } from "../settings.js";
 
 import { analyzeImages } from "./analyze.js";
 import { createRxPublisher, type RxPublisher } from "./events.js";
+import { failureReason, refundedReason } from "./failure.js";
 import { RxStepError } from "./model-call.js";
 import { isReadable } from "./pipeline.js";
 import { RX_SKILL } from "./prompts.js";
@@ -18,6 +19,7 @@ import {
   effectivePlanId,
   findAnalysis,
   finishAnalysis,
+  hasOutboxRoute,
   isTerminal,
   loadPages,
   markFailed,
@@ -87,6 +89,7 @@ export async function rxAnalyzeJob(
             (await readSetting(db, "waAgent")).language === "en" ? "en" : "ar",
           link: (id) => (env === undefined ? null : `${env.WEB_ORIGIN}/analyze/${id}`),
         }),
+    () => hasOutboxRoute(db, analysisId),
   );
   const wallet = walletOf(row);
   const actingUserId = row.createdBy ?? row.ownerUserId;
@@ -147,7 +150,7 @@ export async function rxAnalyzeJob(
     // 5. settle: the fixed price, or a full refund when nothing could be read.
     failedStep = "settle";
     const status = result.items.some(isReadable) ? "done" : "refunded";
-    const charged = await settleCredits({
+    const { charged, returned } = await settleCredits({
       db,
       wallet,
       analysisId,
@@ -162,7 +165,15 @@ export async function rxAnalyzeJob(
       routeVersion,
       skillVersion: skill,
     });
-    if (finished) await events.done(status, result);
+    if (finished) {
+      await events.done(
+        status,
+        result,
+        status === "refunded"
+          ? { reason: refundedReason(result), creditsReturned: returned }
+          : undefined,
+      );
+    }
     // A first finished analysis can complete a referred person's sign-up conditions (Task 3.11).
     if (finished && status === "done" && row.ownerUserId !== null) {
       await requestSignupCheck(db, row.ownerUserId, "usage").catch(() => {
@@ -208,12 +219,15 @@ interface SettleArgs {
   usageId: string | null;
 }
 
-/** Credits for a finished analysis; returns what the user ends up paying. */
-async function settleCredits(args: SettleArgs): Promise<number> {
+/**
+ * Credits for a finished analysis: what the user ends up paying, and `returned` = a refund really went
+ * through the ledger (false when nothing was ever charged, so no text may claim a refund).
+ */
+async function settleCredits(args: SettleArgs): Promise<{ charged: number; returned: boolean }> {
   const { db, wallet, analysisId, reservationId, refundAll, usageId } = args;
-  if (reservationId === null) return 0;
+  if (reservationId === null) return { charged: 0, returned: false };
   const amount = await reservedAmount(db, reservationId);
-  if (amount === null) return 0;
+  if (amount === null) return { charged: 0, returned: false };
 
   const settled = await settle(
     db,
@@ -230,11 +244,12 @@ async function settleCredits(args: SettleArgs): Promise<number> {
         idempotencyKey: `rx:${analysisId}:refund`,
         reservationId,
       });
+      return { charged: 0, returned: true };
     }
-    return 0;
+    return { charged: 0, returned: false };
   }
   if (usageId !== null) await setUsageCredits(db, usageId, settled.charged);
-  return settled.charged;
+  return { charged: settled.charged, returned: false };
 }
 
 async function releaseBusy(redis: RxContext["redis"], userId: string | null): Promise<void> {
@@ -266,9 +281,12 @@ async function fail(args: {
           : "unknown";
   logger.error({ analysisId, errorRef, step, code }, "rx analysis failed");
 
+  let creditsReturned = false;
   if (reservationId !== null) {
     try {
-      await release(db, reservationId, "rx_failed");
+      // Returned only when the ledger says the hold is released (a settled one stays charged).
+      creditsReturned =
+        (await release(db, reservationId, "rx_failed")).reservation.status === "released";
     } catch (releaseError) {
       // The expiry sweeper returns the hold later; the analysis must still end as failed.
       logger.error(
@@ -282,7 +300,7 @@ async function fail(args: {
     }
   }
   if (await markFailed(db, analysisId, errorRef)) {
-    await events.failed(errorRef);
+    await events.failed(errorRef, { reason: failureReason(error), creditsReturned });
     await releaseBusy(redis, actingUserId);
   }
 }

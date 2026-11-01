@@ -72,6 +72,18 @@ export class WaAgentHandoffService implements OnApplicationShutdown {
       "NX",
     );
     if (first !== "OK") return;
+    await this.notify(conversationId, reason);
+  }
+
+  /**
+   * Tells the admins about a failure without silencing the agent or pausing the chat (the failure policy,
+   * docs/WA-AGENT-RUNTIME.md section 5.4). The caller rate-limits.
+   */
+  async alertOwner(conversationId: string, reason: string): Promise<void> {
+    await this.notify(conversationId, reason);
+  }
+
+  private async notify(conversationId: string, reason: string): Promise<void> {
     try {
       // The conversation id and the agent's own reason only: never the phone number or the messages.
       await this.alerts.notify({

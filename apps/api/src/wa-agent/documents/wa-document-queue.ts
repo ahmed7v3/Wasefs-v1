@@ -20,8 +20,11 @@ export class WaDocumentQueue implements OnApplicationShutdown {
     });
   }
 
-  async render(payload: WaRenderDocumentPayload): Promise<void> {
-    await this.queue.add("wa-agent.render-document", payload, { jobId: `wa-doc-${newId()}` });
+  /** `jobId` makes the job repeatable: adding the same id twice renders once (BullMQ ids hold no colon). */
+  async render(payload: WaRenderDocumentPayload, jobId?: string): Promise<void> {
+    await this.queue.add("wa-agent.render-document", payload, {
+      jobId: jobId ?? `wa-doc-${newId()}`,
+    });
   }
 
   async onApplicationShutdown(): Promise<void> {

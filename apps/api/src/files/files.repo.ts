@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { files, type FileRecord, type NewFileRecord } from "@wasfa/db";
-import { and, eq, type SQL } from "drizzle-orm";
+import { files, rxPages, type FileRecord, type NewFileRecord } from "@wasfa/db";
+import { and, eq, notExists, type SQL } from "drizzle-orm";
 
 import { DB, type DbHandle } from "../common/database.js";
 import { scopedRepo, type ScopedRepo } from "../common/scoped-repo.js";
@@ -60,6 +60,28 @@ export class FilesRepo {
       .update(files)
       .set({ status: "rejected", rejectReason: reason, updatedAt: new Date() })
       .where(and(this.ownedBy(file), eq(files.status, "pending")));
+  }
+
+  /**
+   * Deletes the file row unless an rx analysis uses it (the page link restricts it anyway). False when
+   * the row is kept; the caller removes the stored objects only after a true.
+   */
+  async deleteUnreferenced(file: FileRecord): Promise<boolean> {
+    const rows = await this.handle.db
+      .delete(files)
+      .where(
+        and(
+          this.ownedBy(file),
+          notExists(
+            this.handle.db
+              .select({ one: rxPages.fileId })
+              .from(rxPages)
+              .where(eq(rxPages.fileId, files.id)),
+          ),
+        ),
+      )
+      .returning({ id: files.id });
+    return rows.length > 0;
   }
 
   private ownedBy(file: FileRecord): SQL | undefined {

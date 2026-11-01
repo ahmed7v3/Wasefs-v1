@@ -261,12 +261,16 @@ files, settings `waAgent.runtime/failures/delivery`.
 | typecheck/lint/test runs, i18n key additions | runner | every wave |
 
 ### Acceptance
-- [ ] Red tests R4–R16 green; chaos suite: provider timeouts at each step, 429 storm, Redis drop, crash after a
+- [x] Red tests R4–R16 green; chaos suite: provider timeouts at each step, 429 storm, Redis drop, crash after a
       tool ran, lock expiry, duplicate stream delivery, 2 replicas → 0 silent drops, 0 duplicate effects.
-- [ ] A paid analysis whose turn failed after the tool ran is delivered (result + PDF) — also during an owner
-      pause.
-- [ ] HEIC photo, PDF prescription, image-as-document and a broken download each produce the right outcome.
-- [ ] DLQ receives a poison entry after 5 deliveries; admin can replay it (API; screen in WP9).
+      (CI run 41216689306: root-causes.{units,int,scenarios.int}, failure-policy.int, effects.int, turn.int,
+      turn-lock.units, stream-consumer.int, outbox.int, chaos.int.)
+- [x] A paid analysis whose turn failed after the tool ran is delivered (result + PDF) — also during an owner
+      pause. (chaos.int "B", R5.)
+- [x] HEIC photo, PDF prescription, image-as-document and a broken download each produce the right outcome.
+      (worker wa-agent-root-causes.units R2/R15, heic-photo.units, image.units, agent media units.)
+- [x] DLQ receives a poison entry after 5 deliveries; admin can replay it (API; screen in WP9).
+      (stream-consumer.int "dead-letters after 5 failed deliveries … replays and discards".)
 **Tests:** failure-policy table tests, lock/fencing unit + int (Testcontainers Redis), stream consumer int,
 outbox int, idempotency int (repeat each tool 3× → one effect), bridge media units with fake downloads.
 **Security:** fencing prevents a stale holder from sending; DLQ payloads contain ids only; no message text in
@@ -637,6 +641,13 @@ rows; main reviews screens at 360 px and desktop.
 5. Dispense check price: 1 light credit, free for barcode-only?
 6. Auto new session after 12 h idle — keep, or only on «جديد»?
 7. Should paid results be delivered during an owner takeover pause (recommended yes, Decision 77)?
+8. (WP1.7) `ask_medical` is not exactly-once across a crash. Its chat credit hold uses a fresh
+   `chat:<assistantMessageId>:reserve` key, not one derived from the effect key, and the outbound send has no
+   idempotency key. A crash after the answer is queued and before the effect is marked done means the retry
+   answers again and charges again. Closing this means deriving the chat reservation key from the effect key
+   (money logic outside the rx start), so it was not changed. Options: (a) derive the key (recommended, small,
+   needs your yes); (b) treat a pending `ask_medical` effect as "do not re-run", so the worst case is no medical
+   answer plus the fallback text; (c) accept the window. Until decided: (c).
 
 ---
 
@@ -671,6 +682,7 @@ v1 does not log the busy line itself or reply texts, so customer-facing texts ar
 | worker `Job failed` `alerts.sweep_pending` "Custom Id cannot contain :" (every run, ×3 attempts) | 7,107 | **R17 (new):** the repeatable alert sweep never runs, so admin alerts are not swept/escalated. Owner: WP9A (alerts) |
 | bridge `WhatsApp alert dropped` reason `disabled` | 24 | R18 candidate: probably the configured alert opt-out; verify in WP9A |
 | Baileys `stream:error` 503 + reconnect | 3 / 7 | R19 candidate (transport noise, no customer impact found); watch in the Health tab |
+| Local run of T1 after rebase: `shapeCandidates` finds no Glibimet for "Glbimet" + 5 mg | — | **R20 (new):** since #77 a combination strength "5/500 mg" is stored as its last component only (500 mg, also for 2.5/500), so a written "Glibimet 5" is a strength *conflict* for every Glibimet row in `matchDrug` and the shape path (live in production since #77). Owner: WP4 (keep all components; re-derive existing rows). T1's test for it is an `it.todo` until then |
 No log evidence either way for R1/R2/R15 download paths (v1 logs no media download lines), R7–R10, R14, R16;
 they are covered by the red tests. Production images were built from `99d6782`; the turn-timeout stop-gap is
 not deployed yet (it ships with the WP0 PR).

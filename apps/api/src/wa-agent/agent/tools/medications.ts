@@ -55,6 +55,7 @@ export const searchMedicationsTool = defineTool({
   },
   schema: z.object({ query: z.string().trim().min(1).max(80) }),
   linkedOnly: false,
+  effect: "read",
   feature: "medications",
   handler: async (ctx, args) => {
     const [items, showPrices] = await Promise.all([
@@ -85,6 +86,7 @@ export const medicationAlternativesTool = defineTool({
   },
   schema: z.object({ drugId: z.uuid() }),
   linkedOnly: false,
+  effect: "read",
   feature: "medications",
   handler: async (ctx, args) => {
     const [items, showPrices] = await Promise.all([

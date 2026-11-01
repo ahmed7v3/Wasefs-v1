@@ -31,6 +31,8 @@ export const WA_AGENT_OUT_STREAM = "wa:agent:out";
 export const WA_AGENT_SENT_STREAM = "wa:agent:sent";
 /** Worker to api: payment decisions and finished prescription readings the agent follows up on. */
 export const WA_AGENT_EVENTS_STREAM = "wa:agent:events";
+/** Entries a consumer gave up on after 5 deliveries; ids only, see `DlqService`. */
+export const WA_AGENT_DLQ_STREAM = "wa:agent:dlq";
 export const WA_AGENT_STREAM_MAXLEN = 10_000;
 /** Redis stream the api appends outcomes to; the bridge turns each into at most one short reply. */
 export const WA_REPLY_STREAM = "wa:replies";

@@ -60,6 +60,32 @@ describe("rx events for the WhatsApp agent", () => {
     }
   });
 
+  it("carries the reason and the observed credit outcome of a failed reading", async () => {
+    const agent = new FakeRedis();
+    agent.keys.add(waAgentRxKey(RX_ID));
+    await publisher(agent).done("refunded", undefined, {
+      reason: "unreadable_image",
+      creditsReturned: true,
+    });
+    await publisher(agent).failed("WSF-1", { reason: "internal", creditsReturned: false });
+    expect(agent.stream.map((entry) => entry.data)).toEqual([
+      { type: "rx_failed", rxId: RX_ID, reason: "unreadable_image", creditsReturned: true },
+      { type: "rx_failed", rxId: RX_ID, reason: "internal", creditsReturned: false },
+    ]);
+    for (const entry of agent.stream) {
+      expect(waAgentEventSchema.safeParse(entry.data).success).toBe(true);
+    }
+  });
+
+  it("also tells the agent when a wa_outbox route waits (v2 starts write no Redis key)", async () => {
+    const web = new FakeRedis();
+    const routed = createRxPublisher(web as unknown as Redis, RX_ID, logger, undefined, () =>
+      Promise.resolve(true),
+    );
+    await routed.done("done");
+    expect(web.stream).toHaveLength(1);
+  });
+
   it("writes entries the api consumer accepts", async () => {
     const redis = new FakeRedis();
     await pushWaAgentEvent(redis as unknown as Redis, {

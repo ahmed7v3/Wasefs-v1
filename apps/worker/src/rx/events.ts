@@ -7,7 +7,7 @@ import {
   type RxEvent,
   type RxResult,
 } from "@wasfa/shared/schemas/rx";
-import { waAgentRxKey } from "@wasfa/shared/schemas/wa-agent";
+import { waAgentRxKey, type WaRxFailureReason } from "@wasfa/shared/schemas/wa-agent";
 
 import { pushWaAgentEvent } from "../notifications/wa-agent-events.js";
 
@@ -23,10 +23,16 @@ export interface RxPdfPort {
   discard(key: string): Promise<void>;
 }
 
+/** Why a reading ended without a result, and whether the ledger really gave the credits back (observed, never assumed). */
+export interface RxFailure {
+  reason: WaRxFailureReason;
+  creditsReturned: boolean;
+}
+
 export interface RxPublisher {
   step(step: Step): Promise<void>;
-  done(status: "done" | "refunded", result?: RxResult): Promise<void>;
-  failed(errorRef: string): Promise<void>;
+  done(status: "done" | "refunded", result?: RxResult, failure?: RxFailure): Promise<void>;
+  failed(errorRef: string, failure?: RxFailure): Promise<void>;
 }
 
 /**
@@ -40,6 +46,8 @@ export function createRxPublisher(
   analysisId: string,
   logger: Logger,
   pdf?: RxPdfPort,
+  /** True when a `wa_outbox` route waits for this analysis (v2 starts write no Redis key). */
+  routed?: () => Promise<boolean>,
 ): RxPublisher {
   async function publish(event: (seq: number) => RxEvent): Promise<void> {
     try {
@@ -60,10 +68,14 @@ export function createRxPublisher(
    * Tells the WhatsApp agent a reading it started has ended (`wa:agent:rx:<id>` exists only for
    * those). Nothing is sent for web analyses, and a failure here never touches the analysis.
    */
-  async function followUp(type: "rx_done" | "rx_failed", result?: RxResult): Promise<void> {
+  async function followUp(
+    type: "rx_done" | "rx_failed",
+    result?: RxResult,
+    failure?: RxFailure,
+  ): Promise<void> {
     let pdfKey: string | null = null;
     try {
-      if ((await redis.exists(waAgentRxKey(analysisId))) === 1) {
+      if ((await redis.exists(waAgentRxKey(analysisId))) === 1 || ((await routed?.()) ?? false)) {
         // The PDF is a courtesy on top of the text result: any problem leaves it out and the text still goes.
         if (type === "rx_done" && result !== undefined && pdf !== undefined) {
           pdfKey = await pdf.render(result).catch(() => null);
@@ -72,7 +84,7 @@ export function createRxPublisher(
           redis,
           type === "rx_done"
             ? { type, rxId: analysisId, ...(pdfKey === null ? {} : { pdfKey }) }
-            : { type, rxId: analysisId },
+            : { type, rxId: analysisId, ...(failure ?? {}) },
         );
       }
     } catch (error) {
@@ -87,14 +99,14 @@ export function createRxPublisher(
 
   return {
     step: (step) => publish((seq) => ({ type: "step", step, seq })),
-    done: async (status, result) => {
+    done: async (status, result, failure) => {
       await publish((seq) => ({ type: "done", status, seq }));
       // A refunded analysis found nothing readable: the customer hears "could not read".
-      await followUp(status === "done" ? "rx_done" : "rx_failed", result);
+      await followUp(status === "done" ? "rx_done" : "rx_failed", result, failure);
     },
-    failed: async (errorRef) => {
+    failed: async (errorRef, failure) => {
       await publish((seq) => ({ type: "failed", errorRef, seq }));
-      await followUp("rx_failed");
+      await followUp("rx_failed", undefined, failure);
     },
   };
 }

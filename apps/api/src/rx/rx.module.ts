@@ -29,6 +29,6 @@ import { RxService } from "./rx.service.js";
   ],
   controllers: [RxController],
   providers: [RxRepo, RxQueue, RxEventHub, RxService],
-  exports: [RxService],
+  exports: [RxService, RxQueue],
 })
 export class RxModule {}

@@ -21,6 +21,7 @@ export const getCatalogTool = defineTool({
   },
   schema: z.object({}),
   linkedOnly: false,
+  effect: "read",
   handler: async (ctx) => {
     const catalog = await ctx.deps.catalog.catalog(ctx.market);
     const { currency } = catalog;

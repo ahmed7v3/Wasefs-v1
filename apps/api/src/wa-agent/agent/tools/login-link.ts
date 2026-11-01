@@ -12,7 +12,10 @@ export const loginLinkTool = defineTool({
   },
   schema: z.object({}),
   linkedOnly: true,
+  effect: "write",
   feature: "accountSignup",
+  // The one-time sign-in link is a secret: it is never stored.
+  unstored: ["loginUrl"],
   handler: (ctx) => {
     if (ctx.userId === null) return toolError("not_linked");
     return ctx.deps.accounts.loginLink(ctx.userId);

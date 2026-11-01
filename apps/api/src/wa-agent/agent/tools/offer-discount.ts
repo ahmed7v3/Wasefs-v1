@@ -27,6 +27,7 @@ export const offerDiscountTool = defineTool({
   },
   schema: z.object({ planKey: z.string().trim().min(1).max(40), months: MONTHS_SCHEMA }),
   linkedOnly: true,
+  effect: "write",
   handler: (ctx, args) => {
     const call = callOf(ctx);
     if (call === null) return toolError("not_linked");

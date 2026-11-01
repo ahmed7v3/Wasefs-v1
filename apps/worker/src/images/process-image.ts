@@ -4,6 +4,7 @@ import { PROCESSED_LONG_EDGE, isHeicMime } from "@wasfa/shared/schemas/files";
 import { fileTypeFromBuffer } from "file-type";
 import sharp from "sharp";
 
+import { decodeHeic } from "./heic.js";
 import { rasterizePdf } from "./pdf.js";
 import { ImageRejected } from "./rejected.js";
 
@@ -11,7 +12,10 @@ import { ImageRejected } from "./rejected.js";
 export const MAX_INPUT_PIXELS = 40_000_000;
 export const JPEG_QUALITY = 88;
 
-/** Types the worker decodes. HEIC is not among them: the browser converts it (Task 2.6). */
+/**
+ * Types sharp decodes directly. HEIC/HEIF is decoded to raw pixels first (`decodeHeic`, WASM in a
+ * worker thread): sharp's prebuilt binaries cannot read it (patents).
+ */
 const DECODABLE = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
 
 export interface ProcessedImage {
@@ -38,16 +42,23 @@ sharp.cache(false);
 export async function processImage(input: Buffer, declaredMime: string): Promise<ProcessedImage> {
   const detected = await fileTypeFromBuffer(input);
   if (detected === undefined) throw new ImageRejected("unsupported_type");
-  if (isHeicMime(detected.mime)) throw new ImageRejected("heic_unsupported");
-  if (!DECODABLE.has(detected.mime)) throw new ImageRejected("unsupported_type");
-  if (detected.mime !== declaredMime) throw new ImageRejected("type_mismatch");
+  // The browser path refuses HEIC at upload time; one that arrives here came from a server-side
+  // import (WhatsApp) whose row can only declare a FileMime, so the declared type is not compared.
+  const heic = isHeicMime(detected.mime);
+  if (!heic && !DECODABLE.has(detected.mime)) throw new ImageRejected("unsupported_type");
+  if (!heic && detected.mime !== declaredMime) throw new ImageRejected("type_mismatch");
 
+  const decoded = heic ? await decodeHeic(input, MAX_INPUT_PIXELS) : null;
   const raster = detected.mime === "application/pdf" ? await rasterizePdf(input) : input;
   try {
-    const { data, info } = await sharp(raster, {
+    const { data, info } = await sharp(decoded === null ? raster : decoded.data, {
       limitInputPixels: MAX_INPUT_PIXELS,
       failOn: "error",
+      ...(decoded === null
+        ? {}
+        : { raw: { width: decoded.width, height: decoded.height, channels: 4 as const } }),
     })
+      // Raw pixels carry no EXIF orientation, so for HEIC this is a no-op (libheif applies it).
       .rotate()
       .flatten({ background: "#ffffff" })
       .resize({

@@ -12,6 +12,7 @@ import {
   type RuntimeUsageRow,
   type NewRxAnalysis,
   type RxAnalysis,
+  type Transaction,
 } from "@wasfa/db";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import { rxResultSchema, type RxResult } from "@wasfa/shared/schemas/rx";
@@ -98,16 +99,23 @@ export class RxRepo {
 
   /** The analysis and its pages in one transaction: both exist or neither does. */
   async insert(values: NewRxAnalysis, fileIds: readonly string[]): Promise<void> {
-    await this.handle.db.transaction(async (tx) => {
-      await tx.insert(rxAnalyses).values(values);
-      await tx.insert(rxPages).values(
-        fileIds.map((fileId, index) => ({
-          analysisId: values.id as string,
-          pageNo: index + 1,
-          fileId,
-        })),
-      );
-    });
+    await this.handle.db.transaction((tx) => this.insertIn(tx, values, fileIds));
+  }
+
+  /** The same two inserts inside the caller's transaction (the WhatsApp start adds its claim and route to it). */
+  async insertIn(
+    tx: Transaction,
+    values: NewRxAnalysis,
+    fileIds: readonly string[],
+  ): Promise<void> {
+    await tx.insert(rxAnalyses).values(values);
+    await tx.insert(rxPages).values(
+      fileIds.map((fileId, index) => ({
+        analysisId: values.id as string,
+        pageNo: index + 1,
+        fileId,
+      })),
+    );
   }
 
   /**

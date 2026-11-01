@@ -380,6 +380,16 @@
       "import": "./dist/busy.js",
       "default": "./dist/busy.js"
     },
+    "./wa-agent/canonical-json": {
+      "types": "./dist/wa-agent/canonical-json.d.ts",
+      "import": "./dist/wa-agent/canonical-json.js",
+      "default": "./dist/wa-agent/canonical-json.js"
+    },
+    "./wa-agent/uuid-from-key": {
+      "types": "./dist/wa-agent/uuid-from-key.d.ts",
+      "import": "./dist/wa-agent/uuid-from-key.js",
+      "default": "./dist/wa-agent/uuid-from-key.js"
+    },
     "./wa-agent/failure": {
       "types": "./dist/wa-agent/failure.d.ts",
       "import": "./dist/wa-agent/failure.js",
