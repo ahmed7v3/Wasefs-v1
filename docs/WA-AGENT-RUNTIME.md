@@ -501,6 +501,78 @@ counts as absent.
   an isolate or a `*…*` span. The last part may be cut with «…» when `maxParts` is reached.
 - The v2 round applies `toWhatsApp` → `isolateBidi` → `splitReply` to model text and to every template.
 
+## 19. WP9 part A contract: admin operations (main session, 2026-11-01)
+
+Binding for the WP9A builders. Shapes live in `packages/shared/src/schemas/wa-agent-ops.ts` (written by main;
+builders import them and do not change them without asking). Responses carry ids, codes, numbers and times,
+never customer text or phone numbers.
+
+### 19.1 API (`apps/api/src/admin/wa-agent/`)
+| Route | Permission | Notes |
+|---|---|---|
+| `GET admin/wa-agent/conversations/:id/turns?limit` → `WaTurnList` | `wa_agent.inbox` | Newest first; read audited like the transcript (`audit.recordFor`, action `wa_agent.turns_read`). |
+| `GET admin/wa-agent/health?range=24h\|7d` → `WaHealth` | `wa_agent.read` | SQL aggregates (19.2); no audit (no personal data). |
+| `POST admin/wa-agent/simulator` (`WaSimulatorRequest`) → `WaSimulatorResponse` | `wa_agent.write` + fresh auth 10 min | Rate limit 20/hour per admin; audited `wa_agent.simulate` (counts only). |
+| `POST admin/wa-agent/turns/:id/replay` → `WaReplayResponse` | `wa_agent.write` + fresh auth 10 min | Dry run; rate limit 20/hour; audited `wa_agent.replay`. |
+| existing DLQ routes | unchanged | The web screen uses them. |
+
+### 19.2 Health definitions (range = last 24 h or 7 UTC days)
+- turns: `wa_turns.started_at` in range. Failure rate = `failed_replied` / ended turns (states other than
+  `queued`/`running`), with `dropped_policy` excluded from both sides, in basis points. Latency =
+  `ended_at - started_at` over ended turns (p50/p95 with `percentile_cont`). Cost = sum `cost_usd_micros`.
+- unanswered: `wa_messages` direction `in`, `turn_id` null, `created_at` in range and older than 10 min, chat
+  not blocked, and only when `runtime.v2` is on (otherwise 0: v1 never links rows).
+- droppedByReason: outbound rows with status `dropped`, by `drop_reason`. mediaFailuresByReason: inbound rows
+  with `media_status = 'failed'`, by `meta->>'mediaFailure'` (or `unknown`). commandUses: `wa_turns.trace.events`
+  entries with a `via`, by event name. dlqSize: `XLEN wa:agent:dlq`. Spend: the Redis day counter
+  `wa:agent:spend:<utcDay>` and `waAgent.spendCapUsdMicros`.
+- Deviation from §13: counters come from SQL over `wa_turns`/`wa_messages`, not Redis daily counters. They are
+  exact, need no write path, and the volume is small; Redis counters can come later if the queries get slow.
+
+### 19.3 Alerts (worker job `wa-agent.health_check`, every 5 min, queue `payments`)
+Migration `0034_wa_agent_alert_kinds` re-creates `admin_alerts_kind_check` with `WA_AGENT_ALERT_KINDS` added;
+`ALERT_KINDS` and the permission map get them (`wa_agent.read`). Rules over the last
+`WA_AGENT_ALERT_RULES.windowMinutes` (15): failure rate > 5 % with ≥ 10 ended turns; p95 > 45 s with ≥ 10 ended
+turns; DLQ size > 0; ≥ 5 media failures; today's spend ≥ cap. Each kind alerts at most once per 60 min (Redis
+`SET NX EX`). Summary text: counts and thresholds only. The job runs only while `waAgent.enabled`.
+
+### 19.4 Nightly audit (worker job `wa-agent.unanswered_audit`, 03:30 UTC, queue `payments`)
+Only while `runtime.v2` is on: count inbound rows of the last 24 h older than 10 min with `turn_id` null in
+chats that are not blocked. If > 0, raise `wa_agent.unanswered` with the count and up to 10 conversation ids in
+`refId`/summary (ids only). It does not re-queue turns (a late answer can be worse than none; the owner decides).
+
+### 19.5 Dry run (simulator and replay)
+- A `dryRun` flag on the round: write tools (`effect: "write"`) are not executed. `bindTools` returns
+  `{ dryRun: true }` to the model and records the tool in `skippedEffects`. Read tools run normally. Nothing is
+  queued to the bridge, nothing is written to `wa_messages`/`wa_turns`/`wa_tool_effects`, and no credits move.
+  The model call is real and is billed to the agent spend (it is admin testing).
+- Simulator: an in-memory conversation (no DB rows). `linked: true` uses the admin's own account for read
+  tools (account status, catalog). The command layer runs first, as in production.
+- Replay: loads the turn's inbound rows (by `inbound_ids`) and the history the round would have read, then runs
+  the round in dry run. A turn whose rows were deleted (privacy) answers 404.
+
+### 19.6 R17 fix
+`alert-delivery:<id>` job ids (`apps/worker/src/alerts/pending-delivery-sweep.job.ts`,
+`apps/worker/src/jobs/outbox.job.ts`) go through the existing `jobIdFor` sanitizer (no `:`). A unit test checks
+the id.
+
+### 19.7 Web (`apps/web/src/components/admin/`)
+- `wa-agent-view.tsx` gets tabs **Health** (`wa_agent.read`), **DLQ** (`wa_agent.read`; actions need
+  `wa_agent.write`) and **Simulator** (`wa_agent.write`), next to Settings, Inbox and Usage.
+- Inbox: a **Turns** panel for the open conversation (a `DetailDrawer` or a collapsible side panel). Each turn
+  shows state, cause, attempt, latency, cost and steps (model, latency, tools with outcomes, error code). A
+  **Replay (dry run)** action needs `wa_agent.write` and fresh auth.
+- Health: stat cards (turns, failure rate, p95, unanswered, DLQ, spend versus cap), a 24 h/7 d toggle, and tables
+  for causes, drops, media failures and commands. A 7-day daily table, not a chart, in Release A.
+- DLQ: a `DataTable` with replay and discard (confirm dialog, fresh auth), and an empty state.
+- Simulator: a chat panel. Each run sends the whole script; it shows the reply parts, a command badge, steps and
+  skipped effects, with a dry-run notice.
+- Settings: new sections for runtime (v2 switch with a warning, step/turn timeouts, max rounds, job
+  attempts), sessions (idle hours), commands (enabled, extra aliases per command: chips with add/remove,
+  validated by the shared schema), failures, and delivery.
+- `DESIGN-SYSTEM.md`: works at 360 px (cards instead of tables on phones), RTL logical properties, i18n keys for
+  every string (AR + EN), axe clean.
+
 ## 16. Settings additions (`waAgent`)
 `runtime: { concurrency, stepTimeoutMs, turnTimeoutMs, maxRounds, jobAttempts }` · `sessions: { idleHours }` ·
 `commands: { enabled, extraAliases }` · `failures: { customerTextEveryMinutes, ownerAlertEveryMinutes }` ·
