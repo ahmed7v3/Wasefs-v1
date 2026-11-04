@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, type CSSProperties, type ElementType, type ReactNode } from "react";
+import { useLayoutEffect, useRef, type ElementType, type ReactNode } from "react";
 import "./early-visual.css";
 
 type RevealProps = {
@@ -39,9 +39,10 @@ export function Reveal({ children, className, delay = 0, as }: RevealProps) {
     return () => io.disconnect();
   }, []);
 
-  const style = { "--ev-delay": `${delay}ms` } as CSSProperties;
+  // CSP forbids inline style attributes: map the delay to a fixed 80ms-step class.
+  const step = Math.min(8, Math.max(0, Math.round(delay / 80)));
   return (
-    <Tag ref={ref} className={`ev-reveal${className ? ` ${className}` : ""}`} style={style}>
+    <Tag ref={ref} className={`ev-reveal ev-d-${step}${className ? ` ${className}` : ""}`}>
       {children}
     </Tag>
   );

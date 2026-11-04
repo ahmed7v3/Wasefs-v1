@@ -18,6 +18,8 @@ export interface ApiOptions {
   /** Cloudflare Turnstile token for the routes that ask for one. */
   turnstileToken?: string | null | undefined;
   signal?: AbortSignal | undefined;
+  /** Extra request headers for routes with their own credential (e.g. `x-early-token`). */
+  headers?: Record<string, string> | undefined;
 }
 
 /** `{ code, message, details?, ref? }`, the only error shape the API produces. */
@@ -52,10 +54,11 @@ export async function api(
   path: string,
   options: ApiOptions & { schema?: z.ZodType | undefined } = {},
 ): Promise<unknown> {
-  const { method = "GET", body, schema, turnstileToken, signal } = options;
+  const { method = "GET", body, schema, turnstileToken, signal, headers: extra } = options;
   const headers: Record<string, string> = {
     Accept: "application/json",
     "Accept-Language": "ar",
+    ...extra,
   };
   const isForm = typeof FormData !== "undefined" && body instanceof FormData;
   if (body !== undefined && !isForm) headers["Content-Type"] = "application/json";

@@ -13,6 +13,19 @@
     transform 500ms cubic-bezier(0.2, 0.7, 0.2, 1) var(--ev-delay, 0ms);
 }
 
+.ev-d-0 { --ev-delay: 0ms; }
+.ev-d-1 { --ev-delay: 80ms; }
+.ev-d-2 { --ev-delay: 160ms; }
+.ev-d-3 { --ev-delay: 240ms; }
+.ev-d-4 { --ev-delay: 320ms; }
+.ev-d-5 { --ev-delay: 400ms; }
+.ev-d-6 { --ev-delay: 480ms; }
+.ev-d-7 { --ev-delay: 560ms; }
+.ev-d-8 { --ev-delay: 640ms; }
+.ev-glass-svg {
+  position: absolute;
+}
+
 /* ---------- Character ---------- */
 .ev-char {
   position: relative;

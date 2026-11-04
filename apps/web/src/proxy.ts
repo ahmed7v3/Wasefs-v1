@@ -2,8 +2,16 @@ import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server
 
 import { REFERRAL_COOKIE, normalizeReferralCode, referralCookie } from "./lib/attribution-cookies";
 import { botHitFor, reportBotHit } from "./lib/bot-report";
+import { classifyBot } from "./lib/bots";
 import { getPublicPathState } from "./lib/content-api";
 import { SECURITY_HEADERS, buildCsp, generateNonce, parseSources } from "./lib/csp";
+import {
+  EARLY_VARIANT_COOKIE,
+  earlyDomain,
+  earlyPublicPath,
+  isEarlyHost,
+  isEarlyPassthrough,
+} from "./lib/early-host";
 import { isProduction, publicEnv } from "./lib/env";
 import { createPathStateCache, goneHtml, isContentPath, matchPathState } from "./lib/path-state";
 import { hasSessionCookie, isProtectedPath, loginPath } from "./lib/route-guard";
@@ -11,6 +19,21 @@ import { isNoindexPath } from "./lib/seo-robots";
 
 /** 301/410 maps for the content prefixes, kept in process for a minute (CONTENT-PLATFORM §11.5). */
 const pathStates = createPathStateCache(getPublicPathState);
+
+const EARLY_VARIANTS = ["a", "b", "c"] as const;
+
+/** Headline A/B (EARLY-ACCESS-PLAN D6/§2): sticky per session, so the server renders the final text. */
+function earlyVariant(request: NextRequest): { variant: string; isNew: boolean } {
+  const existing = request.cookies.get(EARLY_VARIANT_COOKIE)?.value;
+  if (existing && (EARLY_VARIANTS as readonly string[]).includes(existing)) {
+    return { variant: existing, isNew: false };
+  }
+  // Crawlers always read the default headline.
+  if (classifyBot(request.headers.get("user-agent")) !== null)
+    return { variant: "a", isNew: false };
+  const pick = EARLY_VARIANTS[Math.floor(Math.random() * EARLY_VARIANTS.length)] ?? "a";
+  return { variant: pick, isNew: true };
+}
 
 function withSecurityHeaders(response: NextResponse, csp: string, noindex = false): NextResponse {
   if (noindex) response.headers.set("X-Robots-Tag", "noindex, nofollow");
@@ -47,6 +70,13 @@ export async function proxy(request: NextRequest, event: NextFetchEvent): Promis
   });
 
   const { pathname, search } = request.nextUrl;
+  // `early.wasfa.online` is the same app: its paths are served from the `/early` route tree.
+  const domain = earlyDomain(process.env.EARLY_DOMAIN);
+  const onEarlyHost = isEarlyHost(request.headers.get("host"), domain);
+  if (!onEarlyHost && isProduction && (pathname === "/early" || pathname.startsWith("/early/"))) {
+    const target = new URL(`${earlyPublicPath(pathname)}${search}`, `https://${domain}`);
+    return withSecurityHeaders(NextResponse.redirect(target, 301), csp, false);
+  }
   // App, admin, API and auth pages stay out of search results even if a link to them leaks.
   const noindex = isNoindexPath(pathname);
   if (
@@ -87,11 +117,26 @@ export async function proxy(request: NextRequest, event: NextFetchEvent): Promis
   requestHeaders.set("x-pathname", `${pathname}${search}`);
   requestHeaders.set("Content-Security-Policy", csp);
 
-  const response = withSecurityHeaders(
-    NextResponse.next({ request: { headers: requestHeaders } }),
-    csp,
-    noindex,
-  );
+  const rewriteEarly = onEarlyHost && !isEarlyPassthrough(pathname);
+  const variant = rewriteEarly && pathname === "/" ? earlyVariant(request) : null;
+  if (variant !== null) requestHeaders.set("x-early-variant", variant.variant);
+  let forwarded: NextResponse;
+  if (rewriteEarly) {
+    const url = request.nextUrl.clone();
+    url.pathname = `/early${pathname === "/" ? "" : pathname}`;
+    forwarded = NextResponse.rewrite(url, { request: { headers: requestHeaders } });
+  } else {
+    forwarded = NextResponse.next({ request: { headers: requestHeaders } });
+  }
+  const response = withSecurityHeaders(forwarded, csp, noindex);
+  if (variant?.isNew) {
+    response.cookies.set(EARLY_VARIANT_COOKIE, variant.variant, {
+      path: "/",
+      sameSite: "lax",
+      httpOnly: true,
+      secure: isProduction,
+    });
+  }
   // Crawler visits are counted after the response is on its way (class + route template only).
   const botHit = botHitFor(request.method, pathname, request.headers.get("user-agent"));
   if (botHit !== null) event.waitUntil(reportBotHit(botHit));
@@ -113,6 +158,11 @@ export const config = {
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },
       ],
+    },
+    {
+      // The early subdomain serves its own robots.txt, sitemap and llms.txt from `/early/*`.
+      source: "/(robots.txt|sitemap.xml|llms.txt)",
+      has: [{ type: "host", value: "early\\..+" }],
     },
   ],
 };

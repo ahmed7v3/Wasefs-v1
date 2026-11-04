@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useLayoutEffect, useRef } from "react";
 
 import { useReducedMotion } from "./use-reduced-motion";
 import "./early-visual.css";
@@ -150,6 +150,14 @@ export function WasfaCharacter({ size, className, label }: Props) {
 
   useEffect(() => () => clearTimeout(happyTimer.current), []);
 
+  // CSP forbids inline style attributes; CSSOM writes are allowed.
+  useLayoutEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    if (size) el.style.inlineSize = `${size}px`;
+    else el.style.removeProperty("inline-size");
+  }, [size]);
+
   const beHappy = () => {
     const root = rootRef.current;
     if (!root) return;
@@ -167,7 +175,6 @@ export function WasfaCharacter({ size, className, label }: Props) {
     <div
       ref={rootRef}
       className={`ev-char${className ? ` ${className}` : ""}`}
-      style={size ? { width: size } : undefined}
       {...a11y}
     >
       <div className="ev-char-shadow" />

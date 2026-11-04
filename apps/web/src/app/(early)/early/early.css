@@ -1,0 +1,290 @@
+/*
+ * Pre-launch page (early.wasfa.online). Plain CSS for what Tailwind utilities cannot say: keyframes,
+ * the details/summary chevron, the scroll-driven header. Logical properties only; every animation
+ * is switched off under `prefers-reduced-motion`.
+ */
+
+.early-root {
+  background-color: #f6f6f4;
+  color: #0b1220;
+  /* Arabic needs generous leading; the reading column stays near 65ch. */
+  line-height: 1.8;
+}
+
+.early-lead {
+  max-inline-size: 38rem;
+}
+
+/* ---------- Header: gains depth over the first 80px of scroll (Chromium/Safari 26+) ---------- */
+@supports (animation-timeline: scroll()) {
+  .early-header {
+    animation: early-header-depth linear both;
+    animation-timeline: scroll(root block);
+    animation-range: 0 80px;
+  }
+}
+@keyframes early-header-depth {
+  from {
+    transform: translateY(0) scale(1);
+    box-shadow: 0 1px 2px rgb(11 18 32 / 0.04);
+  }
+  to {
+    transform: translateY(-2px) scale(0.985);
+    box-shadow:
+      0 2px 4px rgb(11 18 32 / 0.05),
+      0 18px 40px -14px rgb(11 18 32 / 0.28);
+  }
+}
+
+/* ---------- Dark WhatsApp section ---------- */
+.early-dark {
+  background:
+    radial-gradient(52rem 28rem at 15% 0%, rgb(96 165 250 / 0.16), transparent 70%),
+    radial-gradient(40rem 26rem at 100% 100%, rgb(30 58 138 / 0.5), transparent 70%), #0b1220;
+}
+
+/* ---------- FAQ ---------- */
+.early-faq summary {
+  list-style: none;
+  cursor: pointer;
+}
+.early-faq summary::-webkit-details-marker {
+  display: none;
+}
+.early-faq details[open] .early-faq-chevron {
+  transform: rotate(180deg);
+}
+.early-faq-chevron {
+  transition: transform 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* ---------- Bento card hover ---------- */
+.early-card {
+  transition:
+    transform 260ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    box-shadow 260ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.early-card:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 2px 4px rgb(11 18 32 / 0.05),
+    0 22px 44px -16px rgb(30 58 138 / 0.28);
+}
+.early-card:hover .early-card-icon {
+  transform: scale(1.06) rotate(-4deg);
+}
+.early-card-icon {
+  transition: transform 260ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* ---------- Sheet ---------- */
+.early-sheet {
+  animation: early-sheet-in 340ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.early-sheet-backdrop {
+  animation: early-fade 240ms ease both;
+}
+.early-step {
+  animation: early-step-in 280ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes early-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes early-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes early-step-in {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- Success: pop + confetti ---------- */
+.early-pop {
+  animation: early-pop 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes early-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.early-confetti span {
+  position: absolute;
+  inset-block-start: 2.5rem;
+  inset-inline-start: calc(50% + var(--x));
+  inline-size: 7px;
+  block-size: 12px;
+  border-radius: 2px;
+  background: var(--c);
+  opacity: 0;
+  animation: early-confetti 1.3s cubic-bezier(0.2, 0.7, 0.3, 1) var(--d) both;
+}
+
+/* Per-piece position, colour, spin and delay: CSP forbids inline style attributes. */
+.early-confetti span:nth-child(1) {
+  --x: -67.5%;
+  --r: 0deg;
+  --d: 0ms;
+  --c: #1e3a8a;
+}
+.early-confetti span:nth-child(2) {
+  --x: -60%;
+  --r: 47deg;
+  --d: 70ms;
+  --c: #60a5fa;
+}
+.early-confetti span:nth-child(3) {
+  --x: -52.5%;
+  --r: 94deg;
+  --d: 140ms;
+  --c: #d4902e;
+}
+.early-confetti span:nth-child(4) {
+  --x: -45%;
+  --r: 141deg;
+  --d: 210ms;
+  --c: #2a6f77;
+}
+.early-confetti span:nth-child(5) {
+  --x: -37.5%;
+  --r: 188deg;
+  --d: 280ms;
+  --c: #c65a4a;
+}
+.early-confetti span:nth-child(6) {
+  --x: -30%;
+  --r: 235deg;
+  --d: 350ms;
+  --c: #5f7f3b;
+}
+.early-confetti span:nth-child(7) {
+  --x: -22.5%;
+  --r: 282deg;
+  --d: 0ms;
+  --c: #1e3a8a;
+}
+.early-confetti span:nth-child(8) {
+  --x: -15%;
+  --r: 329deg;
+  --d: 70ms;
+  --c: #60a5fa;
+}
+.early-confetti span:nth-child(9) {
+  --x: -7.5%;
+  --r: 16deg;
+  --d: 140ms;
+  --c: #d4902e;
+}
+.early-confetti span:nth-child(10) {
+  --x: 0%;
+  --r: 63deg;
+  --d: 210ms;
+  --c: #2a6f77;
+}
+.early-confetti span:nth-child(11) {
+  --x: 7.5%;
+  --r: 110deg;
+  --d: 280ms;
+  --c: #c65a4a;
+}
+.early-confetti span:nth-child(12) {
+  --x: 15%;
+  --r: 157deg;
+  --d: 350ms;
+  --c: #5f7f3b;
+}
+.early-confetti span:nth-child(13) {
+  --x: 22.5%;
+  --r: 204deg;
+  --d: 0ms;
+  --c: #1e3a8a;
+}
+.early-confetti span:nth-child(14) {
+  --x: 30%;
+  --r: 251deg;
+  --d: 70ms;
+  --c: #60a5fa;
+}
+.early-confetti span:nth-child(15) {
+  --x: 37.5%;
+  --r: 298deg;
+  --d: 140ms;
+  --c: #d4902e;
+}
+.early-confetti span:nth-child(16) {
+  --x: 45%;
+  --r: 345deg;
+  --d: 210ms;
+  --c: #2a6f77;
+}
+.early-confetti span:nth-child(17) {
+  --x: 52.5%;
+  --r: 32deg;
+  --d: 280ms;
+  --c: #c65a4a;
+}
+.early-confetti span:nth-child(18) {
+  --x: 60%;
+  --r: 79deg;
+  --d: 350ms;
+  --c: #5f7f3b;
+}
+@keyframes early-confetti {
+  0% {
+    opacity: 1;
+    transform: translateY(0) rotate(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(120px) rotate(var(--r));
+  }
+}
+
+/* ---------- Soft pulsing dot of the counter chip ---------- */
+.early-live {
+  animation: early-live 2.4s ease-in-out infinite;
+}
+@keyframes early-live {
+  50% {
+    box-shadow: 0 0 0 5px rgb(37 99 235 / 0);
+  }
+  0% {
+    box-shadow: 0 0 0 0 rgb(37 99 235 / 0.45);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .early-header,
+  .early-sheet,
+  .early-sheet-backdrop,
+  .early-step,
+  .early-pop,
+  .early-live,
+  .early-card,
+  .early-card-icon {
+    animation: none !important;
+    transition: none !important;
+  }
+  .early-confetti {
+    display: none;
+  }
+}

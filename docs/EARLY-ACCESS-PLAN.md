@@ -1,6 +1,6 @@
 # EARLY-ACCESS-PLAN.md — Pre-launch landing + waitlist on `early.wasfa.online`
 
-Status: **plan, awaiting approval** · Branch: `phase6/early-access` · Time budget: **≤ 60 min wall-clock**
+Status: **implemented** (see §7 for what differs from the plan) · Branch: `phase6/early-access` · Time budget: **≤ 60 min wall-clock**
 
 Goal: a pre-launch page on a subdomain that does three jobs. It **sells the idea** (hook, design, motion), **collects the useful data** (who they are, where they are, what they'd pay) in two short steps, and **measures the market** (visits → sign-ups funnel, per campaign, per country/city, price demand curve). Admins see and export everything from the admin dashboard.
 
@@ -154,3 +154,14 @@ Per CLAUDE.md: main session (Opus) writes briefs and reviews; Sonnet `builder` i
 3. **Headline:** A as default, B/C as A/B variants.
 4. **Price ladders (defaults, monthly):** EGP 49/79/99/149/199 · SAR 9/15/19/29/39 · AED 9/15/19/29/39 · others in USD 2.99/4.99/6.99/9.99. Editable from admin later.
 5. **Countries:** the 22 Arab states only (default) or also a free "other country" option for the diaspora.
+
+---
+
+## 7. As built (differences from the plan)
+
+- Phone validation uses `toEarlyE164` with per-country length rules in `packages/shared/src/schemas/early-access.ts` instead of `libphonenumber-js` (no new dependency).
+- Admin write actions (sign-up status/note, campaign links) use the `referrals.write` permission; reads use `users.read`; the settings tab needs `settings.write`.
+- The headline A/B variant is chosen in `proxy.ts` (httpOnly `ea_v` cookie) so the server renders the final H1 (no layout shift); bots always get variant A.
+- `visitor_hash` is cleared by the daily growth retention job (`pruneEarlyVisitorHashes`), so a hash lives 48–72 h.
+- `GET /admin/early-access/links` lists every `campaign_links` row (the table has no per-site marker).
+- **Deploy needs:** `WEB_ORIGIN` for the api must include `https://early.wasfa.online` (CORS), Cloudflare DNS `early` (proxied) + "Add visitor location headers" managed transform, Turnstile hostname `early.wasfa.online`, migration `0033_early_access`.
