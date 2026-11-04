@@ -44,6 +44,8 @@ export function PhoneCapture({ detectedCountry, nonce, id }: PhoneCaptureProps) 
   const [iso, setIso] = useState(ordered[0]?.iso ?? "EG");
   const [value, setValue] = useState("");
   const [touched, setTouched] = useState(false);
+  const [armed, setArmed] = useState(false);
+  const [exists, setExists] = useState(false);
   const [showError, setShowError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [waiting, setWaiting] = useState(false);
@@ -65,9 +67,31 @@ export function PhoneCapture({ detectedCountry, nonce, id }: PhoneCaptureProps) 
   const hasDigits = /\d/.test(value);
   const visible = useMemo(() => filterCountries(ordered, query), [ordered, query]);
 
+  // Turnstile loads a script + iframe: do it once the page is idle, never while a keyboard animates.
+  useEffect(() => {
+    if (typeof window.requestIdleCallback === "function") {
+      const handle = window.requestIdleCallback(
+        () => {
+          setArmed(true);
+        },
+        { timeout: 2500 },
+      );
+      return () => {
+        window.cancelIdleCallback(handle);
+      };
+    }
+    const timer = window.setTimeout(() => {
+      setArmed(true);
+    }, 1200);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, []);
+
   useEffect(() => {
     if (!open) return;
-    searchRef.current?.focus();
+    // On touch the keyboard would cover the short list; the trigger keeps focus there.
+    if (window.matchMedia("(pointer: fine)").matches) searchRef.current?.focus();
     function onPointerDown(event: PointerEvent) {
       if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) setOpen(false);
     }
@@ -85,6 +109,7 @@ export function PhoneCapture({ detectedCountry, nonce, id }: PhoneCaptureProps) 
 
   function choose(nextIso: string) {
     setIso(nextIso);
+    setExists(false);
     setQuery("");
     setOpen(false);
     setShowError(false);
@@ -113,6 +138,7 @@ export function PhoneCapture({ detectedCountry, nonce, id }: PhoneCaptureProps) 
     if (!e164) return;
     setBusy(true);
     setServerError(null);
+    setExists(false);
     try {
       const result = await api("/public/early-access/join", {
         method: "POST",
@@ -122,6 +148,10 @@ export function PhoneCapture({ detectedCountry, nonce, id }: PhoneCaptureProps) 
       });
       joined(result);
     } catch (error) {
+      if (error instanceof ApiRequestError && error.code === "CONFLICT") {
+        setExists(true);
+        return;
+      }
       setServerError(error instanceof ApiRequestError ? error.message : copy.failed);
     } finally {
       ts.reset();
@@ -247,6 +277,7 @@ export function PhoneCapture({ detectedCountry, nonce, id }: PhoneCaptureProps) 
             onChange={(event) => {
               setValue(event.target.value);
               setServerError(null);
+              setExists(false);
               if (showError && toEarlyE164(iso, event.target.value)) setShowError(false);
             }}
             onBlur={() => {
@@ -263,7 +294,7 @@ export function PhoneCapture({ detectedCountry, nonce, id }: PhoneCaptureProps) 
         </div>
         <button
           type="submit"
-          disabled={busy || waiting}
+          disabled={busy || waiting || exists}
           className="mt-2 inline-flex min-h-12 w-full items-center justify-center rounded-[22px] bg-[#1e3a8a] px-7 text-base font-bold text-white shadow-[0_8px_20px_-8px_rgb(30_58_138/0.7)] transition-[background-color,transform] hover:bg-[#172e6e] active:scale-[0.98] focus-visible:outline-none focus-visible:shadow-focus disabled:opacity-70 sm:mt-0 sm:w-auto sm:shrink-0"
         >
           {busy ? copy.submitting : waiting ? copy.verifying : copy.submit}
@@ -299,7 +330,7 @@ export function PhoneCapture({ detectedCountry, nonce, id }: PhoneCaptureProps) 
             id={listId}
             role="listbox"
             aria-label={copy.listLabel}
-            className="max-h-64 overflow-y-auto overscroll-contain p-1.5"
+            className="max-h-[min(16rem,45svh)] overflow-y-auto overscroll-contain p-1.5"
           >
             {visible.length === 0 ? (
               <li className="px-3 py-4 text-center text-sm text-[#4a5670]">{copy.noResults}</li>
@@ -317,7 +348,7 @@ export function PhoneCapture({ detectedCountry, nonce, id }: PhoneCaptureProps) 
                     choose(c.iso);
                   }}
                   onMouseMove={() => {
-                    setActive(index);
+                    if (index !== active) setActive(index);
                   }}
                   className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-2xl px-3 text-[15px] ${
                     index === active ? "bg-[#e3eafb]" : ""
@@ -339,7 +370,11 @@ export function PhoneCapture({ detectedCountry, nonce, id }: PhoneCaptureProps) 
       ) : null}
 
       <div aria-live="polite" className="min-h-6 px-3 pt-2 text-sm">
-        {invalid ? (
+        {exists ? (
+          <p role="status" className="font-semibold text-[#1e3a8a]">
+            {copy.exists}
+          </p>
+        ) : invalid ? (
           <p id={errorId} role="alert" className="text-[#b91c1c]">
             {copy.invalid}
           </p>
@@ -360,7 +395,7 @@ export function PhoneCapture({ detectedCountry, nonce, id }: PhoneCaptureProps) 
         )}
       </div>
 
-      {touched ? <Turnstile nonce={nonce} {...widgetProps} className="px-3" /> : null}
+      {armed || touched ? <Turnstile nonce={nonce} {...widgetProps} className="px-3" /> : null}
     </form>
   );
 }

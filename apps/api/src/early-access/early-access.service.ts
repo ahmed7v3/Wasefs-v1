@@ -20,17 +20,8 @@ import { LocalCache } from "../common/local-cache.js";
 import { API_ENV } from "../config/config.module.js";
 import { SettingsService } from "../settings/settings.service.js";
 
-import {
-  EarlyAccessRepo,
-  type ActiveCampaign,
-  type SignupContextPatch,
-} from "./early-access.repo.js";
-import {
-  extractEarlyContext,
-  isBotUserAgent,
-  visitorHash,
-  type EarlyContext,
-} from "./early-context.js";
+import { EarlyAccessRepo, type ActiveCampaign } from "./early-access.repo.js";
+import { extractEarlyContext, isBotUserAgent, visitorHash } from "./early-context.js";
 import {
   newRefCode,
   pickProbe,
@@ -110,47 +101,40 @@ export class EarlyAccessService {
     const context = extractEarlyContext(request.headers, input);
     const campaignId = await this.campaignId(input.campaign);
 
-    let signup = await this.repo.signupByPhone(phone);
-    let existing = signup !== undefined;
-    if (signup) {
-      await this.repo.updateContext(signup.id, contextPatch(context, input.sessionId));
-    } else {
-      const currency = earlyPriceCurrency(input.country);
-      const probePriceMinor = pickProbe(settings.priceLadders[currency]);
-      const referredById = input.ref ? await this.repo.signupIdByRefCode(input.ref) : undefined;
-      for (let attempt = 0; attempt < REF_CODE_ATTEMPTS && !signup; attempt += 1) {
-        signup = await this.repo.insertSignup({
-          phoneE164: phone,
-          phoneCountry: input.country,
-          variant: input.variant ?? null,
-          sessionId: input.sessionId,
-          probePriceMinor,
-          probeCurrency: currency,
-          refCode: newRefCode(),
-          referredById: referredById ?? null,
-          ...context,
-          utm: definedUtm(input.utm),
-          campaignLinkId: campaignId ?? null,
-          firstSeenAt:
-            input.elapsedMs === undefined ? null : new Date(now.getTime() - input.elapsedMs),
-          timeToSubmitMs: input.elapsedMs ?? null,
-          privacyAckAt: now,
-        });
-        if (!signup) {
-          // Either a concurrent submit of the same phone or a ref-code collision.
-          const raced = await this.repo.signupByPhone(phone);
-          if (raced) {
-            signup = raced;
-            existing = true;
-          }
-        }
+    if (await this.repo.signupByPhone(phone)) throw phoneExists();
+
+    let signup;
+    const currency = earlyPriceCurrency(input.country);
+    const probePriceMinor = pickProbe(settings.priceLadders[currency]);
+    const referredById = input.ref ? await this.repo.signupIdByRefCode(input.ref) : undefined;
+    for (let attempt = 0; attempt < REF_CODE_ATTEMPTS && !signup; attempt += 1) {
+      signup = await this.repo.insertSignup({
+        phoneE164: phone,
+        phoneCountry: input.country,
+        variant: input.variant ?? null,
+        sessionId: input.sessionId,
+        probePriceMinor,
+        probeCurrency: currency,
+        refCode: newRefCode(),
+        referredById: referredById ?? null,
+        ...context,
+        utm: definedUtm(input.utm),
+        campaignLinkId: campaignId ?? null,
+        firstSeenAt:
+          input.elapsedMs === undefined ? null : new Date(now.getTime() - input.elapsedMs),
+        timeToSubmitMs: input.elapsedMs ?? null,
+        privacyAckAt: now,
+      });
+      if (!signup) {
+        // Either a concurrent submit of the same phone or a ref-code collision.
+        if (await this.repo.signupByPhone(phone)) throw phoneExists();
       }
-      if (!signup) throw new AppError(ErrorCode.INTERNAL);
     }
+    if (!signup) throw new AppError(ErrorCode.INTERNAL);
 
     await this.recordEvent("phone_submit", input, request, campaignId, now);
     // No phone, no name in the log line.
-    this.logger.info({ signupId: signup.id, existing }, "early access join");
+    this.logger.info({ signupId: signup.id }, "early access join");
 
     return {
       signupId: signup.id,
@@ -159,7 +143,7 @@ export class EarlyAccessService {
       refCode: signup.refCode,
       probe: { priceMinor: signup.probePriceMinor, currency: signup.probeCurrency },
       ladder: [...settings.priceLadders[signup.probeCurrency]],
-      existing,
+      allowFree: settings.allowFreeOption,
     };
   }
 
@@ -178,7 +162,7 @@ export class EarlyAccessService {
     const settings = await this.settings.get("earlyAccess");
     const ladder: readonly number[] = settings.priceLadders[signup.probeCurrency];
     const fair = input.fairPriceMinor;
-    if (fair !== null && !ladder.includes(fair)) {
+    if ((fair === null && !settings.allowFreeOption) || (fair !== null && !ladder.includes(fair))) {
       throw new AppError(ErrorCode.VALIDATION_FAILED, {
         details: { reason: "early_fair_price_invalid", field: "fairPriceMinor" },
       });
@@ -287,24 +271,8 @@ export class EarlyAccessService {
   }
 }
 
-/** Only what is known now; a missing header must not blank out what an earlier visit recorded. */
-function contextPatch(context: EarlyContext, sessionId: string): SignupContextPatch {
-  const patch: SignupContextPatch = { sessionId };
-  const keys = [
-    "country",
-    "region",
-    "city",
-    "timezone",
-    "latApprox",
-    "lonApprox",
-    "device",
-    "browser",
-    "os",
-    "lang",
-  ] as const;
-  for (const key of keys) {
-    const value = context[key];
-    if (value !== null) Object.assign(patch, { [key]: value });
-  }
-  return patch;
+function phoneExists(): AppError {
+  return new AppError(ErrorCode.CONFLICT, {
+    details: { reason: "early_phone_exists", field: "phone" },
+  });
 }

@@ -64,7 +64,11 @@ export const EVENT_LABEL: Record<EarlyEventType, string> = {
   share: "شارك الرابط",
 };
 
-export const VARIANT_LABEL: Record<string, string> = { a: "العنوان A", b: "العنوان B", c: "العنوان C" };
+export const VARIANT_LABEL: Record<string, string> = {
+  a: "العنوان A",
+  b: "العنوان B",
+  c: "العنوان C",
+};
 
 export const RANGE_LABEL = {
   today: "اليوم",
@@ -87,7 +91,10 @@ export function countryName(iso: string | null | undefined): string {
 }
 
 /** A label from a record; unknown values (added later) show raw instead of a hole. */
-export function labelOf<K extends string>(map: Record<K, string>, key: string | null | undefined): string {
+export function labelOf<K extends string>(
+  map: Record<K, string>,
+  key: string | null | undefined,
+): string {
   if (!key) return "—";
   return Object.hasOwn(map, key) ? map[key as K] : key;
 }
@@ -258,6 +265,8 @@ export const T = {
     removePrice: "حذف السعر",
     abHeadlines: "اختبار نسخ العنوان (A/B)",
     abHeadlinesHint: "عند الإيقاف يرى الجميع النسخة A.",
+    allowFreeOption: "إظهار خيار «المجاني فقط» في سؤال السعر",
+    allowFreeOptionHint: "عند إيقافه يختار الزائر سعرًا من السلّم فقط.",
     counterMin: "حد ظهور عدّاد المنضمّين",
     counterMinHint: "لا يظهر العدّاد للزوار إلا بعد أن يبلغ العدد الحقيقي هذا الحد.",
     save: "حفظ الإعدادات",

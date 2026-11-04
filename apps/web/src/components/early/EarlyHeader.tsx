@@ -13,7 +13,7 @@ export function EarlyHeader({ joined, home = true }: { joined: number | null; ho
   const link =
     "hidden min-h-11 items-center rounded-full px-4 text-[15px] font-semibold text-[#0b1220]/80 transition-colors hover:bg-[#0b1220]/5 hover:text-[#1e3a8a] focus-visible:outline-none focus-visible:shadow-focus md:inline-flex";
   return (
-    <div className="sticky top-2 z-40 px-3 pt-2 sm:top-3 sm:px-5">
+    <div className="early-header-shell sticky top-2 z-40 px-3 pt-2 sm:top-3 sm:px-5">
       <GlassSurface as="header" radius={28} className="early-header mx-auto max-w-6xl">
         <div className="flex items-center justify-between gap-2 px-3 py-1.5 sm:px-4">
           <SiteBrandMark />
