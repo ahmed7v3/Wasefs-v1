@@ -164,4 +164,4 @@ Per CLAUDE.md: main session (Opus) writes briefs and reviews; Sonnet `builder` i
 - The headline A/B variant is chosen in `proxy.ts` (httpOnly `ea_v` cookie) so the server renders the final H1 (no layout shift); bots always get variant A.
 - `visitor_hash` is cleared by the daily growth retention job (`pruneEarlyVisitorHashes`), so a hash lives 48–72 h.
 - `GET /admin/early-access/links` lists every `campaign_links` row (the table has no per-site marker).
-- **Deploy needs:** `WEB_ORIGIN` for the api must include `https://early.wasfa.online` (CORS), Cloudflare DNS `early` (proxied) + "Add visitor location headers" managed transform, Turnstile hostname `early.wasfa.online`, migration `0033_early_access`.
+- **Deploy needs:** `WEB_ORIGIN` for the api must include `https://early.wasfa.online` (CORS), Cloudflare DNS `early` (proxied) + "Add visitor location headers" managed transform, Turnstile hostname `early.wasfa.online`, migration `0032_early_access`.
