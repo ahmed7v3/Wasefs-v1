@@ -10,6 +10,7 @@ export * from "./contact-messages.js";
 export * from "./credits.js";
 export * from "./deals.js";
 export * from "./drugs.js";
+export * from "./early-access.js";
 export * from "./error-events.js";
 export * from "./evals.js";
 export * from "./feature-flags.js";

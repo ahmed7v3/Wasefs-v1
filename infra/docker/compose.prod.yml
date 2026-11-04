@@ -107,7 +107,8 @@ services:
       # DELETE audit_logs, and owns nothing. Migrations run as POSTGRES_USER (see `migrate`).
       DATABASE_URL: postgres://wasfa_api:${API_DB_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
       REDIS_URL: redis://:${REDIS_PASSWORD:?}@redis:6379
-      WEB_ORIGIN: ${WEB_ORIGIN:-https://wasfa.online}
+      # The first origin builds links; early.* is the pre-launch page (CORS for its waitlist form).
+      WEB_ORIGIN: ${WEB_ORIGIN:-https://wasfa.online,https://early.wasfa.online}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?}
       # Signs content preview links; unset = previews are off.
       CONTENT_PREVIEW_SECRET: ${CONTENT_PREVIEW_SECRET:-}

@@ -203,7 +203,14 @@ describe("settings presentation", () => {
   ];
 
   it("gives every settings key exactly one home", () => {
-    const dedicated: SettingKey[] = ["branding", "whatsapp", "waAgent", "ai", "skills"];
+    const dedicated: SettingKey[] = [
+      "branding",
+      "whatsapp",
+      "waAgent",
+      "ai",
+      "skills",
+      "earlyAccess", // edited on /admin/growth/early-access
+    ];
     const homes = [...GENERIC_PAGE_KEYS, ...dedicated];
     expect([...homes].sort()).toEqual([...SETTING_KEYS].sort());
     expect(new Set(homes).size).toBe(homes.length);

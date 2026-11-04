@@ -31,6 +31,7 @@ describe("visibleNavGroups", () => {
       "/admin",
       "/admin/users",
       "/admin/growth/waitlist",
+      "/admin/growth/early-access",
       "/admin/audit",
     ]);
     expect(visibleNavGroups(["users.read", "audit.read"]).map((group) => group.id)).toEqual([
@@ -80,6 +81,7 @@ describe("visibleNavGroups", () => {
       "/admin/growth/deals",
       "/admin/growth/experiments",
       "/admin/growth/waitlist",
+      "/admin/growth/early-access",
       "/admin/growth/settings",
       "/admin/alerts",
       "/admin/notifications",
@@ -237,7 +239,7 @@ describe("AdminNav", () => {
     expect(screen.queryByRole("link", { name: t("admin.nav.settings") })).toBeNull();
     expect(screen.queryByRole("link", { name: t("admin.nav.flags") })).toBeNull();
     expect(screen.getByRole("link", { name: t("admin.nav.waitlist") })).toBeTruthy();
-    expect(screen.getAllByRole("link")).toHaveLength(4);
+    expect(screen.getAllByRole("link")).toHaveLength(5);
   });
 });
 

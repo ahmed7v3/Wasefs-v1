@@ -42,6 +42,7 @@ import {
   Percent,
   Receipt,
   ReceiptText,
+  Rocket,
   Repeat,
   Route,
   ScrollText,
@@ -285,6 +286,13 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
         label: "admin.nav.waitlist",
         description: "admin.nav.waitlist.description",
         icon: Smartphone,
+        permission: "users.read",
+      },
+      {
+        href: "/admin/growth/early-access",
+        label: "admin.nav.earlyAccess",
+        description: "admin.nav.earlyAccess.description",
+        icon: Rocket,
         permission: "users.read",
       },
       {

@@ -47,6 +47,18 @@
 	}
 }
 
+# Pre-launch waitlist (docs/EARLY-ACCESS-PLAN.md): the same web app; proxy.ts rewrites this host to /early/*.
+early.{$SITE_DOMAIN:wasfa.online} {
+	import /etc/caddy/tls.caddy
+	import common
+	request_body {
+		max_size 2MB
+	}
+	reverse_proxy web:3000 {
+		import proxy_headers
+	}
+}
+
 www.{$SITE_DOMAIN:wasfa.online} {
 	import /etc/caddy/tls.caddy
 	import common

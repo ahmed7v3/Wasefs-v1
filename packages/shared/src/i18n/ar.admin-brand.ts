@@ -107,6 +107,11 @@ export const arAdminBrand = {
 
   // Waitlist page
   "admin.nav.waitlist": "قائمة انتظار التطبيقات",
+  "admin.settings.earlyAccess.title": "صفحة الإطلاق المبكر",
+  "admin.settings.earlyAccess.description":
+    "سلالم الأسعار لكل عملة، اختبار العناوين، وحدّ ظهور عدّاد المنضمين على early.wasfa.online.",
+  "admin.nav.earlyAccess": "القائمة المبكرة",
+  "admin.nav.earlyAccess.description": "تسجيلات صفحة الإطلاق، الحملات، منحنى السعر وإعدادات الصفحة.",
   "admin.nav.waitlist.description": "من طلب إشعارًا عند إطلاق تطبيق أندرويد و iOS.",
   "admin.waitlist.lead": "العناوين مأخوذة بموافقة صريحة على رسالة الإطلاق. لا تُستخدم لغير ذلك.",
   "admin.waitlist.total": "إجمالي المسجلين: {count}",
