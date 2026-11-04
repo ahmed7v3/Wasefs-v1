@@ -20,7 +20,7 @@ export default async function EarlyLayout({ children }: { children: ReactNode })
   const [joined, requestHeaders] = await Promise.all([getEarlyJoined(), headers()]);
   const path = requestHeaders.get("x-pathname") ?? "/";
   return (
-    <div className="early-root relative isolate flex min-h-dvh flex-col">
+    <div className="early-root relative isolate flex min-h-svh flex-col">
       <EarlyHeader joined={joined} home={HOME_PATH.test(path)} />
       <main id="main" className="flex-1">
         {children}

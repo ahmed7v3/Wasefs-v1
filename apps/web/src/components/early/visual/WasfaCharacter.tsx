@@ -62,12 +62,33 @@ export function WasfaCharacter({ size, className, label }: Props) {
     let blinkTimer: ReturnType<typeof setTimeout> | undefined;
     let inView = true;
     let running = false;
+    // Paused while a text field has focus: the keyboard animation must not compete with this loop.
+    let typing = false;
+    // Cached rect, re-read only after the pointer, scroll or a resize made it stale.
+    let rect = root.getBoundingClientRect();
+    let dirty = false;
 
     const onPointer = (e: PointerEvent) => {
       s.px = e.clientX;
       s.py = e.clientY;
       s.type = e.pointerType;
       s.last = performance.now();
+      dirty = true;
+    };
+    const markDirty = () => {
+      dirty = true;
+    };
+    const isField = (t: EventTarget | null) =>
+      t instanceof HTMLInputElement ||
+      t instanceof HTMLTextAreaElement ||
+      (t instanceof HTMLElement && t.isContentEditable);
+    const onFocusIn = (e: FocusEvent) => {
+      typing = isField(e.target);
+      sync();
+    };
+    const onFocusOut = () => {
+      typing = false;
+      sync();
     };
 
     const tick = (now: number) => {
@@ -76,9 +97,12 @@ export function WasfaCharacter({ size, className, label }: Props) {
         s.tx = Math.sin(now / 1700) * 0.7;
         s.ty = Math.cos(now / 2300) * 0.35;
       } else {
-        const r = root.getBoundingClientRect();
-        s.tx = clamp((s.px - (r.left + r.width / 2)) / 320, -1, 1);
-        s.ty = clamp((s.py - (r.top + r.height / 2)) / 320, -1, 1);
+        if (dirty) {
+          rect = root.getBoundingClientRect();
+          dirty = false;
+        }
+        s.tx = clamp((s.px - (rect.left + rect.width / 2)) / 320, -1, 1);
+        s.ty = clamp((s.py - (rect.top + rect.height / 2)) / 320, -1, 1);
       }
       s.x += (s.tx - s.x) * 0.15;
       s.y += (s.ty - s.y) * 0.15;
@@ -112,7 +136,7 @@ export function WasfaCharacter({ size, className, label }: Props) {
     };
 
     const sync = () => {
-      const should = inView && !document.hidden;
+      const should = inView && !document.hidden && !typing;
       if (should && !running) {
         running = true;
         raf = requestAnimationFrame(loop);
@@ -134,6 +158,10 @@ export function WasfaCharacter({ size, className, label }: Props) {
     io?.observe(root);
     window.addEventListener("pointermove", onPointer, { passive: true });
     window.addEventListener("pointerdown", onPointer, { passive: true });
+    window.addEventListener("scroll", markDirty, { passive: true });
+    window.addEventListener("resize", markDirty, { passive: true });
+    document.addEventListener("focusin", onFocusIn, { passive: true });
+    document.addEventListener("focusout", onFocusOut, { passive: true });
     document.addEventListener("visibilitychange", sync);
     sync();
 
@@ -144,6 +172,10 @@ export function WasfaCharacter({ size, className, label }: Props) {
       io?.disconnect();
       window.removeEventListener("pointermove", onPointer);
       window.removeEventListener("pointerdown", onPointer);
+      window.removeEventListener("scroll", markDirty);
+      window.removeEventListener("resize", markDirty);
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("focusout", onFocusOut);
       document.removeEventListener("visibilitychange", sync);
     };
   }, [reduced]);
@@ -169,14 +201,12 @@ export function WasfaCharacter({ size, className, label }: Props) {
   };
 
   const g = (name: string) => `url(#${name}-${uid})`;
-  const a11y = label ? ({ role: "img", "aria-label": label } as const) : ({ "aria-hidden": true } as const);
+  const a11y = label
+    ? ({ role: "img", "aria-label": label } as const)
+    : ({ "aria-hidden": true } as const);
 
   return (
-    <div
-      ref={rootRef}
-      className={`ev-char${className ? ` ${className}` : ""}`}
-      {...a11y}
-    >
+    <div ref={rootRef} className={`ev-char${className ? ` ${className}` : ""}`} {...a11y}>
       <div className="ev-char-shadow" />
       <div className="ev-char-float">
         <div ref={tiltRef} className="ev-char-tilt">
@@ -273,9 +303,18 @@ export function WasfaCharacter({ size, className, label }: Props) {
                   </g>
                 ))}
               </g>
-              <g className="ev-char-arcs" fill="none" stroke="#fff" strokeWidth="9" strokeLinecap="round">
+              <g
+                className="ev-char-arcs"
+                fill="none"
+                stroke="#fff"
+                strokeWidth="9"
+                strokeLinecap="round"
+              >
                 {EYES.map((x) => (
-                  <path key={x} d={`M${x - 24} ${EYE_Y + 10}Q${x} ${EYE_Y - 30} ${x + 24} ${EYE_Y + 10}`} />
+                  <path
+                    key={x}
+                    d={`M${x - 24} ${EYE_Y + 10}Q${x} ${EYE_Y - 30} ${x + 24} ${EYE_Y + 10}`}
+                  />
                 ))}
               </g>
             </svg>

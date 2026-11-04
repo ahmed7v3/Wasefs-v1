@@ -4,8 +4,9 @@ import { fromMinor } from "@wasfa/shared/money";
 import {
   EARLY_FEATURES,
   EARLY_PROBE_ANSWERS,
-  EARLY_ROLES,
+  EARLY_ROLE_CHOICES,
   earlyDetailsResponseSchema,
+  middleTier,
   type EarlyDetailsResponse,
   type EarlyFeature,
   type EarlyJoinResponse,
@@ -157,6 +158,7 @@ export function EarlyDetailsSheet({ join, details, onDetails, onClose }: SheetPr
     }
   }
 
+  const suggested = middleTier(join.ladder);
   const price = formatEarlyPrice(join.probe.priceMinor, join.probe.currency);
   const done = details !== null;
 
@@ -165,14 +167,14 @@ export function EarlyDetailsSheet({ join, details, onDetails, onClose }: SheetPr
       <div
         aria-hidden="true"
         onClick={onClose}
-        className="early-sheet-backdrop absolute inset-0 bg-[#0b1220]/45 backdrop-blur-sm"
+        className="early-sheet-backdrop absolute inset-0 bg-[#0b1220]/55 sm:bg-[#0b1220]/45 sm:backdrop-blur-sm"
       />
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="early-sheet relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[28px] bg-[#fbfbf9] shadow-[0_-8px_40px_-8px_rgb(11_18_32/0.35)] sm:max-w-lg sm:rounded-[28px] sm:shadow-[0_32px_80px_-16px_rgb(11_18_32/0.45)]"
+        className="early-sheet relative flex max-h-[92svh] w-full flex-col overflow-hidden rounded-t-[28px] bg-[#fbfbf9] shadow-[0_-8px_40px_-8px_rgb(11_18_32/0.35)] sm:max-w-lg sm:rounded-[28px] sm:shadow-[0_32px_80px_-16px_rgb(11_18_32/0.45)]"
       >
         <div className="flex items-center justify-between gap-3 px-5 pt-4 sm:px-7 sm:pt-6">
           {done ? (
@@ -276,7 +278,7 @@ export function EarlyDetailsSheet({ join, details, onDetails, onClose }: SheetPr
                     aria-labelledby={titleId}
                     className="mt-5 flex flex-wrap gap-2.5"
                   >
-                    {EARLY_ROLES.map((r) => (
+                    {EARLY_ROLE_CHOICES.map((r) => (
                       <button
                         key={r}
                         type="button"
@@ -305,6 +307,7 @@ export function EarlyDetailsSheet({ join, details, onDetails, onClose }: SheetPr
                   >
                     {copy.probe.q(price)}
                   </h2>
+                  <p className="mt-1 text-[15px] text-[#4a5670]">{copy.probe.value}</p>
                   <div
                     role="radiogroup"
                     aria-labelledby={titleId}
@@ -344,21 +347,36 @@ export function EarlyDetailsSheet({ join, details, onDetails, onClose }: SheetPr
                     aria-labelledby={titleId}
                     className="mt-5 flex flex-wrap gap-2.5"
                   >
-                    {join.ladder.map((amount) => (
-                      <button
-                        key={amount}
-                        type="button"
-                        role="radio"
-                        aria-checked={fair === amount}
-                        onClick={() => {
-                          setFair(amount);
-                          next();
-                        }}
-                        className={`${chip} ${fair === amount ? chipOn : chipOff}`}
-                      >
-                        {formatEarlyPrice(amount, join.probe.currency)}
-                      </button>
-                    ))}
+                    {[...join.ladder]
+                      .sort((x, y) => y - x)
+                      .map((amount) => (
+                        <button
+                          key={amount}
+                          type="button"
+                          role="radio"
+                          aria-checked={fair === amount}
+                          onClick={() => {
+                            setFair(amount);
+                            next();
+                          }}
+                          className={`${chip} ${fair === amount ? chipOn : chipOff}`}
+                        >
+                          {formatEarlyPrice(amount, join.probe.currency)}
+                          {amount === suggested ? (
+                            <span
+                              className={`rounded-full px-2 text-xs font-bold ${
+                                fair === amount
+                                  ? "bg-white/20 text-white"
+                                  : "bg-[#dcfce7] text-[#15803d]"
+                              }`}
+                            >
+                              {copy.fair.suggested}
+                            </span>
+                          ) : null}
+                        </button>
+                      ))}
+                  </div>
+                  {join.allowFree ? (
                     <button
                       type="button"
                       role="radio"
@@ -367,11 +385,13 @@ export function EarlyDetailsSheet({ join, details, onDetails, onClose }: SheetPr
                         setFair(null);
                         next();
                       }}
-                      className={`${chip} ${fair === null ? chipOn : chipOff}`}
+                      className={`mt-3 min-h-11 rounded-xl px-3 text-sm font-semibold underline-offset-4 hover:underline ${
+                        fair === null ? "bg-[#1e3a8a] text-white" : "text-[#64708a]"
+                      }`}
                     >
                       {copy.fair.free}
                     </button>
-                  </div>
+                  ) : null}
                 </>
               ) : null}
 

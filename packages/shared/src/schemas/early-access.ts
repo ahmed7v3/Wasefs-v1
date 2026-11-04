@@ -20,6 +20,17 @@ export const EARLY_ROLES = [
 ] as const;
 export type EarlyRole = (typeof EARLY_ROLES)[number];
 
+/** Roles offered on the form; `caregiver` is legacy (kept for old rows). */
+export const EARLY_ROLE_CHOICES = [
+  "patient",
+  "doctor",
+  "pharmacist",
+  "pharmacy_owner",
+  "clinic_owner",
+  "medical_student",
+  "other",
+] as const satisfies readonly EarlyRole[];
+
 export const EARLY_FEATURES = [
   "handwriting",
   "whatsapp_bot",
@@ -71,6 +82,7 @@ export interface ArabCountry {
 }
 
 /** The 22 Arab League states. Display order is decided by the UI (detected country first). */
+// prettier-ignore
 export const ARAB_COUNTRIES: readonly ArabCountry[] = [
   { iso: "EG", dial: "20", nameAr: "مصر", nameEn: "Egypt", nsnMin: 10, nsnMax: 10, priceCurrency: "EGP" },
   { iso: "SA", dial: "966", nameAr: "السعودية", nameEn: "Saudi Arabia", nsnMin: 9, nsnMax: 9, priceCurrency: "SAR" },
@@ -125,12 +137,18 @@ export function toEarlyE164(iso: string, local: string): string | null {
 }
 
 /** Monthly price ladders in minor units. Admin-editable via `earlyAccess` settings. */
-export const DEFAULT_EARLY_PRICE_LADDERS: Readonly<Record<EarlyPriceCurrency, readonly number[]>> = {
-  EGP: [4900, 7900, 9900, 14900, 19900],
-  SAR: [900, 1500, 1900, 2900, 3900],
-  AED: [900, 1500, 1900, 2900, 3900],
-  USD: [299, 499, 699, 999],
-};
+export const DEFAULT_EARLY_PRICE_LADDERS: Readonly<Record<EarlyPriceCurrency, readonly number[]>> =
+  {
+    EGP: [4900, 7900, 9900, 14900, 19900],
+    SAR: [900, 1500, 1900, 2900, 3900],
+    AED: [900, 1500, 1900, 2900, 3900],
+    USD: [299, 499, 699, 999],
+  };
+
+/** Middle tier of a ladder (ascending index floor(len/2)): the probe and the "suggested" chip. */
+export function middleTier(ladder: readonly number[]): number | undefined {
+  return [...ladder].sort((a, b) => a - b)[Math.floor(ladder.length / 2)];
+}
 
 /** Currency for the price questions: from the phone's country, else the visitor's, else USD. */
 export function earlyPriceCurrency(iso: string | null | undefined): EarlyPriceCurrency {
@@ -143,18 +161,18 @@ export function earlyPriceCurrency(iso: string | null | undefined): EarlyPriceCu
 const ladder = z.array(z.number().int().min(1).max(10_000_000)).min(2).max(8);
 
 export const earlyAccessSettingsSchema = z.object({
-  priceLadders: z
-    .object({ EGP: ladder, SAR: ladder, AED: ladder, USD: ladder })
-    .default({
-      EGP: [...DEFAULT_EARLY_PRICE_LADDERS.EGP],
-      SAR: [...DEFAULT_EARLY_PRICE_LADDERS.SAR],
-      AED: [...DEFAULT_EARLY_PRICE_LADDERS.AED],
-      USD: [...DEFAULT_EARLY_PRICE_LADDERS.USD],
-    }),
+  priceLadders: z.object({ EGP: ladder, SAR: ladder, AED: ladder, USD: ladder }).default({
+    EGP: [...DEFAULT_EARLY_PRICE_LADDERS.EGP],
+    SAR: [...DEFAULT_EARLY_PRICE_LADDERS.SAR],
+    AED: [...DEFAULT_EARLY_PRICE_LADDERS.AED],
+    USD: [...DEFAULT_EARLY_PRICE_LADDERS.USD],
+  }),
   /** Headline A/B: when false everyone sees variant "a". */
   abHeadlines: z.boolean().default(true),
   /** The public "N joined" counter is shown only once the real count reaches this. */
   counterMinToShow: z.number().int().min(0).max(1_000_000).default(50),
+  /** When false the fair-price question has no 'free only' chip and the API rejects null. */
+  allowFreeOption: z.boolean().default(true),
 });
 export type EarlyAccessSettings = z.output<typeof earlyAccessSettingsSchema>;
 
@@ -216,18 +234,21 @@ export const earlyJoinResponseSchema = z.object({
   position: z.number().int().min(1),
   refCode,
   /** Server-chosen probe price (Gabor-Granger), shown in step 2. */
-  probe: z.object({ priceMinor: z.number().int().min(1), currency: z.enum(EARLY_PRICE_CURRENCIES) }),
+  probe: z.object({
+    priceMinor: z.number().int().min(1),
+    currency: z.enum(EARLY_PRICE_CURRENCIES),
+  }),
   /** Fair-price chips for the same currency. */
   ladder: z.array(z.number().int().min(1)),
-  /** True when this phone had already joined (row updated, not duplicated). */
-  existing: z.boolean(),
+  /** Whether the fair-price question offers the "free only" option. */
+  allowFree: z.boolean(),
 });
 export type EarlyJoinResponse = z.infer<typeof earlyJoinResponseSchema>;
 
 /** `PATCH /public/early-access/join/:id` — step 2. Header `x-early-token`. */
 export const earlyDetailsSchema = z.object({
   name: z.string().trim().min(2).max(80),
-  role: z.enum(EARLY_ROLES),
+  role: z.enum(EARLY_ROLE_CHOICES),
   probeAnswer: z.enum(EARLY_PROBE_ANSWERS),
   /** Must be one of the ladder values for the signup's currency; null = "free only". */
   fairPriceMinor: z.number().int().min(1).nullable(),
@@ -263,7 +284,10 @@ export const adminEarlyFilterSchema = z.object({
   from: isoDate.optional(),
   to: isoDate.optional(),
   campaignLinkId: z.uuid().optional(),
-  country: z.string().regex(/^[A-Z]{2}$/).optional(),
+  country: z
+    .string()
+    .regex(/^[A-Z]{2}$/)
+    .optional(),
   city: shortText(100).optional(),
   role: z.enum(EARLY_ROLES).optional(),
   device: z.enum(EARLY_DEVICES).optional(),
@@ -347,7 +371,11 @@ export const adminEarlySignupPatchSchema = z.object({
 });
 export type AdminEarlySignupPatch = z.input<typeof adminEarlySignupPatchSchema>;
 
-const countRow = z.object({ key: z.string(), label: z.string().nullable(), count: z.number().int() });
+const countRow = z.object({
+  key: z.string(),
+  label: z.string().nullable(),
+  count: z.number().int(),
+});
 
 export const adminEarlyOverviewSchema = z.object({
   kpis: z.object({
@@ -361,7 +389,9 @@ export const adminEarlyOverviewSchema = z.object({
     invitedJoins: z.number().int(),
   }),
   /** Daily buckets (UTC date `YYYY-MM-DD`) for views and sign-ups. */
-  series: z.array(z.object({ date: z.string(), views: z.number().int(), signups: z.number().int() })),
+  series: z.array(
+    z.object({ date: z.string(), views: z.number().int(), signups: z.number().int() }),
+  ),
   funnel: z.array(z.object({ type: z.enum(EARLY_EVENT_TYPES), sessions: z.number().int() })),
   countries: z.array(countRow.extend({ views: z.number().int() })),
   cities: z.array(countRow.extend({ country: z.string().nullable() })),

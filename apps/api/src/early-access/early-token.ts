@@ -1,5 +1,7 @@
 import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 
+import { middleTier } from "@wasfa/shared/schemas/early-access";
+
 /*
  * Step-2 authorisation: base64url(signupId.expiryUnix.hmac). Whoever created the row in step 1 holds
  * it; it is valid for that signup only and for 24 hours. The HMAC key is derived from a server
@@ -48,12 +50,9 @@ export function newRefCode(): string {
   return code;
 }
 
-/** Uniform random element of a price ladder (Gabor-Granger probe). */
-export function pickProbe(
-  ladder: readonly number[],
-  pick: (max: number) => number = (max) => randomInt(max),
-): number {
-  const value = ladder[pick(ladder.length)];
+/** Probe = middle tier, never the cheapest: anchors on value, not on the floor. */
+export function pickProbe(ladder: readonly number[]): number {
+  const value = middleTier(ladder);
   if (value === undefined) throw new Error("Empty price ladder");
   return value;
 }

@@ -37,6 +37,7 @@ export function buildSettings(
   ladders: Ladders,
   abHeadlines: boolean,
   counterMin: string,
+  allowFreeOption: boolean,
 ): EarlyAccessSettings | null {
   try {
     const priceLadders = Object.fromEntries(
@@ -49,6 +50,7 @@ export function buildSettings(
       priceLadders,
       abHeadlines,
       counterMinToShow: Number(counterMin),
+      allowFreeOption,
     });
     return parsed.success ? parsed.data : null;
   } catch {
@@ -61,6 +63,7 @@ function SettingsForm({ initial }: { initial: EarlyAccessSettings }) {
   const reauth = useReauth();
   const [ladders, setLadders] = useState<Ladders>(() => toDecimals(initial));
   const [abHeadlines, setAbHeadlines] = useState(initial.abHeadlines);
+  const [allowFreeOption, setAllowFreeOption] = useState(initial.allowFreeOption);
   const [counterMin, setCounterMin] = useState(String(initial.counterMinToShow));
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -73,7 +76,7 @@ function SettingsForm({ initial }: { initial: EarlyAccessSettings }) {
   };
 
   const save = async () => {
-    const value = buildSettings(ladders, abHeadlines, counterMin);
+    const value = buildSettings(ladders, abHeadlines, counterMin, allowFreeOption);
     if (!value) {
       setError(true);
       return;
@@ -166,6 +169,17 @@ function SettingsForm({ initial }: { initial: EarlyAccessSettings }) {
           }}
         />
         <p className="text-sm text-text-muted">{T.settings.abHeadlinesHint}</p>
+      </section>
+
+      <section className="flex flex-col gap-1">
+        <Checkbox
+          label={T.settings.allowFreeOption}
+          checked={allowFreeOption}
+          onChange={(event) => {
+            setAllowFreeOption(event.target.checked);
+          }}
+        />
+        <p className="text-sm text-text-muted">{T.settings.allowFreeOptionHint}</p>
       </section>
 
       <Field label={T.settings.counterMin} hint={T.settings.counterMinHint} className="max-w-xs">

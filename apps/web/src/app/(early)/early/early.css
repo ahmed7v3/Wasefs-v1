@@ -16,9 +16,36 @@
 }
 
 /* ---------- Header: gains depth over the first 80px of scroll (Chromium/Safari 26+) ---------- */
+/* Only transform and opacity animate (compositor-only); animating box-shadow repainted every scroll frame.
+   The glass clips its own overflow, so the shadow lives on the sticky shell's ::after. */
+.early-header-shell::after {
+  content: "";
+  position: absolute;
+  inset-block: 0.5rem 0;
+  inset-inline: 0.75rem;
+  max-inline-size: 72rem;
+  margin-inline: auto;
+  border-radius: 28px;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0;
+  box-shadow:
+    0 2px 4px rgb(11 18 32 / 0.05),
+    0 18px 40px -14px rgb(11 18 32 / 0.28);
+}
+@media (min-width: 640px) {
+  .early-header-shell::after {
+    inset-inline: 1.25rem;
+  }
+}
 @supports (animation-timeline: scroll()) {
   .early-header {
     animation: early-header-depth linear both;
+    animation-timeline: scroll(root block);
+    animation-range: 0 80px;
+  }
+  .early-header-shell::after {
+    animation: early-header-shadow linear both;
     animation-timeline: scroll(root block);
     animation-range: 0 80px;
   }
@@ -26,13 +53,14 @@
 @keyframes early-header-depth {
   from {
     transform: translateY(0) scale(1);
-    box-shadow: 0 1px 2px rgb(11 18 32 / 0.04);
   }
   to {
     transform: translateY(-2px) scale(0.985);
-    box-shadow:
-      0 2px 4px rgb(11 18 32 / 0.05),
-      0 18px 40px -14px rgb(11 18 32 / 0.28);
+  }
+}
+@keyframes early-header-shadow {
+  to {
+    opacity: 1;
   }
 }
 
@@ -274,6 +302,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .early-header,
+  .early-header-shell::after,
   .early-sheet,
   .early-sheet-backdrop,
   .early-step,

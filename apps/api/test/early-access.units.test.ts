@@ -169,12 +169,10 @@ describe("early-access ref codes, probe and queue position", () => {
     for (const code of codes) expect(code).toMatch(/^[0-9A-Za-z]{8}$/);
   });
 
-  it("picks every ladder element with equal chance and nothing else", () => {
-    const ladder = [4900, 7900, 9900];
-    expect(pickProbe(ladder, () => 0)).toBe(4900);
-    expect(pickProbe(ladder, (max) => max - 1)).toBe(9900);
-    const seen = new Set(Array.from({ length: 200 }, () => pickProbe(ladder)));
-    expect([...seen].sort()).toEqual([4900, 7900, 9900]);
+  it("probes the middle tier, never the cheapest", () => {
+    expect(pickProbe([4900, 7900, 9900, 14900, 19900])).toBe(9900);
+    expect(pickProbe([299, 499, 699, 999])).toBe(699);
+    expect(pickProbe([999, 299, 699, 499])).toBe(699);
     expect(() => pickProbe([])).toThrow();
   });
 
