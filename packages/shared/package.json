@@ -459,6 +459,11 @@
       "types": "./dist/schemas/content.d.ts",
       "import": "./dist/schemas/content.js",
       "default": "./dist/schemas/content.js"
+    },
+    "./schemas/early-access": {
+      "types": "./dist/schemas/early-access.d.ts",
+      "import": "./dist/schemas/early-access.js",
+      "default": "./dist/schemas/early-access.js"
     }
   },
   "files": [
