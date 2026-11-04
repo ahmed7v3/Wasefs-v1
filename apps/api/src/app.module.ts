@@ -24,6 +24,7 @@ import { PublicContentModule } from "./content/public/public-content.module.js";
 import { TaxonomyModule } from "./content/taxonomy/taxonomy.module.js";
 import { CouponsModule } from "./coupons/coupons.module.js";
 import { CreditsModule } from "./credits/credits.module.js";
+import { EarlyAccessModule } from "./early-access/early-access.module.js";
 import { FilesModule } from "./files/files.module.js";
 import { FlagsModule } from "./flags/flags.module.js";
 import { GrowthModule } from "./growth/growth.module.js";
@@ -82,6 +83,7 @@ export class AppModule {
         ContactModule,
         SiteHealthModule,
         WaitlistModule,
+        EarlyAccessModule,
         BrandingModule,
         MediaModule,
         ContentModule,

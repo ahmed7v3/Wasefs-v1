@@ -479,6 +479,22 @@ export async function pruneGrowthData(
   return { events: events[0]?.total ?? 0, mailLog: mailLog[0]?.total ?? 0 };
 }
 
+/**
+ * Early-access visitor hashes exist only to count unique visitors; they are cleared after 48 h
+ * (EARLY-ACCESS-PLAN D2) so a hash can never be linked back to an IP later. Rows stay for counts.
+ */
+export async function pruneEarlyVisitorHashes(db: Database, now: Date): Promise<number> {
+  const iso = new Date(now.getTime() - 48 * HOUR_MS).toISOString();
+  const rows = await db.execute<{ total: number }>(sql`
+    with gone as (
+      update early_access_events set visitor_hash = null
+      where visitor_hash is not null and occurred_at < ${iso}::timestamptz returning 1
+    )
+    select count(*)::int as total from gone
+  `);
+  return rows[0]?.total ?? 0;
+}
+
 // --- Unsubscribe links ------------------------------------------------------------------------------------------
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

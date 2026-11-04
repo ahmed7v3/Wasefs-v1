@@ -9,6 +9,8 @@ export const LOG_REDACT_PATHS = [
   "*.accessToken",
   "*.refreshToken",
   "*.phone",
+  "*.phoneE164",
+  "*.name",
   "*.email",
   "*.apiKey",
   "*.secret",

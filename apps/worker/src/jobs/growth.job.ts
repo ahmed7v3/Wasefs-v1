@@ -4,6 +4,7 @@ import {
   ensureDefaultGrowthRules,
   expireTasteRemainder,
   growthSettingsOf,
+  pruneEarlyVisitorHashes,
   pruneGrowthData,
   silenceMarketing,
   tasteGrantsToSettle,
@@ -232,4 +233,6 @@ export async function growthRetentionJob(
   const deleted = await pruneGrowthData(db, now);
   if (deleted.events + deleted.mailLog > 0)
     logger.info(deleted, "Growth data past retention deleted");
+  const hashes = await pruneEarlyVisitorHashes(db, now);
+  if (hashes > 0) logger.info({ hashes }, "Early-access visitor hashes cleared");
 }

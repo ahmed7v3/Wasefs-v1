@@ -3,6 +3,7 @@ import { z } from "zod";
 import { accessSettingsSchema, authSettingsSchema } from "./auth-settings.js";
 import { LOCALES } from "./i18n/locales.js";
 import { emailSchema, phoneNumberSchema } from "./schemas/auth.js";
+import { earlyAccessSettingsSchema } from "./schemas/early-access.js";
 
 import type { AiTask } from "./ai.js";
 
@@ -750,6 +751,8 @@ export const SETTINGS_REGISTRY = {
   rx: { schema: rxSettingsSchema, visibility: "public" },
   seo: { schema: seoSettingsSchema, visibility: "public" },
   landing: { schema: landingSettingsSchema, visibility: "public" },
+  /** Admin only: price ladders, headline A/B switch and the public counter threshold of early.wasfa.online. */
+  earlyAccess: { schema: earlyAccessSettingsSchema, visibility: "admin" },
   /** Admin only: the retention job reads it; users are told the number on the analysis page. */
   uploads: { schema: uploadsSettingsSchema, visibility: "admin" },
   /** Admin only: per-plan enablement of assistant skills, edited on `/admin/ai/skills`. */
