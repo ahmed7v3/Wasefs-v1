@@ -55,7 +55,10 @@ export function AccountMenu({
       triggerClassName="inline-flex min-h-11 items-center gap-2 rounded-full bg-surface ps-1 pe-3 shadow-card transition-colors duration-150 hover:bg-primary-soft focus-visible:outline-none focus-visible:shadow-focus"
       trigger={
         <>
-          <Avatar name={shownName} src={image} size={40} />
+          {/* Decorative: the name is in the label already; its initials are not (axe label-content-name-mismatch). */}
+          <span aria-hidden className="inline-flex">
+            <Avatar name={shownName} src={image} size={40} />
+          </span>
           <span
             className="hidden max-w-40 truncate text-base font-semibold text-text sm:inline"
             title={shownName}

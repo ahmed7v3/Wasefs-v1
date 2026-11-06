@@ -1,7 +1,12 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { isAppError } from "@wasfa/shared/errors";
 import { RX_MAX_PAGES } from "@wasfa/shared/rx";
-import { WA_AGENT_RX_TTL_SECONDS, waAgentRxKey } from "@wasfa/shared/schemas/wa-agent";
+import { WA_AGENT_EVENTS_STREAM, WA_AGENT_STREAM_MAXLEN } from "@wasfa/shared/schemas/phone";
+import {
+  WA_AGENT_RX_TTL_SECONDS,
+  waAgentEventSchema,
+  waAgentRxKey,
+} from "@wasfa/shared/schemas/wa-agent";
 import { Redis } from "ioredis";
 import { PinoLogger } from "nestjs-pino";
 
@@ -16,6 +21,7 @@ import { WaAgentCommerceRepo, type InboundMedia } from "./agent-commerce.repo.js
 import { agentUser } from "./agent-user.js";
 import { usageReason } from "./usage-errors.js";
 
+import type { AuthenticatedUser } from "../../common/current-user.js";
 import type { AgentCall, AgentToolResult } from "../agent/tools/tool.js";
 import type { WA_AGENT_IMAGE_MIMES } from "@wasfa/shared/schemas/wa-agent";
 
@@ -128,6 +134,13 @@ export class AgentRxService {
         "EX",
         WA_AGENT_RX_TTL_SECONDS,
       );
+      // Never lets a delivery problem undo a reading that has started (and was paid for).
+      await this.announceIfFinished(user, created.id).catch((error: unknown) => {
+        this.logger.warn(
+          { rxId: created.id, reason: error instanceof Error ? error.name : "unknown" },
+          "Agent reading not announced",
+        );
+      });
       this.logger.info(
         { conversationId: call.conversationId, rxId: created.id, pages: fileIds.length },
         "Agent prescription reading started",
@@ -151,5 +164,37 @@ export class AgentRxService {
       }
       return declined(reason);
     }
+  }
+
+  /**
+   * The worker announces a finished reading to the chat only when `wa:agent:rx:<id>` exists when it
+   * ends. A cache hit ends inside `rx.create`, and a very fast reading can end before the key above
+   * is set: neither was ever announced, so the customer paid and heard nothing. Such a reading is
+   * announced here, once (NX marker).
+   */
+  private async announceIfFinished(user: AuthenticatedUser, rxId: string): Promise<void> {
+    const now = await this.rx.get(user, rxId);
+    if (now.status !== "done" && now.status !== "refunded" && now.status !== "failed") return;
+    const first = await this.redis.set(
+      `${waAgentRxKey(rxId)}:announced`,
+      "1",
+      "EX",
+      WA_AGENT_RX_TTL_SECONDS,
+      "NX",
+    );
+    if (first !== "OK") return;
+    const event = waAgentEventSchema.parse(
+      now.status === "done" ? { type: "rx_done", rxId } : { type: "rx_failed", rxId },
+    );
+    await this.redis.xadd(
+      WA_AGENT_EVENTS_STREAM,
+      "MAXLEN",
+      "~",
+      WA_AGENT_STREAM_MAXLEN,
+      "*",
+      "data",
+      JSON.stringify(event),
+    );
+    this.logger.info({ rxId, status: now.status }, "Agent reading announced (finished at start)");
   }
 }

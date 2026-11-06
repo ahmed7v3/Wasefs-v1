@@ -648,6 +648,9 @@ interface RxSetup {
   maxPagesPerRx?: number | null;
   /** Replaces `awaitProcessed` (to observe concurrency). */
   awaitProcessed?: (fileId: string) => Promise<string>;
+  /** Status of the analysis right after create (a cache hit is already "done"). */
+  rxStatus?: string;
+  rxId?: string;
 }
 
 function rxService(setup: RxSetup = {}) {
@@ -697,8 +700,9 @@ function rxService(setup: RxSetup = {}) {
         created.push(args);
         return setup.createError
           ? Promise.reject(setup.createError)
-          : Promise.resolve({ id: "rx-1" });
+          : Promise.resolve({ id: setup.rxId ?? "rx-1" });
       },
+      get: () => Promise.resolve({ id: setup.rxId ?? "rx-1", status: setup.rxStatus ?? "queued" }),
     }),
     fake({ entitlement: () => Promise.resolve({ maxPagesPerRx: setup.maxPagesPerRx ?? null }) }),
     fake({ forUser: () => Promise.resolve({ wallet: { balance: 2 } }) }),
@@ -709,7 +713,24 @@ function rxService(setup: RxSetup = {}) {
   return { service, log, created, asked, redis, waits };
 }
 
+const RX_UUID = "01a19b00-0000-7000-8000-000000000001";
+
 describe("analyze_prescription", () => {
+  it("announces a reading that already ended at start (cache hit) once, so the customer gets the result", async () => {
+    const { service, redis } = rxService({ rxStatus: "done", rxId: RX_UUID });
+    await service.analyze(call);
+    const events = redis.streams.get("wa:agent:events") ?? [];
+    expect(events).toHaveLength(1);
+    expect(JSON.parse(events[0]?.[1] ?? "{}")).toEqual({ type: "rx_done", rxId: RX_UUID });
+    expect(redis.values.get(`wa:agent:rx:${RX_UUID}:announced`)).toBe("1");
+  });
+
+  it("leaves a reading still running to the worker", async () => {
+    const { service, redis } = rxService({ rxStatus: "running" });
+    await service.analyze(call);
+    expect(redis.streams.get("wa:agent:events")).toBeUndefined();
+  });
+
   it("starts the normal rx pipeline for the imported pictures and stores the chat for the result", async () => {
     const { service, created, redis, asked } = rxService();
     const result = await service.analyze(call);
