@@ -56,7 +56,7 @@ export function AccountMenu({
       trigger={
         <>
           {/* Decorative: the name is in the label already; its initials are not (axe label-content-name-mismatch). */}
-          <span aria-hidden className="contents">
+          <span aria-hidden className="inline-flex">
             <Avatar name={shownName} src={image} size={40} />
           </span>
           <span
