@@ -74,6 +74,17 @@ export const silentLogger = {
 export class MemoryRedis {
   readonly values = new Map<string, string>();
   readonly ttls = new Map<string, number>();
+  /** XADD entries per stream: the field/value pairs after the id. */
+  readonly streams = new Map<string, string[][]>();
+
+  xadd(stream: string, ...args: Array<string | number>): Promise<string> {
+    const star = args.indexOf("*");
+    const fields = args.slice(star + 1).map(String);
+    const entries = this.streams.get(stream) ?? [];
+    entries.push(fields);
+    this.streams.set(stream, entries);
+    return Promise.resolve(`${String(entries.length)}-0`);
+  }
 
   set(key: string, value: string, ...flags: Array<string | number>): Promise<"OK" | null> {
     if (flags.includes("NX") && this.values.has(key)) return Promise.resolve(null);
