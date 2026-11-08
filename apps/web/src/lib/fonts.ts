@@ -9,13 +9,18 @@ import { IBM_Plex_Sans_Arabic } from "next/font/google";
  * preloaded, and 500/600 (loaded on demand, only when a page really uses them). The browser merges
  * the @font-face rules, so `font-medium` / `font-semibold` still resolve to the right file.
  * Preloading all four weights would add ~110 KB to every page and cost Lighthouse performance points.
+ *
+ * `display: optional` (2026-11-08): with `swap` the hero text painted in the fallback and was painted
+ * again when the font arrived, and Lighthouse counted that second paint as the LCP (~3 s on mobile).
+ * Optional uses the preloaded font when it is there within the short block period, else keeps the
+ * metric-adjusted fallback for that visit (no swap, no layout shift); the next visit has it cached.
  */
 
 /** Body text (400) and headings (700). */
 export const plexArabic = IBM_Plex_Sans_Arabic({
   subsets: ["arabic", "latin"],
   weight: ["400", "700"],
-  display: "swap",
+  display: "optional",
   variable: "--font-plex-arabic",
 });
 
@@ -23,7 +28,7 @@ export const plexArabic = IBM_Plex_Sans_Arabic({
 export const plexArabicStrong = IBM_Plex_Sans_Arabic({
   subsets: ["arabic", "latin"],
   weight: ["500", "600"],
-  display: "swap",
+  display: "optional",
   preload: false,
   variable: "--font-plex-arabic-strong",
 });
