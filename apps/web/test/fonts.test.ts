@@ -24,6 +24,7 @@ describe("fontPreloadUrls", () => {
       "/fonts/v1/plex-arabic-arabic-400.woff2",
       "/fonts/v1/plex-arabic-latin-400.woff2",
       "/fonts/v1/plex-arabic-arabic-700.woff2",
+      "/fonts/v1/plex-arabic-latin-700.woff2",
     ]);
   });
 

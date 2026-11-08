@@ -32,7 +32,12 @@ export function HomeSection({
     <section
       id={id}
       aria-labelledby={labelledBy}
-      className={cn("relative scroll-mt-20 py-16 sm:py-24", className)}
+      className={cn(
+        // Below the hero: not styled/laid out/painted until near the viewport (shorter main-thread work
+        // before the first paint); the intrinsic size keeps the scroll height stable.
+        "relative scroll-mt-20 py-16 [contain-intrinsic-size:auto_720px] [content-visibility:auto] sm:py-24",
+        className,
+      )}
     >
       <Container>{children}</Container>
     </section>

@@ -13,6 +13,7 @@ import {
   WhatsAppSection,
 } from "../../../components/early/EarlySections";
 import { JsonLd } from "../../../components/marketing/json-ld";
+import { RevealObserver } from "../../../components/visual/RevealObserver";
 import { early } from "../../../content/early";
 import { EARLY_ORIGIN } from "../../../lib/early-host";
 import { getEarlyJoined, formatCount } from "../../../lib/early-stats";
@@ -117,6 +118,7 @@ export default async function EarlyPage() {
       <JsonLd data={websiteJsonLd()} nonce={nonce} />
       <JsonLd data={softwareJsonLd()} nonce={nonce} />
       <JsonLd data={faqJsonLd(early.faq.items)} nonce={nonce} />
+      <RevealObserver />
       <EarlyJoinProvider variant={variant}>
         <EarlyHero variant={variant} detectedCountry={detectedCountry} nonce={nonce} />
         <FeatureBento />

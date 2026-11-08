@@ -1,7 +1,6 @@
 import { t } from "@wasfa/shared/i18n";
 import { headers } from "next/headers";
 import { connection } from "next/server";
-import { preload } from "react-dom";
 
 import { isProduction, publicEnv } from "../lib/env";
 import { fontPreloadUrls } from "../lib/fonts";
@@ -97,12 +96,15 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // The CSP nonce is generated per request in proxy.ts, so pages must render per request.
   await connection();
   const [locale, { branding }] = await Promise.all([requestLocale(), getPublicSettings()]);
-  // Only the active family is preloaded (React emits the <link>s into the head).
-  for (const href of fontPreloadUrls(branding.font)) {
-    preload(href, { as: "font", type: "font/woff2", crossOrigin: "anonymous" });
-  }
   return (
     <html lang={locale} dir={localeDir(locale)} data-font={branding.font}>
+      <head>
+        {/* Literal tags: `preload()` from react-dom only reached the RSC payload here, so the browser
+            found the fonts after hydration (~0.8 s) instead of with the document. Only the active family. */}
+        {fontPreloadUrls(branding.font).map((href) => (
+          <link key={href} rel="preload" href={href} as="font" type="font/woff2" crossOrigin="anonymous" />
+        ))}
+      </head>
       <body className="font-body">
         <a href="#main" className="skip-link">
           {t("common.skipToContent", undefined, locale)}

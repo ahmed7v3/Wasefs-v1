@@ -12,7 +12,8 @@ import type { SiteFont } from "@wasfa/shared/settings";
  * Optional uses the preloaded font when it is there within the short block period, else keeps the
  * metric-adjusted fallback for that visit (no swap, no layout shift); the next visit has it cached.
  *
- * Plex: body (400) and headings (700) are preloaded for Arabic, Latin only needs 400; 500/600 load on demand.
+ * Plex: only 400 (the hero text) is preloaded; 700 and the rest load on demand and, being `optional`, may
+ * miss the first visit rather than delay the paint.
  * Alan Sans is one variable file per subset (300-900); latin-ext loads on demand.
  */
 
@@ -24,6 +25,7 @@ const PRELOAD_FILES: Record<SiteFont, readonly string[]> = {
     "plex-arabic-arabic-400.woff2",
     "plex-arabic-latin-400.woff2",
     "plex-arabic-arabic-700.woff2",
+    "plex-arabic-latin-700.woff2",
   ],
   alan: ["alan-sans-arabic.woff2", "alan-sans-latin.woff2"],
 };

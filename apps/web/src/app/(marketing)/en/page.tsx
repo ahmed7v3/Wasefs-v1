@@ -7,6 +7,7 @@ import { HomeHero } from "../../../components/home/home-hero";
 import { renderHomeSection, type HomeSectionContext } from "../../../components/home/home-sections";
 import { JsonLd } from "../../../components/marketing/json-ld";
 import { Notice } from "../../../components/notice";
+import { RevealObserver } from "../../../components/visual/RevealObserver";
 import { landingEn } from "../../../content/landing.en";
 import { whatsappUrl } from "../../../lib/contact-links";
 import { publicEnv } from "../../../lib/env";
@@ -67,6 +68,7 @@ export default async function EnglishHomePage({
           <Notice>{landingEn.notices.accountDeleted}</Notice>
         </Container>
       ) : null}
+      <RevealObserver />
       <HomeHero locale={LOCALE} signedIn={signedIn} />
       {/* Sections are siblings on purpose: ad slots are inserted between them. */}
       <AdSlot

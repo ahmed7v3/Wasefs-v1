@@ -8,6 +8,7 @@ import { HomeHero } from "../../components/home/home-hero";
 import { renderHomeSection, type HomeSectionContext } from "../../components/home/home-sections";
 import { JsonLd } from "../../components/marketing/json-ld";
 import { Notice } from "../../components/notice";
+import { RevealObserver } from "../../components/visual/RevealObserver";
 import { landing } from "../../content/landing";
 import { whatsappUrl } from "../../lib/contact-links";
 import { publicEnv } from "../../lib/env";
@@ -69,6 +70,7 @@ export default async function HomePage({
           <Notice>{landing.notices.accountDeleted}</Notice>
         </Container>
       ) : null}
+      <RevealObserver />
       <HomeHero
         signedIn={signedIn}
         whatsappSignup={
