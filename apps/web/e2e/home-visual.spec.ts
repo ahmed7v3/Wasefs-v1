@@ -93,15 +93,20 @@ test("hero on a phone: badge, headline, lead, full-width action, chips, mascot",
     expect(box, selector).toBeTruthy();
     return box?.y ?? -1;
   };
-  // The mascot comes first on a phone, then the text column in reading order.
+  // On a phone the text column leads (so the headline is the LCP, not the mascot) and the mascot
+  // follows the actions and chips.
   const order = [
+    await top("[data-hero-badge]"),
+    await top("#hero-title"),
+    await top("[data-hero-lead]"),
+    await top("[data-hero-actions]"),
+    await top("[data-hero-chips]"),
     await top("[data-hero-visual]"),
-    await top("h1"),
-    await top("h1 ~ div p"),
-    await top('a[href="/register"]'),
-    await top("ul"),
   ];
-  expect(order).toEqual([...order].sort((a, b) => a - b));
+  order.forEach((value, i) => {
+    if (i > 0)
+      expect(value, `block ${i} sits below block ${i - 1}`).toBeGreaterThan(order[i - 1] ?? 0);
+  });
 
   const cta = await page
     .locator('#main section[aria-labelledby="hero-title"] a[href="/register"]')

@@ -32,18 +32,20 @@ export function HomeHero({
       <div className="mx-auto grid max-w-6xl items-center gap-6 px-5 pb-14 pt-6 sm:px-8 lg:grid-cols-[1.1fr_0.9fr] lg:gap-10 lg:pb-24 lg:pt-12">
         <div
           data-hero-visual
-          className="relative order-first mx-auto grid w-full max-w-md place-items-center lg:order-last lg:max-w-none"
+          className="relative order-first mx-auto grid w-full max-w-md place-items-center max-sm:order-last lg:order-last lg:max-w-none"
         >
           <HaloBackdrop />
           <div className="relative z-10 py-2 lg:py-6">
-            <WasfaCharacter className="max-sm:w-44!" label={scene.agentName} />
+            <WasfaCharacter className="max-sm:w-40!" label={scene.agentName} />
           </div>
         </div>
 
         <div className="min-w-0">
-          <GlassBadge className="px-4 py-1.5 text-[13px] font-semibold leading-snug text-primary sm:text-sm">
-            {hero.pill}
-          </GlassBadge>
+          <div data-hero-badge>
+            <GlassBadge className="px-4 py-1.5 text-[13px] font-semibold leading-snug text-primary sm:text-sm">
+              {hero.pill}
+            </GlassBadge>
+          </div>
           <h1
             id="hero-title"
             className="mt-5 text-[clamp(2.2rem,1.2rem+4.2vw,4rem)] font-bold leading-[1.3] text-text"
@@ -51,10 +53,13 @@ export function HomeHero({
             <span className="block">{hero.titleLines[0]}</span>
             <span className="block text-primary">{hero.titleLines[1]}</span>
           </h1>
-          <p className="mt-5 max-w-xl text-lg leading-[1.85] text-text-muted sm:text-xl">
+          <p
+            data-hero-lead
+            className="mt-5 max-w-xl text-lg leading-[1.85] text-text-muted sm:text-xl"
+          >
             {hero.lead}
           </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+          <div data-hero-actions className="mt-8 flex flex-col gap-3 sm:flex-row">
             {signedIn ? (
               <Link
                 href="/dashboard"
@@ -94,7 +99,10 @@ export function HomeHero({
           {signedIn || !whatsappSignup ? null : (
             <div className="mt-5 max-w-md">{whatsappSignup}</div>
           )}
-          <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-[15px] font-semibold text-text/80">
+          <ul
+            data-hero-chips
+            className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-[15px] font-semibold text-text/80"
+          >
             {hero.chips.map((chip) => (
               <li key={chip} className="inline-flex items-center gap-2">
                 <span className="grid size-5 place-items-center rounded-full bg-primary text-on-primary">
