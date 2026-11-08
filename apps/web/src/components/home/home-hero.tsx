@@ -75,6 +75,7 @@ export function HomeHero({
               <>
                 <Link
                   href="/register"
+                  prefetch={false}
                   className={buttonStyles({
                     size: "lg",
                     className: "w-full shadow-raised sm:w-auto",
@@ -85,6 +86,7 @@ export function HomeHero({
                 </Link>
                 <Link
                   href="/login"
+                  prefetch={false}
                   className={buttonStyles({
                     size: "lg",
                     variant: "secondary",
