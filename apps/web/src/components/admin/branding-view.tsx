@@ -2,8 +2,8 @@
 
 import { t } from "@wasfa/shared/i18n";
 import { adminSettingSchema, adminSettingsResponseSchema } from "@wasfa/shared/schemas/admin";
-import { brandingSettingsSchema, settingDefault } from "@wasfa/shared/settings";
-import { Button, Card, CardTitle, Checkbox, Field, Input, Skeleton, useToast } from "@wasfa/ui";
+import { SITE_FONTS, brandingSettingsSchema, settingDefault } from "@wasfa/shared/settings";
+import { Button, Card, CardTitle, Checkbox, Field, Input, Select, Skeleton, useToast } from "@wasfa/ui";
 
 import { api } from "../../lib/api-client";
 import { useApiForm } from "../../lib/forms";
@@ -20,11 +20,15 @@ import type { Branding } from "../brand-mark";
 const namesSchema = brandingSettingsSchema.pick({
   nameAr: true,
   nameEn: true,
+  font: true,
   showNameWithLogo: true,
   themeColor: true,
   manifestName: true,
   manifestShortName: true,
 });
+
+const PLEX_STACK = '"Wasfa Plex", "Segoe UI", Tahoma, system-ui, sans-serif';
+const ALAN_STACK = '"Wasfa Alan", "Wasfa Plex", "Segoe UI", Tahoma, system-ui, sans-serif';
 
 function NamesCard({
   branding,
@@ -42,6 +46,7 @@ function NamesCard({
     initial: {
       nameAr: branding.nameAr,
       nameEn: branding.nameEn,
+      font: branding.font,
       showNameWithLogo: branding.showNameWithLogo,
       themeColor: branding.themeColor,
       manifestName: branding.manifestName,
@@ -97,6 +102,29 @@ function NamesCard({
             />
           )}
         </Field>
+        <Field
+          label={t("admin.settings.field.branding.font")}
+          hint={t("admin.settings.help.branding.font")}
+          error={form.errors["font"]}
+          announceError={form.submitCount > 0}
+        >
+          {(control) => (
+            <Select {...control} {...form.bind("font")} disabled={!canWrite}>
+              {SITE_FONTS.map((font) => (
+                <option key={font} value={font}>
+                  {t(`admin.settings.option.branding.font.${font}`)}
+                </option>
+              ))}
+            </Select>
+          )}
+        </Field>
+        {/* Both families are declared in fonts.css, so the preview needs no extra file for the other one. */}
+        <p
+          className="rounded-md bg-neutral-100 px-4 py-3 text-base"
+          style={{ fontFamily: form.values.font === "alan" ? ALAN_STACK : PLEX_STACK }}
+        >
+          {t("admin.settings.preview.branding.font")}
+        </p>
         <Field
           label={t("admin.settings.field.branding.themeColor")}
           hint={t("admin.settings.help.branding.themeColor")}

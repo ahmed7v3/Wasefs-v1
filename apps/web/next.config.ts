@@ -19,6 +19,13 @@ const nextConfig: NextConfig = {
   rewrites: () => [
     { source: "/sitemap-articles-:n(\\d+).xml", destination: "/sitemap-articles/:n" },
   ],
+  // Font files are versioned by path (`/fonts/v1`, lib/fonts.ts), so they can be cached for good.
+  headers: () => [
+    {
+      source: "/fonts/:path*",
+      headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+    },
+  ],
   // @wasfa/ui ships TypeScript source.
   transpilePackages: ["@wasfa/ui"],
   // `experimental.inlineCss` measured 2026-10-23 (Lighthouse mobile, median of 3, production build):

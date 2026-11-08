@@ -1,12 +1,14 @@
 import { t } from "@wasfa/shared/i18n";
 import { headers } from "next/headers";
 import { connection } from "next/server";
+import { preload } from "react-dom";
 
 import { isProduction, publicEnv } from "../lib/env";
-import { plexArabic, plexArabicStrong } from "../lib/fonts";
+import { fontPreloadUrls } from "../lib/fonts";
 import { localeDir, localeFromPath, ogLocale, type Locale } from "../lib/locale";
 import { getPublicSettings } from "../lib/public-settings";
 
+import "./fonts.css";
 import "../styles/globals.css";
 
 import type { PublicSettings } from "@wasfa/shared/settings";
@@ -94,13 +96,13 @@ export async function generateViewport(): Promise<Viewport> {
 export default async function RootLayout({ children }: { children: ReactNode }) {
   // The CSP nonce is generated per request in proxy.ts, so pages must render per request.
   await connection();
-  const locale = await requestLocale();
+  const [locale, { branding }] = await Promise.all([requestLocale(), getPublicSettings()]);
+  // Only the active family is preloaded (React emits the <link>s into the head).
+  for (const href of fontPreloadUrls(branding.font)) {
+    preload(href, { as: "font", type: "font/woff2", crossOrigin: "anonymous" });
+  }
   return (
-    <html
-      lang={locale}
-      dir={localeDir(locale)}
-      className={`${plexArabic.variable} ${plexArabicStrong.variable}`}
-    >
+    <html lang={locale} dir={localeDir(locale)} data-font={branding.font}>
       <body className="font-body">
         <a href="#main" className="skip-link">
           {t("common.skipToContent", undefined, locale)}

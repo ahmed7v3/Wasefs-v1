@@ -39,6 +39,12 @@ export const arAdminBrand = {
   "admin.settings.field.branding.themeColor": "لون الهوية (#rrggbb)",
   "admin.settings.help.branding.themeColor":
     "يُستخدم لشريط المتصفح على الجوال ولخلفية أيقونة iOS والأيقونة القابلة للقص.",
+  "admin.settings.field.branding.font": "خط الموقع",
+  "admin.settings.help.branding.font":
+    "يتغيّر خط الموقع كله بالعربي والإنجليزي. بيتحمّل الخط المختار بس عشان سرعة الصفحة ما تتأثرش.",
+  "admin.settings.option.branding.font.plex": "IBM Plex Sans Arabic (الخط الحالي)",
+  "admin.settings.option.branding.font.alan": "Alan Sans",
+  "admin.settings.preview.branding.font": "وصفة AI تقرأ الروشتة بدقة · Wasfa AI reads prescriptions 0123456789",
   "admin.settings.field.branding.manifestName": "اسم التطبيق في المانيفست",
   "admin.settings.field.branding.manifestShortName": "الاسم القصير في المانيفست",
 

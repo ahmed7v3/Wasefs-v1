@@ -41,7 +41,12 @@ const brandAssetUrl = z
 
 const imageSide = z.number().int().min(1).max(8_192).nullable().default(null);
 
+/** The site typeface (apps/web `lib/fonts.ts`): IBM Plex Sans Arabic or Alan Sans. */
+export const SITE_FONTS = ["plex", "alan"] as const;
+export type SiteFont = (typeof SITE_FONTS)[number];
+
 export const brandingSettingsSchema = z.object({
+  font: z.enum(SITE_FONTS).default("plex"),
   nameAr: z.string().trim().min(1).max(60).default("وصفة AI"),
   nameEn: z.string().trim().min(1).max(60).default("Wasfa AI"),
   logoUrl: brandAssetUrl,
