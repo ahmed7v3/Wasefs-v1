@@ -2,6 +2,7 @@ import { Module, type DynamicModule, type ModuleMetadata } from "@nestjs/common"
 import { APP_FILTER, APP_PIPE } from "@nestjs/core";
 
 import { AdminModule } from "./admin/admin.module.js";
+import { AdsModule } from "./ads/ads.module.js";
 import { AlertsModule } from "./alerts/alerts.module.js";
 import { AuditModule } from "./audit/audit.module.js";
 import { AuthModule } from "./auth/auth.module.js";
@@ -108,6 +109,7 @@ export class AppModule {
         ReferralsModule,
         RewardsModule,
         GrowthModule,
+        AdsModule,
         WithdrawalsModule,
         HealthModule,
         ...extraImports,

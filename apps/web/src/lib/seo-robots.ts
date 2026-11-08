@@ -21,6 +21,8 @@ export const DISALLOWED_PATHS = [
   "/org",
   "/capture",
   "/drugs/search",
+  // First-party ad click redirect: never crawled (the route is `/a/<id>`).
+  "/a/",
 ] as const;
 
 /** Path of the IndexNow key file route; the worker sender passes it as `keyLocation`. */
@@ -48,6 +50,7 @@ const NOINDEX_PREFIXES = [
   "/verify-email",
   "/invite",
   "/join",
+  "/a",
 ] as const;
 
 export function isNoindexPath(pathname: string): boolean {

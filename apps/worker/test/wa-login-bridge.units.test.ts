@@ -54,6 +54,7 @@ function setup(options: { loginOn?: boolean; agentOn?: boolean } = {}) {
           agent: { ...settingDefault("waAgent"), enabled: options.agentOn ?? false },
           verificationOn: true,
           whatsappLoginOn: options.loginOn ?? true,
+          adsOptOutOn: true,
         }),
     },
     resolver: noLid,

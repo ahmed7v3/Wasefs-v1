@@ -128,6 +128,49 @@ export class GrowthRepo {
     };
   }
 
+  /**
+   * The first free credits the account received (a trial grant, else the first monthly grant) and how
+   * many of them are gone since (settled usage and expiry). `null` when the account never got any.
+   */
+  async trialCredits(userId: string): Promise<{ granted: number; consumed: number } | null> {
+    const rows = await this.db.execute<{ granted: number; consumed: number }>(sql`
+      with w as (select id from credit_wallets where owner_user_id = ${userId}),
+      g as (
+        select l.amount, l.created_at
+        from credit_ledger l join w on l.wallet_id = w.id
+        where l.amount > 0 and (l.kind = 'trial_grant' or (l.kind = 'grant' and l.reason like 'monthly:%'))
+        order by l.created_at asc
+        limit 1
+      )
+      select g.amount::int as granted,
+        coalesce((
+          select sum(-l.amount) from credit_ledger l join w on l.wallet_id = w.id
+          where l.kind in ('usage_settle', 'expiry') and l.created_at >= g.created_at
+        ), 0)::int as consumed
+      from g
+    `);
+    const row = rows[0];
+    return row ? { granted: row.granted, consumed: row.consumed } : null;
+  }
+
+  /** Whether the plan sells deep reading (the rx extraction entitlement lists the `deep` mode). */
+  async planHasDeep(planKey: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ id: plans.id })
+      .from(plans)
+      .innerJoin(planEntitlements, eq(planEntitlements.planId, plans.id))
+      .where(
+        and(
+          eq(plans.key, planKey),
+          eq(planEntitlements.task, "rx_extract"),
+          eq(planEntitlements.allowed, true),
+          sql`'deep' = any(${planEntitlements.modes})`,
+        ),
+      )
+      .limit(1);
+    return row !== undefined;
+  }
+
   /** The user's live subscription (active, or in grace), if any. */
   async liveSubscription(userId: string) {
     const [row] = await this.db

@@ -37,11 +37,17 @@ describe("robotsRules", () => {
 });
 
 describe("isNoindexPath", () => {
-  it.each(["/admin", "/admin/users", "/api/me", "/capture/x", "/dashboard", "/login", "/join/abc"])(
+  it.each(["/admin", "/admin/users", "/api/me", "/capture/x", "/dashboard", "/login", "/join/abc", "/a/xyz"])(
     "noindex %s",
     (path) => expect(isNoindexPath(path)).toBe(true),
   );
-  it.each(["/", "/pricing", "/en", "/privacy", "/administrator"])("indexable %s", (path) =>
+  it.each(["/", "/pricing", "/en", "/privacy", "/administrator", "/about", "/abc"])("indexable %s", (path) =>
     expect(isNoindexPath(path)).toBe(false),
   );
+});
+
+describe("ad redirect", () => {
+  it("is disallowed in robots.txt", () => {
+    expect(DISALLOWED_PATHS).toContain("/a/");
+  });
 });

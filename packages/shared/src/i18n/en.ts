@@ -1,3 +1,4 @@
+import { enAdminAds } from "./en.admin-ads.js";
 import { enAdminAi } from "./en.admin-ai.js";
 import { enAdminBilling } from "./en.admin-billing.js";
 import { enAdminConsole } from "./en.admin-console.js";
@@ -12,6 +13,7 @@ import { enAdminSeo } from "./en.admin-seo.js";
 import { enAdminSiteHealth } from "./en.admin-site-health.js";
 import { enAdminWaAgent } from "./en.admin-wa-agent.js";
 import { enAdmin } from "./en.admin.js";
+import { enAds } from "./en.ads.js";
 import { enBilling } from "./en.billing.js";
 import { enCapture } from "./en.capture.js";
 import { enChat } from "./en.chat.js";
@@ -42,6 +44,7 @@ export const en: Partial<Record<MessageKey, string>> = {
   ...enAdminSeo,
   ...enAdminSiteHealth,
   ...enAdminWaAgent,
+  ...enAdminAds,
   ...enAdminAi,
   ...enAdminBilling,
   ...enAdminGateways,
@@ -60,6 +63,7 @@ export const en: Partial<Record<MessageKey, string>> = {
   ...enOrg,
   ...enWithdrawals,
   ...enWithdrawWeb,
+  ...enAds,
   ...enGrowth,
   ...enGrowthConsole,
   ...enCapture,

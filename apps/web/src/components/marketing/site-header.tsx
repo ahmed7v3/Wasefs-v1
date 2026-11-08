@@ -89,6 +89,7 @@ export function SiteHeader({
             </span>
             <Link
               href="/login"
+              prefetch={false}
               // `max-sm:hidden`, not `hidden sm:inline-flex`: a variant is emitted after the plain
               // utilities, so it beats the `inline-flex` that `buttonStyles` already carries.
               className={buttonStyles({
@@ -101,6 +102,7 @@ export function SiteHeader({
             {/* Tighter below `sm`: "Create account" in English plus the brand overflowed 320 px. */}
             <Link
               href="/register"
+              prefetch={false}
               className={buttonStyles({
                 className: "whitespace-nowrap max-sm:px-3.5 max-sm:text-sm",
               })}

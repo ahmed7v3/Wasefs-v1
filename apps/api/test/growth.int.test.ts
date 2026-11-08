@@ -296,7 +296,7 @@ describe("GET /me/growth/prompt", () => {
     ).toBeNull();
   });
 
-  it("says when the free credits are used up, with the renewal date first", async () => {
+  it("says when the free credits are used up: calm surfaces only, trial first, renewal date first", async () => {
     const user = await person();
     await useUpMonthlyGrant(ctx.owner.db, user.userId);
     const credits = (await ctx.harness.call("GET", "/me/credits", { jar: user.jar })).json() as {
@@ -306,12 +306,31 @@ describe("GET /me/growth/prompt", () => {
     };
     // This month's free credits are spent: an empty wallet on the free plan.
     expect(credits.wallet.balance).toBe(0);
-    const res = await prompt(user, `context=credits&sessionId=${sessionId()}`);
-    expect(res.json().prompt).toMatchObject({
+    // A modal is skipped on a surface that is not calm (never downgraded to a card).
+    expect(
+      (await prompt(user, `context=credits&sessionId=${sessionId()}`)).json().prompt,
+    ).toBeNull();
+    // The first calm surface: the first free credits are gone, a modal naming a real plan.
+    const trial = (await prompt(user, `context=dashboard&sessionId=${sessionId()}`)).json();
+    expect(trial.prompt).toMatchObject({ kind: "trial_ended", form: "modal" });
+    expect(trial.prompt.content.ar.body).not.toMatch(/\{\w+\}/);
+    // Once shown (and not dismissed) it does not return; credits out takes over, before any upload.
+    await sendEvents(user, [
+      { name: "prompt_shown", sessionId: sessionId(), props: { kind: "trial_ended" } },
+    ]);
+    const out = await prompt(user, `context=analyze_start&sessionId=${sessionId()}`);
+    expect(out.json().prompt).toMatchObject({
       kind: "credits_out",
+      form: "modal",
       params: { date: credits.nextGrantAt.slice(0, 10) },
-      cta: { kind: "pack" },
+      cta: { kind: "pack", href: "/pricing" },
     });
+    // One prompt per session: the session that saw the first one gets nothing more.
+    const busy = sessionId();
+    await sendEvents(user, [
+      { name: "prompt_shown", sessionId: busy, props: { kind: "credits_out" } },
+    ]);
+    expect((await prompt(user, `context=dashboard&sessionId=${busy}`)).json().prompt).toBeNull();
   });
 
   it("needs a signed-in user and validates the query", async () => {

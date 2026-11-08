@@ -10,6 +10,16 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./ads-class": {
+      "types": "./dist/ads-class.d.ts",
+      "import": "./dist/ads-class.js",
+      "default": "./dist/ads-class.js"
+    },
+    "./ads": {
+      "types": "./dist/ads.d.ts",
+      "import": "./dist/ads.js",
+      "default": "./dist/ads.js"
+    },
     "./ai": {
       "types": "./dist/ai.d.ts",
       "import": "./dist/ai.js",
@@ -189,6 +199,11 @@
       "types": "./dist/schemas/withdrawals.d.ts",
       "import": "./dist/schemas/withdrawals.js",
       "default": "./dist/schemas/withdrawals.js"
+    },
+    "./growth-prompts": {
+      "types": "./dist/growth-prompts.d.ts",
+      "import": "./dist/growth-prompts.js",
+      "default": "./dist/growth-prompts.js"
     },
     "./growth": {
       "types": "./dist/growth.d.ts",

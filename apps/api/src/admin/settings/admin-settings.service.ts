@@ -7,6 +7,7 @@ import {
   type SettingKey,
 } from "@wasfa/shared/settings";
 
+import { PromptCopyService } from "../../growth/prompt-copy.service.js";
 import { SettingsService } from "../../settings/settings.service.js";
 
 import { AdminSettingsRepo, type SettingMeta } from "./admin-settings.repo.js";
@@ -19,6 +20,7 @@ export class AdminSettingsService {
   constructor(
     private readonly settings: SettingsService,
     private readonly repo: AdminSettingsRepo,
+    private readonly promptCopy: PromptCopyService,
   ) {}
 
   /** Every registry key with its effective value (the stored one or the code default). */
@@ -48,6 +50,12 @@ export class AdminSettingsService {
     // The WhatsApp agent is `wa_agent.write` on `/admin/wa-agent`, which also checks its media list.
     if (key === "waAgent") {
       throw new AppError(ErrorCode.FORBIDDEN, { details: { reason: "use_admin_wa_agent" } });
+    }
+    // The growth page edits the whole value too: prompt copy gets the same banned-claims check as the
+    // prompts console (the schema already refuses the terms that are never allowed).
+    if (key === "growth") {
+      const parsed = SETTINGS_REGISTRY.growth.schema.safeParse(value);
+      if (parsed.success) await this.promptCopy.assertCleanCopy(parsed.data);
     }
     await this.settings.set(key, value, { actorId, request });
     return this.item(key, (await this.repo.meta()).get(key));

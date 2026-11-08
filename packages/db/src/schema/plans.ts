@@ -36,6 +36,8 @@ export const plans = pgTable(
     nameEn: text().notNull(),
     audience: text({ enum: PLAN_AUDIENCES }).notNull().default("any"),
     isDefault: boolean().notNull().default(false),
+    // Ad-free plan (docs/ADS.md §1.7): paid plans default to true, the free plan to false.
+    adsFree: boolean().notNull().default(false),
     // Credits granted every month, as an integer count of credits.
     monthlyCredits: integer().notNull().default(0),
     visibility: text({ enum: PLAN_VISIBILITIES }).notNull().default("public"),

@@ -275,6 +275,42 @@ export async function extractCustomerPrefCommand(
   return { action, digits: command.digits, jid: `${command.digits}@s.whatsapp.net` };
 }
 
+export type AdsPrefCommand = { action: "off" | "on"; jid: string; digits: string };
+
+const ADS_OFF_WORDS = new Set(["وقف الاعلانات", "ايقاف الاعلانات", "STOP ADS", "ADS OFF"]);
+const ADS_ON_WORDS = new Set(["شغل الاعلانات", "تشغيل الاعلانات", "ADS ON", "START ADS"]);
+
+/** Folds the spellings of a keyword: diacritics, tatweel, hamza forms of alef, extra spaces, closing punctuation. */
+export function normalizeAdsKeyword(text: string): string {
+  return text
+    .normalize("NFKC")
+    .trim()
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, "")
+    .replace(/[\u0622\u0623\u0625\u0671]/g, "\u0627")
+    .replace(/[.!؟?،,]+$/u, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLocaleUpperCase();
+}
+
+/**
+ * «وقف الإعلانات» / «شغل الإعلانات» (and "stop ads" / "ads on"): the whole message is the keyword, so a
+ * sentence that merely contains it goes to the agent. Whether it is honoured is the admin's
+ * `ads.whatsapp.allowOptOut`, checked by the caller.
+ */
+export async function extractAdsPrefCommand(
+  raw: RawMessage,
+  resolver: LidResolver,
+  now = Date.now(),
+): Promise<AdsPrefCommand | null> {
+  const text = normalizeAdsKeyword(textOf(raw.message) ?? "");
+  const action = ADS_OFF_WORDS.has(text) ? "off" : ADS_ON_WORDS.has(text) ? "on" : null;
+  if (!action) return null;
+  const command = await commandOf(raw, resolver, now);
+  if (!command) return null;
+  return { action, digits: command.digits, jid: `${command.digits}@s.whatsapp.net` };
+}
+
 /** Where to answer: the chat jid as given, except hosted jids, which are answered on the phone-number jid. */
 function replyJidOf(remoteJid: string, phone: string): string {
   const server = splitJid(remoteJid)?.server;

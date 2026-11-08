@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 
 import { AuthModule } from "../auth/auth.module.js";
+import { CatalogModule } from "../catalog/catalog.module.js";
 import { CreditsModule } from "../credits/credits.module.js";
 import { OrgWalletModule } from "../orgs/wallet/wallet.module.js";
 import { PlansModule } from "../plans/plans.module.js";
@@ -9,6 +10,7 @@ import { RxModule } from "../rx/rx.module.js";
 import { MeGrowthController, PublicGrowthController } from "./growth.controller.js";
 import { GrowthRepo } from "./growth.repo.js";
 import { GrowthService } from "./growth.service.js";
+import { PromptCopyService } from "./prompt-copy.service.js";
 import { PromptsService } from "./prompts.service.js";
 import { TasteService } from "./taste.service.js";
 
@@ -18,9 +20,9 @@ import { TasteService } from "./taste.service.js";
  * experiment arms, and the marketing unsubscribe. Lifecycle mail and offer creation run in the worker.
  */
 @Module({
-  imports: [AuthModule, CreditsModule, OrgWalletModule, PlansModule, RxModule],
+  imports: [AuthModule, CatalogModule, CreditsModule, OrgWalletModule, PlansModule, RxModule],
   controllers: [MeGrowthController, PublicGrowthController],
-  providers: [GrowthRepo, GrowthService, PromptsService, TasteService],
-  exports: [GrowthRepo],
+  providers: [GrowthRepo, GrowthService, PromptCopyService, PromptsService, TasteService],
+  exports: [GrowthRepo, PromptCopyService],
 })
 export class GrowthModule {}

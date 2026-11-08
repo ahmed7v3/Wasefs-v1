@@ -138,3 +138,40 @@ Rollback: `ads.enabled = false`, prompt moments off, home sections toggled; code
 
 - The free plan's "trial": confirm it is the welcome credits (referral 20) or the first month's free credits
   (default assumed: whichever trial-period grant the user received first).
+
+## Implementation notes (apply, 2026-11-08)
+
+- Implementation branch `feat/home-ads-conversion` (worktree `../wasfa-hotfix`) is now the authoritative copy of
+  this change folder. PR #95 brings the OpenSpec setup to `main`.
+- 3.1 schema review: D4 approved as written. The floor lives in `packages/shared/src/ads.ts` (page classes
+  `conversion` and `app_sensitive` never serve; category `medicine` never approvable; the label is added by code).
+- 4.1 default copy (placeholders filled from plans/entitlements):
+  - `trial_ended` (modal), ar: title «خلصت تجربتك المجانية» · body «جرّبت وصفة وشفت النتيجة بنفسك. مع باقة {plan}
+    تقدر تحلل {analyses} روشتة في الشهر{deepLine} بـ {price} بس.» · CTA «اشترك في {plan}» · close «مش دلوقتي».
+    `{deepLine}` = «، وتفتح وضع التحليل العميق» only when the plan has the deep-mode entitlement, else empty.
+    en: «Your free trial is over» · «You have seen what Wasfa does. With {plan} you get {analyses} prescription
+    readings a month{deepLine} for {price}.» · «Subscribe to {plan}» · «Not now».
+  - `credits_out` (modal), ar: «رصيدك خلص» · «هيتجدد مجانًا يوم {renewDate}، أو كمّل دلوقتي مع باقة {plan}:
+    {analyses} روشتة في الشهر بـ {price}.» · CTA «شوف الباقات» · secondary «اشتري رصيد إضافي» · close «مش دلوقتي».
+  - Banned-claims list (settings `growth.bannedClaims`, case-insensitive): أدق, أكثر دقة, more accurate,
+    مضمون, guaranteed, علاج, شفاء, cure, يحمي صحتك, protects your health. «أدق / more accurate» is allowed only
+    when the target plan has the deep-mode entitlement.
+- Wave 1 review (2026-11-08): route classes live in colocated `ad-class.ts` files (Next 16 rejects extra
+  exports from `page.tsx`); migration `0033_ads` (when 1794113539998); `plans.ads_free` (on the plan, not the
+  per-task entitlement rows); slot cached 60 s (rotation per minute); ads-free applies to app pages (public pages
+  stay static); the token is derived from `BETTER_AUTH_SECRET` with a purpose label. Home: sections in
+  `components/home/*`, order/visibility from `landing.sections`; the WhatsApp sign-up block is Arabic-only.
+- Wave 2 review (2026-11-08): banner host in the marketing and app shell layouts, class from `x-pathname`
+  (`lib/ad-route-class.ts`, walker test); `ads.bottomBanner` setting is the single source for the banner;
+  `whatsapp.*` placement rows (0034) exist only for stats FKs and are hidden from the placements editor;
+  WhatsApp ads: `maybeWhatsAppAd` returns an offer with `confirmSent()` so caps/impressions count only
+  after a successful send, links live 30 days, opt-out keywords in the bridge; prompts: catalog under
+  `growth.prompts.catalog`, claims lint also on the generic settings save, `trial_ended` needs balance 0;
+  0035 grants `ads.read`/`ads.write` to existing `marketing` and `admin` roles. Not built: a UI for
+  `ads.maxPerPage` (API only).
+- LCP gate (owner decision 2026-11-08, "realistic gate"): Lighthouse's simulated LCP is bandwidth-bound by the
+  framework (~160 KB JS + fonts at 1.47 Mbps); with no fonts at all it is ~2.9 s, `/pricing` (untouched) is
+  ~3.6 s, while the observed real LCP of `/` is ~0.2–0.85 s. CI now fails on simulated LCP > 3.8 s (catches
+  regressions), keeps performance ≥ 0.9, CLS ≤ 0.05, TBT ≤ 200 ms; the 2.5 s target is a real-user (field) target.
+  Work done toward it: font preloads in the HTML head, 500/600 weights folded into the 400/700 files, server
+  `Reveal` with one observer island, `content-visibility:auto` on below-fold sections, JS trimming.

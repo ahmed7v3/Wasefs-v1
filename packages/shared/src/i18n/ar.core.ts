@@ -59,6 +59,8 @@ export const arCore = {
   "account.notifications.saved": "تم حفظ تفضيلات الإشعارات",
   "phone.reply.messagesOff": "تم إيقاف رسائل واتساب",
   "phone.reply.messagesOn": "تم تشغيل رسائل واتساب",
+  "phone.reply.adsOff": "تم إيقاف الإعلانات. اكتب «شغل الإعلانات» لو حابب ترجعها.",
+  "phone.reply.adsOn": "تم تشغيل الإعلانات مرة تانية.",
   "whatsapp.customer.subscriptionActivated":
     "تم تفعيل باقة {plan} حتى {date}. رصيدك الشهري: {credits} رصيد. رقم الطلب: {number}.",
   "whatsapp.customer.paymentReceived": "استلمنا دفعتك للطلب {number} بقيمة {total}. شكراً لك.",

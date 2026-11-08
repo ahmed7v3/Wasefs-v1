@@ -20,3 +20,14 @@ if (
     this.dispatchEvent(new Event("close"));
   };
 }
+
+// jsdom has no matchMedia: the visual primitives (Reveal, the mascot) ask for reduced motion.
+if (typeof window !== "undefined" && typeof window.matchMedia !== "function") {
+  window.matchMedia = (query: string) =>
+    ({
+      matches: false,
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }) as unknown as MediaQueryList;
+}

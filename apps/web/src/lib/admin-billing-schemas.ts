@@ -409,6 +409,7 @@ export const adminPlanSchema = z.object({
   ),
   trialDays: z.number(),
   pinRecommended: z.boolean(),
+  adsFree: z.boolean(),
   maxMembers: z.number().nullable(),
   fairUseNoteAr: z.string().nullable(),
   fairUseNoteEn: z.string().nullable(),

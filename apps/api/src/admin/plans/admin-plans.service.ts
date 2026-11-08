@@ -41,6 +41,7 @@ export const PLAN_AUDIT_FIELDS = [
   "features",
   "trialDays",
   "pinRecommended",
+  "adsFree",
   "maxMembers",
   "fairUseNoteAr",
   "fairUseNoteEn",
@@ -70,6 +71,7 @@ const planFields = (plan: Plan) => ({
   features: plan.features,
   trialDays: plan.trialDays,
   pinRecommended: plan.pinRecommended,
+  adsFree: plan.adsFree,
   maxMembers: plan.maxMembers,
   fairUseNoteAr: plan.fairUseNoteAr,
   fairUseNoteEn: plan.fairUseNoteEn,
@@ -152,7 +154,9 @@ export class AdminPlansService {
   }
 
   async create(input: CreatePlanInput, audit: AuditScope): Promise<PlanView> {
-    const created = await this.repo.create(input);
+    // Paid plans are ad-free unless the admin says otherwise; the default (free) plan is not.
+    const { adsFree, ...rest } = input;
+    const created = await this.repo.create({ ...rest, adsFree: adsFree ?? !input.isDefault });
     if (!created) throw conflict("plan_key_exists");
     audit.targetId = created.id;
     audit.after = auditFields(created);

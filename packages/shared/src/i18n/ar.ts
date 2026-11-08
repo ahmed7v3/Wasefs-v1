@@ -1,3 +1,4 @@
+import { arAdminAds } from "./ar.admin-ads.js";
 import { arAdminAi } from "./ar.admin-ai.js";
 import { arAdminBilling } from "./ar.admin-billing.js";
 import { arAdminBrand } from "./ar.admin-brand.js";
@@ -14,6 +15,7 @@ import { arAdminSettings } from "./ar.admin-settings.js";
 import { arAdminSiteHealth } from "./ar.admin-site-health.js";
 import { arAdminWaAgent } from "./ar.admin-wa-agent.js";
 import { arAdmin } from "./ar.admin.js";
+import { arAds } from "./ar.ads.js";
 import { arBilling } from "./ar.billing.js";
 import { arCapture } from "./ar.capture.js";
 import { arChat } from "./ar.chat.js";
@@ -51,6 +53,7 @@ export const ar = {
   ...arAdminSeo,
   ...arAdminSiteHealth,
   ...arAdminWaAgent,
+  ...arAdminAds,
   ...arAdminBrand,
   ...arAdminDrugs,
   ...arAdminEvals,
@@ -62,6 +65,7 @@ export const ar = {
   ...arOrg,
   ...arWithdrawals,
   ...arWithdrawWeb,
+  ...arAds,
   ...arGrowth,
   ...arGrowthConsole,
   ...arCapture,

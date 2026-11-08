@@ -11,7 +11,7 @@
 2. **Ad selection never uses health data.** Targeting is limited to page section/category (contextual), locale, device class and country. No user profile, no prescription, analysis, chat or medicine-history signal is used or shared. Advertisers receive aggregate reports only.
 3. **No prescription-only medicine advertising** to the public (prohibited in Egypt and Saudi Arabia, among others); and **no medicine advertising at all on medicine pages** (prevents implied endorsement next to clinical information). Creative categories are reviewed before approval (§6).
 4. **Always labelled** «إعلان» / "Sponsored", visually distinct from editorial content and from our own product blocks; links carry `rel="sponsored noopener"`.
-5. **No intrusive formats:** no pop-ups, interstitials, auto-playing audio, expanding units, sticky mobile anchors that cover content, or ads above the H1 on mobile. These also hurt search (Google's intrusive-interstitial guidance) and trust.
+5. **No covering formats:** no interstitials, auto-playing audio or expanding units, and nothing that covers content. The closable bottom banner (`global.bottom_banner`) is allowed because it reserves its own space and stays closed for the admin-set number of days (owner decision 2026-11-08). Upgrade modals are not ads; see GROWTH-STRATEGY §2.
 6. **Zero layout shift and no render blocking:** every slot reserves its box server-side; direct-sold ads need no ad JavaScript.
 7. **Paid plans can be ad-free** (`ads_free` plan entitlement, default on for paid plans; editable in the existing entitlements editor).
 
@@ -21,7 +21,7 @@
 
 | Class | Pages | Ads |
 |---|---|---|
-| `marketing` | home, features, audiences, about | allowed (max 1 per page; never in the hero) |
+| `marketing` | home, features, audiences, about | allowed (density set in the admin, `ads.maxPerPage`; never in the hero) |
 | `conversion` | pricing, register, login, checkout, order pages, join/invite | **never** (protects conversion and payment trust) |
 | `content` | blog home, categories, tags, articles, guides, glossary | allowed (rules §3) |
 | `medical_reference` | drug hub, ingredient, brand and class pages | allowed with stricter rules (§3.3) |
@@ -53,6 +53,7 @@ The class is declared by each route segment (`export const adClass = "content"`)
 | `app.analyze.waiting` | app_neutral | the processing panel, below the progress steps | native card | off |
 
 ### 3.1 Density limits (settings `ads.maxPerPage`, defaults)
+> 2026-11-08: density per page class is admin-configurable (maximum placement, owner decision); the defaults below are the shipped defaults, not limits. The non-configurable floor is §1 rules 1–4 and 6, enforced in `@wasfa/shared/ads` and a database check.
 Article: 3 on desktop (2 inline + sidebar) and 2 on mobile, plus `article.end`. Glossary: 1. Drug pages: 2. Marketing: 1. App neutral: 1. A page never shows two ads of the same advertiser.
 
 ### 3.2 Spacing rules (enforced by the renderer)
@@ -130,3 +131,13 @@ Placements (list with class, status, density, preview of where it renders on des
 
 ## 9. Tests (minimum)
 Route-class walk (every route declares a class; sensitive classes render no slot even if a booking targets them); density and spacing rules on article fixtures; ad-free entitlement hides slots; selection (exclusive vs weighted, frequency cap, one-per-advertiser); click token signing/expiry and open-redirect protection; viewability beacon carries no identifier; CLS = 0 with slots on (Playwright layout-shift observer); CSP unchanged when the network provider is off; reports reconcile `ad_stats_daily` with logs.
+
+## 10. As built (home-ads-conversion, 2026-11-08)
+
+- Spec: `openspec/specs/ads/placements` and `openspec/specs/ads/whatsapp-ads` (after archive; until then
+  `openspec/changes/home-ads-conversion`).
+- Tables `ad_placements`, `advertisers`, `ad_creatives` (channels web/whatsapp), `ad_stats_daily` (migrations
+  0033–0035); admin `/admin/ads`; permissions `ads.read` / `ads.write`; page class per route in `ad-class.ts`.
+- WhatsApp ads: after a delivered analysis result only (command triggers when the command layer ships),
+  probability and caps in `ads.whatsapp`, opt-out «وقف الإعلانات»; selection never uses message or
+  prescription content.

@@ -170,6 +170,16 @@ export function PlanOverviewTab({ draft, disabled, onChange }: PlanOverviewTabPr
             }}
           />
           <p className="ms-9 text-sm text-text-muted">{t("admin.pricing.plan.pinHint")}</p>
+          <Checkbox
+            label={t("admin.pricing.plan.adsFree")}
+            name="adsFree"
+            disabled={disabled}
+            checked={draft.adsFree}
+            onChange={(event) => {
+              onChange({ adsFree: event.target.checked });
+            }}
+          />
+          <p className="ms-9 text-sm text-text-muted">{t("admin.pricing.plan.adsFreeHint")}</p>
         </div>
       </Section>
 

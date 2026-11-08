@@ -3,10 +3,11 @@ import { headers } from "next/headers";
 import { connection } from "next/server";
 
 import { isProduction, publicEnv } from "../lib/env";
-import { plexArabic, plexArabicStrong } from "../lib/fonts";
+import { fontPreloadUrls } from "../lib/fonts";
 import { localeDir, localeFromPath, ogLocale, type Locale } from "../lib/locale";
 import { getPublicSettings } from "../lib/public-settings";
 
+import "./fonts.css";
 import "../styles/globals.css";
 
 import type { PublicSettings } from "@wasfa/shared/settings";
@@ -94,13 +95,16 @@ export async function generateViewport(): Promise<Viewport> {
 export default async function RootLayout({ children }: { children: ReactNode }) {
   // The CSP nonce is generated per request in proxy.ts, so pages must render per request.
   await connection();
-  const locale = await requestLocale();
+  const [locale, { branding }] = await Promise.all([requestLocale(), getPublicSettings()]);
   return (
-    <html
-      lang={locale}
-      dir={localeDir(locale)}
-      className={`${plexArabic.variable} ${plexArabicStrong.variable}`}
-    >
+    <html lang={locale} dir={localeDir(locale)} data-font={branding.font}>
+      <head>
+        {/* Literal tags: `preload()` from react-dom only reached the RSC payload here, so the browser
+            found the fonts after hydration (~0.8 s) instead of with the document. Only the active family. */}
+        {fontPreloadUrls(branding.font).map((href) => (
+          <link key={href} rel="preload" href={href} as="font" type="font/woff2" crossOrigin="anonymous" />
+        ))}
+      </head>
       <body className="font-body">
         <a href="#main" className="skip-link">
           {t("common.skipToContent", undefined, locale)}

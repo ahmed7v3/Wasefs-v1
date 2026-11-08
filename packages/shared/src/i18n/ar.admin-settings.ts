@@ -299,6 +299,10 @@ export const arAdminSettings = {
     "إذا أغلق المستخدم رسالة لا تظهر له مرة أخرى قبل هذه المدة. تتضاعف المدة كلما أغلقها.",
   "admin.settings.field.growth.prompts.maxCooldownDays": "أقصى مدة انتظار",
   "admin.settings.help.growth.prompts.maxCooldownDays": "حد أعلى لمدة الانتظار بعد تضاعفها.",
+  "admin.settings.field.growth.prompts.catalog": "رسائل الترقية (التفاصيل)",
+  "admin.settings.help.growth.prompts.catalog": "عدّل كل رسالة من صفحة رسائل الترقية: النص والشكل والباقة.",
+  "admin.settings.field.growth.bannedClaims": "عبارات ممنوعة في رسائل الترقية",
+  "admin.settings.help.growth.bannedClaims": "أي رسالة فيها واحدة من العبارات دي تترفض عند الحفظ.",
   "admin.settings.field.growth.prompts.maxPerSession": "أقصى رسائل في الزيارة الواحدة",
   "admin.settings.field.growth.taste.enabled": "تفعيل التجربة المجانية للميزات",
   "admin.settings.field.growth.taste.weeklyCap": "عدد التجارب للمنصة كلها",
@@ -406,6 +410,9 @@ export const arAdminSettings = {
   "admin.pricing.plan.audienceHint":
     "«الأفراد» يشتريها الشخص لنفسه، و«المؤسسات» تشتريها مؤسسة لأعضائها، و«الجميع» للطرفين.",
   "admin.pricing.plan.pinHint": "تُبرز البطاقة في صفحة الأسعار بعلامة «موصى بها». باقة واحدة تكفي.",
+  "admin.pricing.plan.adsFree": "بدون إعلانات",
+  "admin.pricing.plan.adsFreeHint":
+    "مشتركو هذه الباقة لا يرون إعلانات داخل التطبيق. مفعّل افتراضيًا للباقات المدفوعة.",
   "admin.pricing.plan.section.sale": "الظهور ومواعيد التوفر",
   "admin.pricing.plan.section.sale.description":
     "متى يستطيع العملاء رؤية الباقة وشراؤها. المشتركون الحاليون لا يتأثرون بأي تغيير هنا.",

@@ -9,7 +9,7 @@
  * so it carries no number.
  */
 
-/** The mascot family (components/marketing/mascot.tsx draws one symbol per name). */
+/** The mascot family (components/marketing/mascot.tsx draws one symbol per name; the home skills section maps each to an icon). */
 export type MascotName = "star" | "capsule" | "hexagon" | "droplet" | "tablet" | "blob" | "clover";
 /** Colour family of a skill or audience card; the component maps it to token classes. */
 export type Tone = "navy" | "coral" | "teal" | "amber" | "olive" | "indigo";
@@ -97,6 +97,7 @@ export const landing = {
     titleLines: ["روشتتك مفهومة في ثوانٍ…", "حتى من واتساب"],
     lead: "صوّر أي روشتة، حتى المكتوبة بخط اليد، واعرف كل دواء وجرعته ومواعيده. ثم تحدّث مع مساعد ذكي على الموقع أو من واتساب. وصفة تساعدك على الفهم ولا تحل محل الطبيب أو الصيدلي.",
     primaryCta: "ابدأ مجانًا",
+    dashboardCta: "افتح لوحة التحكم",
     whatsappCta: "كلّم وصفة على واتساب",
     whatsappGreeting: "مرحبًا وصفة",
     chips: ["بدون تثبيت تطبيق", "عربي 100%", "خصوصيتك محمية"],

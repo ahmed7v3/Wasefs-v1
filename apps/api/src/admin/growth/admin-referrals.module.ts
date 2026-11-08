@@ -1,5 +1,7 @@
 import { Module } from "@nestjs/common";
 
+import { GrowthModule } from "../../growth/growth.module.js";
+
 import { AdminDealsModule } from "./admin-deals.module.js";
 import { AdminExperimentsController } from "./admin-experiments.controller.js";
 import { AdminExperimentsRepo } from "./admin-experiments.repo.js";
@@ -7,6 +9,9 @@ import { AdminExperimentsService } from "./admin-experiments.service.js";
 import { AdminFraudController } from "./admin-fraud.controller.js";
 import { AdminFraudRepo } from "./admin-fraud.repo.js";
 import { AdminFraudService } from "./admin-fraud.service.js";
+import { AdminPromptsController } from "./admin-prompts.controller.js";
+import { AdminPromptsRepo } from "./admin-prompts.repo.js";
+import { AdminPromptsService } from "./admin-prompts.service.js";
 import { AdminReferralCodesController } from "./admin-referral-codes.controller.js";
 import { AdminReferralCodesRepo } from "./admin-referral-codes.repo.js";
 import { AdminReferralCodesService } from "./admin-referral-codes.service.js";
@@ -22,17 +27,20 @@ import { AdminRewardConfigService } from "./admin-reward-config.service.js";
  * console API (Task 3.13). Codes attach deals through the deals service.
  */
 @Module({
-  imports: [AdminDealsModule],
+  imports: [AdminDealsModule, GrowthModule],
   controllers: [
     AdminReferralsController,
     AdminRewardConfigController,
     AdminReferralCodesController,
     AdminFraudController,
     AdminExperimentsController,
+    AdminPromptsController,
   ],
   providers: [
     AdminExperimentsRepo,
     AdminExperimentsService,
+    AdminPromptsRepo,
+    AdminPromptsService,
     AdminReferralsRepo,
     AdminReferralsService,
     AdminRewardConfigRepo,

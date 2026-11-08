@@ -7,6 +7,12 @@ export const arAdminBrand = {
   "admin.settings.landing.title": "الصفحة الرئيسية",
   "admin.settings.landing.description":
     "أرقام القياس وروابط التطبيقات وقائمة الانتظار. هذه القيم ظاهرة للعامة.",
+  "admin.settings.section.landing.sections": "أقسام الصفحة",
+  "admin.settings.section.landing.sections.description":
+    "رتّب أقسام الصفحة الرئيسية أو أخفِ أحدها. القيمة قائمة JSON فيها key (whatsapp, skills, precision, how, audiences, trust, faq, apps, final) و enabled و order تصاعديًا.",
+  "admin.settings.field.landing.sections": "الأقسام (ترتيب وإظهار)",
+  "admin.settings.help.landing.sections":
+    "أي قسم غير مذكور يظهر في مكانه الافتراضي بعد المذكورة. البطل (أول الصفحة) ثابت.",
   "admin.settings.section.landing.proof": "أرقام القياس",
   "admin.settings.section.landing.proof.description":
     "تظهر في قسم الدقة فقط عندما تُملأ. اتركها فارغة حتى تقيسها فعلًا.",
@@ -33,6 +39,12 @@ export const arAdminBrand = {
   "admin.settings.field.branding.themeColor": "لون الهوية (#rrggbb)",
   "admin.settings.help.branding.themeColor":
     "يُستخدم لشريط المتصفح على الجوال ولخلفية أيقونة iOS والأيقونة القابلة للقص.",
+  "admin.settings.field.branding.font": "خط الموقع",
+  "admin.settings.help.branding.font":
+    "يتغيّر خط الموقع كله بالعربي والإنجليزي. بيتحمّل الخط المختار بس عشان سرعة الصفحة ما تتأثرش.",
+  "admin.settings.option.branding.font.plex": "IBM Plex Sans Arabic (الخط الحالي)",
+  "admin.settings.option.branding.font.alan": "Alan Sans",
+  "admin.settings.preview.branding.font": "وصفة AI تقرأ الروشتة بدقة · Wasfa AI reads prescriptions 0123456789",
   "admin.settings.field.branding.manifestName": "اسم التطبيق في المانيفست",
   "admin.settings.field.branding.manifestShortName": "الاسم القصير في المانيفست",
 

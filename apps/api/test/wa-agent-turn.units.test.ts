@@ -44,6 +44,7 @@ class FakeRepo {
     lastInboundAt: null,
     lastOutboundAt: null,
     summary: null,
+    adsOptOut: false,
     createdAt: new Date(START),
     updatedAt: new Date(START),
   };

@@ -13,6 +13,7 @@ export const landingEn: typeof landing = {
     titleLines: ["Your prescription, clear in seconds…", "even from WhatsApp"],
     lead: "Snap any prescription, even a handwritten one, and know every medicine, its dose and its schedule. Then chat with a smart assistant on the website or on WhatsApp. Wasfa helps you understand and does not replace your doctor or pharmacist.",
     primaryCta: "Start free",
+    dashboardCta: "Open your dashboard",
     whatsappCta: "Chat with Wasfa on WhatsApp",
     whatsappGreeting: "Hello Wasfa",
     chips: ["No app to install", "100% Arabic", "Your privacy protected"],

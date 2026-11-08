@@ -64,6 +64,7 @@ export class AdminBillingCatalogService {
         features: plan.features,
         trialDays: plan.trialDays,
         pinRecommended: plan.pinRecommended,
+        adsFree: plan.adsFree,
         maxMembers: plan.maxMembers,
         fairUseNoteAr: plan.fairUseNoteAr,
         fairUseNoteEn: plan.fairUseNoteEn,

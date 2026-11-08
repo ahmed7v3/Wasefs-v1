@@ -7,6 +7,7 @@ import { finishOnboarding, newAccount, signedInAccount } from "./support/account
 import { expectAccessible } from "./support/axe";
 import { useUpMonthlyGrant } from "./support/billing";
 import { expect, test, watchCsp } from "./support/fixtures";
+import { dismissGrowthPrompt } from "./support/prompts";
 
 import type { BrowserContext, Page } from "@playwright/test";
 
@@ -113,6 +114,7 @@ async function openAnalyze(
   await finishOnboarding(page.request, urls, account.name);
   if (options.creditsUsedUp) useUpMonthlyGrant(account.email);
   await page.goto("/analyze");
+  await dismissGrowthPrompt(page);
   await expect(page.getByRole("heading", { name: t("capture.empty.title") })).toBeVisible();
 }
 

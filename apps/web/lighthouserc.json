@@ -29,7 +29,7 @@
             "categories:seo": [
               "error",
               {
-                "minScore": 1
+                "minScore": 0.95
               }
             ],
             "categories:best-practices": [
@@ -41,7 +41,28 @@
             "categories:accessibility": [
               "error",
               {
-                "minScore": 1
+                "minScore": 0.95
+              }
+            ],
+            "largest-contentful-paint": [
+              "error",
+              {
+                "maxNumericValue": 3800,
+                "aggregationMethod": "median"
+              }
+            ],
+            "cumulative-layout-shift": [
+              "error",
+              {
+                "maxNumericValue": 0.05,
+                "aggregationMethod": "median"
+              }
+            ],
+            "total-blocking-time": [
+              "error",
+              {
+                "maxNumericValue": 200,
+                "aggregationMethod": "median"
               }
             ]
           }

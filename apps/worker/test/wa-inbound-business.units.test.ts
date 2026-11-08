@@ -265,6 +265,7 @@ describe("a code from a sender that cannot be resolved", () => {
             agent: settingDefault("waAgent"),
             verificationOn: true,
             whatsappLoginOn: true,
+            adsOptOutOn: true,
           }),
       },
       resolver: noLid,

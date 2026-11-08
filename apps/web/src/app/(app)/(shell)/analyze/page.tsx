@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { AnalyzeCapture } from "../../../../components/capture/analyze-capture";
 import { VerificationBanner } from "../../../../components/dashboard/verification-banner";
+import { PromptSlot } from "../../../../components/growth/prompt-slot";
 import { getNonce } from "../../../../lib/nonce";
 import { getPublicSettings } from "../../../../lib/public-settings";
 import { requireOnboarded, serverApi } from "../../../../lib/session";
@@ -39,11 +40,15 @@ export default async function AnalyzePage() {
       {credits === null ? (
         <VerificationBanner me={me} nonce={nonce} />
       ) : (
-        <AnalyzeCapture
-          maxPages={settings.rx.maxPages}
-          creditsPerPage={settings.rx.creditsPerPage}
-          balance={credits.wallet.balance}
-        />
+        <>
+          {/* The start screen is a calm surface: the credits-out moment may speak here, before any upload. */}
+          <PromptSlot context="analyze_start" />
+          <AnalyzeCapture
+            maxPages={settings.rx.maxPages}
+            creditsPerPage={settings.rx.creditsPerPage}
+            balance={credits.wallet.balance}
+          />
+        </>
       )}
       <p className="text-sm text-text-muted">{t("home.disclaimer")}</p>
     </div>

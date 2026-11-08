@@ -232,6 +232,27 @@
       "when": 1793797623734,
       "tag": "0032_early_access",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1794113539998,
+      "tag": "0033_ads",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794115399932,
+      "tag": "0034_ads_opt_out",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1794130022957,
+      "tag": "0035_ads_role_grants",
+      "breakpoints": true
     }
   ]
 }

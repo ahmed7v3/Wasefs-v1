@@ -1,12 +1,15 @@
 import { headers } from "next/headers";
 
+import { BottomBannerHost } from "../../components/ads/bottom-banner-host";
 import { ContactHub } from "../../components/contact-hub";
+import { JsonLd } from "../../components/marketing/json-ld";
 import { SiteFooter } from "../../components/marketing/site-footer";
 import { SiteHeader } from "../../components/marketing/site-header";
 import { VitalsBeacon } from "../../components/vitals-beacon";
 import { hasPublicContent } from "../../lib/content-api";
 import { publicEnv } from "../../lib/env";
 import { localeFromPath } from "../../lib/locale";
+import { layoutBreadcrumb } from "../../lib/page-breadcrumb";
 import { getPublicSettings } from "../../lib/public-settings";
 import { vitalsRoute } from "../../lib/route-template";
 
@@ -28,8 +31,12 @@ export default async function MarketingLayout({ children }: { children: ReactNod
     guides: false,
     glossary: false,
   }));
+  const breadcrumb = layoutBreadcrumb(path, locale, publicEnv.NEXT_PUBLIC_SITE_URL);
   return (
     <div className="marketing-type relative isolate flex min-h-dvh flex-col">
+      {breadcrumb ? (
+        <JsonLd data={breadcrumb} nonce={requestHeaders.get("x-nonce") ?? undefined} />
+      ) : null}
       {/* One faint lattice behind the top of every public page (the landing hero included). */}
       <div aria-hidden="true" className="lattice absolute inset-x-0 top-0 -z-10 h-176" />
       <SiteHeader locale={locale} path={path} content={content} />
@@ -38,6 +45,7 @@ export default async function MarketingLayout({ children }: { children: ReactNod
       </main>
       <SiteFooter settings={settings} locale={locale} path={path} content={content} />
       <ContactHub contact={settings.contact} locale={locale} />
+      <BottomBannerHost locale={locale} />
       <VitalsBeacon
         route={vitalsRoute(path)}
         endpoint={`${publicEnv.NEXT_PUBLIC_API_URL}/public/vitals`}

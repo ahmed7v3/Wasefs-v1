@@ -17,7 +17,7 @@ People pay when three things are true at the same time: they **felt the product 
 2. claim scarcity that is not true ("آخر 3 أماكن") or social proof that is invented or too small to be credible;
 3. add fees, items or steps after the Pay click, or pre-check any add-on or auto-renewal;
 4. use fear about health or confirm-shaming copy ("لا، لا أهتم بصحتي");
-5. interrupt a task, an upload, an analysis or an error screen with an upsell;
+5. interrupt a task, an upload, an analysis or an error screen with an upsell; a **modal** is allowed only for the trial-ended and credits-out moments, only on calm surfaces (dashboard, analyze start before any upload), at most once per session (owner decision 2026-11-08);
 6. show more than **one** upgrade prompt per session, or the same prompt again before its cooldown (default 7 days, doubling after each dismissal, never beyond 60 days);
 7. make cancelling or declining harder than subscribing;
 8. gate the safety-critical parts of a result (warnings, "unreadable" notes, disclaimers) behind payment.
@@ -47,7 +47,7 @@ visit ─► sign up ─► verify ─► FIRST ANALYSIS (activation) ─► rep
 
 ## 4. Contextual prompts ("value moments")
 
-A **moment** fires only when its condition is true and the frequency caps allow it. Display forms: an inline card below content (never a modal), or a dismissible banner in the app shell. The engine is `GrowthService.nextPrompt(user, context)` returning at most one prompt; the web renders it and reports `shown / clicked / dismissed`.
+A **moment** fires only when its condition is true and the frequency caps allow it. Display forms: an inline card below content, a dismissible banner in the app shell, or a modal for the trial-ended and credits-out moments on calm surfaces only. Every prompt's form, copy, plan and cooldown are edited in /admin/growth/prompts; copy is checked against the banned-claims list on save. The engine is `GrowthService.nextPrompt(user, context)` returning at most one prompt; the web renders it and reports `shown / clicked / dismissed`.
 
 | Moment | Condition | What the user sees (sample Arabic) | Plan angle |
 |---|---|---|---|

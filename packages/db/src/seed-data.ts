@@ -56,6 +56,8 @@ export const SYSTEM_ROLE_SEEDS: readonly SystemRoleSeed[] = [
       "content.read",
       "content.write",
       "content.publish",
+      "ads.read",
+      "ads.write",
     ],
   },
   {
@@ -112,6 +114,8 @@ export const SYSTEM_ROLE_SEEDS: readonly SystemRoleSeed[] = [
       "content.publish",
       "content.review",
       "content.manage",
+      "ads.read",
+      "ads.write",
     ],
   },
   { key: "super_admin", name: { ar: "مدير عام", en: "Super admin" }, permissions: PERMISSION_KEYS },

@@ -13,12 +13,12 @@ import {
 } from "lucide-react";
 
 import { early, type FeatureIcon } from "../../content/early";
+import { GlassBadge } from "../visual/GlassSurface";
+import { IsoIllustration } from "../visual/IsoIllustration";
+import { Reveal } from "../visual/Reveal";
+import { WhatsAppChatMock } from "../visual/WhatsAppChatMock";
 
 import { PhoneCapture } from "./PhoneCapture";
-import { GlassBadge } from "./visual/GlassSurface";
-import { IsoIllustration } from "./visual/IsoIllustration";
-import { Reveal } from "./visual/Reveal";
-import { WhatsAppChatMock } from "./visual/WhatsAppChatMock";
 
 import type { ReactNode } from "react";
 

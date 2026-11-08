@@ -1,6 +1,8 @@
 import { z } from "zod";
 
+import { adsSettingsSchema } from "./ads.js";
 import { accessSettingsSchema, authSettingsSchema } from "./auth-settings.js";
+import { DEFAULT_BANNED_CLAIMS, findBannedClaim, promptCatalogSchema, promptTexts } from "./growth-prompts.js";
 import { LOCALES } from "./i18n/locales.js";
 import { emailSchema, phoneNumberSchema } from "./schemas/auth.js";
 import { earlyAccessSettingsSchema } from "./schemas/early-access.js";
@@ -39,7 +41,12 @@ const brandAssetUrl = z
 
 const imageSide = z.number().int().min(1).max(8_192).nullable().default(null);
 
+/** The site typeface (apps/web `lib/fonts.ts`): IBM Plex Sans Arabic or Alan Sans. */
+export const SITE_FONTS = ["plex", "alan"] as const;
+export type SiteFont = (typeof SITE_FONTS)[number];
+
 export const brandingSettingsSchema = z.object({
+  font: z.enum(SITE_FONTS).default("plex"),
   nameAr: z.string().trim().min(1).max(60).default("وصفة AI"),
   nameEn: z.string().trim().min(1).max(60).default("Wasfa AI"),
   logoUrl: brandAssetUrl,
@@ -64,7 +71,39 @@ export const brandingSettingsSchema = z.object({
  * an admin sets them only from measured data (never a made-up number). The app chips turn into
  * store badges when a listing URL exists; the waitlist form shows only while `waitlistEnabled`.
  */
+export const LANDING_SECTION_KEYS = [
+  "whatsapp",
+  "skills",
+  "precision",
+  "how",
+  "audiences",
+  "trust",
+  "faq",
+  "apps",
+  "final",
+] as const;
+export type LandingSectionKey = (typeof LANDING_SECTION_KEYS)[number];
+
+export const landingSectionSchema = z.object({
+  key: z.enum(LANDING_SECTION_KEYS),
+  enabled: z.boolean().default(true),
+  /** Ascending; ties keep the default order. */
+  order: z.number().int().min(0).max(1000),
+});
+
+/** The current home page: every section on, in the order the page has always had. */
+export const DEFAULT_LANDING_SECTIONS: z.infer<typeof landingSectionSchema>[] =
+  LANDING_SECTION_KEYS.map((key, index) => ({ key, enabled: true, order: (index + 1) * 10 }));
+
 export const landingSettingsSchema = z.object({
+  /**
+   * Which home sections show and in what order (the hero is fixed). A stored value saved before
+   * this field existed parses to the default page.
+   */
+  sections: z
+    .array(landingSectionSchema)
+    .max(LANDING_SECTION_KEYS.length)
+    .default(DEFAULT_LANDING_SECTIONS),
   proof: z
     .object({
       /** Average analysis time in seconds, e.g. 12.5. */
@@ -386,8 +425,15 @@ export const growthSettingsSchema = z.object({
       /** The doubling cooldown after repeated dismissals never goes beyond this (GROWTH §2.6). */
       maxCooldownDays: z.number().int().min(1).max(365).default(60),
       maxPerSession: z.number().int().min(0).max(10).default(1),
+      /**
+       * One entry per prompt kind (form, copy, target plan, destination, cooldown); a kind missing here
+       * uses its default from `DEFAULT_PROMPT_CATALOG`. Modals are accepted for calm moments only.
+       */
+      catalog: promptCatalogSchema.default({}),
     })
-    .default({ enabled: true, cooldownDays: 7, maxCooldownDays: 60, maxPerSession: 1 }),
+    .default({ enabled: true, cooldownDays: 7, maxCooldownDays: 60, maxPerSession: 1, catalog: {} }),
+  /** Terms prompt copy may never contain (the admin save refuses them; the deep-mode pair needs the entitlement). */
+  bannedClaims: z.array(z.string().trim().min(1).max(60)).max(100).default([...DEFAULT_BANNED_CLAIMS]),
   taste: z
     .object({
       enabled: z.boolean().default(true),
@@ -435,6 +481,19 @@ export const growthSettingsSchema = z.object({
       validityDays: z.number().int().min(1).max(90).default(7),
     })
     .default({ enabled: true, validityDays: 7 }),
+}).superRefine((growth, ctx) => {
+  // The terms that are never allowed; the deep-mode pair depends on the target plan and is checked
+  // by the api on save (it needs the plan's entitlements).
+  for (const [kind, entry] of Object.entries(growth.prompts.catalog)) {
+    const term = findBannedClaim(promptTexts(entry), growth.bannedClaims, true);
+    if (term !== null) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["prompts", "catalog", kind, "copy"],
+        message: `banned_claim:${term}`,
+      });
+    }
+  }
 });
 
 /** AI crawlers the owner can switch per bot (SEO-GEO §10.4); search engines are always allowed. */
@@ -761,6 +820,8 @@ export const SETTINGS_REGISTRY = {
   billing: { schema: billingSettingsSchema, visibility: "admin" },
   rewards: { schema: rewardsSettingsSchema, visibility: "admin" },
   growth: { schema: growthSettingsSchema, visibility: "admin" },
+  /** Admin only: the global ad switch, density per page class, banner defaults, WhatsApp ad limits. */
+  ads: { schema: adsSettingsSchema, visibility: "admin" },
   /** Admin only: quality-gate thresholds and the publishing cap of the editorial platform. */
   content: { schema: contentSettingsSchema, visibility: "admin" },
 } as const satisfies Record<string, { schema: z.ZodType; visibility: SettingVisibility }>;
