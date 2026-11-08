@@ -138,3 +138,21 @@ Rollback: `ads.enabled = false`, prompt moments off, home sections toggled; code
 
 - The free plan's "trial": confirm it is the welcome credits (referral 20) or the first month's free credits
   (default assumed: whichever trial-period grant the user received first).
+
+## Implementation notes (apply, 2026-11-08)
+
+- Implementation branch `feat/home-ads-conversion` (worktree `../wasfa-hotfix`) is now the authoritative copy of
+  this change folder. PR #95 brings the OpenSpec setup to `main`.
+- 3.1 schema review: D4 approved as written. The floor lives in `packages/shared/src/ads.ts` (page classes
+  `conversion` and `app_sensitive` never serve; category `medicine` never approvable; the label is added by code).
+- 4.1 default copy (placeholders filled from plans/entitlements):
+  - `trial_ended` (modal), ar: title «خلصت تجربتك المجانية» · body «جرّبت وصفة وشفت النتيجة بنفسك. مع باقة {plan}
+    تقدر تحلل {analyses} روشتة في الشهر{deepLine} بـ {price} بس.» · CTA «اشترك في {plan}» · close «مش دلوقتي».
+    `{deepLine}` = «، وتفتح وضع التحليل العميق» only when the plan has the deep-mode entitlement, else empty.
+    en: «Your free trial is over» · «You have seen what Wasfa does. With {plan} you get {analyses} prescription
+    readings a month{deepLine} for {price}.» · «Subscribe to {plan}» · «Not now».
+  - `credits_out` (modal), ar: «رصيدك خلص» · «هيتجدد مجانًا يوم {renewDate}، أو كمّل دلوقتي مع باقة {plan}:
+    {analyses} روشتة في الشهر بـ {price}.» · CTA «شوف الباقات» · secondary «اشتري رصيد إضافي» · close «مش دلوقتي».
+  - Banned-claims list (settings `growth.bannedClaims`, case-insensitive): أدق, أكثر دقة, more accurate,
+    مضمون, guaranteed, علاج, شفاء, cure, يحمي صحتك, protects your health. «أدق / more accurate» is allowed only
+    when the target plan has the deep-mode entitlement.

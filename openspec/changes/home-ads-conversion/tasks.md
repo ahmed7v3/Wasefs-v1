@@ -7,7 +7,7 @@ migration, journal `when` later than production's last applied migration (see de
 
 - [ ] 0.1 [main] Land the OpenSpec setup (openspec/, .claude/commands+skills, CLAUDE.md section) on `main` in
       its own small PR so changes are visible where the code is built.
-- [ ] 0.2 [runner] Create `feat/home-ads-conversion` from `origin/main`; copy this change folder into it.
+- [x] 0.2 [runner] Create `feat/home-ads-conversion` from `origin/main`; copy this change folder into it.
 
 ## 1. Shared visual system and home page (D1, D2)
 
@@ -31,7 +31,7 @@ migration, journal `when` later than production's last applied migration (see de
 
 ## 3. Ads (D4, D5, D6)
 
-- [ ] 3.1 [main] Final review of the schema and the safety-floor code before building.
+- [x] 3.1 [main] Final review of the schema and the safety-floor code before building.
 - [ ] 3.2 [builder] Migration + schema + repos; seed placements; `ads` settings; `adClass` on every route + route
       test; `ads_free` entitlement (default on for paid plans).
 - [ ] 3.3 [builder] Selection service (eligibility, schedule, targeting, weights, density, advertiser dedupe,
@@ -45,7 +45,7 @@ migration, journal `when` later than production's last applied migration (see de
 
 ## 4. Conversion prompts (D7)
 
-- [ ] 4.1 [main] Final default copy (ar/en) for trial_ended and credits_out modals, and the banned-claims list.
+- [x] 4.1 [main] Final default copy (ar/en) for trial_ended and credits_out modals, and the banned-claims list.
 - [ ] 4.2 [builder] Settings-backed prompt catalog (defaults = today), `trial_ended` trigger from the ledger,
       `surface` + calm rule in `next()`, placeholders from plans/entitlements, claims lint.
 - [ ] 4.3 [builder] `prompt-modal.tsx`, banner form, analyze-start surface, in-progress guard; events.
