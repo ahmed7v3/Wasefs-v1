@@ -14,10 +14,19 @@ ARG ALPINE_IMAGE=alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910
 # go back to the release binary once one is built with Go >= 1.26.10.
 FROM golang:1.26.10-alpine3.24@sha256:27f2d3b83cfc5803c8078f8e730af0f7c431bf067afaec8f60a36fb763187cba AS rclone
 ARG RCLONE_VERSION=v1.75.2
-RUN CGO_ENABLED=0 GOBIN=/out go install -trimpath \
+# golang.org/x/net is raised above rclone's pinned v0.60.0 (CVE-2026-78661, html parser DoS, fixed in
+# 0.62.0). `go install pkg@version` cannot override a dependency, so a throwaway module requires rclone
+# plus the patched x/net and builds the rclone main package from it (MVS picks the higher x/net).
+# Drop XNET_VERSION once an rclone release pins x/net >= 0.62.0.
+ARG XNET_VERSION=v0.62.0
+WORKDIR /src
+RUN go mod init rclone-build \
+ && go get "github.com/rclone/rclone@${RCLONE_VERSION}" "golang.org/x/net@${XNET_VERSION}" \
+ && CGO_ENABLED=0 go build -mod=mod -trimpath -o /out/rclone \
       -ldflags "-s -w -X github.com/rclone/rclone/fs.Version=${RCLONE_VERSION}" \
-      "github.com/rclone/rclone@${RCLONE_VERSION}" \
- && /out/rclone version | head -2
+      github.com/rclone/rclone \
+ && /out/rclone version | head -2 \
+ && go version -m /out/rclone | grep -E "golang.org/x/net\s"
 
 FROM ${ALPINE_IMAGE}
 # postgresql18-client: pg_dump / pg_restore / psql 18   age: encryption   jq: parses rclone listings
