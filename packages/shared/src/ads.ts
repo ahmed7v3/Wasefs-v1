@@ -1,5 +1,13 @@
 import { z } from "zod";
 
+import {
+  AD_IMPRESSION_BATCH_MAX,
+  NEVER_SERVE_CLASSES,
+  PAGE_CLASSES,
+  canServeOnClass,
+  type PageClass,
+} from "./ads-class.js";
+
 /*
  * First-party ads (docs/ADS.md, openspec change home-ads-conversion). Everything here is either the
  * safety floor, which is CODE and cannot be changed from the admin, or a contract shared by api, db,
@@ -9,35 +17,19 @@ import { z } from "zod";
 // ---------------------------------------------------------------------------------------------
 // Page classes and the safety floor
 
-export const PAGE_CLASSES = [
-  "marketing",
-  "conversion",
-  "content",
-  "medical_reference",
-  "utility_public",
-  "app_neutral",
-  "app_sensitive",
-] as const;
-export type PageClass = (typeof PAGE_CLASSES)[number];
-
-/** Classes that never serve an ad, whatever the admin enables (results, chat, checkout, account, ...). */
-export const NEVER_SERVE_CLASSES = [
-  "conversion",
-  "app_sensitive",
-] as const satisfies readonly PageClass[];
-
-export function isPageClass(value: unknown): value is PageClass {
-  return typeof value === "string" && (PAGE_CLASSES as readonly string[]).includes(value);
-}
+export {
+  AD_IMPRESSION_BATCH_MAX,
+  NEVER_SERVE_CLASSES,
+  PAGE_CLASSES,
+  canServeOnClass,
+  isPageClass,
+  type PageClass,
+} from "./ads-class.js";
 
 /** Classes a placement may be configured for: everything except the never-serve ones. */
 export const SERVABLE_PAGE_CLASSES = PAGE_CLASSES.filter(
   (pageClass) => !(NEVER_SERVE_CLASSES as readonly string[]).includes(pageClass),
 );
-
-export function canServeOnClass(pageClass: PageClass): boolean {
-  return !(NEVER_SERVE_CLASSES as readonly string[]).includes(pageClass);
-}
 
 /** The floor classes among `classes` (empty = the list is allowed). */
 export function neverServeClassesIn(classes: readonly PageClass[]): PageClass[] {
@@ -429,7 +421,6 @@ export type AdSlotView = z.output<typeof adSlotViewSchema>;
 export const adSlotResponseSchema = z.object({ slot: adSlotViewSchema.nullable() });
 export type AdSlotResponse = z.output<typeof adSlotResponseSchema>;
 
-export const AD_IMPRESSION_BATCH_MAX = 10;
 export const adImpressionsSchema = z.object({
   tokens: z.array(z.string().min(1).max(400)).min(1).max(AD_IMPRESSION_BATCH_MAX),
 });

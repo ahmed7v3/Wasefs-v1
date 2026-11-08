@@ -3,7 +3,7 @@ import { Container } from "@wasfa/ui";
 import { Fragment } from "react";
 
 import { AdSlot } from "../../components/ads/ad-slot";
-import { WhatsAppLogin } from "../../components/auth/whatsapp-login";
+import { WhatsAppLoginLazy } from "../../components/auth/whatsapp-login-lazy";
 import { HomeHero } from "../../components/home/home-hero";
 import { renderHomeSection, type HomeSectionContext } from "../../components/home/home-sections";
 import { JsonLd } from "../../components/marketing/json-ld";
@@ -73,7 +73,7 @@ export default async function HomePage({
         signedIn={signedIn}
         whatsappSignup={
           whatsappAvailable && !signedIn ? (
-            <WhatsAppLogin available next="/dashboard" nonce={nonce} compact />
+            <WhatsAppLoginLazy available next="/dashboard" nonce={nonce} compact />
           ) : null
         }
       />

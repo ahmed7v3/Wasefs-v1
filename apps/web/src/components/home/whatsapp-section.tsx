@@ -7,7 +7,7 @@ import { landingFor } from "../../content/landing-locale";
 import { WhatsAppGlyph } from "../marketing/chat-parts";
 import { QrSvg } from "../marketing/qr-svg";
 import { Reveal } from "../visual/Reveal";
-import { WhatsAppChatMock } from "../visual/WhatsAppChatMock";
+import { WhatsAppChatMockLazy } from "../visual/WhatsAppChatMockLazy";
 
 import { HOME_FOCUS, HomeHeading, HomeSection } from "./home-section";
 
@@ -136,7 +136,7 @@ export function WhatsAppSection({
         <Reveal delay={120} className="mx-auto w-full max-w-md">
           <div role="img" aria-label={whatsapp.phoneLabel}>
             <div aria-hidden="true">
-              <WhatsAppChatMock
+              <WhatsAppChatMockLazy
                 messages={toMockMessages(whatsapp.chat, scene.items)}
                 title={scene.agentName}
               />

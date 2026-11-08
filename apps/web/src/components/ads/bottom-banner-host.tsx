@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { adClassOfPath } from "../../lib/ad-route-class";
 import { getAdSlot } from "../../lib/ads-server";
 
-import { BottomBanner } from "./bottom-banner";
+import { BottomBannerLazy } from "./bottom-banner-lazy";
 
 /**
  * Server half of the bottom banner, rendered by the site and app layouts: derives the page class from
@@ -22,7 +22,7 @@ export async function BottomBannerHost({ locale = "ar" }: { locale?: "ar" | "en"
   const slot = await getAdSlot({ placement: "global.bottom_banner", pageClass, locale });
   if (slot?.format !== "bottom_banner") return null;
   return (
-    <BottomBanner
+    <BottomBannerLazy
       slot={slot}
       pageClass={pageClass}
       label={t("ads.label", undefined, locale)}

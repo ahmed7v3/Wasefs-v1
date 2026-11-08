@@ -1,4 +1,4 @@
-import type { PageClass } from "@wasfa/shared/ads";
+import type { PageClass } from "@wasfa/shared/ads-class";
 
 /*
  * Ad page class of a URL path, for the one ad that lives in a layout (the bottom banner): a layout

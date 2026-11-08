@@ -1,14 +1,15 @@
 "use client";
 
-import { canServeOnClass, type AdSlotView, type PageClass } from "@wasfa/shared/ads";
+import { canServeOnClass, type PageClass } from "@wasfa/shared/ads-class";
 import { X } from "lucide-react";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { adClassOfPath } from "../../lib/ad-route-class";
 
 import { AdBeacon } from "./ad-beacon";
+
+import type { AdSlotView } from "@wasfa/shared/ads";
 
 /** localStorage key of the dismissal: epoch milliseconds until which the banner stays closed. */
 export const BANNER_CLOSED_KEY = "adBannerClosedUntil";
@@ -82,13 +83,15 @@ export function BottomBanner({ slot, pageClass, label, closeLabel }: BottomBanne
                 <span className="shrink-0 text-xs text-text-muted">{label}</span>
                 {creative.image ? (
                   <span className="relative block h-12 w-full max-w-[728px] overflow-hidden rounded-md md:h-[90px]">
-                    <Image
+                    {/* A plain img: next/image would add ~13 KB gzip to every public page, and an
+                        unoptimized first-party creative gains nothing from it. */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
                       src={creative.image.url}
                       alt={creative.alt}
-                      fill
-                      unoptimized
-                      sizes="728px"
-                      className="object-contain"
+                      loading="lazy"
+                      decoding="async"
+                      className="absolute inset-0 size-full object-contain"
                     />
                   </span>
                 ) : (

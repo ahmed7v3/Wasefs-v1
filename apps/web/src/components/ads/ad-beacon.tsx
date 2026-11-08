@@ -1,6 +1,6 @@
 "use client";
 
-import { AD_IMPRESSION_BATCH_MAX } from "@wasfa/shared/ads";
+import { AD_IMPRESSION_BATCH_MAX } from "@wasfa/shared/ads-class";
 import { useEffect, useRef, type ReactNode } from "react";
 
 /*

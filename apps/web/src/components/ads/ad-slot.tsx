@@ -1,7 +1,6 @@
 import { parseAdSize, type AdDevice, type AdSlotView, type PageClass } from "@wasfa/shared/ads";
 import { t } from "@wasfa/shared/i18n";
 import { cn } from "@wasfa/ui";
-import Image from "next/image";
 
 import { getAdSlot } from "../../lib/ads-server";
 
@@ -84,13 +83,15 @@ export async function AdSlot({
                 native ? "aspect-video" : "aspect-(--ad-ar-m) md:aspect-(--ad-ar-d)",
               )}
             >
-              <Image
+              {/* A plain img: next/image is a client component and would add ~9 KB gzip to the
+                  page's first load, for an unoptimized first-party creative. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
                 src={creative.image.url}
                 alt={creative.alt}
-                fill
-                unoptimized
-                sizes="(min-width: 768px) 970px, 100vw"
-                className="object-cover"
+                loading="lazy"
+                decoding="async"
+                className="absolute inset-0 size-full object-cover"
               />
             </span>
           ) : (
