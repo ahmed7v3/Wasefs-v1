@@ -169,15 +169,17 @@
   padding-inline: 0.875rem;
   font-size: 0.8125rem;
   font-weight: 600;
-  white-space: nowrap;
+  max-inline-size: 100%;
 }
 .ev-glass-glint {
+  /* The sweep moves the gradient inside a box that stays within the badge (a translated
+     element would put its box outside the viewport even though overflow clips it). */
   position: absolute;
-  inset-block: 0;
-  inset-inline-start: -60%;
-  inline-size: 40%;
-  background: linear-gradient(105deg, transparent, rgb(255 255 255 / 0.7), transparent);
-  transform: translateX(0) skewX(-18deg);
+  inset: 0;
+  background-image: linear-gradient(105deg, transparent, rgb(255 255 255 / 0.7), transparent);
+  background-repeat: no-repeat;
+  background-size: 40% 100%;
+  background-position: -70% 0;
   animation: ev-glint 6s ease-in-out infinite;
   pointer-events: none;
 }
@@ -187,19 +189,19 @@
 @keyframes ev-glint {
   0%,
   70% {
-    transform: translateX(0) skewX(-18deg);
+    background-position: -70% 0;
   }
   100% {
-    transform: translateX(450%) skewX(-18deg);
+    background-position: 170% 0;
   }
 }
 @keyframes ev-glint-rtl {
   0%,
   70% {
-    transform: translateX(0) skewX(18deg);
+    background-position: 170% 0;
   }
   100% {
-    transform: translateX(-450%) skewX(18deg);
+    background-position: -70% 0;
   }
 }
 
@@ -222,13 +224,11 @@
     rgb(30 58 138 / 0.28) 55%,
     rgb(30 58 138 / 0)
   );
-  filter: blur(40px);
 }
 .ev-halo-glow-core {
   inset-inline: 26%;
   inset-block: 26%;
   background: radial-gradient(closest-side, rgb(30 58 138 / 0.55), rgb(30 58 138 / 0));
-  filter: blur(30px);
 }
 .ev-halo-grid {
   position: absolute;
@@ -417,15 +417,11 @@
 }
 
 /* ---------- Reduced motion ---------- */
-/* Phones: lighter glass blur and cheaper halo raster; desktop is unchanged. */
+/* Phones: lighter glass blur; desktop is unchanged. The halo uses pre-softened gradients (no filter). */
 @media (hover: none), (max-width: 640px) {
   .ev-glass {
     -webkit-backdrop-filter: blur(10px) saturate(160%);
     backdrop-filter: blur(10px) saturate(160%);
-  }
-  .ev-halo-glow,
-  .ev-halo-glow-core {
-    filter: blur(24px);
   }
 }
 

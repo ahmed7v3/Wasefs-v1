@@ -5,7 +5,7 @@ import { Button, Dialog, buttonStyles } from "@wasfa/ui";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
-import { isGrowthBusy } from "../../lib/growth-busy";
+import { isGrowthBusy, useGrowthBusy } from "../../lib/growth-busy";
 import { trackGrowth } from "../../lib/growth-events";
 
 import type { GrowthPrompt } from "@wasfa/shared/schemas/growth";
@@ -22,12 +22,15 @@ export interface PromptModalProps {
  * anywhere else). The platform dialog gives the focus trap, Esc and the labelled, inert background; a
  * visible close button, the close text and the backdrop all dismiss in one tap. It never opens while
  * an upload or an analysis is in progress: the busy flag is read once, when the answer arrives, and a
- * prompt that finds the person busy is dropped (no `shown` event), not queued for later.
+ * prompt that finds the person busy is dropped (no `shown` event), not queued for later. If the
+ * person starts adding pages while it is already open, it closes by itself (no `dismissed` event:
+ * they did not choose to close it).
  */
 export function PromptModal({ prompt, onClose }: PromptModalProps) {
   const [open] = useState(() => !isGrowthBusy());
   const [visible, setVisible] = useState(open);
   const reported = useRef(false);
+  const busy = useGrowthBusy();
   const copy = prompt.content?.[DEFAULT_LOCALE];
 
   useEffect(() => {
@@ -40,6 +43,12 @@ export function PromptModal({ prompt, onClose }: PromptModalProps) {
     // Dropped because the person was busy: let the slot clear it without an event.
     if (!open) onClose();
   }, [open, onClose]);
+
+  useEffect(() => {
+    if (!busy || !visible) return;
+    setVisible(false);
+    onClose();
+  }, [busy, visible, onClose]);
 
   if (!open || copy === undefined) return null;
 

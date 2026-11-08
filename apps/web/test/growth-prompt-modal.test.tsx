@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -102,5 +102,16 @@ describe("PromptModal", () => {
     expect(track).not.toHaveBeenCalled();
     // The slot is told to forget it: no later surprise once the person is idle.
     expect(onClose).toHaveBeenCalled();
+  });
+  it("closes by itself, without a dismissal, when pages start being added while it is open", () => {
+    const onClose = vi.fn();
+    render(<PromptModal prompt={PROMPT} onClose={onClose} />);
+    expect(screen.getByRole("dialog")).toHaveProperty("open", true);
+    act(() => {
+      setGrowthBusy(true);
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(track.mock.calls.filter(([name]) => name === "prompt_dismissed")).toHaveLength(0);
   });
 });

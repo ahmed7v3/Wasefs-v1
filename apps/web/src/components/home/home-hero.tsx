@@ -5,7 +5,6 @@ import Link from "next/link";
 import { landingFor } from "../../content/landing-locale";
 import { GlassBadge } from "../visual/GlassSurface";
 import { HaloBackdrop } from "../visual/HaloBackdrop";
-import { Reveal } from "../visual/Reveal";
 import { WasfaCharacter } from "../visual/WasfaCharacter";
 
 import type { Locale } from "../../lib/locale";
@@ -13,7 +12,8 @@ import type { ReactNode } from "react";
 
 /**
  * First screen in the early-access look. The H1 is plain server-rendered text (never wrapped in
- * `Reveal`), so it stays the LCP element. Signed out: start free, sign in, and the WhatsApp sign-up
+ * `Reveal`; nothing above the fold is, so no text starts at opacity 0), so it stays the LCP element.
+ * Signed out: start free, sign in, and the WhatsApp sign-up
  * block (`whatsappSignup`, absent when WhatsApp login is unavailable); signed in: one button to the
  * dashboard. The waitlist phone capture of `/early` is deliberately not here.
  */
@@ -51,67 +51,59 @@ export function HomeHero({
             <span className="block">{hero.titleLines[0]}</span>
             <span className="block text-primary">{hero.titleLines[1]}</span>
           </h1>
-          <Reveal delay={80}>
-            <p className="mt-5 max-w-xl text-lg leading-[1.85] text-text-muted sm:text-xl">
-              {hero.lead}
-            </p>
-          </Reveal>
-          <Reveal delay={160}>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              {signedIn ? (
+          <p className="mt-5 max-w-xl text-lg leading-[1.85] text-text-muted sm:text-xl">
+            {hero.lead}
+          </p>
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            {signedIn ? (
+              <Link
+                href="/dashboard"
+                className={buttonStyles({
+                  size: "lg",
+                  className: "w-full shadow-raised sm:w-auto",
+                })}
+              >
+                {hero.dashboardCta}
+                <ArrowRight aria-hidden="true" className="size-5 rtl:-scale-x-100" />
+              </Link>
+            ) : (
+              <>
                 <Link
-                  href="/dashboard"
+                  href="/register"
                   className={buttonStyles({
                     size: "lg",
                     className: "w-full shadow-raised sm:w-auto",
                   })}
                 >
-                  {hero.dashboardCta}
+                  {hero.primaryCta}
                   <ArrowRight aria-hidden="true" className="size-5 rtl:-scale-x-100" />
                 </Link>
-              ) : (
-                <>
-                  <Link
-                    href="/register"
-                    className={buttonStyles({
-                      size: "lg",
-                      className: "w-full shadow-raised sm:w-auto",
-                    })}
-                  >
-                    {hero.primaryCta}
-                    <ArrowRight aria-hidden="true" className="size-5 rtl:-scale-x-100" />
-                  </Link>
-                  <Link
-                    href="/login"
-                    className={buttonStyles({
-                      size: "lg",
-                      variant: "secondary",
-                      className: "w-full sm:w-auto",
-                    })}
-                  >
-                    {hero.signIn}
-                  </Link>
-                </>
-              )}
-            </div>
-          </Reveal>
+                <Link
+                  href="/login"
+                  className={buttonStyles({
+                    size: "lg",
+                    variant: "secondary",
+                    className: "w-full sm:w-auto",
+                  })}
+                >
+                  {hero.signIn}
+                </Link>
+              </>
+            )}
+          </div>
           {signedIn || !whatsappSignup ? null : (
-            <Reveal delay={200} className="mt-5 max-w-md">
-              {whatsappSignup}
-            </Reveal>
+            <div className="mt-5 max-w-md">{whatsappSignup}</div>
           )}
-          <Reveal delay={240}>
-            <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-[15px] font-semibold text-text/80">
-              {hero.chips.map((chip) => (
-                <li key={chip} className="inline-flex items-center gap-2">
-                  <span className="grid size-5 place-items-center rounded-full bg-primary text-on-primary">
-                    <Check className="size-3" strokeWidth={3.5} aria-hidden="true" />
-                  </span>
-                  {chip}
-                </li>
-              ))}
-            </ul>
-          </Reveal>
+          <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-[15px] font-semibold text-text/80">
+            {hero.chips.map((chip) => (
+              <li key={chip} className="inline-flex items-center gap-2">
+                <span className="grid size-5 place-items-center rounded-full bg-primary text-on-primary">
+                  <Check className="size-3" strokeWidth={3.5} aria-hidden="true" />
+                </span>
+                {chip}
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
     </section>
