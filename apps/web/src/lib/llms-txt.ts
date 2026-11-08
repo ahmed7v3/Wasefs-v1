@@ -1,5 +1,8 @@
+import { fromMinor } from "@wasfa/shared/money";
+
 import { PUBLIC_PAGES, type PublicPageKey } from "./seo";
 
+import type { CatalogResponse } from "@wasfa/shared/schemas/billing";
 import type { PublicSettings } from "@wasfa/shared/settings";
 
 /*
@@ -38,7 +41,31 @@ function links(key: PublicPageKey, siteUrl: string): string {
   return page.pathEn ? `${ar}\n- [${PAGE_LABELS[key]} (English)](${abs(page.pathEn)})` : ar;
 }
 
-export function buildLlmsTxt(settings: PublicSettings, siteUrl: string): string {
+/**
+ * Answer-first plan facts: the free allowance from the settings, the paid plans (monthly credits and
+ * the lowest monthly price) from the catalog the pricing page shows. No catalog (API down): only the
+ * free allowance, never a stale or invented price.
+ */
+export function planFacts(settings: PublicSettings, catalog: CatalogResponse | null): string[] {
+  const free = settings.free_tier.monthlyAnalyses;
+  const lines = [
+    `- Free plan: ${free} prescription analyses per month, no payment details needed.`,
+  ];
+  for (const plan of catalog?.plans ?? []) {
+    const monthly = plan.prices.find((price) => price.months === 1);
+    const price = monthly
+      ? `${fromMinor(monthly.display.headlineMinor, catalog?.currency ?? "")} ${catalog?.currency ?? ""} per month`
+      : "see the pricing page";
+    lines.push(`- ${plan.names.en}: ${plan.monthlyCredits} credits per month, ${price}.`);
+  }
+  return lines;
+}
+
+export function buildLlmsTxt(
+  settings: PublicSettings,
+  siteUrl: string,
+  catalog: CatalogResponse | null = null,
+): string {
   const keyPages = (Object.keys(PUBLIC_PAGES) as PublicPageKey[]).filter(
     (key) => !POLICY_KEYS.includes(key),
   );
@@ -48,6 +75,10 @@ export function buildLlmsTxt(settings: PublicSettings, siteUrl: string): string 
     "> An Arabic-first AI medical assistant that reads photographed prescriptions and explains the medicines, doses and warnings in plain language.",
     "",
     "Users upload a photo of a handwritten or printed prescription and get a clear analysis of each medicine, its dose and relevant warnings, and can ask follow-up questions in Arabic. The service explains information; it does not diagnose, prescribe or replace a doctor or pharmacist.",
+    "",
+    "## Plans",
+    "",
+    ...planFacts(settings, catalog),
     "",
     "## Key pages",
     "",

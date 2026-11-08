@@ -46,3 +46,10 @@ describe("proxy content paths", () => {
     }
   });
 });
+
+describe("proxy ad redirect path", () => {
+  it("sends X-Robots-Tag noindex under /a/", async () => {
+    const response = await proxy(new NextRequest("https://wasfa.online/a/abc123"), event);
+    expect(response.headers.get("x-robots-tag")).toContain("noindex");
+  });
+});

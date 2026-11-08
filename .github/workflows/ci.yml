@@ -231,6 +231,8 @@ jobs:
     # lighthouserc.json fails only on what the baseline passes with margin: Performance >= 0.9 on `/`,
     # SEO, Best Practices (home) and Accessibility. Performance on the other pages and Best Practices
     # off the home page stay warnings (the latter: footer links to pages not built yet answer 404).
+    # Home page budgets (home-ads-conversion D3, median of 3, mobile): LCP <= 2.5 s, CLS <= 0.05,
+    # TBT <= 200 ms (the INP proxy), SEO and Accessibility >= 0.95; a breach fails the job.
     env:
       # This build is a throwaway local server. `production` is what makes the page indexable
       # (any other value is noindex, which would fail the SEO audit by design); nothing is deployed.

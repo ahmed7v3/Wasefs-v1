@@ -54,7 +54,16 @@ export function organizationJsonLd(settings: PublicSettings, siteUrl: string): J
   };
 }
 
-export function webSiteJsonLd(settings: PublicSettings, siteUrl: string): JsonLd {
+/**
+ * The site as a `WebSite`. A `SearchAction` is added only for a real, public search page (a path with the
+ * `{search_term_string}` placeholder): pointing it at a page that does not exist is invalid structured data.
+ * No public drug search page exists yet, so the home page passes none.
+ */
+export function webSiteJsonLd(
+  settings: PublicSettings,
+  siteUrl: string,
+  searchPath?: string,
+): JsonLd {
   return {
     "@context": "https://schema.org",
     "@type": "WebSite",
@@ -62,15 +71,39 @@ export function webSiteJsonLd(settings: PublicSettings, siteUrl: string): JsonLd
     alternateName: settings.branding.nameEn,
     url: siteUrl,
     inLanguage: "ar",
+    ...(searchPath === undefined
+      ? {}
+      : {
+          potentialAction: {
+            "@type": "SearchAction",
+            // Not through `new URL(path, ...)`: it would percent-encode the braces of the placeholder.
+            target: `${new URL(siteUrl).origin}${searchPath}`,
+            "query-input": "required name=search_term_string",
+          },
+        }),
   };
 }
 
-/** Free web application. `HealthApplication` is the schema.org category for health apps. */
+/**
+ * Web application. `HealthApplication` is the schema.org category for health apps. `plans` (name,
+ * price, currency per plan price) become the offers, straight from the catalog the pricing page
+ * shows; without them the app is described as free.
+ */
 export function softwareApplicationJsonLd(
   settings: PublicSettings,
   siteUrl: string,
   description: string,
+  plans: readonly ProductOffer[] = [],
 ): JsonLd {
+  const offers =
+    plans.length > 0
+      ? plans.map((plan) => ({
+          "@type": "Offer",
+          name: plan.name,
+          price: fromMinor(plan.amountMinor, plan.currency),
+          priceCurrency: plan.currency,
+        }))
+      : { "@type": "Offer", price: "0", priceCurrency: "EGP" };
   return {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
@@ -81,7 +114,7 @@ export function softwareApplicationJsonLd(
     applicationCategory: "HealthApplication",
     operatingSystem: "Web",
     inLanguage: "ar",
-    offers: { "@type": "Offer", price: "0", priceCurrency: "EGP" },
+    offers,
   };
 }
 
@@ -411,4 +444,44 @@ export function collectionPage(input: CollectionPageInput): JsonLd {
     inLanguage: input.inLanguage,
     ...defined({ description: input.description }),
   };
+}
+
+export interface BreadcrumbCrumb {
+  name: string;
+  /** Path on the site (`/pricing`); resolved against the site URL. */
+  path: string;
+}
+
+/** A `BreadcrumbList` from site paths: the helper the public page layouts use. */
+export function breadcrumbJsonLd(siteUrl: string, crumbs: readonly BreadcrumbCrumb[]): JsonLd {
+  return breadcrumbList(
+    crumbs.map((crumb) => ({ name: crumb.name, url: absolute(crumb.path, siteUrl) })),
+  );
+}
+
+export interface HomeStructuredDataInput {
+  settings: PublicSettings;
+  siteUrl: string;
+  /** The product description (`meta.description`). */
+  description: string;
+  /** The same entries the FAQ section renders, so the markup always matches the page. */
+  faqs: readonly FaqEntry[];
+  /** Name, price and currency of each plan price, from the catalog. */
+  plans: readonly ProductOffer[];
+}
+
+/**
+ * The home page's full structured data, in order: Organization, WebSite,
+ * SoftwareApplication (offers from `plans`), FAQPage and BreadcrumbList. Pure: the caller fetches
+ * the settings, the catalog and the FAQ.
+ */
+export function homeStructuredData(input: HomeStructuredDataInput): JsonLd[] {
+  const { settings, siteUrl, description, faqs, plans } = input;
+  return [
+    organizationJsonLd(settings, siteUrl),
+    webSiteJsonLd(settings, siteUrl),
+    softwareApplicationJsonLd(settings, siteUrl, description, plans),
+    faqJsonLd(faqs),
+    breadcrumbJsonLd(siteUrl, [{ name: settings.branding.nameAr, path: "/" }]),
+  ];
 }

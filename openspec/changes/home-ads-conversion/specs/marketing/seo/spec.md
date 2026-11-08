@@ -14,7 +14,7 @@ helper.
 - **THEN** it contains one title, one meta description, one canonical link, og:image and hreflang alternates
 
 ### Requirement: Structured data
-The home page SHALL publish Organization, WebSite (with search action), SoftwareApplication and FAQPage
+The home page SHALL publish Organization, WebSite (with a search action only once a public search page exists), SoftwareApplication and FAQPage
 structured data, and every public page SHALL publish a BreadcrumbList, built by the shared builder and valid
 against schema.org.
 
