@@ -39,3 +39,10 @@ The subagent must be able to build exactly what the main session would, without 
 - Review with `git diff` / `git diff --stat` and the agent's report — don't re-read whole files the brief already specified.
 - Check against the brief and the Definition of Done (`docs/AGENT.md` §8). Small fixes: fix directly. Larger: send a corrective brief to the same tier.
 - Commits are made by the main session after review (or by `runner` with an exact message).
+
+## Spec-driven changes (OpenSpec)
+
+`openspec/specs/` is the source of truth for required behavior (`rx/*` reading engine, `wa-agent/*` WhatsApp runtime); `docs/` keeps rationale. Project rules for every artifact live in `openspec/config.yaml`.
+- Any behavior change to `rx/*` or `wa-agent/*`: open a change first (`/opsx:propose`), then `/opsx:apply`, then `/opsx:archive`. Pure refactors/tooling may set `skip_specs: true`.
+- A bug fix starts with a red test or regression-corpus case; never edit prompts, models or thresholds outside a change's tasks.
+- Before archiving: `openspec validate <change> --strict` and the change's verify steps.

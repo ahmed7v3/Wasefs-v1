@@ -1,0 +1,67 @@
+schema: spec-driven
+
+# Project context: constraints an agent cannot infer from the code. Keep it short; details live in docs/.
+context: |
+  Product: Wasfa AI (وصفة AI) — Egyptian prescription reading (web + WhatsApp agent). Arabic-first (Egyptian
+  dialect in user texts), RTL. Contract for all code: docs/AGENT.md (read only the sections a change touches).
+
+  Spec layout (domain/capability):
+    rx/*        prescription reading engine shared by web and WhatsApp (worker pipeline, matcher, failures)
+    wa-agent/*  WhatsApp agent runtime (media intake, turns, prescription flow, delivery)
+    drugs/*     the medication catalog (import, normalization, search data) every consumer reads
+    marketing/* public pages: home page, SEO and GEO of the public site
+    ads/*       first-party ad inventory, delivery, admin management and measurement
+    growth/*    conversion prompts, upgrade moments and lifecycle messaging
+  Reuse these exact paths; add a new domain only for a genuinely new product area.
+
+  docs/ vs openspec/: docs/*.md hold design rationale and history. openspec/specs/ is the single source of
+  truth for REQUIRED BEHAVIOR. When they disagree, the spec wins and the doc gets fixed in the same change.
+  docs/RX-ENGINE.md describes a v2 engine that is mostly NOT built yet; never assume a v2 stage exists
+  without checking the code.
+
+  Owner's non-negotiables for prescription reading (apply to every rx/* and wa-agent/* change):
+    - Reading hard handwriting IS the product. Never answer "image unclear" for a whole prescription when any
+      line was read; deliver every read line and mark the unsure ones.
+    - Never present a different database brand as what is written; similar brands are only suggestions.
+    - Dosage form must agree with the paper and the directions. Dose/frequency/duration come from the paper.
+    - No web-search grounding for prescription reading.
+    - WhatsApp replies are generated completely, then sent (no streaming). No silent failures, no generic
+      "server busy".
+    - A prescription that read correctly before a change must still read correctly after it.
+
+  Execution model (CLAUDE.md): the main session designs and reviews; `builder` (Sonnet) implements briefs,
+  `runner` (Haiku) does mechanical edits and runs commands, `scout` (Haiku) explores read-only.
+  Toolchain: pnpm monorepo (apps/api, apps/web, apps/worker, packages/*), TypeScript, vitest.
+
+rules:
+  proposal:
+    - For a bug or regression, state the observed symptom, the evidence (file:line, commit, failing case) and
+      what is still unproven. Never present a hypothesis as a root cause.
+    - Name the affected surfaces explicitly (web, WhatsApp, or both) and the owner rule(s) at stake.
+    - Always include an "Out of scope" list.
+  specs:
+    - Scenarios must be checkable by an automated test or an eval case; name the observable outcome
+      (what the customer sees / what is stored), never internal function names.
+    - Any requirement about reading quality must state how it is measured (fixture case or eval metric).
+    - Customer-facing texts are referenced by meaning and failure reason, not hard-coded Arabic strings.
+  design:
+    - List which pipeline stages / modules change and which invariants (docs/WA-AGENT-RUNTIME.md §1,
+      docs/AGENT.md §5) each decision protects.
+    - For model/prompt changes — state the model route, expected call count and cost impact.
+  tasks:
+    - First task group for a bug — reproduce it as a failing test or eval case (red) before any fix.
+    - Every task group ends with an explicit verify step (exact pnpm command or eval run).
+    - Tag each task with its executor — "[main]", "[builder]", "[runner]" or "[scout]".
+    - Changes touching rx/* must include running the rx regression suite before archive.
+
+operations:
+  apply:
+    guidance:
+      - Follow the CLAUDE.md ladder; write a full brief (Goal/Context/Decisions/Steps/Constraints/Do not/
+        Verify/Return) for every builder task. Review with git diff before ticking a task.
+      - Never git stash while agents edit the tree; commit selectively per task group.
+      - Do not change prompts, models or thresholds outside the tasks of the change being applied.
+  archive:
+    guidance:
+      - Before archiving, confirm verify steps passed and update any docs/ file the change contradicted.
+      - Summarize which owner rules the change now enforces by test.
