@@ -269,4 +269,5 @@ jobs:
         with:
           name: lighthouse-report
           path: apps/web/.lighthouseci
+          include-hidden-files: true
           retention-days: 7
