@@ -5,7 +5,7 @@ migration, journal `when` later than production's last applied migration (see de
 
 ## 0. Groundwork
 
-- [ ] 0.1 [main] Land the OpenSpec setup (openspec/, .claude/commands+skills, CLAUDE.md section) on `main` in
+- [x] 0.1 [main] Land the OpenSpec setup (openspec/, .claude/commands+skills, CLAUDE.md section) on `main` in
       its own small PR so changes are visible where the code is built.
 - [x] 0.2 [runner] Create `feat/home-ads-conversion` from `origin/main`; copy this change folder into it.
 
@@ -17,7 +17,7 @@ migration, journal `when` later than production's last applied migration (see de
       copy; admin fields.
 - [x] 1.3 [builder] Rebuild every home section in the early style (`components/home/*`), hero entry points
       (register / login / WhatsApp; dashboard when signed in), reduced-motion, 320 px → wide.
-- [ ] 1.4 Verify — [runner] web typecheck/lint/unit; Playwright: home at 320/768/1440 no horizontal scroll,
+- [x] 1.4 Verify — [runner] web typecheck/lint/unit; Playwright: home at 320/768/1440 no horizontal scroll,
       44 px targets, axe clean; signed-in hero shows dashboard.
 
 ## 2. SEO (D3)
@@ -27,7 +27,7 @@ migration, journal `when` later than production's last applied migration (see de
       builders.
 - [x] 2.2 [builder] Lighthouse CI budgets as failing assertions (mobile); `llms.txt` + answer block from
       settings; robots/X-Robots-Tag for `/a/*`.
-- [ ] 2.3 Verify — [runner] Lighthouse job green with budgets; structured data validated in tests.
+- [x] 2.3 Verify — [runner] Lighthouse job green with budgets; structured data validated in tests.
 
 ## 3. Ads (D4, D5, D6)
 
@@ -40,7 +40,7 @@ migration, journal `when` later than production's last applied migration (see de
 - [x] 3.4 [builder] Bottom banner island (reserved spacer, close, dismiss days, safe-area), home placements.
 - [x] 3.5 [builder] Admin `/admin/ads` (overview, placements, creatives with media picker + approval category
       check, advertisers), permissions and audit.
-- [ ] 3.6 Verify — [runner] api/worker/web tests; Playwright: no ad on result/chat/checkout even with all
+- [x] 3.6 Verify — [runner] api/worker/web tests; Playwright: no ad on result/chat/checkout even with all
       placements on; banner closes and does not cover content; CLS budget holds with ads on.
 
 ## 4. Conversion prompts (D7)
@@ -50,7 +50,7 @@ migration, journal `when` later than production's last applied migration (see de
       `surface` + calm rule in `next()`, placeholders from plans/entitlements, claims lint.
 - [x] 4.3 [builder] `prompt-modal.tsx`, banner form, analyze-start surface, in-progress guard; events.
 - [x] 4.4 [builder] Admin `/admin/growth/prompts` (list, edit, preview, enable, counts).
-- [ ] 4.5 Verify — [runner] unit tests of triggers/calm/cooldown; Playwright: modal after trial ends on
+- [x] 4.5 Verify — [runner] unit tests of triggers/calm/cooldown; Playwright: modal after trial ends on
       dashboard, never during an analysis, one per session, cooldown after dismiss.
 
 ## 6. WhatsApp ads (D9)
@@ -68,4 +68,4 @@ migration, journal `when` later than production's last applied migration (see de
 - [x] 5.1 [runner] Update `docs/ADS.md`, `docs/GROWTH-STRATEGY.md`, privacy policy ad-measurement text.
 - [ ] 5.2 [main] Review full diff against the five specs; PR to `main`; owner enables ads/prompts in admin after
       deploy.
-- [ ] 5.3 Verify — [runner] `openspec validate home-ads-conversion --strict`, full CI green.
+- [x] 5.3 Verify — [runner] `openspec validate home-ads-conversion --strict`, full CI green.
