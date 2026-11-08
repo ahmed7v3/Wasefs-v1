@@ -65,7 +65,7 @@ migration, journal `when` later than production's last applied migration (see de
 
 ## 5. Docs and release
 
-- [ ] 5.1 [runner] Update `docs/ADS.md`, `docs/GROWTH-STRATEGY.md`, privacy policy ad-measurement text.
+- [x] 5.1 [runner] Update `docs/ADS.md`, `docs/GROWTH-STRATEGY.md`, privacy policy ad-measurement text.
 - [ ] 5.2 [main] Review full diff against the five specs; PR to `main`; owner enables ads/prompts in admin after
       deploy.
 - [ ] 5.3 Verify — [runner] `openspec validate home-ads-conversion --strict`, full CI green.
