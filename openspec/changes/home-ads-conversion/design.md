@@ -169,3 +169,9 @@ Rollback: `ads.enabled = false`, prompt moments off, home sections toggled; code
   `growth.prompts.catalog`, claims lint also on the generic settings save, `trial_ended` needs balance 0;
   0035 grants `ads.read`/`ads.write` to existing `marketing` and `admin` roles. Not built: a UI for
   `ads.maxPerPage` (API only).
+- LCP gate (owner decision 2026-11-08, "realistic gate"): Lighthouse's simulated LCP is bandwidth-bound by the
+  framework (~160 KB JS + fonts at 1.47 Mbps); with no fonts at all it is ~2.9 s, `/pricing` (untouched) is
+  ~3.6 s, while the observed real LCP of `/` is ~0.2–0.85 s. CI now fails on simulated LCP > 3.8 s (catches
+  regressions), keeps performance ≥ 0.9, CLS ≤ 0.05, TBT ≤ 200 ms; the 2.5 s target is a real-user (field) target.
+  Work done toward it: font preloads in the HTML head, 500/600 weights folded into the 400/700 files, server
+  `Reveal` with one observer island, `content-visibility:auto` on below-fold sections, JS trimming.

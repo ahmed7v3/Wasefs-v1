@@ -47,7 +47,7 @@
             "largest-contentful-paint": [
               "error",
               {
-                "maxNumericValue": 2500,
+                "maxNumericValue": 3800,
                 "aggregationMethod": "median"
               }
             ],
