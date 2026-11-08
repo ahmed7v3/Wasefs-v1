@@ -120,8 +120,16 @@ describe("AppsBand", () => {
 
   it("renders the waitlist form only while the setting is on, in the page language", async () => {
     // The form is a lazy island (fetched after the page), so it appears a moment after the first render.
+    // The first dynamic import is transformed cold, which on a loaded CI runner takes longer than
+    // findBy's default 1 s, so this first wait gets a generous timeout (the test timeout is 20 s).
     const { rerender } = render(<AppsBand settings={settings({ waitlistEnabled: true })} />);
-    expect(await screen.findByRole("form", { name: landing.apps.waitlist.title })).toBeTruthy();
+    expect(
+      await screen.findByRole(
+        "form",
+        { name: landing.apps.waitlist.title },
+        { timeout: 10_000 },
+      ),
+    ).toBeTruthy();
     rerender(<AppsBand settings={settings({ waitlistEnabled: true })} locale="en" />);
     const form = await screen.findByRole("form", { name: landingEn.apps.waitlist.title });
     expect(within(form).getByLabelText(new RegExp(landingEn.apps.waitlist.email))).toBeTruthy();
