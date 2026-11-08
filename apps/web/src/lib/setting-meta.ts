@@ -226,7 +226,7 @@ export const SETTING_LAYOUTS: Partial<Record<SettingKey, readonly SettingSection
       id: "prompts",
       title: "admin.settings.section.growth.prompts",
       description: "admin.settings.section.growth.prompts.description",
-      paths: ["prompts"],
+      paths: ["prompts", "bannedClaims"],
     },
     {
       id: "taste",

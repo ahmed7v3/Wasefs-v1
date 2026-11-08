@@ -9,6 +9,7 @@ import {
   canServeOnClass,
   createCreativeSchema,
   maxAdsForClass,
+  neverServeClassesIn,
   updatePlacementSchema,
 } from "../src/ads.js";
 import { settingDefault } from "../src/settings.js";
@@ -26,10 +27,14 @@ describe("ads safety floor", () => {
     ]);
   });
 
-  it("never lets an admin assign a placement to a floor class", () => {
-    expect(updatePlacementSchema.safeParse({ pageClasses: ["conversion"] }).success).toBe(false);
-    expect(updatePlacementSchema.safeParse({ pageClasses: ["app_sensitive"] }).success).toBe(false);
-    expect(updatePlacementSchema.safeParse({ pageClasses: ["content"] }).success).toBe(true);
+  it("parses a floor class in a placement update so the service can refuse it with a typed error", () => {
+    expect(updatePlacementSchema.safeParse({ pageClasses: ["conversion"] }).success).toBe(true);
+    expect(updatePlacementSchema.safeParse({ pageClasses: ["nonsense"] }).success).toBe(false);
+    expect(neverServeClassesIn(["content", "conversion", "app_sensitive"])).toEqual([
+      "conversion",
+      "app_sensitive",
+    ]);
+    expect(neverServeClassesIn(["content", "marketing"])).toEqual([]);
   });
 
   it("keeps the catalog on servable classes with unique keys", () => {

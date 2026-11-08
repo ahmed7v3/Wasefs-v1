@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 
+import { AdsModule } from "../ads/ads.module.js";
 import { AiRuntimeModule } from "../ai-runtime/ai-runtime.module.js";
 import { AlertsModule } from "../alerts/alerts.module.js";
 import { AuthModule } from "../auth/auth.module.js";
@@ -45,6 +46,7 @@ import { WaOutboundService } from "./wa-outbound.service.js";
  */
 @Module({
   imports: [
+    AdsModule,
     AiRuntimeModule,
     AlertsModule,
     AuthModule,

@@ -16,6 +16,7 @@ import { API_ENV } from "../config/config.module.js";
 import { PlansService } from "../plans/plans.service.js";
 import { SettingsService } from "../settings/settings.service.js";
 
+import { pickAdImage } from "./ads-image.js";
 import { selectCreative, type AdContext, type AdOnPage, type Rng } from "./ads-selection.js";
 import { signAdToken, utcDay, verifyAdToken, type AdTokenClaims } from "./ads-token.js";
 import { AdsRepo, type CreativeCandidateRow } from "./ads.repo.js";
@@ -163,22 +164,10 @@ export class AdsService {
     }));
   }
 
-  /** The smallest published variant at least as wide as the box (webp first), else the largest. */
+  /** See `pickAdImage`: shared with the admin preview so both show the same variant. */
   private imageOf(candidate: CreativeCandidateRow, placement: AdPlacementRow) {
-    const origin = this.env.MEDIA_PUBLIC_ORIGIN;
-    const media = candidate.media;
-    if (!origin || !media || media.status !== "ready" || !media.width || !media.height) return null;
-    const wanted = Number(/^(\d+)x/.exec(placement.sizeDesktop)?.[1] ?? DEFAULT_IMAGE_WIDTH);
-    const byWidth = (a: { width: number }, b: { width: number }) => a.width - b.width;
-    const webp = media.variants.filter((variant) => variant.format === "webp").sort(byWidth);
-    const variants = webp.length > 0 ? webp : [...media.variants].sort(byWidth);
-    const chosen = variants.find((variant) => variant.width >= wanted) ?? variants.at(-1);
-    if (!chosen) return null;
-    return {
-      url: `${origin.replace(/\/$/, "")}/${chosen.key}`,
-      width: chosen.width,
-      height: Math.max(1, Math.round((chosen.width * media.height) / media.width)),
-    };
+    const wanted = Number(/^(d+)x/.exec(placement.sizeDesktop)?.[1] ?? DEFAULT_IMAGE_WIDTH);
+    return pickAdImage(candidate.media, wanted, this.env.MEDIA_PUBLIC_ORIGIN);
   }
 
   /** Counts one impression per distinct valid token of the batch. */

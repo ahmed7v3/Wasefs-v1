@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { adsSettingsSchema } from "./ads.js";
 import { accessSettingsSchema, authSettingsSchema } from "./auth-settings.js";
+import { DEFAULT_BANNED_CLAIMS, findBannedClaim, promptCatalogSchema, promptTexts } from "./growth-prompts.js";
 import { LOCALES } from "./i18n/locales.js";
 import { emailSchema, phoneNumberSchema } from "./schemas/auth.js";
 import { earlyAccessSettingsSchema } from "./schemas/early-access.js";
@@ -419,8 +420,15 @@ export const growthSettingsSchema = z.object({
       /** The doubling cooldown after repeated dismissals never goes beyond this (GROWTH §2.6). */
       maxCooldownDays: z.number().int().min(1).max(365).default(60),
       maxPerSession: z.number().int().min(0).max(10).default(1),
+      /**
+       * One entry per prompt kind (form, copy, target plan, destination, cooldown); a kind missing here
+       * uses its default from `DEFAULT_PROMPT_CATALOG`. Modals are accepted for calm moments only.
+       */
+      catalog: promptCatalogSchema.default({}),
     })
-    .default({ enabled: true, cooldownDays: 7, maxCooldownDays: 60, maxPerSession: 1 }),
+    .default({ enabled: true, cooldownDays: 7, maxCooldownDays: 60, maxPerSession: 1, catalog: {} }),
+  /** Terms prompt copy may never contain (the admin save refuses them; the deep-mode pair needs the entitlement). */
+  bannedClaims: z.array(z.string().trim().min(1).max(60)).max(100).default([...DEFAULT_BANNED_CLAIMS]),
   taste: z
     .object({
       enabled: z.boolean().default(true),
@@ -468,6 +476,19 @@ export const growthSettingsSchema = z.object({
       validityDays: z.number().int().min(1).max(90).default(7),
     })
     .default({ enabled: true, validityDays: 7 }),
+}).superRefine((growth, ctx) => {
+  // The terms that are never allowed; the deep-mode pair depends on the target plan and is checked
+  // by the api on save (it needs the plan's entitlements).
+  for (const [kind, entry] of Object.entries(growth.prompts.catalog)) {
+    const term = findBannedClaim(promptTexts(entry), growth.bannedClaims, true);
+    if (term !== null) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["prompts", "catalog", kind, "copy"],
+        message: `banned_claim:${term}`,
+      });
+    }
+  }
 });
 
 /** AI crawlers the owner can switch per bot (SEO-GEO §10.4); search engines are always allowed. */

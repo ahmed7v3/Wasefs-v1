@@ -12,6 +12,7 @@ import {
 import { Redis } from "ioredis";
 import { PinoLogger } from "nestjs-pino";
 
+import { AdsWhatsappService } from "../../ads/ads-whatsapp.service.js";
 import { REDIS } from "../../common/redis.js";
 import { API_ENV } from "../../config/config.module.js";
 import { ObjectStorage } from "../../files/object-storage.js";
@@ -76,6 +77,7 @@ export class WaAgentEventsConsumer extends StreamConsumer {
     private readonly settings: SettingsService,
     @Inject(REDIS) private readonly redis: Redis,
     private readonly storage: ObjectStorage,
+    private readonly whatsappAds: AdsWhatsappService,
   ) {
     super(apiEnv, logger, WA_AGENT_EVENTS_STREAM, GROUP);
     this.logger.setContext("WaAgentEvents");
@@ -117,7 +119,42 @@ export class WaAgentEventsConsumer extends StreamConsumer {
     if (parts === null || parts.length === 0) return [];
     if (!(await this.send(conversation.id, parts))) return [];
     this.logger.info({ conversationId: conversation.id, type: event.type }, "Agent follow-up sent");
+    // Only after a delivered result: never after a failure, a payment or a file the customer asked for.
+    if (event.type === "rx_done") {
+      const failed =
+        parts.length === 1 && parts[0]?.kind === "text" && parts[0].text === rxFailedText(locale);
+      if (!failed) await this.followWithAd(conversation, locale);
+    }
     return parts.flatMap((part) => ("mediaKey" in part && part.mediaKey ? [part.mediaKey] : []));
+  }
+
+  /**
+   * The WhatsApp ad that may follow a delivered result, as a message of its own: the result was
+   * already queued, so nothing here can delay or alter it. Any failure is logged by code and dropped.
+   */
+  private async followWithAd(conversation: WaConversation, locale: Locale): Promise<void> {
+    try {
+      const offer = await this.whatsappAds.maybeWhatsAppAd(conversation, "after_rx_done", {
+        moment: "delivered",
+        locale,
+      });
+      if (offer === null) return;
+      // Caps and the impression are recorded only when the ad was really queued.
+      if (!(await this.send(conversation.id, offer.parts))) return;
+      await offer.confirmSent();
+      this.logger.info(
+        { conversationId: conversation.id, creativeId: offer.creativeId },
+        "WhatsApp ad sent",
+      );
+    } catch (error) {
+      this.logger.warn(
+        {
+          conversationId: conversation.id,
+          reason: error instanceof Error ? error.name : "unknown",
+        },
+        "WhatsApp ad skipped",
+      );
+    }
   }
 
   private async partsFor(

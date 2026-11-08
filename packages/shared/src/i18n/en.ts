@@ -1,3 +1,4 @@
+import { enAdminAds } from "./en.admin-ads.js";
 import { enAdminAi } from "./en.admin-ai.js";
 import { enAdminBilling } from "./en.admin-billing.js";
 import { enAdminConsole } from "./en.admin-console.js";
@@ -43,6 +44,7 @@ export const en: Partial<Record<MessageKey, string>> = {
   ...enAdminSeo,
   ...enAdminSiteHealth,
   ...enAdminWaAgent,
+  ...enAdminAds,
   ...enAdminAi,
   ...enAdminBilling,
   ...enAdminGateways,

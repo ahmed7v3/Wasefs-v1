@@ -41,6 +41,9 @@ export const ErrorCode = {
   CONTENT_SLUG_TAKEN: "CONTENT_SLUG_TAKEN",
   CONTENT_IN_USE: "CONTENT_IN_USE",
   CONTENT_REDIRECT_INVALID: "CONTENT_REDIRECT_INVALID",
+  // First-party ads (docs/ADS.md §1): the safety floor refusing an admin action.
+  AD_CLASS_NOT_SERVABLE: "AD_CLASS_NOT_SERVABLE",
+  AD_CATEGORY_FORBIDDEN: "AD_CATEGORY_FORBIDDEN",
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
@@ -304,6 +307,20 @@ export const ERROR_INFO: Record<ErrorCode, ErrorCodeInfo> = {
     message: {
       ar: "هذا التحويل يسبب حلقة أو سلسلة تحويلات.",
       en: "This redirect would create a loop or a redirect chain.",
+    },
+  },
+  AD_CLASS_NOT_SERVABLE: {
+    httpStatus: 422,
+    message: {
+      ar: "لا تُعرض الإعلانات على هذا النوع من الصفحات (النتائج والمحادثات والدفع والحساب).",
+      en: "Ads are never shown on this kind of page (results, chat, checkout, account).",
+    },
+  },
+  AD_CATEGORY_FORBIDDEN: {
+    httpStatus: 422,
+    message: {
+      ar: "لا يمكن اعتماد إعلان في فئة الأدوية.",
+      en: "A medicine ad can never be approved.",
     },
   },
 };

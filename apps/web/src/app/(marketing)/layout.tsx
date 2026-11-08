@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 
+import { BottomBannerHost } from "../../components/ads/bottom-banner-host";
 import { ContactHub } from "../../components/contact-hub";
 import { JsonLd } from "../../components/marketing/json-ld";
 import { SiteFooter } from "../../components/marketing/site-footer";
@@ -44,6 +45,7 @@ export default async function MarketingLayout({ children }: { children: ReactNod
       </main>
       <SiteFooter settings={settings} locale={locale} path={path} content={content} />
       <ContactHub contact={settings.contact} locale={locale} />
+      <BottomBannerHost locale={locale} />
       <VitalsBeacon
         route={vitalsRoute(path)}
         endpoint={`${publicEnv.NEXT_PUBLIC_API_URL}/public/vitals`}

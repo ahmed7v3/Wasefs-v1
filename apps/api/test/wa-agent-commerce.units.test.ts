@@ -1147,11 +1147,18 @@ function eventsConsumer(
     enqueueError?: Error;
     noConversation?: boolean;
     maxMessagesPerTurn?: number;
+    /** A WhatsApp ad is on offer after a delivered result; `adError` makes the offer throw. */
+    ad?: boolean;
+    adError?: Error;
+    /** Fails the enqueue of the ad only (the result went out). */
+    adEnqueueError?: boolean;
   } = {},
 ) {
   type SentPart = { kind: string; text?: string; mediaKey?: string; fileName?: string };
   const sent: Array<{ id: string; parts: SentPart[] }> = [];
   const removed: string[] = [];
+  const adCalls: string[] = [];
+  const adConfirmed: string[] = [];
   const redis = new MemoryRedis();
   redis.values.set(`wa:agent:rx:${RX_ID}`, COMMERCE_CONVERSATION_ID);
   const config = settingDefault("waAgent");
@@ -1185,6 +1192,9 @@ function eventsConsumer(
     fake({
       enqueue: (id: string, parts: SentPart[]) => {
         sent.push({ id, parts });
+        if (options.adEnqueueError && parts[0]?.text === "AD") {
+          return Promise.reject(appError("CONFLICT", "conversation_paused"));
+        }
         return options.enqueueError ? Promise.reject(options.enqueueError) : Promise.resolve(["m"]);
       },
     }),
@@ -1207,9 +1217,27 @@ function eventsConsumer(
         return Promise.resolve();
       },
     }),
+    fake({
+      maybeWhatsAppAd: (_conversation: unknown, trigger: string) => {
+        adCalls.push(trigger);
+        if (options.adError) return Promise.reject(options.adError);
+        return Promise.resolve(
+          options.ad
+            ? {
+                parts: [{ kind: "text", text: "AD" }],
+                creativeId: "creative-1",
+                confirmSent: () => {
+                  adConfirmed.push("creative-1");
+                  return Promise.resolve();
+                },
+              }
+            : null,
+        );
+      },
+    }),
   );
   consumer.timing.lockWaitMs = 0;
-  return { consumer, sent, redis, removed };
+  return { consumer, sent, redis, removed, adCalls, adConfirmed };
 }
 
 describe("WaAgentEventsConsumer", () => {
@@ -1272,6 +1300,63 @@ describe("WaAgentEventsConsumer", () => {
     await expect(
       consumer.process({ type: "order_paid", userId: EVENT_USER, orderId: ORDER_ID }),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe("WaAgentEventsConsumer WhatsApp ads", () => {
+  const view = { result: result([item()]) };
+
+  it("sends the ad as a separate message after the delivered result, and confirms it", async () => {
+    const { consumer, sent, adCalls, adConfirmed } = eventsConsumer({ rxView: view, ad: true });
+    await consumer.process({ type: "rx_done", rxId: RX_ID });
+    expect(adCalls).toEqual(["after_rx_done"]);
+    expect(sent).toHaveLength(2);
+    expect(sent[0]?.parts.map((part) => part.text).join(" ")).not.toContain("AD");
+    expect(sent[1]?.parts).toEqual([{ kind: "text", text: "AD" }]);
+    expect(adConfirmed).toEqual(["creative-1"]);
+  });
+
+  it("asks for no ad after a failure, a payment or a file", async () => {
+    const { consumer, adCalls } = eventsConsumer({ rxView: view, ad: true });
+    await consumer.process({ type: "rx_failed", rxId: RX_ID });
+    await consumer.process({ type: "order_paid", userId: EVENT_USER, orderId: ORDER_ID });
+    await consumer.process({
+      type: "document_ready",
+      conversationId: COMMERCE_CONVERSATION_ID,
+      mediaKey: "wa/out/2026/10/018f0000-0000-7000-8000-0000000000e1.pdf",
+      fileName: "r.pdf",
+      kind: "document",
+    });
+    expect(adCalls).toEqual([]);
+  });
+
+  it("asks for no ad when the result turned out missing (the failure line)", async () => {
+    const { consumer, sent, adCalls } = eventsConsumer({ rxView: { result: null }, ad: true });
+    await consumer.process({ type: "rx_done", rxId: RX_ID });
+    expect(sent).toHaveLength(1);
+    expect(adCalls).toEqual([]);
+  });
+
+  it("an ad that throws does not touch the result", async () => {
+    const { consumer, sent, adConfirmed } = eventsConsumer({
+      rxView: view,
+      ad: true,
+      adError: new Error("boom"),
+    });
+    await expect(consumer.process({ type: "rx_done", rxId: RX_ID })).resolves.toBeUndefined();
+    expect(sent).toHaveLength(1);
+    expect(adConfirmed).toEqual([]);
+  });
+
+  it("does not record an ad that could not be queued", async () => {
+    const { consumer, sent, adConfirmed } = eventsConsumer({
+      rxView: view,
+      ad: true,
+      adEnqueueError: true,
+    });
+    await expect(consumer.process({ type: "rx_done", rxId: RX_ID })).resolves.toBeUndefined();
+    expect(sent).toHaveLength(2);
+    expect(adConfirmed).toEqual([]);
   });
 });
 

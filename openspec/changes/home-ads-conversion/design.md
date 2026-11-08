@@ -161,3 +161,11 @@ Rollback: `ads.enabled = false`, prompt moments off, home sections toggled; code
   per-task entitlement rows); slot cached 60 s (rotation per minute); ads-free applies to app pages (public pages
   stay static); the token is derived from `BETTER_AUTH_SECRET` with a purpose label. Home: sections in
   `components/home/*`, order/visibility from `landing.sections`; the WhatsApp sign-up block is Arabic-only.
+- Wave 2 review (2026-11-08): banner host in the marketing and app shell layouts, class from `x-pathname`
+  (`lib/ad-route-class.ts`, walker test); `ads.bottomBanner` setting is the single source for the banner;
+  `whatsapp.*` placement rows (0034) exist only for stats FKs and are hidden from the placements editor;
+  WhatsApp ads: `maybeWhatsAppAd` returns an offer with `confirmSent()` so caps/impressions count only
+  after a successful send, links live 30 days, opt-out keywords in the bridge; prompts: catalog under
+  `growth.prompts.catalog`, claims lint also on the generic settings save, `trial_ended` needs balance 0;
+  0035 grants `ads.read`/`ads.write` to existing `marketing` and `admin` roles. Not built: a UI for
+  `ads.maxPerPage` (API only).

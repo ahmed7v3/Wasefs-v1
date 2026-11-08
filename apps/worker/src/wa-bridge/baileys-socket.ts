@@ -1,3 +1,4 @@
+import { setConversationAdsOptOut } from "@wasfa/db";
 import {
   WA_CUSTOMER_OPTOUT_SET,
   WA_CUSTOMER_PREFS_LIST,
@@ -22,6 +23,7 @@ import { usePostgresAuthState } from "./auth-state.js";
 import { recordIgnored } from "./inbound-diagnostics.js";
 import {
   addressingOf,
+  extractAdsPrefCommand,
   extractAlertOptInCommand,
   extractCustomerPrefCommand,
   isDirectJid,
@@ -66,6 +68,40 @@ export function createBaileysSessionOpener(
   options: BaileysSessionOptions,
 ): () => Promise<BridgeSession> {
   const { db, key, session, logger, redis, guard, agentSettings, mediaStore } = options;
+
+  /** Remembers the choice on the chat and queues the fixed reply; false when it could not be saved. */
+  async function handleAdsPref(
+    command: Awaited<ReturnType<typeof extractAdsPrefCommand>> & object,
+    messageId: string,
+  ): Promise<boolean> {
+    try {
+      await setConversationAdsOptOut(
+        db,
+        { jid: command.jid, phone: `+${command.digits}` },
+        command.action === "off",
+      );
+    } catch (error) {
+      // Not saved: let the message reach the agent rather than promise something untrue.
+      logger.error(
+        { reason: error instanceof Error ? error.name : "unknown" },
+        "Saving the WhatsApp ads preference failed",
+      );
+      return false;
+    }
+    await guard.noteInbound(command.jid, messageId);
+    await redis.xadd(
+      WA_REPLY_STREAM,
+      "*",
+      "data",
+      JSON.stringify({
+        inboundId: messageId,
+        jid: command.jid,
+        outcome: command.action === "off" ? "ads_off" : "ads_on",
+      }),
+    );
+    logger.info({ action: command.action }, "WhatsApp ads preference saved");
+    return true;
+  }
 
   async function handleMessages(
     socket: WASocket,
@@ -119,6 +155,15 @@ export function createBaileysSessionOpener(
         await socket.readMessages([message.key]).catch(() => undefined);
         logger.info({ action: command.action }, "WhatsApp customer preference command queued");
         continue;
+      }
+      // «وقف الإعلانات» / «شغل الإعلانات»: a fixed answer, no model; off by the admin = to the agent.
+      const adsPref = await extractAdsPrefCommand(raw, resolver);
+      if (adsPref && (await agentSettings.current()).adsOptOutOn) {
+        const messageId = raw.key.id;
+        if (messageId && (await handleAdsPref(adsPref, messageId))) {
+          await socket.readMessages([message.key]).catch(() => undefined);
+          continue;
+        }
       }
       // Codes, the agent and the owner's own messages: see agent-inbound.ts.
       try {

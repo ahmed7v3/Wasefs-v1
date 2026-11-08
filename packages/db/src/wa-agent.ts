@@ -225,6 +225,24 @@ export async function pauseConversation(
   return row ?? null;
 }
 
+/**
+ * «وقف الإعلانات» / «شغل الإعلانات»: remembers per chat that WhatsApp ads are off or on again. The chat
+ * is found by its phone-number jid or its phone (a LID chat is linked to the phone once known); no
+ * row means the person never talked to the agent, so there is nothing to remember. Idempotent.
+ */
+export async function setConversationAdsOptOut(
+  db: Handle,
+  chat: { jid: string; phone: string },
+  optedOut: boolean,
+): Promise<number> {
+  const rows = await db
+    .update(waConversations)
+    .set({ adsOptOut: optedOut, updatedAt: new Date() })
+    .where(or(eq(waConversations.jid, chat.jid), eq(waConversations.phone, chat.phone)))
+    .returning({ id: waConversations.id });
+  return rows.length;
+}
+
 /** Messages older than `cutoff`, with the media object to delete first. */
 export async function listMessagesForRetention(
   db: Handle,

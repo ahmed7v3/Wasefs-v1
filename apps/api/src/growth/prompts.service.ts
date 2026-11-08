@@ -6,25 +6,31 @@ import {
   ORG_USAGE_MIN_MEMBERS,
   PLAN_EXPIRING_DAYS,
   TASTE_PROMPT_ANALYSIS_NUMBERS,
+  isCalmSurface,
+  modalAllowed,
   promptCooldownDays,
   promptExperimentKey,
   promptSessionKey,
   variantFor,
   type GrowthPromptKind,
 } from "@wasfa/shared/growth";
+import { renderPromptText, resolvePromptCatalog } from "@wasfa/shared/growth-prompts";
+import { t } from "@wasfa/shared/i18n";
 import { rxResultSchema } from "@wasfa/shared/schemas/rx";
 import { Redis } from "ioredis";
 
 import { REDIS } from "../common/redis.js";
-import { CreditsService } from "../credits/credits.service.js";
+import { CreditsService, nextGrantAt } from "../credits/credits.service.js";
 import { PayerService } from "../orgs/wallet/payer.service.js";
 import { PlansService } from "../plans/plans.service.js";
 import { SettingsService } from "../settings/settings.service.js";
 
 import { GrowthRepo } from "./growth.repo.js";
+import { PromptCopyService, type LocalizedValues } from "./prompt-copy.service.js";
 import { TasteService } from "./taste.service.js";
 
 import type { AuthenticatedUser } from "../common/current-user.js";
+import type { PromptEntry } from "@wasfa/shared/growth-prompts";
 import type {
   GrowthPrompt,
   GrowthPromptQuery,
@@ -41,9 +47,16 @@ const UPSELL_KINDS: ReadonlySet<GrowthPromptKind> = new Set([
   "credits_low",
   "credits_out",
   "locked_feature",
+  "trial_ended",
 ]);
 
-type Candidate = Omit<GrowthPrompt, "variant" | "messageKey"> & { messageBase: string };
+type Candidate = Pick<GrowthPrompt, "kind" | "params" | "cta"> & {
+  messageBase: string;
+  /** The user's next free renewal date, for `{renewDate}`. */
+  renewAt?: Date;
+  /** Values that differ per locale (the locked feature's sentence). */
+  localized?: LocalizedValues;
+};
 
 /**
  * `GrowthService.nextPrompt` of GROWTH-STRATEGY §4: at most one calm, closable card per request,
@@ -52,6 +65,11 @@ type Candidate = Omit<GrowthPrompt, "variant" | "messageKey"> & { messageBase: s
  * prompt. The guardrails of §2 are enforced here, not in the web: the session cap, the per-kind
  * cooldown that doubles with each dismissal (capped), the kill switch, nothing for a result that is
  * not finished (never during an upload, an analysis or an error), and upsells for free accounts only.
+ *
+ * The copy, form, target plan, destination and cooldown of every kind come from the settings catalog
+ * (`growth.prompts.catalog`); the response carries the rendered strings. A modal is returned only for
+ * the calm kinds on a calm surface (dashboard, analyze start); anywhere else it is skipped, never
+ * downgraded to a card.
  */
 @Injectable()
 export class PromptsService {
@@ -62,6 +80,7 @@ export class PromptsService {
     private readonly payer: PayerService,
     private readonly settings: SettingsService,
     private readonly taste: TasteService,
+    private readonly copy: PromptCopyService,
     @Inject(REDIS) private readonly redis: Redis,
   ) {}
 
@@ -77,10 +96,23 @@ export class PromptsService {
     const shownThisSession = Number(await this.redis.get(promptSessionKey(query.sessionId)));
     if (shownThisSession >= growth.prompts.maxPerSession) return { prompt: null };
 
+    const catalog = resolvePromptCatalog(growth.prompts.catalog);
     const candidates = await this.candidates(user, query, now);
     for (const candidate of candidates) {
-      if (await this.coolingDown(user.id, candidate.kind, growth.prompts, now)) continue;
-      return { prompt: await this.withCopy(user.id, candidate) };
+      const entry = catalog[candidate.kind];
+      if (!entry.enabled) continue;
+      // The guard lives here as well as in the settings schema: a stored value can never open a modal
+      // on a moment that is not calm, and a calm one never opens on a busy surface.
+      if (entry.form === "modal") {
+        if (!modalAllowed(candidate.kind) || !isCalmSurface(query.context)) continue;
+      }
+      const prompts = {
+        cooldownDays: entry.cooldownDays ?? growth.prompts.cooldownDays,
+        maxCooldownDays: growth.prompts.maxCooldownDays,
+      };
+      if (await this.coolingDown(user.id, candidate.kind, prompts, now)) continue;
+      const prompt = await this.withCopy(user.id, candidate, entry, now);
+      if (prompt !== null) return { prompt };
     }
     return { prompt: null };
   }
@@ -107,6 +139,12 @@ export class PromptsService {
           kind: "locked_feature",
           messageBase: `growth.prompt.locked_feature.${query.feature}`,
           params: {},
+          localized: {
+            featureLine: {
+              ar: t(`growth.prompt.locked_feature.${query.feature}.a`, undefined, "ar"),
+              en: t(`growth.prompt.locked_feature.${query.feature}.a`, undefined, "en"),
+            },
+          },
           cta: { kind: "pricing", href: "/pricing" },
         });
       }
@@ -120,14 +158,30 @@ export class PromptsService {
       return out;
     }
 
-    // dashboard and credits
-    const expiring = await this.planExpiring(user.id, now);
+    // dashboard, analyze start and credits
+    const analyzeStart = query.context === "analyze_start";
+    const expiring = analyzeStart ? null : await this.planExpiring(user.id, now);
     if (expiring && query.context === "dashboard") out.push(expiring);
     const view = await this.credits.forUser(user.id, now);
     const balance = view.wallet.balance;
     const monthly = view.monthlyCredits;
     const nextGrant = new Date(view.nextGrantAt);
     const daysToGrant = Math.ceil((nextGrant.getTime() - now.getTime()) / DAY_MS);
+    // The first free credits are gone: once (again only after a dismissal's cooldown), before credits-out.
+    if (free && balance === 0 && (await this.trialEnded(user.id, now))) {
+      out.unshift({
+        kind: "trial_ended",
+        messageBase: "growth.prompt.trial_ended",
+        params: {},
+        renewAt: nextGrant,
+        cta: { kind: "pricing", href: "/pricing" },
+      });
+    }
+    if (analyzeStart) {
+      // Before any upload: only the moments that stop the person from starting.
+      if (free && balance === 0) out.push(this.creditsOut(view.nextGrantAt, nextGrant));
+      return out;
+    }
     if (free && monthly > 0 && balance > 0 && daysToGrant <= EXPIRING_CREDITS_DAYS) {
       // True and useful, no upsell: "you have credits that expire" with an analyse button.
       out.push({
@@ -139,12 +193,7 @@ export class PromptsService {
     }
     if (free && balance === 0) {
       // The free renewal date always comes first (GROWTH §4).
-      out.push({
-        kind: "credits_out",
-        messageBase: "growth.prompt.credits_out",
-        params: { date: view.nextGrantAt.slice(0, 10) },
-        cta: { kind: "pack", href: "/billing#packs" },
-      });
+      out.push(this.creditsOut(view.nextGrantAt, nextGrant));
     } else if (free && monthly > 0) {
       const used = Math.max(0, monthly - balance);
       if (used * 100 >= monthly * CREDITS_LOW_USED_PERCENT) {
@@ -157,6 +206,27 @@ export class PromptsService {
       }
     }
     return out;
+  }
+
+  private creditsOut(nextGrantIso: string, renewAt: Date): Candidate {
+    return {
+      kind: "credits_out",
+      messageBase: "growth.prompt.credits_out",
+      params: { date: nextGrantIso.slice(0, 10) },
+      renewAt,
+      cta: { kind: "pack", href: "/billing#packs" },
+    };
+  }
+
+  /**
+   * The first free credits (trial, else the first monthly grant) are fully spent or expired, and the
+   * prompt was not already shown without a dismissal (a click or an ignore is its one showing).
+   */
+  private async trialEnded(userId: string, now: Date): Promise<boolean> {
+    const trial = await this.repo.trialCredits(userId);
+    if (trial === null || trial.granted <= 0 || trial.consumed < trial.granted) return false;
+    const history = await this.repo.promptHistory(userId, "trial_ended", now);
+    return history.lastShownAt === null || history.dismissals > 0;
   }
 
   private async orgCandidates(
@@ -253,14 +323,58 @@ export class PromptsService {
     return false;
   }
 
-  /** The copy variant: the user's stable arm of a running experiment for this kind, else the control. */
-  private async withCopy(userId: string, candidate: Candidate): Promise<GrowthPrompt> {
+  /**
+   * The copy variant: the user's stable arm of a running experiment for this kind, else the control.
+   * The control carries the catalog copy rendered with real plan values; an experiment arm keeps its
+   * dictionary text and is always a card. `null` when a placeholder cannot be filled (no plan on
+   * sale): a person never reads a template.
+   */
+  private async withCopy(
+    userId: string,
+    candidate: Candidate,
+    entry: PromptEntry,
+    now: Date,
+  ): Promise<GrowthPrompt | null> {
     const experiment = await this.repo.experimentByKey(promptExperimentKey(candidate.kind));
     const variant =
       experiment?.status === "running"
         ? variantFor(userId, experiment.key, experiment.variants)
         : CONTROL_VARIANT;
-    const { messageBase, ...prompt } = candidate;
-    return { ...prompt, variant, messageKey: `${messageBase}.${variant}` };
+    const { messageBase, renewAt, localized, ...prompt } = candidate;
+    const base = { ...prompt, variant, messageKey: `${messageBase}.${variant}` };
+    if (variant !== CONTROL_VARIANT) return { ...base, form: "inline", content: null };
+
+    const plan = this.copy.usesPlan(entry) ? await this.copy.planFacts(entry.targetPlan, now) : null;
+    const content = this.copy.render({
+      entry,
+      plan,
+      renewAt: renewAt ?? nextGrantAt(now),
+      params: candidate.params,
+      ...(localized ? { localized } : {}),
+    });
+    if (!this.copy.isComplete(content)) return null;
+    const href =
+      entry.cta.href === null
+        ? candidate.cta.href
+        : renderPromptText(entry.cta.href, this.hrefValues(candidate));
+    return {
+      ...base,
+      cta: { kind: candidate.cta.kind, ...(href !== undefined ? { href } : {}) },
+      form: entry.form,
+      content,
+      ...(entry.secondaryHref !== undefined ? { secondaryHref: entry.secondaryHref } : {}),
+    };
+  }
+
+  /** Values a destination may carry: the moment's params and the ids in its own default link. */
+  private hrefValues(candidate: Candidate): Record<string, string> {
+    const link = candidate.cta.href ?? "";
+    const org = /[?&]org=([^&]+)/.exec(link)?.[1];
+    const sub = /[?&]sub=([^&]+)/.exec(link)?.[1];
+    return {
+      ...Object.fromEntries(Object.entries(candidate.params).map(([key, value]) => [key, String(value)])),
+      ...(org ? { orgId: org } : {}),
+      ...(sub ? { subId: sub } : {}),
+    };
   }
 }

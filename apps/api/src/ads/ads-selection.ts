@@ -149,3 +149,31 @@ export function selectCreative(input: {
   if (!placementServes(placement, settings, ctx)) return null;
   return weightedPick(eligibleCreatives(placement, candidates, ctx, now), rng);
 }
+
+/**
+ * WhatsApp ads: approved, non-medicine, scheduled creatives of the WhatsApp channel that have a
+ * message text. Nothing else is looked at: no placement, page, locale, country or user signal, and
+ * the function cannot receive any message, prescription or analysis content.
+ */
+export function eligibleWhatsAppCreatives(
+  candidates: readonly Candidate[],
+  now: Date,
+): AdCreativeRow[] {
+  return candidates
+    .filter(({ creative, advertiserActive }) => {
+      if (creative.status !== "approved" || isForbiddenCategory(creative.category)) return false;
+      if (!creative.channels.includes("whatsapp")) return false;
+      if (creative.waText === null || creative.waText.trim() === "") return false;
+      if (creative.advertiserId !== null && !advertiserActive) return false;
+      return inWindow(creative, now);
+    })
+    .map(({ creative }) => creative);
+}
+
+export function selectWhatsAppCreative(
+  candidates: readonly Candidate[],
+  now: Date,
+  rng: Rng,
+): AdCreativeRow | null {
+  return weightedPick(eligibleWhatsAppCreatives(candidates, now), rng);
+}

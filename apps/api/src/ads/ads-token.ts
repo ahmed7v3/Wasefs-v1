@@ -32,8 +32,16 @@ export function utcDay(now: Date): string {
   return now.toISOString().slice(0, 10);
 }
 
-export function signAdToken(secret: string, claims: AdTokenClaims, now: Date): string {
-  const expiry = Math.floor(now.getTime() / 1000) + AD_TOKEN_TTL_SECONDS;
+/** A link in a chat is tapped days later: WhatsApp ad tokens live longer than a web page view. */
+export const WA_AD_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
+
+export function signAdToken(
+  secret: string,
+  claims: AdTokenClaims,
+  now: Date,
+  ttlSeconds: number = AD_TOKEN_TTL_SECONDS,
+): string {
+  const expiry = Math.floor(now.getTime() / 1000) + ttlSeconds;
   const payload = [claims.creativeId, claims.placement, claims.day, claims.channel, expiry].join(
     ".",
   );

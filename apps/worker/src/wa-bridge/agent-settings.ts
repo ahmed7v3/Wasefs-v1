@@ -13,6 +13,8 @@ export interface AgentSwitches {
   verificationOn: boolean;
   /** `auth.whatsappLogin`: login claims and the logout command are routed (docs/WA-SIGNUP.md). */
   whatsappLoginOn: boolean;
+  /** `ads.whatsapp.allowOptOut`: «وقف الإعلانات» / «شغل الإعلانات» are honoured; off = they go to the agent. */
+  adsOptOutOn: boolean;
 }
 
 export interface AgentSettingsSource {
@@ -33,6 +35,7 @@ export class AgentSettingsCache implements AgentSettingsSource {
     agent: settingDefault("waAgent"),
     verificationOn: true,
     whatsappLoginOn: true,
+    adsOptOutOn: true,
   };
 
   constructor(
@@ -60,10 +63,15 @@ export class AgentSettingsCache implements AgentSettingsSource {
 }
 
 async function readSwitches(db: Database): Promise<AgentSwitches> {
-  const [agent, auth] = await Promise.all([readSetting(db, "waAgent"), readSetting(db, "auth")]);
+  const [agent, auth, ads] = await Promise.all([
+    readSetting(db, "waAgent"),
+    readSetting(db, "auth"),
+    readSetting(db, "ads"),
+  ]);
   return {
     agent,
     verificationOn: auth.phoneVerification === "whatsapp_inbound",
     whatsappLoginOn: auth.whatsappLogin,
+    adsOptOutOn: ads.whatsapp.allowOptOut,
   };
 }

@@ -1,7 +1,11 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { AD_PLACEMENT_CATALOG } from "@wasfa/shared/ads";
+import {
+  AD_PLACEMENT_CATALOG,
+  AD_WHATSAPP_TRIGGERS,
+  whatsappPlacementKey,
+} from "@wasfa/shared/ads";
 import { describe, expect, it } from "vitest";
 
 const migrations = (name: string) =>
@@ -24,6 +28,20 @@ describe("ads migration", () => {
     const journal = JSON.parse(migrations("meta/_journal.json")) as { entries: { when: number }[] };
     const whens = journal.entries.map((entry) => entry.when);
     expect(whens).toEqual([...whens].sort((a, b) => a - b));
+  });
+
+  it("journals the ads opt-out migration after 0033_ads and adds the flag and the WhatsApp stats keys", () => {
+    const journal = JSON.parse(migrations("meta/_journal.json")) as {
+      entries: { tag: string; when: number }[];
+    };
+    const ads = journal.entries.find((candidate) => candidate.tag === "0033_ads");
+    const optOut = journal.entries.find((candidate) => candidate.tag === "0034_ads_opt_out");
+    expect(optOut?.when).toBeGreaterThan(ads?.when ?? Number.POSITIVE_INFINITY);
+    const sql = migrations("0034_ads_opt_out.sql");
+    expect(sql).toContain('"ads_opt_out" boolean DEFAULT false NOT NULL');
+    for (const trigger of AD_WHATSAPP_TRIGGERS) {
+      expect(sql).toContain(`'${whatsappPlacementKey(trigger)}'`);
+    }
   });
 
   it("seeds exactly the catalog, every placement disabled by default", () => {

@@ -52,6 +52,8 @@ export const enCore: Partial<Record<MessageKey, string>> = {
   "account.notifications.saved": "Notification preferences saved",
   "phone.reply.messagesOff": "WhatsApp messages turned off",
   "phone.reply.messagesOn": "WhatsApp messages turned on",
+  "phone.reply.adsOff": "Ads turned off. Send ads on to turn them back on.",
+  "phone.reply.adsOn": "Ads turned on again.",
   "whatsapp.customer.subscriptionActivated":
     "Your {plan} plan is active until {date}. Monthly credits: {credits}. Order: {number}.",
   "whatsapp.customer.paymentReceived":

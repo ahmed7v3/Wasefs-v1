@@ -1,3 +1,4 @@
+import { BottomBannerHost } from "../../../components/ads/bottom-banner-host";
 import { ContactHub } from "../../../components/contact-hub";
 import { JoinAcceptor } from "../../../components/join/join-acceptor";
 import { AppShell } from "../../../components/shell/app-shell";
@@ -42,6 +43,7 @@ export default async function ShellLayout({ children }: { children: ReactNode })
         verified={{ email: me.emailVerified && me.email !== null, phone: me.phoneVerified }}
       />
       <ContactHub contact={settings.contact} compact />
+      <BottomBannerHost />
     </>
   );
 }

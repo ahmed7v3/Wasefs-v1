@@ -4,13 +4,14 @@ import { t } from "@wasfa/shared/i18n";
 import { rxCreateResponseSchema } from "@wasfa/shared/schemas/rx";
 import { CaptureSurface, useToast } from "@wasfa/ui";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { api } from "../../lib/api-client";
 import { extractErrorRef } from "../../lib/api-error";
 import { createHandoffClient } from "../../lib/capture/handoff-client";
 import { clearPendingCapture, peekPendingCapture } from "../../lib/capture/pending-capture";
 import { createCaptureUploader } from "../../lib/capture/uploader";
+import { setGrowthBusy } from "../../lib/growth-busy";
 import { withWorkspace } from "../../lib/workspace";
 import { errorMessage } from "../error-notice";
 
@@ -32,11 +33,20 @@ export function AnalyzeCapture({ maxPages, creditsPerPage, balance }: AnalyzeCap
   // Pages the dashboard's quick capture already uploaded. Read (not consumed) in the initializer so
   // a strict-mode double render sees them; they are cleared once this screen has taken them.
   const [initialFileIds] = useState(peekPendingCapture);
+  const pagesBusy = useRef(initialFileIds.length > 0);
   useEffect(() => {
     clearPendingCapture();
   }, []);
+  // An upgrade prompt never opens over pages being added, uploaded or analysed.
+  useEffect(() => {
+    setGrowthBusy(pagesBusy.current);
+    return () => {
+      setGrowthBusy(false);
+    };
+  }, []);
 
   async function analyze(fileIds: string[]): Promise<void> {
+    setGrowthBusy(true);
     try {
       const created = await api("/rx", {
         method: "POST",
@@ -52,6 +62,7 @@ export function AnalyzeCapture({ maxPages, creditsPerPage, balance }: AnalyzeCap
         description: ref ? `${errorMessage(error)} (${ref})` : errorMessage(error),
       });
       // Rethrown so the Analyze button comes back and the pages stay for another try.
+      setGrowthBusy(pagesBusy.current);
       throw error;
     }
   }
@@ -64,12 +75,11 @@ export function AnalyzeCapture({ maxPages, creditsPerPage, balance }: AnalyzeCap
       uploader={uploader}
       handoff={handoff}
       initialFileIds={initialFileIds}
-      onPagesChange={noop}
+      onPagesChange={(pages) => {
+        pagesBusy.current = pages.length > 0;
+        setGrowthBusy(pagesBusy.current);
+      }}
       onAnalyze={analyze}
     />
   );
-}
-
-function noop(): void {
-  // The surface owns the pages; this screen needs them only at Analyze time.
 }

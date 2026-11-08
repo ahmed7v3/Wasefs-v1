@@ -2,6 +2,7 @@ import { t } from "@wasfa/shared/i18n";
 import { Container } from "@wasfa/ui";
 import { Fragment } from "react";
 
+import { AdSlot } from "../../components/ads/ad-slot";
 import { WhatsAppLogin } from "../../components/auth/whatsapp-login";
 import { HomeHero } from "../../components/home/home-hero";
 import { renderHomeSection, type HomeSectionContext } from "../../components/home/home-sections";
@@ -19,12 +20,17 @@ import { getMe } from "../../lib/session";
 import { homeStructuredData } from "../../lib/structured-data";
 import { loadWhatsAppAvailable } from "../../lib/whatsapp-availability";
 
+import { adClass } from "./ad-class";
+
 import type { Metadata } from "next";
 
 export const metadata: Metadata = pageMetadata("home", { description: t("meta.description") });
 
 /** Where the account-deletion flow lands (`DELETED_NOTICE_PATH`). */
 const DELETED_NOTICE = "account_deleted";
+
+/** A slot renders nothing without a creative, so these margins only exist when an ad does. */
+const HOME_AD_CLASS = "my-6 px-4";
 
 export default async function HomePage({
   searchParams,
@@ -72,8 +78,32 @@ export default async function HomePage({
         }
       />
       {/* Sections are siblings on purpose: ad slots are inserted between them. */}
+      <AdSlot
+        placement="home.after_hero"
+        pageClass={adClass}
+        locale="ar"
+        className={HOME_AD_CLASS}
+      />
       {sections.map((key) => (
-        <Fragment key={key}>{renderHomeSection(key, context)}</Fragment>
+        <Fragment key={key}>
+          {key === "faq" ? (
+            <AdSlot
+              placement="home.before_faq"
+              pageClass={adClass}
+              locale="ar"
+              className={HOME_AD_CLASS}
+            />
+          ) : null}
+          {renderHomeSection(key, context)}
+          {key === "how" ? (
+            <AdSlot
+              placement="home.mid"
+              pageClass={adClass}
+              locale="ar"
+              className={HOME_AD_CLASS}
+            />
+          ) : null}
+        </Fragment>
       ))}
     </>
   );

@@ -100,7 +100,12 @@ function settingsWith(overrides: Partial<WaAgentSettings> = {}): WaAgentSettings
 }
 
 function switches(agent: Partial<WaAgentSettings>, verificationOn = true, whatsappLoginOn = true) {
-  const value: AgentSwitches = { agent: settingsWith(agent), verificationOn, whatsappLoginOn };
+  const value: AgentSwitches = {
+    agent: settingsWith(agent),
+    verificationOn,
+    whatsappLoginOn,
+    adsOptOutOn: true,
+  };
   return { current: () => Promise.resolve(value) };
 }
 
@@ -413,6 +418,7 @@ describe("agent settings cache", () => {
           agent: settingsWith(),
           verificationOn: false,
           whatsappLoginOn: true,
+          adsOptOutOn: true,
         });
       },
     );

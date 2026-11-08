@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { BILLING_KEY_PATTERN } from "../billing.js";
+import { promptEntrySchema } from "../growth-prompts.js";
 import {
   EXPERIMENT_STATUSES,
   GROWTH_CTA_KINDS,
@@ -8,6 +9,7 @@ import {
   GROWTH_EVENT_PROPS_MAX_BYTES,
   GROWTH_LOCKED_FEATURES,
   GROWTH_PROMPT_CONTEXTS,
+  GROWTH_PROMPT_FORMS,
   GROWTH_PROMPT_KINDS,
   PHI_ACCESS_REASONS,
 } from "../growth.js";
@@ -132,6 +134,16 @@ export const growthPromptQuerySchema = z.object({
 });
 export type GrowthPromptQuery = z.output<typeof growthPromptQuerySchema>;
 
+/** One locale of a prompt with every placeholder filled. */
+export const renderedPromptCopySchema = z.object({
+  title: z.string(),
+  body: z.string(),
+  cta: z.string(),
+  secondary: z.string().optional(),
+  close: z.string(),
+});
+export type RenderedPromptCopy = z.output<typeof renderedPromptCopySchema>;
+
 export const growthPromptSchema = z.object({
   kind: z.enum(GROWTH_PROMPT_KINDS),
   /** The experiment variant that chose the copy; `control` outside an experiment. */
@@ -140,11 +152,73 @@ export const growthPromptSchema = z.object({
   messageKey: z.string(),
   params: z.record(z.string(), z.union([z.string(), z.number()])),
   cta: z.object({ kind: z.enum(GROWTH_CTA_KINDS), href: z.string().optional() }),
+  /** How the web draws it; a modal only ever comes for a calm moment on a calm surface. */
+  form: z.enum(GROWTH_PROMPT_FORMS).default("inline"),
+  /**
+   * The copy rendered for each locale (plan name, price and dates already filled); `null` for an
+   * experiment arm, which keeps using its dictionary text through `messageKey`.
+   */
+  content: z
+    .object({ ar: renderedPromptCopySchema, en: renderedPromptCopySchema })
+    .nullable()
+    .default(null),
+  secondaryHref: z.string().optional(),
 });
 export type GrowthPrompt = z.output<typeof growthPromptSchema>;
 
 export const growthPromptResponseSchema = z.object({ prompt: growthPromptSchema.nullable() });
 export type GrowthPromptResponse = z.output<typeof growthPromptResponseSchema>;
+
+// --- Admin: prompt catalog ---------------------------------------------------------------------------
+
+export const adminPromptKeyParamSchema = z.object({ key: z.enum(GROWTH_PROMPT_KINDS) });
+
+/** One catalog row for the admin: the entry, whether it is stored or the default, and 30-day counts. */
+export const adminPromptViewSchema = z.object({
+  key: z.enum(GROWTH_PROMPT_KINDS),
+  entry: promptEntrySchema,
+  stored: z.boolean(),
+  /** A modal is possible only for calm moments: the editor disables the option otherwise. */
+  modalAllowed: z.boolean(),
+  counts: z.object({
+    shown: z.number().int().min(0),
+    clicked: z.number().int().min(0),
+    dismissed: z.number().int().min(0),
+  }),
+});
+export type AdminPromptView = z.output<typeof adminPromptViewSchema>;
+
+export const adminPromptsResponseSchema = z.object({
+  /** The system-wide switch and the kill switch (read-only here; they live in the growth settings). */
+  enabled: z.boolean(),
+  killSwitch: z.boolean(),
+  items: z.array(adminPromptViewSchema),
+  /** The plans a prompt may name (public, individual) for the target select. */
+  plans: z.array(z.object({ key: z.string(), name: z.object({ ar: z.string(), en: z.string() }) })),
+  placeholders: z.array(z.string()),
+  bannedClaims: z.array(z.string()),
+});
+export type AdminPromptsResponse = z.output<typeof adminPromptsResponseSchema>;
+
+/** The body of `PUT /admin/growth/prompts/:key` (a full entry) and of the preview. */
+export const adminPromptWriteSchema = promptEntrySchema;
+export type AdminPromptWrite = z.output<typeof adminPromptWriteSchema>;
+
+export const adminPromptPreviewSchema = z.object({
+  /** The plan the placeholders were filled from (null when no plan is on sale). */
+  plan: z
+    .object({
+      key: z.string(),
+      name: z.object({ ar: z.string(), en: z.string() }),
+      priceMinor: z.number().int(),
+      currency: z.string(),
+      analyses: z.number().int(),
+      deepMode: z.boolean(),
+    })
+    .nullable(),
+  content: z.object({ ar: renderedPromptCopySchema, en: renderedPromptCopySchema }),
+});
+export type AdminPromptPreview = z.output<typeof adminPromptPreviewSchema>;
 
 // --- Taste of Deep mode --------------------------------------------------------------------------------
 

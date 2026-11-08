@@ -37,8 +37,8 @@ migration, journal `when` later than production's last applied migration (see de
 - [x] 3.3 [builder] Selection service (eligibility, schedule, targeting, weights, density, advertiser dedupe,
       entitlement), `<AdSlot>` server component, impression beacon, `/a/<token>` redirect, Redis counters,
       `ads.rollup` worker job.
-- [ ] 3.4 [builder] Bottom banner island (reserved spacer, close, dismiss days, safe-area), home placements.
-- [ ] 3.5 [builder] Admin `/admin/ads` (overview, placements, creatives with media picker + approval category
+- [x] 3.4 [builder] Bottom banner island (reserved spacer, close, dismiss days, safe-area), home placements.
+- [x] 3.5 [builder] Admin `/admin/ads` (overview, placements, creatives with media picker + approval category
       check, advertisers), permissions and audit.
 - [ ] 3.6 Verify — [runner] api/worker/web tests; Playwright: no ad on result/chat/checkout even with all
       placements on; banner closes and does not cover content; CLS budget holds with ads on.
@@ -46,21 +46,21 @@ migration, journal `when` later than production's last applied migration (see de
 ## 4. Conversion prompts (D7)
 
 - [x] 4.1 [main] Final default copy (ar/en) for trial_ended and credits_out modals, and the banned-claims list.
-- [ ] 4.2 [builder] Settings-backed prompt catalog (defaults = today), `trial_ended` trigger from the ledger,
+- [x] 4.2 [builder] Settings-backed prompt catalog (defaults = today), `trial_ended` trigger from the ledger,
       `surface` + calm rule in `next()`, placeholders from plans/entitlements, claims lint.
-- [ ] 4.3 [builder] `prompt-modal.tsx`, banner form, analyze-start surface, in-progress guard; events.
-- [ ] 4.4 [builder] Admin `/admin/growth/prompts` (list, edit, preview, enable, counts).
+- [x] 4.3 [builder] `prompt-modal.tsx`, banner form, analyze-start surface, in-progress guard; events.
+- [x] 4.4 [builder] Admin `/admin/growth/prompts` (list, edit, preview, enable, counts).
 - [ ] 4.5 Verify — [runner] unit tests of triggers/calm/cooldown; Playwright: modal after trial ends on
       dashboard, never during an analysis, one per session, cooldown after dismiss.
 
 ## 6. WhatsApp ads (D9)
 
-- [ ] 6.1 [builder] Creative channels + WhatsApp fields, `ads.whatsapp` settings, admin form (channel, text,
+- [x] 6.1 [builder] Creative channels + WhatsApp fields, `ads.whatsapp` settings, admin form (channel, text,
       image, preview of the WhatsApp message), `ads_opt_out` flag.
-- [ ] 6.2 [builder] `maybeWhatsAppAd` (switch, trigger, floor, caps, quiet hours, probability, content-blind
+- [x] 6.2 [builder] `maybeWhatsAppAd` (switch, trigger, floor, caps, quiet hours, probability, content-blind
       selection) + hook after delivered `rx_done`; opt-out keywords; stats under channel whatsapp.
 - [ ] 6.3 [builder] Command triggers (help, balance, report, schedule) once the command layer is on `main`.
-- [ ] 6.4 Verify — [runner] api unit tests: never after rx_failed/payment/takeover/ads-free/opt-out, caps and
+- [x] 6.4 Verify — [runner] api unit tests: never after rx_failed/payment/takeover/ads-free/opt-out, caps and
       gap, probability with a seeded draw, global daily limit, selection independent of analysis content.
 
 ## 5. Docs and release

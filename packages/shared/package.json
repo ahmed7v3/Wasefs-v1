@@ -195,6 +195,11 @@
       "import": "./dist/schemas/withdrawals.js",
       "default": "./dist/schemas/withdrawals.js"
     },
+    "./growth-prompts": {
+      "types": "./dist/growth-prompts.d.ts",
+      "import": "./dist/growth-prompts.js",
+      "default": "./dist/growth-prompts.js"
+    },
     "./growth": {
       "types": "./dist/growth.d.ts",
       "import": "./dist/growth.js",

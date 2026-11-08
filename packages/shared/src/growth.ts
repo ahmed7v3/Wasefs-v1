@@ -91,8 +91,30 @@ export function hasMarketingConsent(prefs: {
 
 // --- Prompts, tastes, offers ---------------------------------------------------------------------------
 
-export const GROWTH_PROMPT_CONTEXTS = ["dashboard", "result", "credits", "pricing", "locked"] as const;
+export const GROWTH_PROMPT_CONTEXTS = [
+  "dashboard",
+  "analyze_start",
+  "result",
+  "credits",
+  "pricing",
+  "locked",
+] as const;
 export type GrowthPromptContext = (typeof GROWTH_PROMPT_CONTEXTS)[number];
+/** The context a prompt is asked for is the surface the person is looking at. */
+export type GrowthPromptSurface = GrowthPromptContext;
+
+/**
+ * Calm surfaces (conversion-prompts spec): the dashboard and the analyze start screen before any upload.
+ * Modals appear only here; a prompt never interrupts an upload, a running analysis, a result or checkout.
+ */
+export const CALM_PROMPT_SURFACES: readonly GrowthPromptSurface[] = ["dashboard", "analyze_start"];
+export function isCalmSurface(surface: GrowthPromptSurface): boolean {
+  return CALM_PROMPT_SURFACES.includes(surface);
+}
+
+/** How a prompt is drawn: a card in the page, a bar under the shell, or a closable dialog. */
+export const GROWTH_PROMPT_FORMS = ["inline", "banner", "modal"] as const;
+export type GrowthPromptForm = (typeof GROWTH_PROMPT_FORMS)[number];
 
 export const GROWTH_PROMPT_KINDS = [
   "analysis_taste",
@@ -102,8 +124,15 @@ export const GROWTH_PROMPT_KINDS = [
   "org_usage",
   "expiring_free_credits",
   "plan_expiring",
+  "trial_ended",
 ] as const;
 export type GrowthPromptKind = (typeof GROWTH_PROMPT_KINDS)[number];
+
+/** The only moments calm enough for a modal (enforced in the settings schema and again in the engine). */
+export const MODAL_PROMPT_KINDS: readonly GrowthPromptKind[] = ["trial_ended", "credits_out"];
+export function modalAllowed(kind: GrowthPromptKind): boolean {
+  return MODAL_PROMPT_KINDS.includes(kind);
+}
 
 export const GROWTH_CTA_KINDS = ["taste", "pricing", "pack", "renew", "analyze"] as const;
 export type GrowthCtaKind = (typeof GROWTH_CTA_KINDS)[number];

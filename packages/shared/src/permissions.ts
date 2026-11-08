@@ -36,7 +36,8 @@ export type PermissionGroup =
   | "rewards"
   | "deals"
   | "content"
-  | "wa_agent";
+  | "wa_agent"
+  | "ads";
 
 export interface Label {
   ar: string;
@@ -74,6 +75,7 @@ export const PERMISSION_GROUPS: Record<PermissionGroup, Label> = {
   deals: { ar: "الاتفاقات الخاصة", en: "Deals" },
   content: { ar: "المحتوى", en: "Content" },
   wa_agent: { ar: "وكيل واتساب", en: "WhatsApp agent" },
+  ads: { ar: "الإعلانات", en: "Ads" },
 };
 
 export const PERMISSIONS = {
@@ -310,6 +312,20 @@ export const PERMISSIONS = {
     label: {
       ar: "قراءة محادثات واتساب ومرفقاتها (بيانات صحية، تُسجَّل القراءة)",
       en: "Read WhatsApp transcripts and media (health data, reads are logged)",
+    },
+  },
+  "ads.read": {
+    group: "ads",
+    label: {
+      ar: "عرض الإعلانات ومواضعها وإحصاءاتها",
+      en: "View ads, placements and statistics",
+    },
+  },
+  "ads.write": {
+    group: "ads",
+    label: {
+      ar: "إدارة الإعلانات: المواضع والإعلانات والمعلنون ومفتاح الإعلانات",
+      en: "Manage ads: placements, creatives, advertisers and the ads switch",
     },
   },
 } as const satisfies Record<string, PermissionInfo>;

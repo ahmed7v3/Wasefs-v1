@@ -39,6 +39,11 @@ export function canServeOnClass(pageClass: PageClass): boolean {
   return !(NEVER_SERVE_CLASSES as readonly string[]).includes(pageClass);
 }
 
+/** The floor classes among `classes` (empty = the list is allowed). */
+export function neverServeClassesIn(classes: readonly PageClass[]): PageClass[] {
+  return classes.filter((pageClass) => !canServeOnClass(pageClass));
+}
+
 /** A creative of these categories can never be approved (ADS §1.3). */
 export const FORBIDDEN_CATEGORIES = ["medicine"] as const;
 
@@ -174,20 +179,24 @@ export const DEFAULT_MAX_PER_PAGE: Record<PageClass, number> = {
   app_sensitive: 0,
 };
 
+/** The moments a WhatsApp ad may follow. Only `after_rx_done` is wired on `main`; commands land with the command layer. */
+export const AD_WHATSAPP_TRIGGERS = [
+  "after_rx_done",
+  "after_command:help",
+  "after_command:balance",
+  "after_command:report",
+  "after_command:schedule",
+] as const;
+export type AdWhatsappTrigger = (typeof AD_WHATSAPP_TRIGGERS)[number];
+
+/** Stats key of a trigger (`ad_placements` has one row per trigger; the `:` is not allowed in keys). */
+export function whatsappPlacementKey(trigger: AdWhatsappTrigger): string {
+  return `whatsapp.${trigger.replace(":", ".")}`;
+}
+
 export const adsWhatsappSettingsSchema = z.object({
   enabled: z.boolean().default(false),
-  triggers: z
-    .array(
-      z.enum([
-        "after_rx_done",
-        "after_command:help",
-        "after_command:balance",
-        "after_command:report",
-        "after_command:schedule",
-      ]),
-    )
-    .max(10)
-    .default(["after_rx_done"]),
+  triggers: z.array(z.enum(AD_WHATSAPP_TRIGGERS)).max(10).default(["after_rx_done"]),
   probability: z.number().min(0).max(1).default(0.7),
   maxPerUserPerDay: z.number().int().min(0).max(20).default(2),
   minGapHours: z.number().int().min(0).max(168).default(6),
@@ -270,31 +279,60 @@ export const EMPTY_TARGETING: AdTargeting = {
 
 const isoDate = z.iso.datetime({ offset: true });
 
-export const advertiserInputSchema = z.object({
+const advertiserCategory = z.enum(
+  AD_CATEGORIES.filter((c) => !isForbiddenCategory(c)) as [AdCategory, ...AdCategory[]],
+);
+const advertiserFields = {
   name: z.string().trim().min(1).max(120),
-  category: z.enum(
-    AD_CATEGORIES.filter((c) => !isForbiddenCategory(c)) as [AdCategory, ...AdCategory[]],
-  ),
-  contact: z.string().trim().max(300).nullable().default(null),
-  active: z.boolean().default(true),
+  category: advertiserCategory,
+  contact: z.string().trim().max(300).nullable(),
+  active: z.boolean(),
+};
+
+export const advertiserInputSchema = z.object({
+  ...advertiserFields,
+  contact: advertiserFields.contact.default(null),
+  active: advertiserFields.active.default(true),
 });
 export type AdvertiserInput = z.output<typeof advertiserInputSchema>;
 
-export const creativeFieldsSchema = z.object({
+/**
+ * PATCH body: only the fields sent change. Built from the fields WITHOUT defaults on purpose:
+ * `.partial()` of a schema with defaults would re-apply them and silently reset what was not sent.
+ */
+export const updateAdvertiserSchema = z
+  .object(advertiserFields)
+  .partial()
+  .refine((value) => Object.keys(value).length > 0, "at least one field");
+export type UpdateAdvertiserInput = z.output<typeof updateAdvertiserSchema>;
+
+const creativeFields = {
   /** null = a house creative (our own offer). */
-  advertiserId: z.uuid().nullable().default(null),
+  advertiserId: z.uuid().nullable(),
   title: z.string().trim().min(1).max(120),
-  imageMediaId: z.uuid().nullable().default(null),
+  imageMediaId: z.uuid().nullable(),
   alt: z.string().trim().min(1).max(300),
   targetUrl: httpsUrl,
   category: z.enum(AD_CATEGORIES),
-  channels: z.array(z.enum(AD_CHANNELS)).min(1).max(2).default(["web"]),
+  channels: z.array(z.enum(AD_CHANNELS)).min(1).max(2),
   /** WhatsApp message body (the «إعلان» label is added by code). */
-  waText: z.string().trim().min(1).max(700).nullable().default(null),
-  startsAt: isoDate.nullable().default(null),
-  endsAt: isoDate.nullable().default(null),
-  weight: z.number().int().min(1).max(1_000).default(100),
-  targeting: targetingSchema.default(EMPTY_TARGETING),
+  waText: z.string().trim().min(1).max(700).nullable(),
+  startsAt: isoDate.nullable(),
+  endsAt: isoDate.nullable(),
+  weight: z.number().int().min(1).max(1_000),
+  targeting: targetingSchema,
+};
+
+export const creativeFieldsSchema = z.object({
+  ...creativeFields,
+  advertiserId: creativeFields.advertiserId.default(null),
+  imageMediaId: creativeFields.imageMediaId.default(null),
+  channels: creativeFields.channels.default(["web"]),
+  waText: creativeFields.waText.default(null),
+  startsAt: creativeFields.startsAt.default(null),
+  endsAt: creativeFields.endsAt.default(null),
+  weight: creativeFields.weight.default(100),
+  targeting: creativeFields.targeting.default(EMPTY_TARGETING),
 });
 
 function scheduleIsOrdered(value: {
@@ -309,7 +347,9 @@ export const createCreativeSchema = creativeFieldsSchema.refine(scheduleIsOrdere
   message: "startsAt must be before endsAt",
   path: ["endsAt"],
 });
-export const updateCreativeSchema = creativeFieldsSchema
+/** PATCH body: only the fields sent change (see `updateAdvertiserSchema` for why it is not `.partial()` of create). */
+export const updateCreativeSchema = z
+  .object(creativeFields)
   .partial()
   .refine((value) => Object.keys(value).length > 0, "at least one field")
   .refine(scheduleIsOrdered, { message: "startsAt must be before endsAt", path: ["endsAt"] });
@@ -324,10 +364,9 @@ const sizeField = z.string().regex(/^(native|\d{2,4}x\d{2,4})$/);
 export const updatePlacementSchema = z
   .object({
     enabled: z.boolean(),
-    pageClasses: z
-      .array(z.enum(SERVABLE_PAGE_CLASSES as [PageClass, ...PageClass[]]))
-      .min(1)
-      .max(10),
+    // Any class parses; the service refuses the never-serve ones with `AD_CLASS_NOT_SERVABLE`
+    // (`neverServeClassesIn`), a typed answer the console can explain, not a generic validation error.
+    pageClasses: z.array(z.enum(PAGE_CLASSES)).min(1).max(10),
     devices: z.array(z.enum(AD_DEVICES)).min(1).max(3),
     maxPerPage: z.number().int().min(0).max(10),
     sizeDesktop: sizeField,
@@ -428,4 +467,115 @@ export function parseAdCounterKey(key: string): {
     channel: match[4] as AdChannel,
     kind: match[5] as "i" | "c",
   };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Admin read models and queries (console `/admin/ads`)
+
+export const adminPlacementSchema = z.object({
+  key: z.string(),
+  enabled: z.boolean(),
+  pageClasses: z.array(z.enum(PAGE_CLASSES)),
+  devices: z.array(z.enum(AD_DEVICES)),
+  maxPerPage: z.number().int(),
+  format: z.enum(AD_FORMATS),
+  sizeDesktop: z.string(),
+  sizeMobile: z.string(),
+  closable: z.boolean(),
+  dismissDays: z.number().int(),
+  allowPaid: z.boolean(),
+  sort: z.number().int(),
+});
+export type AdminPlacement = z.output<typeof adminPlacementSchema>;
+export const adminPlacementListSchema = z.object({ items: z.array(adminPlacementSchema) });
+
+export const adminAdvertiserSchema = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  category: z.enum(AD_CATEGORIES),
+  contact: z.string().nullable(),
+  active: z.boolean(),
+  creativeCount: z.number().int(),
+  createdAt: z.string(),
+});
+export type AdminAdvertiser = z.output<typeof adminAdvertiserSchema>;
+export const adminAdvertiserListSchema = z.object({ items: z.array(adminAdvertiserSchema) });
+
+export const adminCreativeSchema = z.object({
+  id: z.uuid(),
+  advertiserId: z.uuid().nullable(),
+  advertiserName: z.string().nullable(),
+  title: z.string(),
+  imageMediaId: z.uuid().nullable(),
+  /** A published variant of the image for previews (null when none or still processing). */
+  imageUrl: z.string().nullable(),
+  alt: z.string(),
+  targetUrl: z.string(),
+  category: z.enum(AD_CATEGORIES),
+  status: z.enum(AD_STATUSES),
+  startsAt: z.string().nullable(),
+  endsAt: z.string().nullable(),
+  weight: z.number().int(),
+  targeting: targetingSchema,
+  channels: z.array(z.enum(AD_CHANNELS)),
+  waText: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type AdminCreative = z.output<typeof adminCreativeSchema>;
+export const adminCreativeListSchema = z.object({ items: z.array(adminCreativeSchema) });
+
+export const adminCreativeListQuerySchema = z.object({
+  status: z.enum(AD_STATUSES).optional(),
+  channel: z.enum(AD_CHANNELS).optional(),
+});
+
+export const adIdParamSchema = z.object({ id: z.uuid() });
+export const adPlacementKeyParamSchema = z.object({ key: adPlacementKeySchema });
+
+/** The console switches that are not a placement: the global kill switch and the page density per class. */
+export const updateAdsSettingsSchema = z
+  .object({
+    enabled: z.boolean(),
+    maxPerPage: perClass,
+    /** The whole WhatsApp block (the form always sends every field). */
+    whatsapp: adsWhatsappSettingsSchema,
+  })
+  .partial()
+  .refine((value) => Object.keys(value).length > 0, "at least one field");
+export type UpdateAdsSettingsInput = z.output<typeof updateAdsSettingsSchema>;
+
+export const ADS_STATS_MAX_DAYS = 366;
+export const adStatsQuerySchema = z.object({
+  /** UTC days, inclusive; default is the last 7 days ending today. */
+  from: z.iso.date().optional(),
+  to: z.iso.date().optional(),
+  channel: z.enum(AD_CHANNELS).optional(),
+});
+export type AdStatsQuery = z.output<typeof adStatsQuerySchema>;
+
+const statNumbers = {
+  impressions: z.number().int(),
+  clicks: z.number().int(),
+  /** clicks / impressions (0 when there is no impression). */
+  ctr: z.number(),
+};
+export const adStatsTotalsSchema = z.object(statNumbers);
+export type AdStatsTotals = z.output<typeof adStatsTotalsSchema>;
+
+export const adminAdStatsSchema = z.object({
+  from: z.string(),
+  to: z.string(),
+  channel: z.enum(AD_CHANNELS).nullable(),
+  totals: adStatsTotalsSchema,
+  byDay: z.array(z.object({ day: z.string(), ...statNumbers })),
+  byPlacement: z.array(z.object({ placement: z.string(), ...statNumbers })),
+  byCreative: z.array(z.object({ creativeId: z.uuid(), title: z.string(), ...statNumbers })),
+  byChannel: z.array(z.object({ channel: z.enum(AD_CHANNELS), ...statNumbers })),
+});
+export type AdminAdStats = z.output<typeof adminAdStatsSchema>;
+
+/** Click-through rate as a ratio; zero impressions is a rate of 0, never NaN. */
+export function clickThroughRate(impressions: number, clicks: number): number {
+  return impressions > 0 ? clicks / impressions : 0;
 }

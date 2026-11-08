@@ -1,6 +1,6 @@
 "use client";
 
-import { t, type MessageKey } from "@wasfa/shared/i18n";
+import { DEFAULT_LOCALE, t, type MessageKey } from "@wasfa/shared/i18n";
 import {
   growthPromptResponseSchema,
   startTasteResponseSchema,
@@ -10,15 +10,18 @@ import { Button, buttonStyles } from "@wasfa/ui";
 import { Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "../../lib/api-client";
 import { growthSessionId, trackGrowth } from "../../lib/growth-events";
 import { ErrorNotice } from "../error-notice";
 
+import { PromptModal } from "./prompt-modal";
+
 import type { GrowthLockedFeature, GrowthPromptContext } from "@wasfa/shared/growth";
 
 export interface PromptSlotProps {
+  /** The surface the person is looking at; the engine decides what may appear on it. */
   context: GrowthPromptContext;
   /** `context="result"`: the finished analysis on screen. */
   rxId?: string | undefined;
@@ -37,10 +40,10 @@ function messageOf(prompt: GrowthPrompt): string {
 }
 
 /**
- * One calm, closable card after a real moment of value (GROWTH-STRATEGY §4). The server decides
- * whether there is one (session cap, cooldowns, kill switch, never on a running or failed analysis);
- * this only renders it inline (never a modal), reports `shown`/`clicked`/`dismissed`, and remembers a
- * close for the rest of the tab session.
+ * The upgrade moment of the page, in the form the admin chose: a closable card (inline), a bar
+ * (banner) or a dialog (modal, calm moments only). The server decides whether there is one (session
+ * cap, cooldowns, kill switch, calm surfaces, never on a running or failed analysis); this renders it,
+ * reports `shown`/`clicked`/`dismissed`, and remembers a close for the rest of the tab session.
  */
 export function PromptSlot({ context, rxId, feature, orgId }: PromptSlotProps) {
   const router = useRouter();
@@ -48,6 +51,9 @@ export function PromptSlot({ context, rxId, feature, orgId }: PromptSlotProps) {
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<unknown>(null);
   const reported = useRef(false);
+  const forget = useCallback(() => {
+    setPrompt(null);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -71,22 +77,26 @@ export function PromptSlot({ context, rxId, feature, orgId }: PromptSlotProps) {
     };
   }, [context, rxId, feature, orgId]);
 
+  const isModal = prompt?.form === "modal" && prompt.content !== null;
+
   useEffect(() => {
-    if (prompt === null || reported.current) return;
+    // The modal reports its own `shown` (only when it really opens).
+    if (prompt === null || reported.current || isModal) return;
     reported.current = true;
-    trackGrowth("prompt_shown", { kind: prompt.kind }, true);
-  }, [prompt]);
+    trackGrowth("prompt_shown", { kind: prompt.kind, form: prompt.form }, true);
+  }, [prompt, isModal]);
 
   if (prompt === null) return null;
+  if (isModal) return <PromptModal prompt={prompt} onClose={forget} />;
 
   const dismiss = () => {
-    trackGrowth("prompt_dismissed", { kind: prompt.kind }, true);
+    trackGrowth("prompt_dismissed", { kind: prompt.kind, form: prompt.form }, true);
     setPrompt(null);
   };
 
   const startTaste = async () => {
     if (!rxId) return;
-    trackGrowth("prompt_clicked", { kind: prompt.kind }, true);
+    trackGrowth("prompt_clicked", { kind: prompt.kind, form: prompt.form }, true);
     setBusy(true);
     setFailure(null);
     try {
@@ -102,13 +112,24 @@ export function PromptSlot({ context, rxId, feature, orgId }: PromptSlotProps) {
     }
   };
 
+  const copy = prompt.content?.[DEFAULT_LOCALE];
   const cta = prompt.cta;
+  const body = copy ? copy.body : messageOf(prompt);
+  const ctaLabel = copy ? copy.cta : t(`growth.cta.${cta.kind}` as MessageKey);
+  const closeLabel = copy ? copy.close : t("growth.cta.dismiss");
+  const banner = prompt.form === "banner";
+
   return (
     <aside
       aria-label={t("growth.prompt.closeLabel")}
-      className="relative flex flex-col gap-3 rounded-xl border border-primary/30 bg-primary-soft p-4 pe-12 print:hidden"
+      className={
+        banner
+          ? "relative flex flex-wrap items-center gap-3 rounded-lg border border-primary/30 bg-primary-soft px-4 py-3 pe-12 print:hidden"
+          : "relative flex flex-col gap-3 rounded-xl border border-primary/30 bg-primary-soft p-4 pe-12 print:hidden"
+      }
       data-testid="growth-prompt"
       data-kind={prompt.kind}
+      data-form={prompt.form}
     >
       <button
         type="button"
@@ -120,7 +141,10 @@ export function PromptSlot({ context, rxId, feature, orgId }: PromptSlotProps) {
       </button>
       <p className="flex items-start gap-2 text-base text-text">
         <Sparkles aria-hidden className="mt-1 size-5 shrink-0 text-primary" />
-        <span>{messageOf(prompt)}</span>
+        <span>
+          {copy && copy.title !== "" ? <strong className="me-2">{copy.title}</strong> : null}
+          {body}
+        </span>
       </p>
       <div className="flex flex-wrap gap-3">
         {cta.kind === "taste" ? (
@@ -131,7 +155,7 @@ export function PromptSlot({ context, rxId, feature, orgId }: PromptSlotProps) {
               void startTaste();
             }}
           >
-            {t("growth.cta.taste")}
+            {ctaLabel}
           </Button>
         ) : (
           <Link
@@ -139,14 +163,26 @@ export function PromptSlot({ context, rxId, feature, orgId }: PromptSlotProps) {
             className={buttonStyles()}
             data-testid="prompt-cta"
             onClick={() => {
-              trackGrowth("prompt_clicked", { kind: prompt.kind }, true);
+              trackGrowth("prompt_clicked", { kind: prompt.kind, form: prompt.form }, true);
             }}
           >
-            {t(`growth.cta.${cta.kind}` as MessageKey)}
+            {ctaLabel}
           </Link>
         )}
+        {copy?.secondary !== undefined && prompt.secondaryHref !== undefined ? (
+          <Link
+            href={prompt.secondaryHref}
+            className={buttonStyles({ variant: "secondary" })}
+            data-testid="prompt-secondary"
+            onClick={() => {
+              trackGrowth("prompt_clicked", { kind: prompt.kind, form: prompt.form, target: "secondary" }, true);
+            }}
+          >
+            {copy.secondary}
+          </Link>
+        ) : null}
         <Button variant="ghost" name="prompt-dismiss" onClick={dismiss}>
-          {t("growth.cta.dismiss")}
+          {closeLabel}
         </Button>
       </div>
       {failure ? <ErrorNotice error={failure} supportHref={null} /> : null}

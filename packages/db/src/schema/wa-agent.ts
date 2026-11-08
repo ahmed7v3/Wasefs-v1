@@ -7,7 +7,17 @@ import {
   WA_AGENT_MESSAGE_STATUSES,
 } from "@wasfa/shared/schemas/wa-agent";
 import { sql } from "drizzle-orm";
-import { check, index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  check,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
 
 import { idColumn, inList, matches, timestamps } from "./columns.js";
 import { users } from "./users.js";
@@ -31,6 +41,8 @@ export const waConversations = pgTable(
     lastInboundAt: timestamp({ withTimezone: true }),
     lastOutboundAt: timestamp({ withTimezone: true }),
     summary: text(),
+    // «وقف الإعلانات»: no WhatsApp ad is sent to this chat until «شغل الإعلانات» (change home-ads-conversion D9).
+    adsOptOut: boolean().notNull().default(false),
     ...timestamps(),
   },
   (table) => [

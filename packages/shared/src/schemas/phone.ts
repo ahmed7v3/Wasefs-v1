@@ -104,6 +104,8 @@ export const replyOutcomeSchema = z.enum([
   "alerts_off",
   "messages_off",
   "messages_on",
+  "ads_off",
+  "ads_on",
   "wa_unresolved",
   // "Continue with WhatsApp" (docs/WA-SIGNUP.md): fixed sentences like the rest.
   "login_ok",
@@ -119,6 +121,8 @@ export function replyText(outcome: ReplyOutcome): string {
   if (outcome === "alerts_off") return t("phone.reply.alertsOff");
   if (outcome === "messages_off") return t("phone.reply.messagesOff");
   if (outcome === "messages_on") return t("phone.reply.messagesOn");
+  if (outcome === "ads_off") return t("phone.reply.adsOff");
+  if (outcome === "ads_on") return t("phone.reply.adsOn");
   if (outcome === "wa_unresolved") return t("phone.verify.waUnresolved");
   if (outcome === "login_ok") return t("phone.reply.loginOk");
   if (outcome === "login_refused") return t("phone.reply.loginRefused");
