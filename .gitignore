@@ -47,3 +47,7 @@ apps/web/e2e/.logs/
 apps/web/.next*/
 
 apps/web/.lighthouseci/
+
+# Prescription images (personal data): never committed. Regression corpus images live outside git.
+docs/testimg/
+.rx-corpus/
