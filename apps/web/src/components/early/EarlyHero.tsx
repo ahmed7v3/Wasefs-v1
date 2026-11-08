@@ -1,12 +1,12 @@
 import { Check } from "lucide-react";
 
 import { early } from "../../content/early";
+import { GlassBadge } from "../visual/GlassSurface";
+import { HaloBackdrop } from "../visual/HaloBackdrop";
+import { Reveal } from "../visual/Reveal";
+import { WasfaCharacter } from "../visual/WasfaCharacter";
 
 import { PhoneCapture } from "./PhoneCapture";
-import { GlassBadge } from "./visual/GlassSurface";
-import { HaloBackdrop } from "./visual/HaloBackdrop";
-import { Reveal } from "./visual/Reveal";
-import { WasfaCharacter } from "./visual/WasfaCharacter";
 
 import type { EarlyVariant } from "@wasfa/shared/schemas/early-access";
 

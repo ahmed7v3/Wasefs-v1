@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { adsSettingsSchema } from "./ads.js";
 import { accessSettingsSchema, authSettingsSchema } from "./auth-settings.js";
 import { LOCALES } from "./i18n/locales.js";
 import { emailSchema, phoneNumberSchema } from "./schemas/auth.js";
@@ -64,7 +65,39 @@ export const brandingSettingsSchema = z.object({
  * an admin sets them only from measured data (never a made-up number). The app chips turn into
  * store badges when a listing URL exists; the waitlist form shows only while `waitlistEnabled`.
  */
+export const LANDING_SECTION_KEYS = [
+  "whatsapp",
+  "skills",
+  "precision",
+  "how",
+  "audiences",
+  "trust",
+  "faq",
+  "apps",
+  "final",
+] as const;
+export type LandingSectionKey = (typeof LANDING_SECTION_KEYS)[number];
+
+export const landingSectionSchema = z.object({
+  key: z.enum(LANDING_SECTION_KEYS),
+  enabled: z.boolean().default(true),
+  /** Ascending; ties keep the default order. */
+  order: z.number().int().min(0).max(1000),
+});
+
+/** The current home page: every section on, in the order the page has always had. */
+export const DEFAULT_LANDING_SECTIONS: z.infer<typeof landingSectionSchema>[] =
+  LANDING_SECTION_KEYS.map((key, index) => ({ key, enabled: true, order: (index + 1) * 10 }));
+
 export const landingSettingsSchema = z.object({
+  /**
+   * Which home sections show and in what order (the hero is fixed). A stored value saved before
+   * this field existed parses to the default page.
+   */
+  sections: z
+    .array(landingSectionSchema)
+    .max(LANDING_SECTION_KEYS.length)
+    .default(DEFAULT_LANDING_SECTIONS),
   proof: z
     .object({
       /** Average analysis time in seconds, e.g. 12.5. */
@@ -761,6 +794,8 @@ export const SETTINGS_REGISTRY = {
   billing: { schema: billingSettingsSchema, visibility: "admin" },
   rewards: { schema: rewardsSettingsSchema, visibility: "admin" },
   growth: { schema: growthSettingsSchema, visibility: "admin" },
+  /** Admin only: the global ad switch, density per page class, banner defaults, WhatsApp ad limits. */
+  ads: { schema: adsSettingsSchema, visibility: "admin" },
   /** Admin only: quality-gate thresholds and the publishing cap of the editorial platform. */
   content: { schema: contentSettingsSchema, visibility: "admin" },
 } as const satisfies Record<string, { schema: z.ZodType; visibility: SettingVisibility }>;

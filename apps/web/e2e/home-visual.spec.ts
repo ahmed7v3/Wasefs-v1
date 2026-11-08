@@ -81,7 +81,7 @@ for (const { name: pageName, path } of PAGES) {
   }
 }
 
-test("hero on a phone: pill, headline, lead, full-width action, chips, illustration", async ({
+test("hero on a phone: badge, headline, lead, full-width action, chips, mascot", async ({
   page,
 }) => {
   await open(page, "/", 320, "no-preference");
@@ -93,39 +93,24 @@ test("hero on a phone: pill, headline, lead, full-width action, chips, illustrat
     expect(box, selector).toBeTruthy();
     return box?.y ?? -1;
   };
+  // The mascot comes first on a phone, then the text column in reading order.
   const order = [
-    await top(".hero-pill"),
-    await top("#hero-title"),
-    await top("#hero-title ~ p"),
+    await top("[data-hero-visual]"),
+    await top("h1"),
+    await top("h1 ~ div p"),
     await top('a[href="/register"]'),
-    await top("#hero-title ~ ul"),
-    await top(".hero-scene"),
+    await top("ul"),
   ];
   expect(order).toEqual([...order].sort((a, b) => a - b));
 
   const cta = await page
     .locator('#main section[aria-labelledby="hero-title"] a[href="/register"]')
     .boundingBox();
-  // The content column, not the decorative dot grid beside it.
-  const container = await page
-    .locator('section[aria-labelledby="hero-title"] > div:not([aria-hidden="true"])')
-    .boundingBox();
-  expect(cta && container).toBeTruthy();
-  if (cta && container) {
+  expect(cta).toBeTruthy();
+  if (cta) {
     expect(cta.height).toBeGreaterThanOrEqual(48);
-    expect(cta.width).toBeGreaterThan(container.width - 40);
+    expect(cta.width).toBeGreaterThan(200);
   }
-});
-
-test("hero illustration keeps a fixed box while the chat plays in", async ({ page }) => {
-  await open(page, "/", 390, "no-preference");
-  const scene = page.locator(".hero-scene");
-  const before = await scene.boundingBox();
-  await page.waitForTimeout(1_500);
-  const after = await scene.boundingBox();
-  expect(before?.height).toBeCloseTo(after?.height ?? -1, 0);
-  // The only meaningful image of the scene is its one labelled role.
-  await expect(page.locator('.hero-scene[role="img"]')).toHaveCount(1);
 });
 
 test("journey section: a horizontal stepper on desktop, a vertical one on a phone", async ({

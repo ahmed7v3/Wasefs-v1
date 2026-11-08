@@ -17,6 +17,7 @@ import { publishDueJob } from "./content/publish-due.job.js";
 import { DeferJob } from "./defer.js";
 import { waAgentRenderDocumentJob } from "./documents/document.job.js";
 import { anonymizeDueJob, purgeExpiredJob } from "./jobs/accounts.job.js";
+import { adsRollupJob } from "./jobs/ads.rollup.job.js";
 import { spendRollupJob } from "./jobs/ai.spend-rollup.job.js";
 import { alertsRetentionJob } from "./jobs/alerts-retention.job.js";
 import { grantMonthlyJob } from "./jobs/credits.grant.job.js";
@@ -89,6 +90,7 @@ export const HANDLERS: Handlers = {
     "system.heartbeat": heartbeatJob,
     "account.anonymize_due": anonymizeDueJob,
     "auth.purge_expired": purgeExpiredJob,
+    "ads.rollup": adsRollupJob,
   },
   notifications: {
     "email.send": emailSendJob,
@@ -235,6 +237,7 @@ export const GRANT_MONTHLY_PATTERN = "10 0 * * *";
 /** Nightly at 02:00 UTC, after the grants and the day's last sweeps. */
 export const RECONCILE_PATTERN = "0 2 * * *";
 const SPEND_ROLLUP_INTERVAL_MS = 60 * 60 * 1000;
+const ADS_ROLLUP_INTERVAL_MS = 5 * 60 * 1000;
 /** Daily at 03:30 UTC: deletes uploaded images past their retention. */
 export const FILES_RETENTION_PATTERN = "30 3 * * *";
 
@@ -293,6 +296,11 @@ export async function registerSchedules(queues: readonly Queue[]): Promise<void>
     "auth.purge_expired",
     { every: PURGE_INTERVAL_MS },
     { name: "auth.purge_expired", data: { source: "scheduler" } },
+  );
+  await system.upsertJobScheduler(
+    "ads.rollup",
+    { every: ADS_ROLLUP_INTERVAL_MS },
+    { name: "ads.rollup", data: { source: "scheduler" } },
   );
   const credits = queues.find((queue) => queue.name === "credits");
   if (credits === undefined) throw new Error("credits queue is not registered");

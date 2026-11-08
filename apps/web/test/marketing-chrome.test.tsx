@@ -3,8 +3,8 @@ import { render, screen, within } from "@testing-library/react";
 import { settingDefault, type PublicSettings } from "@wasfa/shared/settings";
 import { describe, expect, it } from "vitest";
 
+import { FaqSection } from "../src/components/home/faq-section";
 import { AppsBand } from "../src/components/marketing/apps-band";
-import { FaqSection } from "../src/components/marketing/faq-section";
 import { SiteFooter, footerColumns } from "../src/components/marketing/site-footer";
 import { landing } from "../src/content/landing";
 import { landingEn } from "../src/content/landing.en";

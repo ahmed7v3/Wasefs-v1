@@ -331,6 +331,12 @@ export const SETTING_LAYOUTS: Partial<Record<SettingKey, readonly SettingSection
   ],
   landing: [
     {
+      id: "sections",
+      title: "admin.settings.section.landing.sections",
+      description: "admin.settings.section.landing.sections.description",
+      paths: ["sections"],
+    },
+    {
       id: "proof",
       title: "admin.settings.section.landing.proof",
       description: "admin.settings.section.landing.proof.description",

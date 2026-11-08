@@ -1,20 +1,16 @@
 // @vitest-environment jsdom
 import { render, screen, within } from "@testing-library/react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { FinalCta } from "../src/components/marketing/final-cta";
-import { HeroScene } from "../src/components/marketing/hero-scene";
-import { HowItWorks } from "../src/components/marketing/how-it-works";
-import { LandingHero } from "../src/components/marketing/landing-hero";
-import { PrecisionWalkthrough } from "../src/components/marketing/precision-walkthrough";
-import { WhatsAppSection } from "../src/components/marketing/whatsapp-section";
+import { FinalCta } from "../src/components/home/final-cta";
+import { HomeHero } from "../src/components/home/home-hero";
+import { HowSection } from "../src/components/home/how-section";
+import { PrecisionSection } from "../src/components/home/precision-section";
+import { WhatsAppSection } from "../src/components/home/whatsapp-section";
 import { landing } from "../src/content/landing";
 import { landingEn } from "../src/content/landing.en";
 import { whatsappUrl } from "../src/lib/contact-links";
 
-/** SVG budget of BRAND-AND-HOMEPAGE §4. */
-const SVG_BUDGET_BYTES = 25 * 1024;
 const WA = "https://wa.me/201012345678?text=%D9%85";
 
 describe("whatsappUrl", () => {
@@ -28,40 +24,9 @@ describe("whatsappUrl", () => {
   });
 });
 
-describe("HeroScene", () => {
-  it("is one image with the descriptive alt text, per language", () => {
-    const { rerender } = render(<HeroScene />);
-    expect(screen.getByRole("img", { name: landing.scene.alt })).toBeTruthy();
-    rerender(<HeroScene locale="en" />);
-    expect(screen.getByRole("img", { name: landingEn.scene.alt })).toBeTruthy();
-  });
-
-  it("draws both medicines with their schedule chips, a PDF and a voice note as real text", () => {
-    const { container } = render(<HeroScene />);
-    const text = container.textContent ?? "";
-    for (const item of landing.scene.items) {
-      expect(text).toContain(item.name);
-      for (const time of item.times) expect(text).toContain(time.label);
-    }
-    expect(text).toContain(landing.scene.pdfName);
-    expect(text).toContain(landing.scene.voiceLength);
-    expect(text).toContain(landing.scene.sampleBadge);
-  });
-
-  it("stays under the inline SVG budget and under 25 KB of markup", () => {
-    for (const locale of ["ar", "en"] as const) {
-      const html = renderToStaticMarkup(<HeroScene locale={locale} />);
-      expect(Buffer.byteLength(html)).toBeLessThan(SVG_BUDGET_BYTES);
-      const svgs = html.match(/<svg[\s\S]*?<\/svg>/g) ?? [];
-      expect(svgs.length).toBeGreaterThan(0);
-      for (const svg of svgs) expect(Buffer.byteLength(svg)).toBeLessThan(SVG_BUDGET_BYTES);
-    }
-  });
-});
-
-describe("LandingHero", () => {
-  it("renders the pill, a plain two-line H1 and the actions in reading order", () => {
-    const { container } = render(<LandingHero />);
+describe("HomeHero", () => {
+  it("renders the pill, a plain two-line H1 and the lead in reading order", () => {
+    const { container } = render(<HomeHero signedIn={false} />);
     const h1 = container.querySelector("h1");
     expect(h1?.querySelectorAll("span").length).toBe(2);
     expect(h1?.textContent).toBe(landing.hero.titleLines.join(""));
@@ -72,23 +37,43 @@ describe("LandingHero", () => {
     expect(order.every((position) => position >= 0)).toBe(true);
   });
 
-  it("always offers the free sign-up, and the WhatsApp button only with a number", () => {
-    const { rerender } = render(<LandingHero />);
-    expect(screen.getByRole("link", { name: new RegExp(landing.hero.primaryCta) })).toBeTruthy();
-    expect(screen.queryByRole("link", { name: landing.hero.whatsappCta })).toBeNull();
+  it("signed out: start free goes to /register and sign in to /login, no dashboard link", () => {
+    render(<HomeHero signedIn={false} />);
+    expect(
+      screen.getByRole("link", { name: new RegExp(landing.hero.primaryCta) }).getAttribute("href"),
+    ).toBe("/register");
+    expect(screen.getByRole("link", { name: landing.hero.signIn }).getAttribute("href")).toBe(
+      "/login",
+    );
+    expect(screen.queryByRole("link", { name: new RegExp(landing.hero.dashboardCta) })).toBeNull();
+  });
 
-    rerender(<LandingHero whatsappHref={WA} />);
-    const link = screen.getByRole("link", { name: landing.hero.whatsappCta });
-    expect(link.getAttribute("href")).toBe(WA);
-    expect(link.getAttribute("target")).toBe("_blank");
-    expect(link.getAttribute("rel")).toContain("noopener");
+  it("signed out: shows the WhatsApp sign-up block only when one is passed", () => {
+    const { rerender } = render(<HomeHero signedIn={false} />);
+    expect(screen.queryByTestId("wa-signup")).toBeNull();
+    rerender(<HomeHero signedIn={false} whatsappSignup={<div data-testid="wa-signup" />} />);
+    expect(screen.getByTestId("wa-signup")).toBeTruthy();
+  });
 
-    rerender(<LandingHero locale="en" whatsappHref={WA} />);
-    expect(screen.getByRole("link", { name: landingEn.hero.whatsappCta })).toBeTruthy();
+  it("signed in: one primary button to the dashboard and no sign-up entry points", () => {
+    render(<HomeHero signedIn whatsappSignup={<div data-testid="wa-signup" />} />);
+    expect(
+      screen
+        .getByRole("link", { name: new RegExp(landing.hero.dashboardCta) })
+        .getAttribute("href"),
+    ).toBe("/dashboard");
+    expect(screen.queryByRole("link", { name: landing.hero.signIn })).toBeNull();
+    expect(screen.queryByRole("link", { name: new RegExp(landing.hero.primaryCta) })).toBeNull();
+    expect(screen.queryByTestId("wa-signup")).toBeNull();
+  });
+
+  it("speaks English on /en", () => {
+    render(<HomeHero locale="en" signedIn={false} />);
+    expect(screen.getByRole("link", { name: landingEn.hero.signIn })).toBeTruthy();
   });
 
   it("lists the reassurance chips", () => {
-    render(<LandingHero />);
+    render(<HomeHero signedIn={false} />);
     for (const chip of landing.hero.chips) expect(screen.getByText(chip)).toBeTruthy();
   });
 });
@@ -126,30 +111,30 @@ describe("WhatsAppSection", () => {
   });
 });
 
-describe("HowItWorks and FinalCta", () => {
+describe("HowSection and FinalCta", () => {
   it("mention WhatsApp, with a link only when a number is set", () => {
-    const { rerender } = render(<HowItWorks />);
+    const { rerender } = render(<HowSection />);
     expect(screen.getByText(landing.how.whatsappNote)).toBeTruthy();
     expect(screen.queryByRole("link", { name: landing.how.whatsappLink })).toBeNull();
-    rerender(<HowItWorks whatsappHref={WA} />);
+    rerender(<HowSection whatsappHref={WA} />);
     expect(screen.getByRole("link", { name: landing.how.whatsappLink }).getAttribute("href")).toBe(
       WA,
     );
   });
 
   it("offers start free and WhatsApp side by side", () => {
-    const { rerender } = render(<FinalCta whatsappHref={WA} />);
+    const { rerender } = render(<FinalCta signedIn={false} whatsappHref={WA} />);
     expect(screen.getByRole("link", { name: new RegExp(landing.cta.primary) })).toBeTruthy();
     expect(screen.getByRole("link", { name: landing.cta.whatsapp }).getAttribute("href")).toBe(WA);
-    rerender(<FinalCta />);
+    rerender(<FinalCta signedIn={false} />);
     expect(screen.queryByRole("link", { name: landing.cta.whatsapp })).toBeNull();
     expect(screen.getByRole("link", { name: landing.cta.secondary })).toBeTruthy();
   });
 });
 
-describe("PrecisionWalkthrough (the journey of a line)", () => {
+describe("PrecisionSection (the journey of a line)", () => {
   it("renders the four stages as server-side text with the link to the reader page", () => {
-    render(<PrecisionWalkthrough />);
+    render(<PrecisionSection />);
     expect(screen.getByRole("heading", { level: 2, name: landing.precision.title })).toBeTruthy();
     const stages = within(screen.getByRole("list", { name: landing.precision.stepsLabel }));
     expect(stages.getAllByRole("listitem").length).toBeGreaterThanOrEqual(4);
@@ -163,7 +148,7 @@ describe("PrecisionWalkthrough (the journey of a line)", () => {
   });
 
   it("shows the sample line in every stage: candidates, the duplicate warning and the schedule", () => {
-    const { container } = render(<PrecisionWalkthrough />);
+    const { container } = render(<PrecisionSection />);
     const text = container.textContent ?? "";
     const { sample } = landing.precision;
     expect(text).toContain(sample.scribble);
@@ -173,14 +158,14 @@ describe("PrecisionWalkthrough (the journey of a line)", () => {
   });
 
   it("numbers the stages in Western digits by default and in Arabic-Indic when the setting is off", () => {
-    const western = render(<PrecisionWalkthrough />);
+    const western = render(<PrecisionSection />);
     const badges = [...western.container.querySelectorAll("ol > li > span")].map(
       (el) => el.textContent,
     );
     expect(badges).toEqual(["1", "2", "3", "4"]);
     western.unmount();
 
-    const arabic = render(<PrecisionWalkthrough westernDigits={false} />);
+    const arabic = render(<PrecisionSection westernDigits={false} />);
     const indic = [...arabic.container.querySelectorAll("ol > li > span")].map(
       (el) => el.textContent,
     );
@@ -188,7 +173,7 @@ describe("PrecisionWalkthrough (the journey of a line)", () => {
   });
 
   it("links to the English reader page under /en", () => {
-    render(<PrecisionWalkthrough locale="en" />);
+    render(<PrecisionSection locale="en" />);
     expect(screen.getByRole("link", { name: landingEn.precision.link }).getAttribute("href")).toBe(
       "/en/features/prescription-reader",
     );
@@ -196,14 +181,14 @@ describe("PrecisionWalkthrough (the journey of a line)", () => {
 
   it("hides the proof strip while nothing is published", () => {
     const { container } = render(
-      <PrecisionWalkthrough proof={{ avgAnalysisSeconds: null, accuracyPercent: null }} />,
+      <PrecisionSection proof={{ avgAnalysisSeconds: null, accuracyPercent: null }} />,
     );
     expect(container.querySelector("dl")).toBeNull();
   });
 
   it("shows only the published figures, in Western digits by default", () => {
     const { container } = render(
-      <PrecisionWalkthrough proof={{ avgAnalysisSeconds: 12.5, accuracyPercent: null }} />,
+      <PrecisionSection proof={{ avgAnalysisSeconds: 12.5, accuracyPercent: null }} />,
     );
     const figures = container.querySelectorAll("dl > div");
     expect(figures.length).toBe(1);
@@ -213,7 +198,7 @@ describe("PrecisionWalkthrough (the journey of a line)", () => {
 
   it("uses Arabic-Indic digits when the admin turns Western digits off", () => {
     const { container } = render(
-      <PrecisionWalkthrough
+      <PrecisionSection
         westernDigits={false}
         proof={{ avgAnalysisSeconds: 12.5, accuracyPercent: 94 }}
       />,
@@ -225,7 +210,7 @@ describe("PrecisionWalkthrough (the journey of a line)", () => {
 
   it("keeps English digits Western whatever the Arabic setting says", () => {
     const { container } = render(
-      <PrecisionWalkthrough
+      <PrecisionSection
         locale="en"
         westernDigits={false}
         proof={{ avgAnalysisSeconds: 8, accuracyPercent: null }}

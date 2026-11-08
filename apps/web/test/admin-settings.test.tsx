@@ -25,7 +25,9 @@ import {
  * `skills` is a per-plan map edited on /admin/ai/skills, and `waAgent` (lists, a secret next to it)
  * on /admin/whatsapp/agent: neither is a generated form.
  */
-const FORM_KEYS = SETTING_KEYS.filter((key) => key !== "skills" && key !== "waAgent");
+const FORM_KEYS = SETTING_KEYS.filter(
+  (key) => key !== "skills" && key !== "waAgent" && key !== "ads",
+);
 
 function renderForm(key: SettingKey, onSave = vi.fn<(value: unknown) => Promise<void>>()) {
   onSave.mockResolvedValue(undefined);
@@ -117,6 +119,7 @@ describe("SettingForm", () => {
       expect(onSave).toHaveBeenCalledTimes(1);
     });
     expect(onSave.mock.calls[0]?.[0]).toEqual({
+      sections: settingDefault("landing").sections,
       proof: { avgAnalysisSeconds: 12.5, accuracyPercent: null },
       apps: {
         androidUrl: "https://play.google.com/store/apps/details?id=online.wasfa",
@@ -210,6 +213,7 @@ describe("settings presentation", () => {
       "ai",
       "skills",
       "earlyAccess", // edited on /admin/growth/early-access
+      "ads", // edited on /admin/ads
     ];
     const homes = [...GENERIC_PAGE_KEYS, ...dedicated];
     expect([...homes].sort()).toEqual([...SETTING_KEYS].sort());

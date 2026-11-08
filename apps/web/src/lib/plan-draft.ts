@@ -31,6 +31,7 @@ export interface PlanDraft {
   trialDays: string;
   monthlyCredits: string;
   pinRecommended: boolean;
+  adsFree: boolean;
   features: PlanFeature[];
 }
 
@@ -49,6 +50,7 @@ export function draftFromPlan(plan: AdminPlan): PlanDraft {
     trialDays: String(plan.trialDays),
     monthlyCredits: String(plan.monthlyCredits),
     pinRecommended: plan.pinRecommended,
+    adsFree: plan.adsFree,
     features: plan.features.map((feature) => ({ ...feature })),
   };
 }
@@ -106,6 +108,7 @@ export function patchFromDraft(plan: AdminPlan, draft: PlanDraft): DraftPatch {
   set("trialDays", Number(draft.trialDays), plan.trialDays);
   set("monthlyCredits", Number(draft.monthlyCredits), plan.monthlyCredits);
   set("pinRecommended", draft.pinRecommended, plan.pinRecommended);
+  set("adsFree", draft.adsFree, plan.adsFree);
   set("features", draft.features, plan.features);
   if (Object.keys(candidate).length === 0) return { errors: ["nothing"] };
   const parsed = updatePlanSchema.safeParse(candidate);

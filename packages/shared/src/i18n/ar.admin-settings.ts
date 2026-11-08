@@ -406,6 +406,9 @@ export const arAdminSettings = {
   "admin.pricing.plan.audienceHint":
     "«الأفراد» يشتريها الشخص لنفسه، و«المؤسسات» تشتريها مؤسسة لأعضائها، و«الجميع» للطرفين.",
   "admin.pricing.plan.pinHint": "تُبرز البطاقة في صفحة الأسعار بعلامة «موصى بها». باقة واحدة تكفي.",
+  "admin.pricing.plan.adsFree": "بدون إعلانات",
+  "admin.pricing.plan.adsFreeHint":
+    "مشتركو هذه الباقة لا يرون إعلانات داخل التطبيق. مفعّل افتراضيًا للباقات المدفوعة.",
   "admin.pricing.plan.section.sale": "الظهور ومواعيد التوفر",
   "admin.pricing.plan.section.sale.description":
     "متى يستطيع العملاء رؤية الباقة وشراؤها. المشتركون الحاليون لا يتأثرون بأي تغيير هنا.",

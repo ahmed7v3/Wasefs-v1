@@ -1,8 +1,7 @@
 import { early } from "../../content/early";
 import { formatCount } from "../../lib/early-stats";
 import { SiteBrandMark } from "../site-brand-mark";
-
-import { GlassSurface } from "./visual/GlassSurface";
+import { GlassSurface } from "../visual/GlassSurface";
 
 /**
  * Sticky liquid-glass header. `home` is true on the landing page itself (plain `#anchors`); the

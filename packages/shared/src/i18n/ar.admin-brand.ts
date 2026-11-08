@@ -7,6 +7,12 @@ export const arAdminBrand = {
   "admin.settings.landing.title": "الصفحة الرئيسية",
   "admin.settings.landing.description":
     "أرقام القياس وروابط التطبيقات وقائمة الانتظار. هذه القيم ظاهرة للعامة.",
+  "admin.settings.section.landing.sections": "أقسام الصفحة",
+  "admin.settings.section.landing.sections.description":
+    "رتّب أقسام الصفحة الرئيسية أو أخفِ أحدها. القيمة قائمة JSON فيها key (whatsapp, skills, precision, how, audiences, trust, faq, apps, final) و enabled و order تصاعديًا.",
+  "admin.settings.field.landing.sections": "الأقسام (ترتيب وإظهار)",
+  "admin.settings.help.landing.sections":
+    "أي قسم غير مذكور يظهر في مكانه الافتراضي بعد المذكورة. البطل (أول الصفحة) ثابت.",
   "admin.settings.section.landing.proof": "أرقام القياس",
   "admin.settings.section.landing.proof.description":
     "تظهر في قسم الدقة فقط عندما تُملأ. اتركها فارغة حتى تقيسها فعلًا.",

@@ -1,31 +1,23 @@
 import { t } from "@wasfa/shared/i18n";
 import { Container } from "@wasfa/ui";
+import { Fragment } from "react";
 
-import { AppsBand } from "../../components/marketing/apps-band";
-import { Audiences } from "../../components/marketing/audiences";
-import { FaqSection } from "../../components/marketing/faq-section";
-import { FinalCta } from "../../components/marketing/final-cta";
-import { HowItWorks } from "../../components/marketing/how-it-works";
+import { WhatsAppLogin } from "../../components/auth/whatsapp-login";
+import { HomeHero } from "../../components/home/home-hero";
+import { renderHomeSection, type HomeSectionContext } from "../../components/home/home-sections";
 import { JsonLd } from "../../components/marketing/json-ld";
-import { LandingHero } from "../../components/marketing/landing-hero";
-import { MascotSprite } from "../../components/marketing/mascot";
-import { PrecisionWalkthrough } from "../../components/marketing/precision-walkthrough";
-import { SkillsGrid } from "../../components/marketing/skills-grid";
-import { TrustSection } from "../../components/marketing/trust-section";
-import { WhatsAppSection } from "../../components/marketing/whatsapp-section";
 import { Notice } from "../../components/notice";
 import { landing } from "../../content/landing";
 import { whatsappUrl } from "../../lib/contact-links";
 import { publicEnv } from "../../lib/env";
+import { homePlanOffers } from "../../lib/home-plans";
+import { visibleLandingSections } from "../../lib/landing-sections";
 import { getNonce } from "../../lib/nonce";
 import { getPublicSettings } from "../../lib/public-settings";
 import { pageMetadata } from "../../lib/seo";
-import {
-  faqJsonLd,
-  organizationJsonLd,
-  softwareApplicationJsonLd,
-  webSiteJsonLd,
-} from "../../lib/structured-data";
+import { getMe } from "../../lib/session";
+import { homeStructuredData } from "../../lib/structured-data";
+import { loadWhatsAppAvailable } from "../../lib/whatsapp-availability";
 
 import type { Metadata } from "next";
 
@@ -39,43 +31,50 @@ export default async function HomePage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [{ notice }, settings, nonce] = await Promise.all([
+  const [{ notice }, settings, nonce, me, plans, whatsappAvailable] = await Promise.all([
     searchParams,
     getPublicSettings(),
     getNonce(),
+    getMe().catch(() => null),
+    homePlanOffers("ar"),
+    loadWhatsAppAvailable(),
   ]);
+  const signedIn = me !== null;
   const siteUrl = publicEnv.NEXT_PUBLIC_SITE_URL;
   const whatsappHref = whatsappUrl(settings.contact.whatsapp, landing.hero.whatsappGreeting);
 
+  const context: HomeSectionContext = { locale: "ar", settings, whatsappHref, signedIn };
+  const sections = visibleLandingSections(settings.landing.sections);
+
   return (
     <>
-      <JsonLd data={organizationJsonLd(settings, siteUrl)} nonce={nonce} />
-      <JsonLd data={webSiteJsonLd(settings, siteUrl)} nonce={nonce} />
-      <JsonLd
-        data={softwareApplicationJsonLd(settings, siteUrl, t("meta.description"))}
-        nonce={nonce}
-      />
-      <JsonLd data={faqJsonLd(landing.faq.items)} nonce={nonce} />
+      {homeStructuredData({
+        settings,
+        siteUrl,
+        description: t("meta.description"),
+        faqs: landing.faq.items,
+        plans,
+      }).map((data, index) => (
+        <JsonLd key={index} data={data} nonce={nonce} />
+      ))}
 
       {notice === DELETED_NOTICE ? (
         <Container className="pt-4">
           <Notice>{landing.notices.accountDeleted}</Notice>
         </Container>
       ) : null}
-      <MascotSprite />
-      <LandingHero whatsappHref={whatsappHref} />
-      <WhatsAppSection whatsappHref={whatsappHref} />
-      <SkillsGrid />
-      <PrecisionWalkthrough
-        proof={settings.landing.proof}
-        westernDigits={settings.locale.westernDigits}
+      <HomeHero
+        signedIn={signedIn}
+        whatsappSignup={
+          whatsappAvailable && !signedIn ? (
+            <WhatsAppLogin available next="/dashboard" nonce={nonce} compact />
+          ) : null
+        }
       />
-      <HowItWorks whatsappHref={whatsappHref} />
-      <Audiences />
-      <TrustSection />
-      <FaqSection />
-      <AppsBand settings={settings} />
-      <FinalCta whatsappHref={whatsappHref} />
+      {/* Sections are siblings on purpose: ad slots are inserted between them. */}
+      {sections.map((key) => (
+        <Fragment key={key}>{renderHomeSection(key, context)}</Fragment>
+      ))}
     </>
   );
 }

@@ -46,6 +46,8 @@ export interface WhatsAppLoginProps {
   nonce?: string | undefined;
   /** Where "sign in with a password" goes; without it the panel simply closes. */
   passwordHref?: string | undefined;
+  /** Embedded in a page (the home hero): no trailing "or" divider, there is no form below. */
+  compact?: boolean;
 }
 
 function Divider() {
@@ -140,7 +142,13 @@ function Waiting({
  * (docs/WA-SIGNUP.md). Turnstile, then the challenge; the person sends the pre-filled message and this
  * browser (the only one holding the challenge cookie) picks up the session by polling every 2 s.
  */
-export function WhatsAppLogin({ available, next, nonce, passwordHref }: WhatsAppLoginProps) {
+export function WhatsAppLogin({
+  available,
+  next,
+  nonce,
+  passwordHref,
+  compact = false,
+}: WhatsAppLoginProps) {
   const router = useRouter();
   const ts = useTurnstile();
   const [open, setOpen] = useState(false);
@@ -347,7 +355,7 @@ export function WhatsAppLogin({ available, next, nonce, passwordHref }: WhatsApp
           <Terms />
         </>
       )}
-      <Divider />
+      {compact ? null : <Divider />}
     </div>
   );
 }

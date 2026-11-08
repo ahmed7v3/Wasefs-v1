@@ -11,30 +11,30 @@ migration, journal `when` later than production's last applied migration (see de
 
 ## 1. Shared visual system and home page (D1, D2)
 
-- [ ] 1.1 [builder] Move `components/early/visual/*` to `components/visual/*`; update `/early`; visual
+- [x] 1.1 [builder] Move `components/early/visual/*` to `components/visual/*`; update `/early`; visual
       parity check (screenshot test of `/early` before/after).
-- [ ] 1.2 [builder] `landing` settings: sections (key, enabled, order) + per-section copy, defaults = current
+- [x] 1.2 [builder] `landing` settings: sections (key, enabled, order) + per-section copy, defaults = current
       copy; admin fields.
-- [ ] 1.3 [builder] Rebuild every home section in the early style (`components/home/*`), hero entry points
+- [x] 1.3 [builder] Rebuild every home section in the early style (`components/home/*`), hero entry points
       (register / login / WhatsApp; dashboard when signed in), reduced-motion, 320 px → wide.
 - [ ] 1.4 Verify — [runner] web typecheck/lint/unit; Playwright: home at 320/768/1440 no horizontal scroll,
       44 px targets, axe clean; signed-in hero shows dashboard.
 
 ## 2. SEO (D3)
 
-- [ ] 2.1 [builder] Metadata (hreflang, OG per page), home JSON-LD set (Organization, WebSite+SearchAction,
+- [x] 2.1 [builder] Metadata (hreflang, OG per page), home JSON-LD set (Organization, WebSite+SearchAction,
       SoftwareApplication from plans, FAQPage from FAQ data), BreadcrumbList on public pages; unit tests on
       builders.
-- [ ] 2.2 [builder] Lighthouse CI budgets as failing assertions (mobile); `llms.txt` + answer block from
+- [x] 2.2 [builder] Lighthouse CI budgets as failing assertions (mobile); `llms.txt` + answer block from
       settings; robots/X-Robots-Tag for `/a/*`.
 - [ ] 2.3 Verify — [runner] Lighthouse job green with budgets; structured data validated in tests.
 
 ## 3. Ads (D4, D5, D6)
 
 - [x] 3.1 [main] Final review of the schema and the safety-floor code before building.
-- [ ] 3.2 [builder] Migration + schema + repos; seed placements; `ads` settings; `adClass` on every route + route
+- [x] 3.2 [builder] Migration + schema + repos; seed placements; `ads` settings; `adClass` on every route + route
       test; `ads_free` entitlement (default on for paid plans).
-- [ ] 3.3 [builder] Selection service (eligibility, schedule, targeting, weights, density, advertiser dedupe,
+- [x] 3.3 [builder] Selection service (eligibility, schedule, targeting, weights, density, advertiser dedupe,
       entitlement), `<AdSlot>` server component, impression beacon, `/a/<token>` redirect, Redis counters,
       `ads.rollup` worker job.
 - [ ] 3.4 [builder] Bottom banner island (reserved spacer, close, dismiss days, safe-area), home placements.

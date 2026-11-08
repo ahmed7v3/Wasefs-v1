@@ -56,6 +56,7 @@ type PatchableField =
   | "features"
   | "trialDays"
   | "pinRecommended"
+  | "adsFree"
   | "maxMembers"
   | "fairUseNoteAr"
   | "fairUseNoteEn"

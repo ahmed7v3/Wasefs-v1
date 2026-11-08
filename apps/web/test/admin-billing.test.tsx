@@ -223,6 +223,7 @@ function planView(): PlanView {
     nameEn: "Free",
     audience: "any",
     isDefault: true,
+    adsFree: false,
     monthlyCredits: 20,
     visibility: "public",
     sort: 0,

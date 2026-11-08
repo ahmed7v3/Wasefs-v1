@@ -156,3 +156,8 @@ Rollback: `ads.enabled = false`, prompt moments off, home sections toggled; code
   - Banned-claims list (settings `growth.bannedClaims`, case-insensitive): أدق, أكثر دقة, more accurate,
     مضمون, guaranteed, علاج, شفاء, cure, يحمي صحتك, protects your health. «أدق / more accurate» is allowed only
     when the target plan has the deep-mode entitlement.
+- Wave 1 review (2026-11-08): route classes live in colocated `ad-class.ts` files (Next 16 rejects extra
+  exports from `page.tsx`); migration `0033_ads` (when 1794113539998); `plans.ads_free` (on the plan, not the
+  per-task entitlement rows); slot cached 60 s (rotation per minute); ads-free applies to app pages (public pages
+  stay static); the token is derived from `BETTER_AUTH_SECRET` with a purpose label. Home: sections in
+  `components/home/*`, order/visibility from `landing.sections`; the WhatsApp sign-up block is Arabic-only.

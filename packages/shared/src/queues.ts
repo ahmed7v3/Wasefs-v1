@@ -82,6 +82,8 @@ export const QUEUE_REGISTRY = {
     "system.heartbeat": heartbeatPayloadSchema,
     "account.anonymize_due": maintenancePayloadSchema,
     "auth.purge_expired": maintenancePayloadSchema,
+    // First-party ads (docs/ADS.md): folds the Redis impression/click counters into ad_stats_daily every 5 min.
+    "ads.rollup": maintenancePayloadSchema,
   },
   notifications: {
     "email.send": emailSendPayloadSchema,
