@@ -1,0 +1,195 @@
+/* Admin > مفاتيح API وربط وكيل ذكاء اصطناعي (Publishing API). */
+export const arAdminPublishing = {
+  "admin.nav.content.apiKeys": "مفاتيح API",
+  "admin.nav.content.apiKeys.description": "مفاتيح وكلاء الذكاء الاصطناعي لإنشاء المحتوى ونشره.",
+  "admin.nav.content.apiConnect": "ربط وكيل ذكاء اصطناعي",
+  "admin.nav.content.apiConnect.description":
+    "العنوان وخطوات البدء وتعليمات جاهزة للنسخ إلى Claude.",
+
+  "admin.pub.keys.title": "مفاتيح API",
+  "admin.pub.keys.intro":
+    "المفتاح هو ما يستخدمه وكيل ذكاء اصطناعي (مثل Claude) ليكتب المحتوى ويرفع الصور وينشر باسمك. امنح كل وكيل مفتاحًا مستقلًا بأقل صلاحيات يحتاجها.",
+  "admin.pub.keys.connectLink": "كيف أربط Claude؟",
+  "admin.pub.keys.create": "مفتاح جديد",
+  "admin.pub.keys.table": "مفاتيح API",
+  "admin.pub.keys.empty.title": "لا توجد مفاتيح بعد",
+  "admin.pub.keys.empty.description": "أنشئ مفتاحًا ثم أعطه لوكيلك مع رابط الدليل.",
+  "admin.pub.col.name": "الاسم",
+  "admin.pub.col.key": "المفتاح",
+  "admin.pub.col.scopes": "الصلاحيات",
+  "admin.pub.col.publish": "النشر",
+  "admin.pub.col.status": "الحالة",
+  "admin.pub.col.lastUsed": "آخر استخدام",
+  "admin.pub.col.today": "اليوم",
+  "admin.pub.col.owner": "المالك",
+  "admin.pub.neverUsed": "لم يُستخدم",
+  "admin.pub.env.live": "فعلي",
+  "admin.pub.env.test": "تجريبي",
+  "admin.pub.canPublish.yes": "يستطيع النشر",
+  "admin.pub.canPublish.no": "مسودات فقط",
+  "admin.pub.status.active": "نشط",
+  "admin.pub.status.expiring": "ينتهي قريبًا",
+  "admin.pub.status.expired": "منتهي",
+  "admin.pub.status.revoked": "ملغى",
+  "admin.pub.status.grace": "المفتاح القديم يعمل حتى {date}",
+  "admin.pub.usage.today": "{requests} طلب، {errors} خطأ، {published} منشور",
+  "admin.pub.expiresOn": "ينتهي في {date}",
+
+  "admin.pub.scope.content:read": "قراءة المحتوى",
+  "admin.pub.scope.content:read.description":
+    "يقرأ المقالات والمسودات الموجودة ويتحقق من النص قبل الحفظ.",
+  "admin.pub.scope.content:write": "كتابة المحتوى",
+  "admin.pub.scope.content:write.description":
+    "ينشئ المسودات ويعدلها ويرسلها للمراجعة. لا ينشر شيئًا بهذه الصلاحية وحدها.",
+  "admin.pub.scope.content:publish": "نشر المحتوى",
+  "admin.pub.scope.content:publish.description":
+    "يجدول المحتوى المعتمد وينشره. يحتاج أيضًا تفعيل «يستطيع النشر».",
+  "admin.pub.scope.media:write": "رفع الصور",
+  "admin.pub.scope.media:write.description": "يرفع الصور إلى مكتبة الوسائط ويستخدمها في المحتوى.",
+  "admin.pub.scope.taxonomy:write": "إدارة التصنيفات",
+  "admin.pub.scope.taxonomy:write.description": "ينشئ تصنيفات ووسومًا جديدة.",
+  "admin.pub.scope.people:read": "قراءة الكتّاب والمراجعين",
+  "admin.pub.scope.people:read.description": "يقرأ قائمة الكتّاب والمراجعين ليختار منها.",
+
+  "admin.pub.type.article": "مقالات",
+  "admin.pub.type.guide": "أدلة",
+  "admin.pub.type.glossary": "مصطلحات",
+
+  "admin.pub.form.createTitle": "إنشاء مفتاح API",
+  "admin.pub.form.editTitle": "تعديل المفتاح",
+  "admin.pub.form.editHint":
+    "البيئة وتاريخ الانتهاء لا يتغيران. لتغيير السر استخدم «تدوير المفتاح».",
+  "admin.pub.form.name": "اسم المفتاح",
+  "admin.pub.form.name.hint": "اسم يدل على الوكيل، مثل «Claude للمقالات».",
+  "admin.pub.form.environment": "البيئة",
+  "admin.pub.form.scopes": "الصلاحيات",
+  "admin.pub.form.canPublish": "يستطيع هذا المفتاح النشر مباشرة",
+  "admin.pub.form.canPublish.warning":
+    "التصنيفات الطبية تحتاج دائمًا إلى مراجع بشري مهما كان هذا الخيار. إن كان مغلقًا فلا يستطيع المفتاح إلا إنشاء المسودات وإرسالها للمراجعة.",
+  "admin.pub.form.allowedTypes": "الأنواع المسموحة",
+  "admin.pub.form.allowedTypes.hint": "لا تحدد شيئًا للسماح بكل الأنواع.",
+  "admin.pub.form.categories": "التصنيفات المسموحة (المعرّفات)",
+  "admin.pub.form.categories.hint": "اكتب معرّف التصنيف ثم أضفه. فارغ = أي تصنيف.",
+  "admin.pub.form.categories.add": "إضافة",
+  "admin.pub.form.categories.remove": "إزالة {slug}",
+  "admin.pub.form.defaultAuthor": "الكاتب الافتراضي",
+  "admin.pub.form.defaultAuthor.none": "بدون كاتب افتراضي",
+  "admin.pub.form.defaultAuthor.hint": "يُستخدم حين لا يحدد الطلب كاتبًا.",
+  "admin.pub.form.defaultImage": "الصورة البارزة الافتراضية",
+  "admin.pub.form.defaultImage.hint":
+    "تُستخدم حين لا يحدد الطلب صورة، فيستطيع الوكيل النشر دون البحث عن صورة.",
+  "admin.pub.form.defaultImage.choose": "اختيار صورة",
+  "admin.pub.form.defaultImage.change": "تغيير الصورة",
+  "admin.pub.form.defaultImage.clear": "إزالة الصورة",
+  "admin.pub.form.defaultImage.none": "لم تُختر صورة",
+  "admin.pub.form.dailyCap": "حد النشر اليومي لهذا المفتاح",
+  "admin.pub.form.dailyCap.globalOnly": "الحد العام فقط",
+  "admin.pub.form.dailyCap.hint": "يُطبَّق مع الحد العام للنشر اليومي، والأصغر منهما هو الساري.",
+  "admin.pub.form.rpm": "الطلبات في الدقيقة",
+  "admin.pub.form.ipAllowList": "عناوين IP المسموحة",
+  "admin.pub.form.ipAllowList.hint": "عنوان أو نطاق CIDR في كل سطر. فارغ = أي عنوان.",
+  "admin.pub.form.expiresInDays": "صلاحية المفتاح بالأيام",
+  "admin.pub.form.submitCreate": "إنشاء المفتاح",
+  "admin.pub.form.submitEdit": "حفظ التعديلات",
+  "admin.pub.form.invalid":
+    "راجع الحقول: الاسم حرفان على الأقل، وصلاحية واحدة على الأقل، والأرقام ضمن الحدود.",
+  "admin.pub.form.created": "تم إنشاء المفتاح",
+  "admin.pub.form.saved": "تم حفظ التعديلات",
+
+  "admin.pub.secret.title": "احفظ المفتاح الآن",
+  "admin.pub.secret.warning":
+    "هذه هي المرة الوحيدة التي يظهر فيها المفتاح كاملًا. لا يمكن عرضه مرة أخرى؛ إن ضاع فعليك تدويره أو إنشاء مفتاح جديد.",
+  "admin.pub.secret.keyLabel": "المفتاح الكامل",
+  "admin.pub.secret.endpointLabel": "عنوان الواجهة",
+  "admin.pub.secret.messageLabel": "رسالة جاهزة لـ Claude",
+  "admin.pub.secret.messageHint": "تحتوي المفتاح الكامل، فلا تشاركها إلا مع وكيلك.",
+  "admin.pub.secret.copy": "نسخ",
+  "admin.pub.secret.copied": "تم النسخ",
+  "admin.pub.secret.saved": "حفظته",
+  "admin.pub.claudeMessage":
+    "استخدم واجهة النشر في وصفة على العنوان {base}. المفتاح: {key}. اقرأ أولًا الدليل على {base}/guide ثم اتبعه حرفيًا. اكتب المحتوى كمسودة وأرسل لي رابط المعاينة، ولا تنشر إلا إذا طلبت منك ذلك.",
+  "admin.pub.claudeMessage.template":
+    "استخدم واجهة النشر في وصفة على العنوان {base}. المفتاح: (المفتاح الذي أنشأته). اقرأ أولًا الدليل على {base}/guide ثم اتبعه حرفيًا. اكتب المحتوى كمسودة وأرسل لي رابط المعاينة، ولا تنشر إلا إذا طلبت منك ذلك.",
+
+  "admin.pub.action.edit": "تعديل",
+  "admin.pub.action.rotate": "تدوير المفتاح",
+  "admin.pub.action.revoke": "إلغاء المفتاح",
+  "admin.pub.action.requests": "آخر الطلبات",
+  "admin.pub.action.menu": "إجراءات المفتاح {name}",
+  "admin.pub.rotate.title": "تدوير المفتاح {name}",
+  "admin.pub.rotate.description":
+    "يُصدر سرًّا جديدًا ويظهر مرة واحدة. يبقى القديم صالحًا خلال مهلة الانتقال لتحدّث وكيلك دون انقطاع.",
+  "admin.pub.rotate.graceHours": "مهلة الانتقال (ساعات)",
+  "admin.pub.rotate.graceHint": "0 = يتوقف القديم فورًا. الحد الأقصى {max} ساعة.",
+  "admin.pub.rotate.confirm": "تدوير",
+  "admin.pub.revoke.title": "إلغاء المفتاح {name}؟",
+  "admin.pub.revoke.description":
+    "يتوقف المفتاح فورًا ولا يمكن إعادة تفعيله. أي وكيل يستخدمه سيحصل على خطأ 401.",
+  "admin.pub.revoke.confirm": "إلغاء المفتاح",
+  "admin.pub.revoke.done": "أُلغي المفتاح",
+
+  "admin.pub.requests.title": "آخر طلبات {name}",
+  "admin.pub.requests.table": "آخر طلبات المفتاح",
+  "admin.pub.requests.empty": "لا توجد طلبات لهذا المفتاح بعد.",
+  "admin.pub.requests.time": "الوقت",
+  "admin.pub.requests.method": "الطريقة",
+  "admin.pub.requests.route": "المسار",
+  "admin.pub.requests.status": "الحالة",
+  "admin.pub.requests.latency": "الزمن",
+  "admin.pub.requests.error": "رمز الخطأ",
+  "admin.pub.requests.ms": "{ms} م.ث",
+
+  "admin.pub.connect.title": "ربط وكيل ذكاء اصطناعي",
+  "admin.pub.connect.intro":
+    "اجعل Claude أو أي وكيل آخر يكتب مقالات وصفة ويرفع صورها وينشرها عبر واجهة مخصصة، بمفتاح تتحكم فيه أنت.",
+  "admin.pub.connect.endpoint.title": "العنوان والروابط",
+  "admin.pub.connect.endpoint.base": "عنوان الواجهة (Base URL)",
+  "admin.pub.connect.endpoint.openapi": "مواصفات OpenAPI",
+  "admin.pub.connect.endpoint.guide": "دليل الوكيل",
+  "admin.pub.connect.endpoint.copy": "نسخ العنوان",
+  "admin.pub.connect.steps.title": "البدء في أربع خطوات",
+  "admin.pub.connect.step1.title": "أنشئ مفتاحًا",
+  "admin.pub.connect.step1.body":
+    "من صفحة مفاتيح API أنشئ مفتاحًا باسم الوكيل. ابدأ بالصلاحيات الأساسية وبدون النشر المباشر. انسخ المفتاح فور ظهوره فلن يظهر ثانية.",
+  "admin.pub.connect.step2.title": "أعطِ Claude العنوان والمفتاح ورابط الدليل",
+  "admin.pub.connect.step2.body":
+    "الصق في المحادثة الرسالة الجاهزة التي تظهر مع المفتاح، أو انسخ نص الدليل أدناه. الدليل يشرح للوكيل كل شيء بنفسه.",
+  "admin.pub.connect.step3.title": "اطلب منه الكتابة",
+  "admin.pub.connect.step3.body":
+    "قل مثلًا «اكتب مقالًا عن الصداع النصفي». يبقى المحتوى مسودة ويعود إليك الوكيل برابط معاينة تراجعه قبل أي نشر.",
+  "admin.pub.connect.step4.title": "قل له «انشره»",
+  "admin.pub.connect.step4.body":
+    "بعدها ينشر الوكيل أو يجدول، بشرط أن يكون مفتاحه مسموحًا له بالنشر. المحتوى في التصنيفات الطبية يمر دائمًا على مراجع بشري: يطلب الوكيل المراجعة، وإن أرسل publish_on_approval فينشر النظام المقال تلقائيًا لحظة اعتماد المراجع.",
+  "admin.pub.connect.guide.title": "نص الدليل للنسخ",
+  "admin.pub.connect.guide.hint":
+    "هذا نص الدليل الحالي كما يقرؤه الوكيل. انسخه إن كان وكيلك لا يستطيع فتح الروابط.",
+  "admin.pub.connect.guide.copy": "نسخ الدليل",
+  "admin.pub.connect.guide.loading": "جارٍ تحميل الدليل…",
+  "admin.pub.connect.guide.error": "تعذر تحميل نص الدليل الآن. يمكنك فتحه من الرابط مباشرة.",
+  "admin.pub.connect.guide.retry": "إعادة المحاولة",
+  "admin.pub.connect.guide.open": "فتح الدليل",
+  "admin.pub.connect.prompts.title": "أمثلة لما تقوله لـ Claude",
+  "admin.pub.connect.prompt.1":
+    "اقرأ الدليل ثم اكتب مقالًا شاملًا عن أعراض نقص فيتامين د، واحفظه كمسودة وأرسل لي رابط المعاينة.",
+  "admin.pub.connect.prompt.2":
+    "راجع المسودة التي كتبتها وتحقق من النص قبل الحفظ، ثم أصلح أي مشاكل تظهر في التحقق.",
+  "admin.pub.connect.prompt.3":
+    "انشر المقال الأخير الآن. إن كان تصنيفه طبيًا فأرسله للمراجعة وانشره تلقائيًا عند الاعتماد.",
+  "admin.pub.connect.prompt.4":
+    "اكتب ثلاثة مصطلحات جديدة للقاموس الطبي كمسودات مع صورة بارزة من المكتبة.",
+  "admin.pub.connect.prompt.en1":
+    "Read the guide, then write a thorough article about vitamin D deficiency symptoms. Save it as a draft and send me the preview link.",
+  "admin.pub.connect.prompt.en2":
+    "Publish the latest article now. If its category is medical, submit it for review and publish on approval.",
+  "admin.pub.connect.prompt.copy": "نسخ المثال",
+  "admin.pub.connect.trouble.title": "إن لم يعمل",
+  "admin.pub.connect.trouble.401":
+    "401: المفتاح خاطئ أو منتهٍ أو ملغى. تأكد من نسخه كاملًا أو أنشئ غيره.",
+  "admin.pub.connect.trouble.403":
+    "403: المفتاح لا يملك هذه الصلاحية، أو عنوان IP غير مسموح، أو التصنيف غير مسموح. عدّل المفتاح من صفحة المفاتيح.",
+  "admin.pub.connect.trouble.429":
+    "429: تجاوز المفتاح عدد الطلبات في الدقيقة أو حد النشر اليومي. اطلب من الوكيل الانتظار أو ارفع الحد.",
+  "admin.pub.connect.trouble.422":
+    "422: المحتوى لم يجتز التحقق (حقل ناقص أو رابط غير صالح). اطلب من الوكيل قراءة رسالة الخطأ وتصحيحها.",
+  "admin.pub.connect.keysLink": "إدارة مفاتيح API",
+} as const;
