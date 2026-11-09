@@ -25,9 +25,9 @@ export interface RxPdfDeps {
  */
 export function createRxPdf(analysisId: string, deps: RxPdfDeps): RxPdfPort {
   return {
-    async render(result) {
+    async render(result, lang) {
       try {
-        const language = await deps.language();
+        const language = lang ?? (await deps.language());
         const now = new Date();
         const { bytes } = await deps.documents.render(
           rxResultRequest(result, deps.link(analysisId), language, now),

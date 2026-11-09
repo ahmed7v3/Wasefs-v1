@@ -12,6 +12,7 @@ import { SettingsService } from "../settings/settings.service.js";
 import { agentUser } from "../wa-agent/commerce/agent-user.js";
 
 import { TelegramAdsService } from "./telegram-ads.service.js";
+import { chatHash, classifyChatFailure, FAILURE_MESSAGE } from "./telegram-ai-errors.js";
 import { PHOTO_MAX_BYTES, TelegramAnalysisService } from "./telegram-analysis.service.js";
 import { TelegramApiClient, TelegramApiError, type TelegramApi } from "./telegram-api.client.js";
 import { TelegramChatService } from "./telegram-chat.service.js";
@@ -24,9 +25,11 @@ import {
   mainMenu,
   parseCallback,
   quickReplies,
+  retryAskKeyboard,
   urlKeyboard,
 } from "./telegram-keyboards.js";
 import { phoneFromContact } from "./telegram-link.js";
+import { TelegramPdfService } from "./telegram-pdf.service.js";
 import { chatRateVerdict } from "./telegram-rate-limit.js";
 import { escapeHtml, modelTextToHtml, summaryMessages } from "./telegram-render.js";
 import { bumpStat } from "./telegram-stats.js";
@@ -49,6 +52,9 @@ const UPDATE_TTL_SECONDS = 3_600;
 const GROUP_DEBOUNCE_MS = 2_500;
 const GROUP_TTL_SECONDS = 60;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** The question of a slow reply waits this long for the retry button (per chat). */
+const RETRY_TTL_SECONDS = 600;
+const retryKey = (chatId: number): string => `tg:retry:${String(chatId)}`;
 const IMAGE_MIMES = ["image/jpeg", "image/png", "image/webp"] as const;
 
 export type TelegramSender = NonNullable<TelegramMessage["from"]>;
@@ -106,6 +112,7 @@ export class TelegramBotService {
     @Inject(REDIS) private readonly redis: Redis,
     @Inject(API_ENV) private readonly env: ApiEnv,
     private readonly logger: PinoLogger,
+    private readonly pdf: TelegramPdfService,
   ) {
     this.logger.setContext("TelegramBot");
   }
@@ -279,6 +286,15 @@ export class TelegramBotService {
         return this.withUser(ctx, (user) => this.ask(ctx, user, arg));
       case "sum":
         return this.withUser(ctx, (user) => this.summary(ctx, user, arg));
+      case "pdf":
+        // Ownership is checked inside: someone else's id reads as "not found".
+        return this.withUser(ctx, (user) =>
+          UUID.test(arg)
+            ? this.pdf.sendPdf(this.analysisCtx(ctx, user), arg).then(() => undefined)
+            : Promise.resolve(),
+        );
+      case "retry":
+        return this.retryAsk(ctx);
       case "unlink":
         return this.unlink(ctx, arg === "yes");
       case "lang":
@@ -599,19 +615,19 @@ export class TelegramBotService {
   private async onText(ctx: Ctx, text: string): Promise<void> {
     const user = await this.userOf(ctx);
     if (user === null) return this.gate(ctx);
-    if (ctx.chat.lastRxId === null) {
-      await ctx.api.sendMessage(ctx.chatId, tg(ctx.locale, "followup.noRx"), {
-        replyMarkup: this.menuMarkup(ctx),
-      });
-      return;
-    }
     await ctx.api.sendChatAction(ctx.chatId, "typing").catch(() => undefined);
     try {
+      // About the chat's analysis when it has a readable one (null = none), else a short general answer.
       const answer = await this.conversation.answer(user, ctx.chat, ctx.locale, text);
       if (answer === null) {
-        await ctx.api.sendMessage(ctx.chatId, tg(ctx.locale, "followup.noRx"), {
-          replyMarkup: this.menuMarkup(ctx),
-        });
+        const general = await this.conversation.general(user, ctx.chat, text);
+        await ctx.api.sendMessage(
+          ctx.chatId,
+          `${modelTextToHtml(general)}
+
+${tg(ctx.locale, "followup.noRxNudge")}`,
+          { replyMarkup: this.menuMarkup(ctx) },
+        );
         return;
       }
       await ctx.api.sendMessage(ctx.chatId, modelTextToHtml(answer), {
@@ -624,14 +640,40 @@ export class TelegramBotService {
       );
     } catch (error) {
       if (error instanceof TelegramApiError) throw error;
-      this.logger.warn(
-        { error: error instanceof Error ? error.name : "unknown" },
-        "Telegram follow-up failed",
-      );
-      await ctx.api.sendMessage(ctx.chatId, tg(ctx.locale, "followup.error"), {
-        replyMarkup: quickReplies(ctx.locale),
-      });
+      await this.explainFollowUp(ctx, text, error);
     }
+  }
+
+  /**
+   * Says why the model did not answer, in words that never leak provider details, and logs the cause
+   * (class, codes, task, a hash of the chat; never the question, the answer or the token).
+   */
+  private async explainFollowUp(ctx: Ctx, text: string, error: unknown): Promise<void> {
+    const failure = classifyChatFailure(error);
+    this.logger.warn(
+      { ...failure.log, task: "telegram_agent", mode: "balanced", chat: chatHash(ctx.chatId) },
+      "Telegram follow-up failed",
+    );
+    let replyMarkup = quickReplies(ctx.locale);
+    if (failure.kind === "slow") {
+      // The retry button asks the same question again; the text waits in Redis for ten minutes.
+      await this.redis.set(retryKey(ctx.chatId), text, "EX", RETRY_TTL_SECONDS);
+      replyMarkup = retryAskKeyboard(ctx.locale);
+    }
+    await ctx.api.sendMessage(ctx.chatId, tg(ctx.locale, FAILURE_MESSAGE[failure.kind]), {
+      replyMarkup,
+    });
+  }
+
+  /** The 🔄 button of a slow reply: asks the stored question again (through the same limits). */
+  private async retryAsk(ctx: Ctx): Promise<void> {
+    const text = await this.redis.get(retryKey(ctx.chatId));
+    if (text === null) {
+      await ctx.api.sendMessage(ctx.chatId, tg(ctx.locale, "retry.expired"));
+      return;
+    }
+    await this.redis.del(retryKey(ctx.chatId));
+    return this.onText(ctx, text);
   }
 
   // --- helpers ---------------------------------------------------------------------------------

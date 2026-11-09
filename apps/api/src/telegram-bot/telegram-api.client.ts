@@ -104,10 +104,7 @@ export class TelegramApi {
       }),
   ) {}
 
-  private async call<T>(
-    method: string,
-    body: Record<string, unknown> | FormData = {},
-  ): Promise<T> {
+  private async call<T>(method: string, body: Record<string, unknown> | FormData = {}): Promise<T> {
     const isForm = body instanceof FormData;
     for (let attempt = 0; ; attempt += 1) {
       let response: Response;
@@ -196,7 +193,7 @@ export class TelegramApi {
   ): FormData {
     const form = new FormData();
     form.set("chat_id", String(chatId));
-    form.set(field, new Blob([file.bytes as BlobPart], { type: file.contentType }), file.filename);
+    form.set(field, new Blob([Buffer.from(file.bytes)], { type: file.contentType }), file.filename);
     if (options.caption) {
       form.set("caption", options.caption);
       if (options.html !== false) form.set("parse_mode", "HTML");
@@ -206,12 +203,20 @@ export class TelegramApi {
   }
 
   /** Sends an image with an optional caption and inline buttons (a multipart upload). */
-  sendPhoto(chatId: number, photo: TelegramUpload, options: SendMediaOptions = {}): Promise<SentMessage> {
+  sendPhoto(
+    chatId: number,
+    photo: TelegramUpload,
+    options: SendMediaOptions = {},
+  ): Promise<SentMessage> {
     return this.call("sendPhoto", this.mediaForm(chatId, "photo", photo, options));
   }
 
   /** Sends a file (the analysis PDF) as a downloadable document (a multipart upload). */
-  sendDocument(chatId: number, file: TelegramUpload, options: SendMediaOptions = {}): Promise<SentMessage> {
+  sendDocument(
+    chatId: number,
+    file: TelegramUpload,
+    options: SendMediaOptions = {},
+  ): Promise<SentMessage> {
     return this.call("sendDocument", this.mediaForm(chatId, "document", file, options));
   }
 
@@ -237,11 +242,19 @@ export class TelegramApi {
     }
   }
 
+  /** Removes a message (the PDF progress line once the file is sent); the caller ignores a failure. */
+  async deleteMessage(chatId: number, messageId: number): Promise<void> {
+    await this.call("deleteMessage", { chat_id: chatId, message_id: messageId });
+  }
+
   async answerCallbackQuery(id: string, text?: string): Promise<void> {
     await this.call("answerCallbackQuery", { callback_query_id: id, ...(text ? { text } : {}) });
   }
 
-  async sendChatAction(chatId: number, action: "typing" | "upload_photo"): Promise<void> {
+  async sendChatAction(
+    chatId: number,
+    action: "typing" | "upload_photo" | "upload_document",
+  ): Promise<void> {
     await this.call("sendChatAction", { chat_id: chatId, action });
   }
 

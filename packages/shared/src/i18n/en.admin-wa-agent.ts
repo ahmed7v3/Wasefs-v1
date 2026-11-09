@@ -301,6 +301,7 @@ export const enAdminWaAgent = {
   "admin.telegram.settings.title": "Settings",
   "admin.telegram.settings.enabled": "Bot enabled",
   "admin.telegram.settings.adsEnabled": "Ads on Telegram",
+  "admin.telegram.settings.autoPdf": "Send the PDF automatically after each analysis",
   "admin.telegram.stats.sharedPhones": "Shared phone numbers",
   "admin.telegram.settings.welcomeAr": "Arabic welcome message",
   "admin.telegram.settings.welcomeEn": "English welcome message",

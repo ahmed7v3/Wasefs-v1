@@ -12,6 +12,8 @@ import { TelegramAnalysisService } from "./telegram-analysis.service.js";
 import { TelegramApiClient } from "./telegram-api.client.js";
 import { TelegramBotService } from "./telegram-bot.service.js";
 import { TelegramChatService } from "./telegram-chat.service.js";
+import { TelegramPdfQueue } from "./telegram-pdf-queue.js";
+import { TelegramPdfService } from "./telegram-pdf.service.js";
 import { TelegramTokenService } from "./telegram-token.service.js";
 import { TelegramWebhookController } from "./telegram-webhook.controller.js";
 import { TelegramRepo } from "./telegram.repo.js";
@@ -27,6 +29,8 @@ import { TelegramRepo } from "./telegram.repo.js";
     TelegramAnalysisService,
     TelegramChatService,
     TelegramAdsService,
+    TelegramPdfQueue,
+    TelegramPdfService,
     TelegramBotService,
   ],
   exports: [TelegramTokenService, TelegramApiClient, TelegramRepo],

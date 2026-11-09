@@ -16,6 +16,7 @@ import { brandingIconsJob } from "./branding/branding.job.js";
 import { publishDueJob } from "./content/publish-due.job.js";
 import { DeferJob } from "./defer.js";
 import { waAgentRenderDocumentJob } from "./documents/document.job.js";
+import { telegramRxPdfJob } from "./documents/telegram-pdf.job.js";
 import { anonymizeDueJob, purgeExpiredJob } from "./jobs/accounts.job.js";
 import { adsRollupJob } from "./jobs/ads.rollup.job.js";
 import { spendRollupJob } from "./jobs/ai.spend-rollup.job.js";
@@ -80,7 +81,7 @@ export interface JobContext {
 type JobHandler<Q extends QueueName, J extends JobName<Q>> = (
   payload: JobPayload<Q, J>,
   context: JobContext,
-) => Promise<void>;
+) => Promise<unknown>;
 
 /** Exhaustive over the shared registry: a job without a handler (or vice versa) fails to compile. */
 type Handlers = { [Q in QueueName]: { [J in JobName<Q>]: JobHandler<Q, J> } };
@@ -121,6 +122,7 @@ export const HANDLERS: Handlers = {
   },
   documents: {
     "wa-agent.render-document": waAgentRenderDocumentJob,
+    "telegram.rx-pdf": telegramRxPdfJob,
   },
   seo: {
     "seo.indexnow": indexNowJob,
@@ -164,10 +166,10 @@ export const HANDLERS: Handlers = {
 export function createProcessor(
   queue: QueueName,
   context: JobContext,
-): (job: Job, token?: string) => Promise<void> {
+): (job: Job, token?: string) => Promise<unknown> {
   const handlers: Record<
     string,
-    ((payload: never, context: JobContext) => Promise<void>) | undefined
+    ((payload: never, context: JobContext) => Promise<unknown>) | undefined
   > = HANDLERS[queue];
   return async (job, token) => {
     const handler = Object.hasOwn(handlers, job.name) ? handlers[job.name] : undefined;
@@ -178,7 +180,8 @@ export function createProcessor(
       );
     }
     try {
-      await handler(parsed.data as never, context);
+      // A handler's return value is the job's result (`telegram.rx-pdf` hands back the storage key).
+      return await handler(parsed.data as never, context);
     } catch (error) {
       if (error instanceof DeferJob && token !== undefined) {
         await job.moveToDelayed(error.until, token);

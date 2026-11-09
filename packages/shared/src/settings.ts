@@ -251,8 +251,16 @@ export const aiSettingsSchema = z.object({
       chat: z.boolean().default(false),
       search: z.boolean().default(false),
       wa_agent: z.boolean().default(false),
+      telegram_agent: z.boolean().default(false),
     })
-    .default({ all: false, rx: false, chat: false, search: false, wa_agent: false }),
+    .default({
+      all: false,
+      rx: false,
+      chat: false,
+      search: false,
+      wa_agent: false,
+      telegram_agent: false,
+    }),
   /** What one credit is worth in USD micros (default $0.01). */
   creditValueUsdMicros: z.number().int().min(1).default(10_000),
   /** Preview models can disappear without notice: off unless an admin allows them. */
@@ -753,6 +761,8 @@ export const telegramBotSettingsSchema = z.object({
   supportUsername: z.string().max(64).default(""),
   /** First-party ads after a result, same rules as WhatsApp ads (ads.whatsapp); off here only. */
   adsEnabled: z.boolean().default(true),
+  /** Send the analysis PDF automatically right after a fresh result (the PDF button always works). */
+  autoPdf: z.boolean().default(true),
 });
 export type TelegramBotSettings = z.output<typeof telegramBotSettingsSchema>;
 
@@ -955,6 +965,8 @@ export function isAiSwitchedOff(
       return killSwitch.search;
     case "wa_agent":
       return killSwitch.wa_agent;
+    case "telegram_agent":
+      return killSwitch.telegram_agent;
     default:
       return false;
   }

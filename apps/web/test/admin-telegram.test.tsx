@@ -46,6 +46,7 @@ const settings: TelegramSettings = {
   welcomeEn: "Hello",
   supportUsername: "wasfa_support",
   adsEnabled: true,
+  autoPdf: true,
 };
 
 let current: TelegramStatus;

@@ -17,6 +17,7 @@ import { TelegramAdsService } from "./telegram-ads.service.js";
 import { TelegramApiError, type TelegramApi } from "./telegram-api.client.js";
 import { tg, type TelegramKey } from "./telegram-i18n.js";
 import { resultKeyboard, retryKeyboard, urlKeyboard } from "./telegram-keyboards.js";
+import { TelegramPdfService } from "./telegram-pdf.service.js";
 import { formatAnalysis } from "./telegram-render.js";
 import { bumpStat } from "./telegram-stats.js";
 import { TelegramRepo } from "./telegram.repo.js";
@@ -77,6 +78,7 @@ export class TelegramAnalysisService {
     @Inject(REDIS) private readonly redis: Redis,
     private readonly logger: PinoLogger,
     private readonly telegramAds: TelegramAdsService,
+    private readonly pdf: TelegramPdfService,
   ) {
     this.logger.setContext("TelegramAnalysis");
   }
@@ -125,7 +127,7 @@ export class TelegramAnalysisService {
         return;
       }
       await stage("stage.done");
-      await this.sendResult(ctx, view);
+      await this.sendResult(ctx, view, { fresh: true });
     } catch (error) {
       if (!started) await this.redis.del(dedupeKey).catch(() => undefined);
       await this.explain(ctx, error, photos.length);
@@ -161,7 +163,7 @@ export class TelegramAnalysisService {
         await stage("rx.failed", retryKeyboard(locale, created.id));
       } else {
         await stage("stage.done");
-        await this.sendResult(ctx, next);
+        await this.sendResult(ctx, next, { fresh: true });
       }
     } catch (error) {
       await this.explain(ctx, error, fileIds.length);
@@ -187,8 +189,15 @@ export class TelegramAnalysisService {
     }
   }
 
-  /** The finished reading as messages, the buttons on the last one; it becomes the chat's active analysis. */
-  async sendResult(ctx: AnalysisContext, view: RxView): Promise<void> {
+  /**
+   * The finished reading as messages, the buttons on the last one; it becomes the chat's active analysis.
+   * A `fresh` result (just analysed, not reopened from history) is followed by its PDF when `autoPdf` is on.
+   */
+  async sendResult(
+    ctx: AnalysisContext,
+    view: RxView,
+    options: { fresh?: boolean } = {},
+  ): Promise<void> {
     const { tg: api, chatId, locale } = ctx;
     if (view.result === null) {
       await api.sendMessage(chatId, tg(locale, "rx.empty"));
@@ -202,8 +211,25 @@ export class TelegramAnalysisService {
     }
     // The newest reading is what follow-up questions are about.
     await this.repo.patchChat(chatId, { lastRxId: view.id, contextResetAt: new Date() });
+    if (options.fresh === true) this.autoPdf(ctx, view.id);
     // After the result, never inside it: one separate ad message when the rules allow.
     await this.telegramAds.sendAfterDelivery(api, { chatId, userId: ctx.user.id }, locale);
+  }
+
+  /**
+   * Starts the PDF after the text result, without waiting for it (a render takes seconds): the text
+   * is already delivered, and any failure is the PDF service's to show on its own message.
+   */
+  private autoPdf(ctx: AnalysisContext, rxId: string): void {
+    void (async () => {
+      if (!(await this.settings.get("telegramBot")).autoPdf) return;
+      await this.pdf.sendPdf(ctx, rxId);
+    })().catch((error: unknown) => {
+      this.logger.warn(
+        { error: error instanceof Error ? error.name : "unknown" },
+        "Telegram auto PDF failed",
+      );
+    });
   }
 
   /** The "not enough credits" message: price, balance and a top-up button. */
