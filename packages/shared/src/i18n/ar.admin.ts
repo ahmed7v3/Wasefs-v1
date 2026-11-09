@@ -597,5 +597,13 @@ export const arAdmin = {
     "التجربة تتطلب رقم هاتف مؤكدًا ولم يؤكده العميل بعد. متوقع.",
   "admin.issue.explain.INVALID_SIGNATURE":
     "وصل إشعار دفع (webhook) بتوقيع غير صحيح فرُفض. إذا تكرر فراجع مفاتيح البوابة؛ وإلا فقد يكون طلبًا مزوّرًا.",
+  "admin.issue.explain.SCOPE_REQUIRED":
+    "مفتاح API حاول تنفيذ إجراء لا تشمله صلاحياته. أضف الصلاحية المطلوبة للمفتاح من صفحة مفاتيح API أو استخدم مفتاحًا آخر.",
+  "admin.issue.explain.IDEMPOTENCY_MISMATCH":
+    "أُعيد إرسال طلب بمفتاح تكرار سبق استخدامه مع محتوى مختلف. على الأتمتة أن تستخدم مفتاح تكرار جديدًا لكل طلب جديد.",
+  "admin.issue.explain.UNSUPPORTED_MEDIA":
+    "رُفع ملف بنوع غير مدعوم (المسموح: JPEG وPNG وWebP وAVIF وGIF ثابت).",
+  "admin.issue.explain.PAYLOAD_TOO_LARGE":
+    "الطلب أو الملف أكبر من الحد المسموح (1 ميجابايت للطلب، 10 ميجابايت للصورة).",
   "admin.issue.explain.unknown": "رمز خطأ غير معروف لهذه اللوحة. راجع السياق والأحداث.",
 } as const;

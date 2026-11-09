@@ -599,6 +599,14 @@ export const enAdmin: Partial<Record<keyof typeof arAdmin, string>> = {
     "Trials need a verified phone number and the customer has not verified one yet. Expected.",
   "admin.issue.explain.INVALID_SIGNATURE":
     "A payment webhook arrived with a wrong signature and was refused. If it repeats, check the gateway keys; otherwise it may be forged.",
+  "admin.issue.explain.SCOPE_REQUIRED":
+    "An API key tried an action outside its scopes. Add the scope to the key on the API keys page, or use another key.",
+  "admin.issue.explain.IDEMPOTENCY_MISMATCH":
+    "A request reused an idempotency key that was already used with different content. The automation must use a new key for each new request.",
+  "admin.issue.explain.UNSUPPORTED_MEDIA":
+    "A file of an unsupported type was uploaded (allowed: JPEG, PNG, WebP, AVIF, static GIF).",
+  "admin.issue.explain.PAYLOAD_TOO_LARGE":
+    "The request or file is larger than allowed (1 MB per request, 10 MB per image).",
   "admin.issue.explain.unknown":
     "An error code this panel does not know. Read the context and events.",
 };
