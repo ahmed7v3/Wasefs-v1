@@ -41,6 +41,11 @@ describe("permission catalog", () => {
     expect(isPermission(42)).toBe(false);
   });
 
+  it("declares content.api_keys in the content group (Publishing API key management)", () => {
+    expect(isPermission("content.api_keys")).toBe(true);
+    expect(PERMISSIONS["content.api_keys"].group).toBe("content");
+  });
+
   it("defines the system roles with valid keys", () => {
     expect(SYSTEM_ROLE_KEYS).toContain("super_admin");
     for (const key of SYSTEM_ROLE_KEYS) {

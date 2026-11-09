@@ -293,6 +293,13 @@ export const PERMISSIONS = {
       en: "Manage categories, tags, people, redirects and archive content",
     },
   },
+  "content.api_keys": {
+    group: "content",
+    label: {
+      ar: "إدارة مفاتيح واجهة النشر البرمجية (إنشاء وتدوير وإلغاء)",
+      en: "Manage Publishing API keys (create, rotate, revoke)",
+    },
+  },
   "wa_agent.read": {
     group: "wa_agent",
     label: {

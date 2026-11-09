@@ -17,6 +17,7 @@ export * from "./migrations.js";
 export * from "./monthly-grant.js";
 export * from "./notification-prefs.js";
 export * from "./outbox.js";
+export * from "./publishing-keys.js";
 export * from "./payments.js";
 export * from "./plan-sale.js";
 export * from "./pg-errors.js";

@@ -39,6 +39,7 @@ import { OrgsModule } from "./orgs/orgs.module.js";
 import { PaymentsModule } from "./payments/payments.module.js";
 import { PhoneModule } from "./phone/phone.module.js";
 import { PublishingApiModule } from "./publishing/publishing-api.module.js";
+import { PublishingModule } from "./publishing/publishing.module.js";
 import { RbacModule } from "./rbac/rbac.module.js";
 import { ReferralsModule } from "./referrals/referrals.module.js";
 import { RewardsModule } from "./rewards/rewards.module.js";
@@ -94,6 +95,7 @@ export class AppModule {
         PublicContentModule,
         TaxonomyModule,
         PublishingApiModule,
+        PublishingModule,
         OnboardingModule,
         UsersModule,
         CreditsModule,

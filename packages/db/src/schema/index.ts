@@ -25,6 +25,7 @@ export * from "./organizations.js";
 export * from "./plans.js";
 export * from "./promotions.js";
 export * from "./publishing-api.js";
+export * from "./publishing-keys.js";
 export * from "./rbac.js";
 export * from "./referral-codes.js";
 export * from "./rewards.js";

@@ -1,15 +1,20 @@
-import { applyDecorators, createParamDecorator, SetMetadata, UseGuards } from "@nestjs/common";
+import {
+  applyDecorators,
+  createParamDecorator,
+  SetMetadata,
+  UseGuards,
+  UseInterceptors,
+} from "@nestjs/common";
 
-import type { ExecutionContext } from "@nestjs/common";
-import type {
-  PublishingContentType,
-  PublishingScope,
-} from "@wasfa/shared/publishing";
 
 import { Public } from "../common/auth.guard.js";
 import { SkipOriginCheck } from "../common/origin.guard.js";
 
 import { PublishingKeyGuard } from "./publishing-key.guard.js";
+import { PublishingRequestLogInterceptor } from "./publishing-request-log.js";
+
+import type { ExecutionContext } from "@nestjs/common";
+import type { PublishingContentType, PublishingScope } from "@wasfa/shared/publishing";
 
 /** Who a Publishing API request acts as: the API key (and the admin user who owns it). */
 export interface PublishingPrincipal {
@@ -26,6 +31,9 @@ export interface PublishingPrincipal {
   defaultFeaturedMediaId: string | null;
   dailyPublishCap: number | null;
   requestsPerMinute: number;
+  /** Optional extras (set by the guard): `GET /me` reports them. */
+  environment?: "live" | "test";
+  expiresAt?: Date;
 }
 
 export const PUBLISHING_SCOPES_KEY = "publishing:scopes";
@@ -43,6 +51,7 @@ export const PublishingAuth = (...scopes: PublishingScope[]) =>
     SkipOriginCheck(),
     SetMetadata(PUBLISHING_SCOPES_KEY, scopes),
     UseGuards(PublishingKeyGuard),
+    UseInterceptors(PublishingRequestLogInterceptor),
   );
 
 /** The principal the guard attached (always set on a route decorated with PublishingAuth). */
