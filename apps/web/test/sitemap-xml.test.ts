@@ -20,7 +20,7 @@ describe("sitemap xml", () => {
     const xml = sitemapIndexFor(SITE);
     expect(xml).toContain("<sitemapindex");
     expect(xml).toContain(
-      "<loc>https://wasfa.online/sitemap-pages.xml</loc><lastmod>2026-10-20</lastmod>",
+      "<loc>https://wasfa.online/sitemap-pages.xml</loc><lastmod>2026-11-08</lastmod>",
     );
   });
 
