@@ -2,6 +2,7 @@ import { parseAdSize, type AdDevice, type AdSlotView, type PageClass } from "@wa
 import { t } from "@wasfa/shared/i18n";
 import { cn } from "@wasfa/ui";
 
+import { adCountry } from "../../lib/ad-country";
 import { getAdSlot } from "../../lib/ads-server";
 
 import { AdBeacon } from "./ad-beacon";
@@ -52,7 +53,13 @@ export async function AdSlot({
   country,
   className,
 }: AdSlotProps) {
-  const slot = await getAdSlot({ placement, pageClass, locale, device, country });
+  const slot = await getAdSlot({
+    placement,
+    pageClass,
+    locale,
+    device,
+    country: country ?? (await adCountry()),
+  });
   if (!slot || slot.format === "bottom_banner") return null;
 
   const label = t("ads.label", undefined, locale);

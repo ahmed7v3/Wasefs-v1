@@ -1,10 +1,12 @@
 import { t, type MessageKey } from "@wasfa/shared/i18n";
 import { Container } from "@wasfa/ui";
 import Link from "next/link";
+import { Fragment } from "react";
 
 import { authorJsonLd, contentBreadcrumbs, listJsonLd } from "../../lib/content-seo";
 import { groupGlossary, letterAnchor, totalPages } from "../../lib/content-view";
 import { localeDir, type Locale } from "../../lib/locale";
+import { AdSlot } from "../ads/ad-slot";
 import { ContentImage } from "../content-image";
 import { JsonLd } from "../marketing/json-ld";
 
@@ -17,6 +19,30 @@ import {
 } from "./content-parts";
 
 import type { PublicItemCard, PublicTaxonomyPage } from "@wasfa/shared/schemas/content";
+
+/** Cards per block of the feed; a native slot sits between blocks (at most two slots per page). */
+const FEED_BLOCK = 6;
+const FEED_MAX_SLOTS = 2;
+
+/** The card grid with `blog.feed` native slots between blocks of six cards. */
+function FeedGrid({ cards, locale }: { cards: readonly PublicItemCard[]; locale: Locale }) {
+  const blocks: (readonly PublicItemCard[])[] = [];
+  for (let start = 0; start < cards.length; start += FEED_BLOCK) {
+    blocks.push(cards.slice(start, start + FEED_BLOCK));
+  }
+  return (
+    <>
+      {blocks.map((block, index) => (
+        <Fragment key={index}>
+          {index > 0 && index <= FEED_MAX_SLOTS ? (
+            <AdSlot placement="blog.feed" pageClass="content" locale={locale} className="my-8" />
+          ) : null}
+          <CardGrid cards={block} locale={locale} />
+        </Fragment>
+      ))}
+    </>
+  );
+}
 
 function hostOf(href: string): string {
   try {
@@ -104,7 +130,7 @@ export function ContentListView(props: ContentListViewProps) {
             {cards.length === 0 ? (
               <ContentEmptyState locale={locale} />
             ) : (
-              <CardGrid cards={cards} locale={locale} />
+              <FeedGrid cards={cards} locale={locale} />
             )}
           </div>
           <Pagination basePath={path} page={page} pages={pages} locale={locale} />

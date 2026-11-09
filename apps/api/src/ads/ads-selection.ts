@@ -1,4 +1,5 @@
 import {
+  AD_DEVICES,
   canServeOnClass,
   isForbiddenCategory,
   maxAdsForClass,
@@ -8,6 +9,8 @@ import {
 } from "@wasfa/shared/ads";
 
 import type { AdCreativeRow, AdPlacementRow } from "@wasfa/db";
+
+const BOTTOM_BANNER_KEY = "global.bottom_banner";
 
 /*
  * The deterministic part of ad delivery: given a placement, the candidate creatives and the page
@@ -66,11 +69,11 @@ export function placementServes(
 
   const sameSlot = ctx.alreadyOnPage.filter((ad) => ad.placement === placement.key).length;
   if (sameSlot >= placement.maxPerPage) return false;
-  // The fixed bottom banner overlays no content, so it does not use up the page's density.
-  if (
-    placement.format !== "bottom_banner" &&
-    ctx.alreadyOnPage.length >= maxAdsForClass(settings, ctx.pageClass)
-  ) {
+  // The fixed bottom banner overlays no content, so it does not use up the page's density: neither
+  // when it is the one asking, nor when it was already placed on the page (the layout and the page
+  // fetch their slots in parallel, so it can land first).
+  const inPage = ctx.alreadyOnPage.filter((ad) => ad.placement !== BOTTOM_BANNER_KEY).length;
+  if (placement.format !== "bottom_banner" && inPage >= maxAdsForClass(settings, ctx.pageClass)) {
     return false;
   }
   return true;
@@ -109,7 +112,9 @@ export function eligibleCreatives(
       const targeting = creative.targeting;
       if (!matches(targeting.placements, placement.key)) return false;
       if (!matches(targeting.pageClasses, ctx.pageClass)) return false;
-      if (!matches(targeting.devices, ctx.device)) return false;
+      // A list naming every device is "any device": it must not block a request that does not say.
+      const allDevices = (targeting.devices?.length ?? 0) >= AD_DEVICES.length;
+      if (!allDevices && !matches(targeting.devices, ctx.device)) return false;
       if (!matches(targeting.locales, ctx.locale)) return false;
       if (!matches(targeting.countries, ctx.country)) return false;
       // One advertiser once per page; a house creative is deduped by itself.

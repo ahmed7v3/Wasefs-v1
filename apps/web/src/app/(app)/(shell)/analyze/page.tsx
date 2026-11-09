@@ -2,12 +2,15 @@ import { t } from "@wasfa/shared/i18n";
 import { meCreditsResponseSchema } from "@wasfa/shared/schemas/credits";
 import Link from "next/link";
 
+import { AdSlot } from "../../../../components/ads/ad-slot";
 import { AnalyzeCapture } from "../../../../components/capture/analyze-capture";
 import { VerificationBanner } from "../../../../components/dashboard/verification-banner";
 import { PromptSlot } from "../../../../components/growth/prompt-slot";
 import { getNonce } from "../../../../lib/nonce";
 import { getPublicSettings } from "../../../../lib/public-settings";
 import { requireOnboarded, serverApi } from "../../../../lib/session";
+
+import { adClass } from "./ad-class";
 
 import type { Metadata } from "next";
 
@@ -48,6 +51,7 @@ export default async function AnalyzePage() {
             creditsPerPage={settings.rx.creditsPerPage}
             balance={credits.wallet.balance}
           />
+          <AdSlot placement="app.analyze.start" pageClass={adClass} />
         </>
       )}
       <p className="text-sm text-text-muted">{t("home.disclaimer")}</p>

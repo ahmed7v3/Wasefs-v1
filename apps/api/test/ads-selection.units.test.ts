@@ -251,6 +251,38 @@ describe("ad selection: density and dedupe", () => {
     expect(select({ placement: banner, settings: withBanner, ctx })).not.toBeNull();
   });
 
+  it("does not count a bottom banner already placed on the page (parallel fetch order)", () => {
+    const ctx = context({
+      alreadyOnPage: [{ placement: "global.bottom_banner", creativeId: "x", advertiserId: null }],
+    });
+    // marketing allows one in-page ad by default: the banner must not use it up.
+    expect(select({ ctx })).not.toBeNull();
+  });
+
+  it("still enforces the density limit on in-page ads next to the banner", () => {
+    const ctx = context({
+      alreadyOnPage: [
+        { placement: "global.bottom_banner", creativeId: "x", advertiserId: null },
+        { placement: "home.after_hero", creativeId: "y", advertiserId: null },
+      ],
+    });
+    expect(select({ ctx })).toBeNull();
+  });
+
+  it("ignores device targeting when the device is unknown", () => {
+    const ctx = context({ device: undefined });
+    const targetedAtDevices = candidate({
+      targeting: {
+        placements: [],
+        pageClasses: [],
+        devices: ["mobile", "tablet", "desktop"],
+        locales: [],
+        countries: [],
+      },
+    });
+    expect(select({ candidates: [targetedAtDevices], ctx })).not.toBeNull();
+  });
+
   it("serves the bottom banner only on the classes the admin selected", () => {
     const banner = placement({ key: "global.bottom_banner", format: "bottom_banner" });
     const off = settings();
