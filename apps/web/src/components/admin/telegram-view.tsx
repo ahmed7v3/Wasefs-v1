@@ -41,7 +41,7 @@ const botLink = (username: string) => `https://t.me/${username}`;
 
 /** `/admin/telegram`: connect the bot, watch it live and edit its settings. */
 export function TelegramView({ canWrite }: TelegramViewProps) {
-  const status = useResource("/admin/telegram", telegramStatusSchema);
+  const status = useResource("/admin/telegram/status", telegramStatusSchema);
   const reloadStatus = status.reload;
 
   // Live stats: the same GET again; useResource keeps the old data on screen while it refreshes.

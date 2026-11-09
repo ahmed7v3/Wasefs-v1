@@ -66,7 +66,7 @@ beforeEach(() => {
       return Promise.resolve(json(configured));
     }
     if (path.includes("/admin/telegram/settings")) return Promise.resolve(json(settings));
-    if (path.includes("/admin/telegram")) return Promise.resolve(json(current));
+    if (path.includes("/admin/telegram/status")) return Promise.resolve(json(current));
     return Promise.resolve(json({}, 404));
   });
   vi.stubGlobal("fetch", fetchMock);
