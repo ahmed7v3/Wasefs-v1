@@ -23,6 +23,9 @@ const isoDate = z.string().datetime();
 // ---- settings: GET/PUT admin/telegram/ads/settings ----
 export const telegramAdsSettingsInputSchema = telegramAdsSettingsSchema;
 
+// PATCH bodies are partial updates built by the API (a default-less partial): never `.partial()` the
+// input schemas below, zod would refill their defaults and reset the untouched fields.
+
 // ---- campaigns: GET/POST admin/telegram/ads/campaigns, PATCH/DELETE .../campaigns/:id ----
 export const telegramAdCampaignInputSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -36,7 +39,6 @@ export const telegramAdCampaignInputSchema = z.object({
   totalImpressionCap: z.number().int().min(1).max(1_000_000_000).nullable().default(null),
   notes: z.string().trim().max(1_000).default(""),
 });
-export const telegramAdCampaignPatchSchema = telegramAdCampaignInputSchema.partial();
 
 export const telegramAdCampaignSchema = telegramAdCampaignInputSchema.extend({
   id: z.string().uuid(),
@@ -70,7 +72,6 @@ export const telegramAdCreativeInputSchema = z.object({
   endsAt: isoDate.nullable().default(null),
   targeting: telegramAdTargetingSchema.default({ locales: [], audience: "all", triggers: [] }),
 });
-export const telegramAdCreativePatchSchema = telegramAdCreativeInputSchema.partial();
 
 export const telegramAdCreativeSchema = telegramAdCreativeInputSchema.extend({
   id: z.string().uuid(),

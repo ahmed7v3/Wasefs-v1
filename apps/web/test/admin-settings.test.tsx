@@ -26,7 +26,7 @@ import {
  * on /admin/whatsapp/agent: neither is a generated form.
  */
 const FORM_KEYS = SETTING_KEYS.filter(
-  (key) => key !== "skills" && key !== "waAgent" && key !== "telegramBot" && key !== "ads",
+  (key) => key !== "skills" && key !== "waAgent" && key !== "telegramBot" && key !== "telegramAds" && key !== "ads",
 );
 
 function renderForm(key: SettingKey, onSave = vi.fn<(value: unknown) => Promise<void>>()) {
@@ -211,6 +211,7 @@ describe("settings presentation", () => {
       "whatsapp",
       "waAgent",
       "telegramBot", // edited on /admin/telegram
+      "telegramAds", // edited on /admin/telegram/ads
       "ai",
       "skills",
       "earlyAccess", // edited on /admin/growth/early-access
