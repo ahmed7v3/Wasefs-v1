@@ -867,12 +867,14 @@ describe("TelegramPdfService", () => {
     };
     const storage = { getBytes: vi.fn(async () => new Uint8Array([37, 80, 68, 70])) };
     const queue = { render: vi.fn(async () => "wa/out/2026/11/abc.pdf") };
+    const ads = { sendAfterDelivery: vi.fn(async () => undefined) };
     const service = new TelegramPdfService(
       rx as never,
       storage as never,
       queue as never,
       redis as never,
       logger as never,
+      ads as never,
     );
     const ctx = {
       tg: asApi(api),
@@ -880,13 +882,19 @@ describe("TelegramPdfService", () => {
       user: { id: USER_ID } as never,
       locale: "ar" as const,
     };
-    return { service, api, redis, rx, storage, queue, ctx };
+    return { service, api, redis, rx, storage, queue, ads, ctx };
   }
 
   it("renders on a cache miss, caches the key for a week and sends the document with caption and file name", async () => {
-    const { service, api, redis, storage, queue, ctx } = build();
+    const { service, api, redis, storage, queue, ads, ctx } = build();
 
     expect(await service.sendPdf(ctx, RX_ID)).toBe(true);
+    expect(ads.sendAfterDelivery).toHaveBeenCalledWith(
+      api,
+      { chatId: 5, userId: USER_ID },
+      "ar",
+      "after_pdf",
+    );
 
     expect(queue.render).toHaveBeenCalledWith({ analysisId: RX_ID, locale: "ar" }, 45_000);
     expect(redis.set).toHaveBeenCalledWith(

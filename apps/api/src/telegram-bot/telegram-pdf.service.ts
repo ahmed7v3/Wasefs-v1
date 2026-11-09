@@ -6,6 +6,7 @@ import { REDIS } from "../common/redis.js";
 import { ObjectStorage } from "../files/object-storage.js";
 import { RxService } from "../rx/rx.service.js";
 
+import { TelegramAdsService } from "./telegram-ads.service.js";
 import { TelegramApiError, type SentMessage, type TelegramApi } from "./telegram-api.client.js";
 import { tg } from "./telegram-i18n.js";
 import { pdfRetryKeyboard } from "./telegram-keyboards.js";
@@ -45,6 +46,7 @@ export class TelegramPdfService {
     private readonly queue: TelegramPdfQueue,
     @Inject(REDIS) private readonly redis: Redis,
     private readonly logger: PinoLogger,
+    private readonly ads: TelegramAdsService,
   ) {
     this.logger.setContext("TelegramPdf");
   }
@@ -76,8 +78,9 @@ export class TelegramPdfService {
         },
         { caption: tg(locale, "pdf.caption") },
       );
-      // ads: after_pdf wired by the main session
       await api.deleteMessage(chatId, progress.message_id).catch(() => undefined);
+      // An ad only when the admin enabled this moment (off by default: the result already had one).
+      await this.ads.sendAfterDelivery(api, { chatId, userId: ctx.user.id }, locale, "after_pdf");
       return true;
     } catch (error) {
       if (error instanceof TelegramApiError && error.isBlocked) throw error;

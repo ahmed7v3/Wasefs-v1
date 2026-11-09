@@ -47,13 +47,13 @@ export const telegramAdsSettingsSchema = z.object({
   /** Master switch of Telegram ads. */
   enabled: z.boolean().default(true),
   /** Chance that an eligible moment shows an ad (0-1). Off = every eligible moment shows one. */
-  probability: limit(0, 1, 0.7).default({ enabled: false, value: 0.7 }),
+  probability: limit(0, 1, 0.7).default({ enabled: true, value: 0.7 }),
   /** Ads one chat may receive per day. Off = no cap. */
-  maxPerChatPerDay: limit(1, BIG, 3).default({ enabled: false, value: 3 }),
+  maxPerChatPerDay: limit(1, BIG, 3).default({ enabled: true, value: 3 }),
   /** Ads one chat may receive per week. Off = no cap. */
   maxPerChatPerWeek: limit(1, BIG, 10).default({ enabled: false, value: 10 }),
   /** Minimum minutes between two ads to the same chat. Off = no gap. */
-  minGapMinutes: limit(0, 100_000, 30).default({ enabled: false, value: 30 }),
+  minGapMinutes: limit(0, 100_000, 30).default({ enabled: true, value: 30 }),
   /** All Telegram ads per day, across chats. Off = no cap. */
   globalDailyLimit: limit(1, BIG, 5_000).default({ enabled: false, value: 5_000 }),
   /** Quiet hours (local time of `timezone`): no ads inside. Off = ads at any hour. */
@@ -69,7 +69,6 @@ export const telegramAdsSettingsSchema = z.object({
   triggers: z.array(z.enum(TELEGRAM_AD_TRIGGERS)).max(TELEGRAM_AD_TRIGGERS.length).default([
     "after_rx_done",
     "after_followup",
-    "after_pdf",
   ]),
   /** Show a "hide ads" button on every ad and honour it per chat. */
   allowHide: z.boolean().default(true),
