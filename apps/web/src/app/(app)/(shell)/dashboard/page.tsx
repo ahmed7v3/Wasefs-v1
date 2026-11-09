@@ -1,6 +1,7 @@
 import { t } from "@wasfa/shared/i18n";
 import { ANONYMIZED_USER_NAME } from "@wasfa/shared/identity";
 
+import { AdSlot } from "../../../../components/ads/ad-slot";
 import { CreditsCard } from "../../../../components/dashboard/credits-card";
 import { FollowCard } from "../../../../components/dashboard/follow-card";
 import { MyInvites } from "../../../../components/dashboard/my-invites";
@@ -18,6 +19,8 @@ import { getNonce } from "../../../../lib/nonce";
 import { getPublicSettings } from "../../../../lib/public-settings";
 import { requireOnboarded } from "../../../../lib/session";
 import { requestedWorkspace } from "../../../../lib/workspace-server";
+
+import { adClass } from "./ad-class";
 
 import type { Metadata } from "next";
 
@@ -61,6 +64,7 @@ export default async function DashboardPage() {
         </>
       ) : null}
       <ToolCards />
+      <AdSlot placement="app.dashboard.card" pageClass={adClass} />
       {/* Loaded in the browser and often empty: below the work, so their arrival moves nothing above. */}
       {settings ? (
         <>

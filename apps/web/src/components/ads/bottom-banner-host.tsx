@@ -2,6 +2,7 @@ import { canServeOnClass } from "@wasfa/shared/ads";
 import { t } from "@wasfa/shared/i18n";
 import { headers } from "next/headers";
 
+import { adCountry } from "../../lib/ad-country";
 import { adClassOfPath } from "../../lib/ad-route-class";
 import { getAdSlot } from "../../lib/ads-server";
 
@@ -19,7 +20,12 @@ export async function BottomBannerHost({ locale = "ar" }: { locale?: "ar" | "en"
   if (!path) return null;
   const pageClass = adClassOfPath(path);
   if (!canServeOnClass(pageClass)) return null;
-  const slot = await getAdSlot({ placement: "global.bottom_banner", pageClass, locale });
+  const slot = await getAdSlot({
+    placement: "global.bottom_banner",
+    pageClass,
+    locale,
+    country: await adCountry(),
+  });
   if (slot?.format !== "bottom_banner") return null;
   return (
     <BottomBannerLazy

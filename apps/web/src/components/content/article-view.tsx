@@ -1,10 +1,13 @@
 import { t, type MessageKey } from "@wasfa/shared/i18n";
 import { Container } from "@wasfa/ui";
 import Link from "next/link";
+import { Fragment } from "react";
 
 import { contentBreadcrumbs, articleJsonLd, glossaryJsonLd } from "../../lib/content-seo";
 import { sectionOfType, sectionPath } from "../../lib/content-view";
+import { countTopLevelParagraphs, splitHtmlAfterParagraphs } from "../../lib/html-split";
 import { localeDir, localizedPath, type Locale } from "../../lib/locale";
+import { AdSlot } from "../ads/ad-slot";
 import { ContentImage } from "../content-image";
 import { JsonLd } from "../marketing/json-ld";
 
@@ -35,6 +38,14 @@ export function itemTrail(item: PublicItem, locale: Locale): { name: string; pat
   return contentBreadcrumbs({ locale, trail });
 }
 
+/** A slot renders nothing without a creative, so these margins only exist when an ad does. */
+const CONTENT_AD_CLASS = "my-8";
+
+/** The body split for the in-article slots: after paragraph 3, and after 7 only in a long body. */
+function bodyChunks(html: string): string[] {
+  return splitHtmlAfterParagraphs(html, countTopLevelParagraphs(html) >= 10 ? [3, 7] : [3]);
+}
+
 function toRecords(list: readonly object[]): Record<string, unknown>[] {
   return list.map((entry) => ({ ...entry }));
 }
@@ -62,6 +73,15 @@ export function ArticleView({ item, nonce, siteUrl, preview = false }: ArticleVi
     ? []
     : toRecords(item.type === "glossary" ? glossaryJsonLd(item) : articleJsonLd(item));
   const reviewer = item.reviewer;
+  // Ads: articles and glossary terms only, never in a preview.
+  const endPlacement = preview
+    ? null
+    : item.type === "article"
+      ? "article.end"
+      : item.type === "glossary"
+        ? "glossary.end"
+        : null;
+  const chunks = !preview && item.type === "article" ? bodyChunks(item.bodyHtml) : [item.bodyHtml];
 
   return (
     <>
@@ -186,12 +206,24 @@ export function ArticleView({ item, nonce, siteUrl, preview = false }: ArticleVi
                 </figure>
               ) : null}
 
-              <div
-                className="content-prose mt-8"
-                lang={locale}
-                dir={localeDir(locale)}
-                dangerouslySetInnerHTML={{ __html: item.bodyHtml }}
-              />
+              {chunks.map((html, index) => (
+                <Fragment key={index}>
+                  {index > 0 ? (
+                    <AdSlot
+                      placement={index === 1 ? "article.inline.1" : "article.inline.2"}
+                      pageClass="content"
+                      locale={locale}
+                      className={CONTENT_AD_CLASS}
+                    />
+                  ) : null}
+                  <div
+                    className={index === 0 ? "content-prose mt-8" : "content-prose"}
+                    lang={locale}
+                    dir={localeDir(locale)}
+                    dangerouslySetInnerHTML={{ __html: html }}
+                  />
+                </Fragment>
+              ))}
 
               {item.flags.aiAssisted ? (
                 <p className="mt-6 rounded-xl border border-border bg-surface p-4 text-sm text-text-muted">
@@ -247,6 +279,15 @@ export function ArticleView({ item, nonce, siteUrl, preview = false }: ArticleVi
               {preview ? null : <ShareLinks url={url} title={item.title} locale={locale} />}
             </div>
           </div>
+
+          {endPlacement ? (
+            <AdSlot
+              placement={endPlacement}
+              pageClass="content"
+              locale={locale}
+              className={CONTENT_AD_CLASS}
+            />
+          ) : null}
 
           {item.flags.showRelated && item.related.length > 0 ? (
             <section aria-labelledby="related-title" className="mt-12">

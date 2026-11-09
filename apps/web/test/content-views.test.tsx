@@ -22,6 +22,8 @@ const api = vi.hoisted(() => ({
   mediaUrl: (key: string) => `https://media.test/${key}`,
 }));
 vi.mock("../src/lib/content-api", () => api);
+// Ad slots are async server components that read the API; their own tests cover them.
+vi.mock("../src/components/ads/ad-slot", () => ({ AdSlot: () => null }));
 vi.mock("../src/lib/nonce", () => ({ getNonce: () => Promise.resolve("nonce-1") }));
 vi.mock("next/navigation", () => ({
   notFound: () => {
