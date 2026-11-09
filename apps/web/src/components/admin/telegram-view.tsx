@@ -1,6 +1,7 @@
 "use client";
 
 import { t } from "@wasfa/shared/i18n";
+import { telegramAdsSettingsSchema } from "@wasfa/shared/telegram-ads";
 import {
   Badge,
   Button,
@@ -12,7 +13,8 @@ import {
   Textarea,
   useToast,
 } from "@wasfa/ui";
-import { Copy, ExternalLink } from "lucide-react";
+import { Copy, ExternalLink, Megaphone } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { api } from "../../lib/api-client";
@@ -26,6 +28,7 @@ import {
   type TelegramSettings,
   type TelegramStatus,
 } from "../../lib/telegram-admin";
+import { ADS_BASE, policySentence } from "../../lib/telegram-ads-admin";
 import { useResource } from "../../lib/use-admin-data";
 import { ErrorNotice } from "../error-notice";
 
@@ -370,16 +373,7 @@ function SettingsForm({
           set("enabled", event.target.checked);
         }}
       />
-      <Checkbox
-        role="switch"
-        name="telegram-ads-enabled"
-        label={t("admin.telegram.settings.adsEnabled")}
-        checked={draft.adsEnabled}
-        disabled={disabled}
-        onChange={(event) => {
-          set("adsEnabled", event.target.checked);
-        }}
-      />
+      <AdsLinkCard />
       <Field label={t("admin.telegram.settings.welcomeAr")} hint={counter(draft.welcomeAr)}>
         {(control) => (
           <Textarea
@@ -438,6 +432,36 @@ function SettingsForm({
         </div>
       ) : null}
     </form>
+  );
+}
+
+/**
+ * The old `adsEnabled` switch is deprecated (delivery ignores it): the Telegram ads have their own
+ * console. The field stays in the settings payload unchanged, so the PUT above is still valid.
+ */
+function AdsLinkCard() {
+  // A failed or slow read just hides the status line: the link is the point of this card.
+  const ads = useResource(`${ADS_BASE}/settings`, telegramAdsSettingsSchema);
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-border p-4" data-testid="telegram-ads-card">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="flex items-center gap-2 text-base font-semibold text-text">
+          <Megaphone aria-hidden className="size-5 text-primary" />
+          {t("admin.telegram.adsCard.title")}
+        </p>
+        {ads.status === "ready" ? (
+          <Badge tone={ads.data.enabled ? "success" : "neutral"}>
+            {t(ads.data.enabled ? "admin.telegram.adsCard.on" : "admin.telegram.adsCard.off")}
+          </Badge>
+        ) : null}
+      </div>
+      {ads.status === "ready" ? (
+        <p className="text-sm text-text-muted">{policySentence(ads.data)}</p>
+      ) : null}
+      <Link href={ADS_BASE} className="text-base font-semibold text-primary underline">
+        {t("admin.telegram.adsCard.link")}
+      </Link>
+    </div>
   );
 }
 

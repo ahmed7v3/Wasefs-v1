@@ -397,6 +397,13 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
         icon: Send,
         permission: "wa_agent.read",
       },
+      {
+        href: "/admin/telegram/ads",
+        label: "admin.nav.telegramAds",
+        description: "admin.nav.telegramAds.description",
+        icon: Megaphone,
+        permission: "ads.read",
+      },
     ],
   },
   {
