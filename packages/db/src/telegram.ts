@@ -51,6 +51,7 @@ export type TelegramChatPatch = Partial<
     | "contextResetAt"
     | "lastRxId"
     | "blocked"
+    | "adsHidden"
     | "phone"
     | "phoneSharedAt"
     | "startedAt"

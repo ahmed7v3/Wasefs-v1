@@ -44,6 +44,8 @@ export const telegramChats = pgTable(
     contextResetAt: timestamp({ withTimezone: true }),
     lastRxId: uuid().references(() => rxAnalyses.id, { onDelete: "set null" }),
     blocked: boolean().notNull().default(false),
+    // "Hide ads" pressed (or /ads_on to undo): no Telegram ad is sent to this chat while true.
+    adsHidden: boolean().notNull().default(false),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },

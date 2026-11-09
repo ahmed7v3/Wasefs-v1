@@ -6,6 +6,7 @@ import { DEFAULT_BANNED_CLAIMS, findBannedClaim, promptCatalogSchema, promptText
 import { LOCALES } from "./i18n/locales.js";
 import { emailSchema, phoneNumberSchema } from "./schemas/auth.js";
 import { earlyAccessSettingsSchema } from "./schemas/early-access.js";
+import { telegramAdsSettingsSchema } from "./telegram-ads.js";
 
 import type { AiTask } from "./ai.js";
 
@@ -751,7 +752,7 @@ export const telegramBotSettingsSchema = z.object({
   welcomeEn: z.string().max(600).default(""),
   /** Telegram username (without @) shown by the support button; empty = the button is hidden. */
   supportUsername: z.string().max(64).default(""),
-  /** First-party ads after a result, same rules as WhatsApp ads (ads.whatsapp); off here only. */
+  /** @deprecated Ignored by delivery since the independent Telegram ads: use `telegramAds.enabled`. */
   adsEnabled: z.boolean().default(true),
 });
 export type TelegramBotSettings = z.output<typeof telegramBotSettingsSchema>;
@@ -819,6 +820,8 @@ export const SETTINGS_REGISTRY = {
   waAgent: { schema: waAgentSettingsSchema, visibility: "admin" },
   /** The Telegram prescription bot: its own switch and welcome texts; the token is an integration secret. */
   telegramBot: { schema: telegramBotSettingsSchema, visibility: "admin" },
+  /** The Telegram ads: independent from `ads` (own campaigns, limits, tracking); every limit is optional. */
+  telegramAds: { schema: telegramAdsSettingsSchema, visibility: "admin" },
   /** The medication database and recognition thresholds (admin only; WP2 retires `rx.drugMatching`). */
   medications: { schema: medicationsSettingsSchema, visibility: "admin" },
   alerts: { schema: alertsSettingsSchema, visibility: "admin" },

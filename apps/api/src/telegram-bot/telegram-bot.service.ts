@@ -11,6 +11,7 @@ import { RxService } from "../rx/rx.service.js";
 import { SettingsService } from "../settings/settings.service.js";
 import { agentUser } from "../wa-agent/commerce/agent-user.js";
 
+import { adText } from "./telegram-ad-render.js";
 import { TelegramAdsService } from "./telegram-ads.service.js";
 import { PHOTO_MAX_BYTES, TelegramAnalysisService } from "./telegram-analysis.service.js";
 import { TelegramApiClient, TelegramApiError, type TelegramApi } from "./telegram-api.client.js";
@@ -35,6 +36,7 @@ import { TelegramRepo } from "./telegram.repo.js";
 
 import type {
   BotLocale,
+  InlineButton,
   ReplyMarkup,
   TelegramMessage,
   TelegramPhoto,
@@ -44,6 +46,7 @@ import type { AuthenticatedUser } from "../common/current-user.js";
 import type { ApiEnv } from "../config/env.js";
 import type { TelegramChat, TelegramProfile } from "@wasfa/db";
 import type { TelegramBotSettings } from "@wasfa/shared/settings";
+import type { TelegramAdTrigger } from "@wasfa/shared/telegram-ads";
 
 const UPDATE_TTL_SECONDS = 3_600;
 const GROUP_DEBOUNCE_MS = 2_500;
@@ -135,11 +138,36 @@ export class TelegramBotService {
     try {
       if (update.callback_query) {
         const query = update.callback_query;
-        // Answered first, always: the spinner on the button stops whatever happens next.
-        await api.answerCallbackQuery(query.id).catch(() => undefined);
+        const adButton = query.data !== undefined && TelegramAdsService.isAdCallback(query.data);
+        // Answered first, always: the spinner on the button stops whatever happens next. The ad
+        // buttons answer themselves (a Telegram callback can be answered once, here with a text).
+        if (!adButton) await api.answerCallbackQuery(query.id).catch(() => undefined);
         if (chatId === undefined || query.data === undefined) return;
         const ctx = await this.context(api, chatId, query.from.id === chatId, query.from);
-        if (ctx !== null) await this.onCallback(ctx, query.data);
+        if (ctx === null) {
+          if (adButton) await api.answerCallbackQuery(query.id).catch(() => undefined);
+          return;
+        }
+        if (adButton) {
+          await this.ads.onCallback(api, {
+            chatId,
+            locale: ctx.locale,
+            queryId: query.id,
+            messageId: query.message?.message_id,
+            data: query.data,
+            rows: query.message?.reply_markup?.inline_keyboard.map((row) =>
+              row.flatMap((button): InlineButton[] =>
+                button.url !== undefined
+                  ? [{ text: button.text, url: button.url }]
+                  : button.callback_data !== undefined
+                    ? [{ text: button.text, callback_data: button.callback_data }]
+                    : [],
+              ),
+            ),
+          });
+          return;
+        }
+        await this.onCallback(ctx, query.data);
         return;
       }
       const message = update.message;
@@ -255,6 +283,8 @@ export class TelegramBotService {
         return this.askUnlink(ctx);
       case "support":
         return this.support(ctx);
+      case "ads_on":
+        return this.adsOn(ctx);
       default:
         return this.menu(ctx, "menu.title");
     }
@@ -330,6 +360,24 @@ export class TelegramBotService {
         replyMarkup: contactKeyboard(ctx.locale),
       });
     }
+    await this.adAfter(ctx, "on_start");
+  }
+
+  /** `/ads_on`: undoes "hide ads" for this chat. */
+  private async adsOn(ctx: Ctx): Promise<void> {
+    const changed = await this.ads.enableForChat(ctx.chatId);
+    const copy = adText(ctx.locale);
+    await ctx.api.sendMessage(ctx.chatId, changed ? copy.on : copy.alreadyOn);
+  }
+
+  /** The ad slot after a command answer; the ads service decides whether anything is sent. */
+  private adAfter(ctx: Ctx, trigger: TelegramAdTrigger): Promise<void> {
+    return this.ads.sendAfterDelivery(
+      ctx.api,
+      { chatId: ctx.chatId, userId: ctx.chat.userId },
+      ctx.locale,
+      trigger,
+    );
   }
 
   private async menu(ctx: Ctx, key: TelegramKey): Promise<void> {
@@ -359,6 +407,7 @@ export class TelegramBotService {
   private async newChat(ctx: Ctx): Promise<void> {
     await this.repo.patchChat(ctx.chatId, { contextResetAt: new Date(), lastRxId: null });
     await this.menu(ctx, "new.done");
+    await this.adAfter(ctx, "on_new_chat");
   }
 
   private async setLanguage(ctx: Ctx, locale: BotLocale): Promise<void> {
@@ -381,6 +430,7 @@ export class TelegramBotService {
         tg(ctx.locale, "balance.text", { balance: wallet.wallet.balance, price, left }),
         { replyMarkup: urlKeyboard(tg(ctx.locale, "btn.topup"), `${this.webOrigin()}/pricing`) },
       );
+      await this.adAfter(ctx, "after_balance");
     });
   }
 
@@ -407,6 +457,7 @@ export class TelegramBotService {
       await ctx.api.sendMessage(ctx.chatId, tg(ctx.locale, "history.title"), {
         replyMarkup: historyKeyboard(items),
       });
+      await this.adAfter(ctx, "after_history");
     });
   }
 
@@ -621,6 +672,7 @@ export class TelegramBotService {
         ctx.api,
         { chatId: ctx.chatId, userId: user.id },
         ctx.locale,
+        "after_followup",
       );
     } catch (error) {
       if (error instanceof TelegramApiError) throw error;

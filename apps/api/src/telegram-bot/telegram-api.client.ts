@@ -196,7 +196,7 @@ export class TelegramApi {
   ): FormData {
     const form = new FormData();
     form.set("chat_id", String(chatId));
-    form.set(field, new Blob([file.bytes as BlobPart], { type: file.contentType }), file.filename);
+    form.set(field, new Blob([file.bytes as unknown as ArrayBuffer], { type: file.contentType }), file.filename);
     if (options.caption) {
       form.set("caption", options.caption);
       if (options.html !== false) form.set("parse_mode", "HTML");
@@ -232,6 +232,24 @@ export class TelegramApi {
       });
     } catch (error) {
       // Editing to the same text is "not modified": nothing to do.
+      if (error instanceof TelegramApiError && error.message.includes("not modified")) return;
+      throw error;
+    }
+  }
+
+  /** Replaces the buttons under a message (an empty keyboard removes them); "not modified" is fine. */
+  async editMessageReplyMarkup(
+    chatId: number,
+    messageId: number,
+    replyMarkup: ReplyMarkup,
+  ): Promise<void> {
+    try {
+      await this.call("editMessageReplyMarkup", {
+        chat_id: chatId,
+        message_id: messageId,
+        reply_markup: replyMarkup,
+      });
+    } catch (error) {
       if (error instanceof TelegramApiError && error.message.includes("not modified")) return;
       throw error;
     }

@@ -1,7 +1,6 @@
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import { describe, expect, it, vi } from "vitest";
 
-import { TelegramAdsService } from "../src/telegram-bot/telegram-ads.service.js";
 import { TelegramAnalysisService } from "../src/telegram-bot/telegram-analysis.service.js";
 import { TelegramBotService, profileOf } from "../src/telegram-bot/telegram-bot.service.js";
 import {
@@ -591,41 +590,5 @@ describe("profile capture", () => {
       5,
       expect.objectContaining({ phone: expect.anything() }),
     );
-  });
-});
-
-describe("TelegramAdsService", () => {
-  const offer = {
-    text: "ad\n\ndiscount",
-    link: "https://wasfa.online/a/t",
-    creativeId: "c",
-    confirmSent: vi.fn(async () => undefined),
-  };
-  const build = (adsEnabled: boolean, found: typeof offer | null) => {
-    const ads = { maybeTelegramAd: vi.fn(async () => found) };
-    const service = new TelegramAdsService(
-      ads as never,
-      { get: vi.fn(async () => ({ adsEnabled })) } as never,
-      logger as never,
-    );
-    return { service, ads, api: fakeApi() };
-  };
-
-  it("sends one separate message with a link button, then records it", async () => {
-    offer.confirmSent.mockClear();
-    const { service, api } = build(true, offer);
-    await service.sendAfterDelivery(asApi(api), { chatId: 5, userId: null }, "ar");
-    expect(api.sendMessage).toHaveBeenCalledTimes(1);
-    expect(JSON.stringify(api.sendMessage.mock.calls[0])).toContain("https://wasfa.online/a/t");
-    expect(offer.confirmSent).toHaveBeenCalledTimes(1);
-  });
-
-  it("sends nothing when switched off for Telegram or when the rules offer no ad", async () => {
-    const off = build(false, offer);
-    await off.service.sendAfterDelivery(asApi(off.api), { chatId: 5, userId: null }, "ar");
-    expect(off.ads.maybeTelegramAd).not.toHaveBeenCalled();
-    const none = build(true, null);
-    await none.service.sendAfterDelivery(asApi(none.api), { chatId: 5, userId: null }, "ar");
-    expect(none.api.sendMessage).not.toHaveBeenCalled();
   });
 });

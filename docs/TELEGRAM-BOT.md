@@ -78,13 +78,48 @@ logged. A 403 from Telegram marks the chat blocked; the next message from it cle
 
 ## Ads on Telegram
 
-After a delivered analysis result or follow-up answer the bot may send ONE separate ad message (never inside the medical
-text, never before it). Selection is the WhatsApp machinery (`AdsWhatsappService.maybeTelegramAd`): the same approved
-creatives of the WhatsApp channel that have a `waText`, the same ad label, the tracked `/a/<token>` link (sent as a URL
-button) and the same switch, trigger (`after_rx_done`), quiet hours, per-chat daily cap, gap, global limit and
-probability from `ads.whatsapp`. Ads-free plans and failures never get one. Caps are counted per chat (`tg:<chatId>`) and
-the impression is recorded only after the message was sent. `telegramBot.adsEnabled` (admin page toggle) switches ads off
-for Telegram only. No analysis or message text reaches the ad code.
+The Telegram ads are a COMPLETELY INDEPENDENT system. They share nothing with the web/WhatsApp ads: not the tables
+(`telegram_ad_campaigns`, `telegram_ad_creatives`, `telegram_ad_events` instead of `ad_*`), not the settings (`telegramAds`
+instead of `ads`), not the Redis keys (`ads:tg:*` instead of `ads:wa:*`), not the caps, not the statistics. The old
+`telegramBot.adsEnabled` is deprecated and ignored; `telegramAds.enabled` is the master switch. Contract:
+`packages/shared/src/telegram-ads.ts` (settings, constants) and `schemas/admin-telegram-ads.ts` (admin shapes).
+
+**Delivery** (`TelegramAdsService.sendAfterDelivery(api, chat, locale, trigger)`): after a delivered moment the bot may send
+ONE separate ad message (never inside the medical text, never before it, never any message text into the ad code).
+Triggers: `after_rx_done`, `after_followup`, `after_pdf`, `after_history`, `after_balance`, `on_start`, `on_new_chat`; the
+admin picks which ones are live. Gates in order: master switch, trigger enabled, chat did not hide ads (while `allowHide`
+is on), the safety floor (an ad-free plan never gets one), quiet hours, the limits, then campaign and creative gates, then a
+weighted pick that avoids showing the same creative twice in a row to a chat.
+
+**Every limit is optional.** Probability, per-chat per day, per-chat per week, minimum gap, global daily limit and quiet
+hours each have an `enabled` switch; switched off means NO limit, whatever the number says. Counters are Redis keys under
+`ads:tg:*` (per chat per Cairo day/week, the gap, the global day, the last creative) and are incremented only after the
+message was sent. Campaigns add their own optional daily and total impression caps (counted from the event log); a
+campaign that used its total budget is marked `ended`.
+
+**Safety floor (code, not setting).** Never a `medicine` category (code check, admin service check and a DB CHECK on
+approved creatives), never an ad-free plan, never a chat that hid ads. Any failure is swallowed and logged by error name
+only; a blocked chat is marked blocked as everywhere else.
+
+**Layouts** (`telegram-ad-render.ts`, all admin text HTML-escaped, ad label by chat language): `hero` = photo (uploaded
+bytes of the creative image, caption of at most 1024 chars), `card` = text with a divider, `compact` = one line. A hero
+without an image, or whose image cannot be loaded or is refused by Telegram, goes out as a card. Under the ad: the link
+buttons (the first one is the strong call to action, 1 or 2 per row), then `👍 مهتم` / `🙈 إخفاء الإعلانات` (each can be
+switched off in settings).
+
+**Tracking.** Every link button points to `<web>/t/<token>`, an HMAC token (purpose `telegram_ad`, 30 days) carrying only
+creative, chat, trigger and button index. The web route calls `GET /public/telegram-ads/click/:token`, which records ONE
+`click` per token per minute (Redis NX) and returns the stored URL of that button (never taken from the request);
+a bad or expired token goes to the home page. Prefetch and HEAD requests are not clicks. Events: `impression` (after a
+successful send), `click`, `reaction` (`adr:<creativeId>`), `hide` (`adh:<creativeId>`). Pressing 👍 or hide again within
+a day by the same chat records nothing new. 👍 turns into `✅ تم`; hide removes the keyboard and sets
+`telegram_chats.ads_hidden`. `/ads_on` clears it. An admin test send uses plain links and records nothing.
+
+**Admin** (`/admin/telegram/ads`, permissions `ads.read` / `ads.write`, writes with a fresh login and audited as
+`telegram_ads.*`): settings, campaigns, creatives (+ status, test send to the admin's own linked chat), stats and a CSV.
+Stats are aggregates over `telegram_ad_events` by Cairo day: `impressions`, `clicks`, `reactions`, `hides`, `reach`
+(distinct chats that saw an ad), `ctr = clicks / impressions` and `engagementRate = (clicks + reactions) / impressions`
+(both 0 with no impressions), split by day, campaign, creative and trigger.
 
 ## Profile data and privacy
 

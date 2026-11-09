@@ -51,7 +51,26 @@ export const telegramUpdateSchema = z.looseObject({
       id: z.string(),
       from: user,
       data: z.string().optional(),
-      message: z.looseObject({ message_id: z.number().int(), chat }).optional(),
+      message: z
+        .looseObject({
+          message_id: z.number().int(),
+          chat,
+          // The buttons under the message the person pressed (an ad rewrites its own).
+          reply_markup: z
+            .looseObject({
+              inline_keyboard: z.array(
+                z.array(
+                  z.looseObject({
+                    text: z.string(),
+                    url: z.string().optional(),
+                    callback_data: z.string().optional(),
+                  }),
+                ),
+              ),
+            })
+            .optional(),
+        })
+        .optional(),
     })
     .optional(),
 });

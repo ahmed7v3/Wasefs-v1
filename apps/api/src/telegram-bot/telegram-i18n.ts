@@ -59,7 +59,7 @@ const ar = {
   "lang.changed": "تم تغيير اللغة إلى العربية ✅",
   "new.done": "بدأنا محادثة جديدة 🆕\nأرسل صورة روشتة جديدة أو اختر من القائمة.",
   "help.text":
-    "❓ <b>كيف أستخدم البوت؟</b>\n\n1️⃣ أرسل صورة واضحة للروشتة (أو عدة صور معاً).\n2️⃣ انتظر ثوانٍ وأنا أقرأها وأطابق الأدوية.\n3️⃣ اسألني عن أي دواء أو جرعة في النتيجة.\n\n<b>الأوامر:</b>\n/start الرئيسية · /menu القائمة\n/new محادثة جديدة · /last آخر تحليل\n/history السجل · /balance رصيدي\n/language اللغة · /link ربط · /unlink فصل\n/support الدعم\n\n⚠️ المعلومات مساعدة فقط ولا تغني عن الطبيب أو الصيدلي.",
+    "❓ <b>كيف أستخدم البوت؟</b>\n\n1️⃣ أرسل صورة واضحة للروشتة (أو عدة صور معاً).\n2️⃣ انتظر ثوانٍ وأنا أقرأها وأطابق الأدوية.\n3️⃣ اسألني عن أي دواء أو جرعة في النتيجة.\n\n<b>الأوامر:</b>\n/start الرئيسية · /menu القائمة\n/new محادثة جديدة · /last آخر تحليل\n/history السجل · /balance رصيدي\n/language اللغة · /link ربط · /unlink فصل\n/support الدعم · /ads_on إظهار الإعلانات من جديد\n\n⚠️ المعلومات مساعدة فقط ولا تغني عن الطبيب أو الصيدلي.",
   "support.text": "💬 للدعم والمساعدة تواصل معنا:",
   "support.none": "💬 للدعم راسلنا من خلال موقع وصفة.",
   "photo.hint": "أرسل صورة الروشتة كصورة عادية (أو ملف صورة) وسأقرأها لك 📷",
@@ -166,7 +166,7 @@ const en: Record<TelegramKey, string> = {
   "lang.changed": "Language changed to English ✅",
   "new.done": "New chat started 🆕\nSend a new prescription photo or pick from the menu.",
   "help.text":
-    "❓ <b>How do I use the bot?</b>\n\n1️⃣ Send a clear photo of the prescription (or several together).\n2️⃣ Wait a few seconds while I read it and match the medicines.\n3️⃣ Ask me about any medicine or dose in the result.\n\n<b>Commands:</b>\n/start home · /menu menu\n/new new chat · /last last analysis\n/history history · /balance balance\n/language language · /link link · /unlink unlink\n/support support\n\n⚠️ Information is for help only and does not replace a doctor or pharmacist.",
+    "❓ <b>How do I use the bot?</b>\n\n1️⃣ Send a clear photo of the prescription (or several together).\n2️⃣ Wait a few seconds while I read it and match the medicines.\n3️⃣ Ask me about any medicine or dose in the result.\n\n<b>Commands:</b>\n/start home · /menu menu\n/new new chat · /last last analysis\n/history history · /balance balance\n/language language · /link link · /unlink unlink\n/support support · /ads_on show ads again\n\n⚠️ Information is for help only and does not replace a doctor or pharmacist.",
   "support.text": "💬 For support and help, contact us:",
   "support.none": "💬 For support, contact us through the Wasfa website.",
   "photo.hint": "Send the prescription as a normal photo (or an image file) and I will read it 📷",
