@@ -63,7 +63,8 @@ export function resultKeyboard(locale: BotLocale, rxId: string, webUrl: string):
   return {
     inline_keyboard: [
       [button(tg(locale, "btn.rerun"), "rerun", rxId), button(tg(locale, "btn.ask"), "ask", rxId)],
-      [button(tg(locale, "btn.copy"), "sum", rxId), { text: tg(locale, "btn.full"), url: webUrl }],
+      [button(tg(locale, "btn.copy"), "sum", rxId), button(tg(locale, "btn.pdf"), "pdf", rxId)],
+      [{ text: tg(locale, "btn.full"), url: webUrl }],
       [
         button(tg(locale, "btn.new"), "menu", "new"),
         button(tg(locale, "btn.balance"), "menu", "balance"),
@@ -81,6 +82,16 @@ export function quickReplies(locale: BotLocale): ReplyMarkup {
       ],
     ],
   };
+}
+
+/** "The reply was slow": one button that asks the same question again (the text waits in Redis). */
+export function retryAskKeyboard(locale: BotLocale): ReplyMarkup {
+  return { inline_keyboard: [[button(tg(locale, "btn.retry"), "retry")]] };
+}
+
+/** A failed PDF: retry just the PDF of this analysis. */
+export function pdfRetryKeyboard(locale: BotLocale, rxId: string): ReplyMarkup {
+  return { inline_keyboard: [[button(tg(locale, "btn.retry"), "pdf", rxId)]] };
 }
 
 export function urlKeyboard(text: string, url: string): ReplyMarkup {

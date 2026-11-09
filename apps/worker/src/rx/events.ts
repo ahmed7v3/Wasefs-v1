@@ -11,6 +11,7 @@ import { waAgentRxKey } from "@wasfa/shared/schemas/wa-agent";
 
 import { pushWaAgentEvent } from "../notifications/wa-agent-events.js";
 
+import type { Locale } from "@wasfa/shared/i18n";
 import type { Redis } from "ioredis";
 import type { Logger } from "pino";
 
@@ -18,7 +19,8 @@ type Step = Extract<RxEvent, { type: "step" }>["step"];
 
 /** Makes the PDF of a finished reading for the WhatsApp agent; `render` gives the stored key or null. */
 export interface RxPdfPort {
-  render(result: RxResult): Promise<string | null>;
+  /** `lang` overrides the agent's language (the Telegram PDF follows the chat). */
+  render(result: RxResult, lang?: Locale): Promise<string | null>;
   /** Removes a PDF that no event points to. */
   discard(key: string): Promise<void>;
 }

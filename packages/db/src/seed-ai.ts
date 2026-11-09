@@ -248,6 +248,11 @@ export const DEFAULT_ROUTE_SEEDS: Readonly<Record<AiTask, readonly RouteEntrySee
     { provider: G, modelId: FLASH, params: { thinking: "low" } },
     { provider: G, modelId: FLASH_36, params: { thinking: "low" } },
   ],
+  // Same defaults as wa_agent; a separate route so the Telegram bot can be tuned on its own.
+  telegram_agent: [
+    { provider: G, modelId: FLASH, params: { thinking: "low" } },
+    { provider: G, modelId: FLASH_36, params: { thinking: "low" } },
+  ],
 };
 
 export interface AiSeedResult {

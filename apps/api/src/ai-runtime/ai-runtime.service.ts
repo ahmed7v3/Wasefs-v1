@@ -46,6 +46,8 @@ function featureSwitch(task: AiTask): keyof Omit<KillSwitch, "all"> | null {
       return "search";
     case "wa_agent":
       return "wa_agent";
+    case "telegram_agent":
+      return "telegram_agent";
     default:
       return null;
   }

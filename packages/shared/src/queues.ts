@@ -10,6 +10,7 @@ import { brandingIconsPayloadSchema } from "./schemas/branding.js";
 import { imageProcessPayloadSchema } from "./schemas/files.js";
 import { ogRenderPayloadSchema } from "./schemas/og.js";
 import { rxAnalyzePayloadSchema } from "./schemas/rx.js";
+import { telegramRxPdfPayloadSchema } from "./schemas/telegram-pdf.js";
 import { waRenderDocumentPayloadSchema } from "./schemas/wa-document.js";
 
 /**
@@ -151,6 +152,8 @@ export const QUEUE_REGISTRY = {
   /** Files the WhatsApp agent creates (Typst renders; CPU heavy and slow enough to deserve their own queue). */
   documents: {
     "wa-agent.render-document": waRenderDocumentPayloadSchema,
+    // The analysis PDF of the Telegram bot: the api waits for it (QueueEvents) and sends the file.
+    "telegram.rx-pdf": telegramRxPdfPayloadSchema,
   },
   /** Search discoverability (Phase 4): IndexNow pings. BullMQ names cannot contain ":", hence queue `seo`, job `seo.indexnow`. */
   seo: {

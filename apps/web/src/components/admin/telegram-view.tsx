@@ -374,6 +374,16 @@ function SettingsForm({
         }}
       />
       <AdsLinkCard />
+      <Checkbox
+        role="switch"
+        name="telegram-auto-pdf"
+        label={t("admin.telegram.settings.autoPdf")}
+        checked={draft.autoPdf}
+        disabled={disabled}
+        onChange={(event) => {
+          set("autoPdf", event.target.checked);
+        }}
+      />
       <Field label={t("admin.telegram.settings.welcomeAr")} hint={counter(draft.welcomeAr)}>
         {(control) => (
           <Textarea

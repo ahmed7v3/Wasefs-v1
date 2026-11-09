@@ -44,7 +44,7 @@ error. `/unlink` asks for confirmation first.
   `file_unique_id`; a repeat re-shows the finished result).
 - Result: HTML message(s) of at most 4096 characters with the buttons re-analyze, ask about the result, copy summary,
   new chat, balance.
-- Free text with an active analysis: answered by the `wa_agent` task (balanced) with the analysis and the last 12
+- Free text with an active analysis: answered by the `telegram_agent` task (balanced; see "AI route") with the analysis and the last 12
   messages since the last "new chat". Safety rules: no diagnosis, no brand substitution, no dose advice, pharmacist or
   doctor for any change.
 - Per-chat limit 30 messages per 10 minutes (one friendly warning, then silence).
@@ -61,14 +61,53 @@ error. `/unlink` asks for confirmation first.
 | `/help`, `/support` | Help text, support link |
 | `/link`, `/unlink` | Link or unlink the account |
 
-Callback data is `<verb>:<arg>` under 64 bytes (`menu:*`, `rx:<id>`, `rerun:<id>`, `ask:<id>`, `sum:<id>`, `unlink:yes|no`,
-`lang:ar|en`).
+Callback data is `<verb>:<arg>` under 64 bytes (`menu:*`, `rx:<id>`, `rerun:<id>`, `ask:<id>`, `sum:<id>`, `pdf:<id>`, `retry`,
+`unlink:yes|no`, `lang:ar|en`).
 
 ## Data and privacy
 
 Tables `telegram_chats` (chat id, linked user, language, context reset, active analysis, blocked flag) and
 `telegram_messages` (last 40 per chat, follow-up context only). Message text, phone numbers and the token are never
 logged. A 403 from Telegram marks the chat blocked; the next message from it clears the flag.
+
+## AI route
+
+Free-text answers use their own AI task, `telegram_agent` (balanced mode), so the bot can be tuned apart from the WhatsApp
+agent: its own row in Admin > AI > Routes (seeded with the same models as `wa_agent`), its own kill switch
+(`ai.killSwitch.telegram_agent`), its own plan entitlement and usage rows. Not a medical task in `MEDICAL_AI_TASKS`, like
+`wa_agent`. Existing installs get the route and the plan entitlements copied from `wa_agent` by
+`packages/db/migrations-pending/telegram-agent-backfill.sql` (idempotent).
+
+- With a readable active analysis the question is about it; without one the bot answers general questions about
+  prescriptions and medicines briefly (strict safety prompt: no diagnosis, no dose beyond the label, no brand
+  substitution, pharmacist or doctor for any decision, reply in the person's language) and adds "send a photo for a full
+  analysis" with the menu buttons. Unlinked chats still get the link gate.
+- A transient failure (timeout, provider unavailable, empty answer) is retried once automatically. A pause or a missing
+  route is never retried.
+- What the person sees, by cause (never a provider detail): kill switch or spend cap = "the service is paused"; no
+  route, no model, provider unavailable or out of quota = "the chat model is not set up right now"; timeout or empty
+  answer = "the reply took longer than usual" with a 🔄 button that asks the same question again (the text waits in
+  Redis `tg:retry:<chatId>` for 10 minutes and is removed when used).
+- The log line "Telegram follow-up failed" carries the error class, the AppError code and reason, the provider error
+  code and HTTP status, `task`, `mode` and a 12-character hash of the chat id. Never the question, the answer or the token.
+
+## PDF
+
+The result keyboard (and the history reopen view, which uses it) has a 📄 PDF button (`pdf:<id>`). With
+`telegramBot.autoPdf` on (default, admin Telegram page) the PDF also follows every FRESH result automatically, after the text
+and without blocking it (not when an old analysis is reopened).
+
+- Only the worker has Typst, so the api enqueues `telegram.rx-pdf` ({analysisId, locale}) on the `documents` queue and waits
+  for it with QueueEvents (45 s). The worker loads the finished result from the database, renders it with the same
+  template and renderer as the WhatsApp PDF (`createRxPdf`, language passed in) and returns the storage key
+  (`wa/out/<yyyy>/<mm>/<uuid>.pdf`). The api reads the bytes from object storage and uploads them with `sendDocument`
+  (`wasfa-analysis-<yyyy-mm-dd>.pdf`, the analysis date, with a caption).
+- Ownership: `RxService.get(user, id)` first, and only a `done` analysis; anything else answers "not found".
+- Cache: Redis `tg:pdf:<rxId>:<locale>` holds the storage key for 7 days (a missing object renders again); a 60 s lock
+  `tg:pdf:lock:<rxId>:<locale>` stops a double tap rendering twice.
+- UX: chat action `upload_document`, a progress message ("preparing your PDF"), deleted when the file arrives or edited into
+  an error with a 🔄 button (`pdf:<id>`). A PDF failure never touches the text result.
+- Generated PDFs are not purged by any retention job yet (`wa/out/` objects are only removed with their WhatsApp message).
 
 ## Known limits
 

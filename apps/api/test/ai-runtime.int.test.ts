@@ -265,7 +265,14 @@ describe("provider keys", () => {
 });
 
 describe("kill switch mapping", () => {
-  const off = { all: false, rx: false, chat: false, search: false, wa_agent: false };
+  const off = {
+    all: false,
+    rx: false,
+    chat: false,
+    search: false,
+    wa_agent: false,
+    telegram_agent: false,
+  };
 
   it("stops everything on `all`, a feature on its own switch, and search on `search`", () => {
     expect(isSwitchedOff({ ...off, all: true }, "title_gen", { search: false })).toBe(true);

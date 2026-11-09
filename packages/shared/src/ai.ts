@@ -17,6 +17,8 @@ export const AI_TASKS = [
   "web_search",
   // The WhatsApp sales/support agent (tool calling). Not medical: medical work goes through rx/chat tools.
   "wa_agent",
+  // The Telegram bot (free-text chat and general prescription questions). Own route so it can be tuned apart from WhatsApp.
+  "telegram_agent",
 ] as const;
 export type AiTask = (typeof AI_TASKS)[number];
 

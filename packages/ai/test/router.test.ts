@@ -528,11 +528,36 @@ describe("router: tool calling (wa_agent)", () => {
   });
 
   it("the wa_agent kill switch is its own group and all still covers it", () => {
-    const off = { all: false, rx: false, chat: false, search: false, wa_agent: false };
+    const off = {
+      all: false,
+      rx: false,
+      chat: false,
+      search: false,
+      wa_agent: false,
+      telegram_agent: false,
+    };
     expect(isAiSwitchedOff({ ...off, wa_agent: true }, "wa_agent", { search: false })).toBe(true);
     expect(isAiSwitchedOff({ ...off, chat: true }, "wa_agent", { search: false })).toBe(false);
     expect(isAiSwitchedOff({ ...off, all: true }, "wa_agent", { search: false })).toBe(true);
     expect(isAiSwitchedOff({ ...off, wa_agent: true }, "chat", { search: false })).toBe(false);
+  });
+
+  it("the telegram_agent kill switch is its own group, apart from wa_agent, and all covers it", () => {
+    const off = {
+      all: false,
+      rx: false,
+      chat: false,
+      search: false,
+      wa_agent: false,
+      telegram_agent: false,
+    };
+    const tgOnly = { ...off, telegram_agent: true };
+    expect(isAiSwitchedOff(tgOnly, "telegram_agent", { search: false })).toBe(true);
+    expect(isAiSwitchedOff(tgOnly, "wa_agent", { search: false })).toBe(false);
+    expect(isAiSwitchedOff({ ...off, wa_agent: true }, "telegram_agent", { search: false })).toBe(
+      false,
+    );
+    expect(isAiSwitchedOff({ ...off, all: true }, "telegram_agent", { search: false })).toBe(true);
   });
 });
 
