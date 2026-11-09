@@ -27,7 +27,7 @@
   "dependencies": {
     "@wasfa/shared": "workspace:*",
     "drizzle-orm": "^0.45.4",
-    "kysely": "0.29.7",
+    "kysely": "0.29.8",
     "postgres": "^3.4.9",
     "zod": "^4.6.6"
   },
@@ -39,6 +39,6 @@
     "eslint": "^10.14.0",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.0"
   }
 }
