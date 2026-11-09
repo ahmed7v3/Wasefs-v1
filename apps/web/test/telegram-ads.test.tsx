@@ -59,7 +59,12 @@ const writes = () => fetchMock.mock.calls.filter(([, init]) => (init?.method ?? 
 const bodyOf = (index = 0) =>
   JSON.parse(String(writes()[index]?.[1]?.body)) as Record<string, unknown>;
 
-const defaults: TelegramAdsSettings = telegramAdsSettingsSchema.parse({});
+// Every limit off: the tests start from "unlimited" and switch limits on explicitly.
+const defaults: TelegramAdsSettings = telegramAdsSettingsSchema.parse({
+  probability: { enabled: false, value: 0.7 },
+  maxPerChatPerDay: { enabled: false, value: 3 },
+  minGapMinutes: { enabled: false, value: 30 },
+});
 
 const campaign: TelegramAdCampaign = {
   id: CAMPAIGN_ID,

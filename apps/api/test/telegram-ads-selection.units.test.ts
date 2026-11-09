@@ -18,10 +18,24 @@ import {
 } from "../src/telegram-bot/telegram-ads-selection.js";
 
 const NOW = new Date("2026-11-09T12:00:00Z"); // 14:00 in Cairo (UTC+2)
+const NO_LIMITS = {
+  probability: { enabled: false, value: 0.7 },
+  maxPerChatPerDay: { enabled: false, value: 3 },
+  minGapMinutes: { enabled: false, value: 30 },
+};
 const settings = (patch: Record<string, unknown> = {}) =>
-  telegramAdsSettingsSchema.parse({ triggers: ["after_rx_done", "after_followup"], ...patch });
+  telegramAdsSettingsSchema.parse({
+    triggers: ["after_rx_done", "after_followup"],
+    ...NO_LIMITS,
+    ...patch,
+  });
 const chat: TelegramAdChatFacts = { locale: "ar", linked: true, adsHidden: false };
-const idle: TelegramAdCounters = { chatToday: 0, chatThisWeek: 0, gapActive: false, globalToday: 0 };
+const idle: TelegramAdCounters = {
+  chatToday: 0,
+  chatThisWeek: 0,
+  gapActive: false,
+  globalToday: 0,
+};
 
 function candidate(
   id: string,

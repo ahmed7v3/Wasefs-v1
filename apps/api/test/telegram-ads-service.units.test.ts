@@ -119,7 +119,13 @@ function build(
   const adsService = { isAdsFree: vi.fn(async () => options.adsFree ?? false) };
   const settings = {
     get: vi.fn(async () =>
-      telegramAdsSettingsSchema.parse({ triggers: ["after_rx_done"], ...options.settings }),
+      telegramAdsSettingsSchema.parse({
+        triggers: ["after_rx_done"],
+        probability: { enabled: false, value: 0.7 },
+        maxPerChatPerDay: { enabled: false, value: 3 },
+        minGapMinutes: { enabled: false, value: 30 },
+        ...options.settings,
+      }),
     ),
   };
   const service = new TelegramAdsService(
@@ -148,7 +154,13 @@ function build(
 describe("TelegramAdsService delivery", () => {
   it("sends one tracked ad after a delivery and records counters and the impression", async () => {
     const { service, api, asApi, repo, redis } = build();
-    await service.sendAfterDelivery(asApi, { chatId: CHAT, userId: null }, "ar", "after_rx_done", NOW);
+    await service.sendAfterDelivery(
+      asApi,
+      { chatId: CHAT, userId: null },
+      "ar",
+      "after_rx_done",
+      NOW,
+    );
     expect(api.sendMessage).toHaveBeenCalledTimes(1);
     const sent = JSON.stringify(api.sendMessage.mock.calls[0]);
     expect(sent).toContain("https://wasfa.online/t/");
@@ -165,7 +177,10 @@ describe("TelegramAdsService delivery", () => {
   });
 
   it("sends nothing when switched off, for an unlisted trigger, a hidden chat or an ad-free plan", async () => {
-    const run = async (options: Parameters<typeof build>[0], trigger = "after_rx_done" as const) => {
+    const run = async (
+      options: Parameters<typeof build>[0],
+      trigger = "after_rx_done" as const,
+    ) => {
       const built = build(options);
       await built.service.sendAfterDelivery(
         built.asApi,
@@ -195,7 +210,13 @@ describe("TelegramAdsService delivery", () => {
 
   it("never serves a medicine creative", async () => {
     const { service, api, asApi } = build({ candidates: [candidate({ category: "medicine" })] });
-    await service.sendAfterDelivery(asApi, { chatId: CHAT, userId: null }, "ar", "after_rx_done", NOW);
+    await service.sendAfterDelivery(
+      asApi,
+      { chatId: CHAT, userId: null },
+      "ar",
+      "after_rx_done",
+      NOW,
+    );
     expect(api.sendMessage).not.toHaveBeenCalled();
   });
 
@@ -228,7 +249,13 @@ describe("TelegramAdsService delivery", () => {
 
   it("a hero without an image goes out as a card message", async () => {
     const { service, api, asApi } = build({ candidates: [candidate({ layout: "hero" })] });
-    await service.sendAfterDelivery(asApi, { chatId: CHAT, userId: null }, "ar", "after_rx_done", NOW);
+    await service.sendAfterDelivery(
+      asApi,
+      { chatId: CHAT, userId: null },
+      "ar",
+      "after_rx_done",
+      NOW,
+    );
     expect(api.sendPhoto).not.toHaveBeenCalled();
     expect(api.sendMessage).toHaveBeenCalledTimes(1);
   });

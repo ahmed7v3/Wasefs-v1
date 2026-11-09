@@ -13,18 +13,15 @@ import { patchSchemaOf } from "../src/admin/telegram/telegram-ads-patch.js";
 const CAMPAIGN = "01939c3a-6e6b-7d2e-8a41-0d2f5c3b9a20";
 
 describe("admin contract round trips", () => {
-  it("registers telegramAds as an admin setting with every limit off by default", () => {
+  it("registers telegramAds as an admin setting with sane, adjustable defaults (no limit on weekly or global totals)", () => {
     expect(isSettingKey("telegramAds")).toBe(true);
     expect(SETTINGS_REGISTRY.telegramAds.visibility).toBe("admin");
     const defaults = telegramAdsSettingsInputSchema.parse({});
     expect(defaults.enabled).toBe(true);
-    for (const key of [
-      "probability",
-      "maxPerChatPerDay",
-      "maxPerChatPerWeek",
-      "minGapMinutes",
-      "globalDailyLimit",
-    ] as const) {
+    for (const key of ["probability", "maxPerChatPerDay", "minGapMinutes"] as const) {
+      expect(defaults[key].enabled).toBe(true);
+    }
+    for (const key of ["maxPerChatPerWeek", "globalDailyLimit"] as const) {
       expect(defaults[key].enabled).toBe(false);
     }
     expect(defaults.quietHours.enabled).toBe(false);
@@ -55,11 +52,21 @@ describe("admin contract round trips", () => {
     expect(patch).toEqual({ name: "x" });
     const creativePatch = patchSchemaOf(telegramAdCreativeInputSchema).parse({ weight: 5 });
     expect(creativePatch).toEqual({ weight: 5 });
-    expect(patchSchemaOf(telegramAdCreativeInputSchema).safeParse({ weight: 0 }).success).toBe(false);
+    expect(patchSchemaOf(telegramAdCreativeInputSchema).safeParse({ weight: 0 }).success).toBe(
+      false,
+    );
   });
 
   it("validates the stats response shape", () => {
-    const zero = { impressions: 0, clicks: 0, reactions: 0, hides: 0, reach: 0, ctr: 0, engagementRate: 0 };
+    const zero = {
+      impressions: 0,
+      clicks: 0,
+      reactions: 0,
+      hides: 0,
+      reach: 0,
+      ctr: 0,
+      engagementRate: 0,
+    };
     expect(
       telegramAdStatsSchema.safeParse({
         from: "2026-11-01",
@@ -96,7 +103,13 @@ describe("AdminTelegramAdsService stats", () => {
         ...rows,
       })),
       statsByDayCreative: vi.fn(async () => [
-        { day: "2026-11-09", creativeId: "c", name: "=cmd", campaign: "Camp, Inc", ...counts(4, 1, 1) },
+        {
+          day: "2026-11-09",
+          creativeId: "c",
+          name: "=cmd",
+          campaign: "Camp, Inc",
+          ...counts(4, 1, 1),
+        },
       ]),
     };
     const service = new AdminTelegramAdsService(
