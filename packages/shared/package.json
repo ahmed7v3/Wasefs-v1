@@ -499,6 +499,16 @@
       "types": "./dist/schemas/admin-telegram-ads.d.ts",
       "import": "./dist/schemas/admin-telegram-ads.js",
       "default": "./dist/schemas/admin-telegram-ads.js"
+    },
+    "./publishing": {
+      "types": "./dist/publishing.d.ts",
+      "import": "./dist/publishing.js",
+      "default": "./dist/publishing.js"
+    },
+    "./schemas/admin-publishing-keys": {
+      "types": "./dist/schemas/admin-publishing-keys.d.ts",
+      "import": "./dist/schemas/admin-publishing-keys.js",
+      "default": "./dist/schemas/admin-publishing-keys.js"
     }
   },
   "files": [
