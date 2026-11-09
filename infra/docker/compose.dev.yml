@@ -59,7 +59,7 @@ services:
 
   # Creates the private bucket once and exits. `MC_HOST_<alias>` configures mc without a shell.
   minio-init:
-    image: cgr.dev/chainguard/minio-client@sha256:2fc4412391f1ce7372db8dd8bee17b38d76f7bb898bac195915bfe6979aa5784
+    image: cgr.dev/chainguard/minio-client@sha256:10388d580a724f356b94c9b2631b5a179039cabe8c76e9b37d86ed007d569b05
     depends_on:
       - minio
     restart: on-failure
@@ -71,7 +71,7 @@ services:
   # variants); `staging/` (unvalidated uploads) stays private. The image has no shell, so the
   # bucket and its policy are two one-shot services.
   minio-media-init:
-    image: cgr.dev/chainguard/minio-client@sha256:2fc4412391f1ce7372db8dd8bee17b38d76f7bb898bac195915bfe6979aa5784
+    image: cgr.dev/chainguard/minio-client@sha256:10388d580a724f356b94c9b2631b5a179039cabe8c76e9b37d86ed007d569b05
     depends_on:
       - minio
     restart: on-failure
@@ -80,7 +80,7 @@ services:
     command: ["mb", "--ignore-existing", "local/wasfa-media"]
 
   minio-media-policy:
-    image: cgr.dev/chainguard/minio-client@sha256:2fc4412391f1ce7372db8dd8bee17b38d76f7bb898bac195915bfe6979aa5784
+    image: cgr.dev/chainguard/minio-client@sha256:10388d580a724f356b94c9b2631b5a179039cabe8c76e9b37d86ed007d569b05
     depends_on:
       minio-media-init:
         condition: service_completed_successfully
