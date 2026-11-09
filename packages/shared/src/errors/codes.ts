@@ -41,6 +41,11 @@ export const ErrorCode = {
   CONTENT_SLUG_TAKEN: "CONTENT_SLUG_TAKEN",
   CONTENT_IN_USE: "CONTENT_IN_USE",
   CONTENT_REDIRECT_INVALID: "CONTENT_REDIRECT_INVALID",
+  // Publishing API (docs/PUBLISHING-API.md §4.3): refusals only the machine interface raises.
+  SCOPE_REQUIRED: "SCOPE_REQUIRED",
+  IDEMPOTENCY_MISMATCH: "IDEMPOTENCY_MISMATCH",
+  UNSUPPORTED_MEDIA: "UNSUPPORTED_MEDIA",
+  PAYLOAD_TOO_LARGE: "PAYLOAD_TOO_LARGE",
   // First-party ads (docs/ADS.md §1): the safety floor refusing an admin action.
   AD_CLASS_NOT_SERVABLE: "AD_CLASS_NOT_SERVABLE",
   AD_CATEGORY_FORBIDDEN: "AD_CATEGORY_FORBIDDEN",
@@ -212,6 +217,34 @@ export const ERROR_INFO: Record<ErrorCode, ErrorCodeInfo> = {
     message: {
       ar: "أكّد رقم هاتفك أولاً لتبدأ التجربة المجانية.",
       en: "Verify your phone number first to start the free trial.",
+    },
+  },
+  SCOPE_REQUIRED: {
+    httpStatus: 403,
+    message: {
+      ar: "مفتاح API لا يملك الصلاحية المطلوبة لهذا الإجراء.",
+      en: "This API key does not have the scope this action needs.",
+    },
+  },
+  IDEMPOTENCY_MISMATCH: {
+    httpStatus: 409,
+    message: {
+      ar: "استُخدم مفتاح التكرار نفسه مع طلب مختلف.",
+      en: "This idempotency key was already used with a different request.",
+    },
+  },
+  UNSUPPORTED_MEDIA: {
+    httpStatus: 415,
+    message: {
+      ar: "نوع الملف غير مدعوم.",
+      en: "This file type is not supported.",
+    },
+  },
+  PAYLOAD_TOO_LARGE: {
+    httpStatus: 413,
+    message: {
+      ar: "حجم الطلب أو الملف أكبر من المسموح.",
+      en: "The request or file is larger than allowed.",
     },
   },
   INVALID_SIGNATURE: {
