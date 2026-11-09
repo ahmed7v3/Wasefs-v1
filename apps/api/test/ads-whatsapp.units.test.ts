@@ -353,3 +353,40 @@ describe("creative selection", () => {
     expect(eligibleWhatsAppCreatives.length).toBe(2);
   });
 });
+
+describe("maybeTelegramAd (same rules, a chat of its own)", () => {
+  const chat = { chatId: 777, userId: "018f0000-0000-7000-8000-0000000000a1" };
+
+  it("offers one labelled ad with a tracked link and records it only on confirm", async () => {
+    const { service, redis } = setup();
+    const offer = await service.maybeTelegramAd(chat, "after_rx_done", delivered);
+    expect(offer?.text).toContain("خصم على التوصيل");
+    expect(offer?.link).toMatch(/^https:\/\/wasfa\.online\/a\//);
+    expect(redis.values.size).toBe(0);
+    await offer?.confirmSent();
+    expect(redis.values.get("ads:wa:user:tg:777:2026-11-08")).toBe("1");
+  });
+
+  it("never for ads-free plans, failures, a disabled switch, or after the daily cap", async () => {
+    expect(
+      await setup({ adsFree: true }).service.maybeTelegramAd(chat, "after_rx_done", delivered),
+    ).toBeNull();
+    expect(
+      await setup().service.maybeTelegramAd(chat, "after_rx_done", {
+        ...delivered,
+        moment: "failure",
+      }),
+    ).toBeNull();
+    expect(
+      await setup({ whatsapp: { enabled: false } }).service.maybeTelegramAd(
+        chat,
+        "after_rx_done",
+        delivered,
+      ),
+    ).toBeNull();
+    const capped = setup({ whatsapp: { maxPerUserPerDay: 1, minGapHours: 0 } });
+    const first = await capped.service.maybeTelegramAd(chat, "after_rx_done", delivered);
+    await first?.confirmSent();
+    expect(await capped.service.maybeTelegramAd(chat, "after_rx_done", delivered)).toBeNull();
+  });
+});

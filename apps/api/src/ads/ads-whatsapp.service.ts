@@ -60,6 +60,30 @@ export interface WhatsAppAdOffer {
   confirmSent: () => Promise<void>;
 }
 
+/** Who an ad is for: a WhatsApp conversation or a Telegram chat (`tg:<id>`). */
+interface AdSubject {
+  id: string;
+  userId: string | null;
+  optOut: boolean;
+}
+
+interface PickedAd {
+  label: string;
+  text: string;
+  link: string;
+  imageUrl: string | null;
+  creativeId: string;
+  confirmSent: () => Promise<void>;
+}
+
+/** One Telegram ad: one message text, an optional tracked link for a URL button. */
+export interface TelegramAdOffer {
+  text: string;
+  link: string;
+  creativeId: string;
+  confirmSent: () => Promise<void>;
+}
+
 /** The Cairo (or admin-set) calendar day and minutes since local midnight of `now`. */
 function localClock(now: Date, timeZone: string): { day: string; minutes: number } {
   const read = (zone: string) => {
@@ -124,14 +148,58 @@ export class AdsWhatsappService {
     ctx: WhatsAppAdContext,
   ): Promise<WhatsAppAdOffer | null> {
     const now = ctx.now ?? new Date();
+    if (WaAgentStateService.isHeld(conversation, now.getTime())) return null;
+    const picked = await this.pick(
+      { id: conversation.id, userId: conversation.userId, optOut: conversation.adsOptOut },
+      trigger,
+      ctx,
+    );
+    if (picked === null) return null;
+    const body = [picked.label, picked.text, picked.link].join("\n\n");
+    const part: WaAgentOutboundPart =
+      picked.imageUrl === null
+        ? { kind: "text", text: body }
+        : { kind: "image", url: picked.imageUrl, caption: body };
+    return { parts: [part], creativeId: picked.creativeId, confirmSent: picked.confirmSent };
+  }
+
+  /**
+   * The same ad for a Telegram chat: same creatives (WhatsApp channel, with a waText), same floor,
+   * caps, quiet hours and probability; the chat is counted under its own id. The caller sends the
+   * text as ONE message after its own and the link as a button, then calls `confirmSent`.
+   */
+  async maybeTelegramAd(
+    chat: { chatId: number; userId: string | null },
+    trigger: AdWhatsappTrigger,
+    ctx: WhatsAppAdContext,
+  ): Promise<TelegramAdOffer | null> {
+    const picked = await this.pick(
+      { id: `tg:${String(chat.chatId)}`, userId: chat.userId, optOut: false },
+      trigger,
+      ctx,
+    );
+    if (picked === null) return null;
+    return {
+      text: `${picked.label}\n\n${picked.text}`,
+      link: picked.link,
+      creativeId: picked.creativeId,
+      confirmSent: picked.confirmSent,
+    };
+  }
+
+  private async pick(
+    conversation: AdSubject,
+    trigger: AdWhatsappTrigger,
+    ctx: WhatsAppAdContext,
+  ): Promise<PickedAd | null> {
+    const now = ctx.now ?? new Date();
     const config = (await this.settings.get("ads")).whatsapp;
     if (!config.enabled) return null;
     if (!config.triggers.includes(trigger)) return null;
 
     // The floor. Whatever the admin set, none of these can be bypassed.
     if (ctx.moment !== "delivered") return null;
-    if (WaAgentStateService.isHeld(conversation, now.getTime())) return null;
-    if (conversation.adsOptOut) return null;
+    if (conversation.optOut) return null;
     if (await this.ads.isAdsFree(conversation.userId)) return null;
 
     const clock = localClock(now, config.quietHours.timezone);
@@ -165,19 +233,15 @@ export class AdsWhatsappService {
       WA_AD_TOKEN_TTL_SECONDS,
     );
     const origin = (this.env.WEB_ORIGIN[0] ?? "").replace(/\/$/, "");
-    const body = [
-      `«${t(AD_LABEL_KEY, {}, ctx.locale ?? "ar")}»`,
-      creative.waText,
-      `${origin}/a/${token}`,
-    ].join("\n\n");
+    const label = `«${t(AD_LABEL_KEY, {}, ctx.locale ?? "ar")}»`;
+    const link = `${origin}/a/${token}`;
     const imageUrl = this.imageUrl(candidate);
-    const part: WaAgentOutboundPart =
-      imageUrl === null
-        ? { kind: "text", text: body }
-        : { kind: "image", url: imageUrl, caption: body };
 
     return {
-      parts: [part],
+      label,
+      text: creative.waText,
+      link,
+      imageUrl,
       creativeId: creative.id,
       confirmSent: () =>
         this.record({

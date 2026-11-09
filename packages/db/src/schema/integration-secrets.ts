@@ -4,7 +4,7 @@ import { inList } from "./columns.js";
 import { users } from "./users.js";
 
 /** Third-party credentials kept outside `site_settings` (docs/WA-AGENT.md section 7). */
-export const INTEGRATION_SECRET_KEYS = ["elevenlabs"] as const;
+export const INTEGRATION_SECRET_KEYS = ["elevenlabs", "telegram"] as const;
 export type IntegrationSecretKey = (typeof INTEGRATION_SECRET_KEYS)[number];
 
 /**

@@ -31,6 +31,7 @@ export * from "./rx.js";
 export * from "./site-assets.js";
 export * from "./site-settings.js";
 export * from "./subscriptions.js";
+export * from "./telegram.js";
 export * from "./users.js";
 export * from "./wa-agent.js";
 export * from "./wa-sessions.js";

@@ -22,11 +22,11 @@ import {
 } from "../src/lib/setting-meta";
 
 /**
- * `skills` is a per-plan map edited on /admin/ai/skills, and `waAgent` (lists, a secret next to it)
+ * `skills` is a per-plan map edited on /admin/ai/skills, and `waAgent` (lists, a secret next to it) and `telegramBot` (token + status)
  * on /admin/whatsapp/agent: neither is a generated form.
  */
 const FORM_KEYS = SETTING_KEYS.filter(
-  (key) => key !== "skills" && key !== "waAgent" && key !== "ads",
+  (key) => key !== "skills" && key !== "waAgent" && key !== "telegramBot" && key !== "ads",
 );
 
 function renderForm(key: SettingKey, onSave = vi.fn<(value: unknown) => Promise<void>>()) {
@@ -210,6 +210,7 @@ describe("settings presentation", () => {
       "branding",
       "whatsapp",
       "waAgent",
+      "telegramBot", // edited on /admin/telegram
       "ai",
       "skills",
       "earlyAccess", // edited on /admin/growth/early-access
