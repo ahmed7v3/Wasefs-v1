@@ -42,6 +42,7 @@ export function toSitemapUrl(entry: ApiUrl, siteUrl: string): SitemapUrl {
   return {
     url: abs(entry.path),
     lastModified: entry.lastmod,
+    changeFrequency: "daily",
     ...(hreflang
       ? {
           alternates: {
