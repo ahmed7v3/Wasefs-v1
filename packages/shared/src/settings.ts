@@ -741,6 +741,21 @@ export const waAgentSettingsSchema = z.object({
 });
 export type WaAgentSettings = z.output<typeof waAgentSettingsSchema>;
 
+/**
+ * The Telegram prescription bot (docs/TELEGRAM-BOT.md). The bot token is a secret and never lives
+ * here (`integration_secrets`, key `telegram`). Off until an admin switches it on.
+ */
+export const telegramBotSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  welcomeAr: z.string().max(600).default(""),
+  welcomeEn: z.string().max(600).default(""),
+  /** Telegram username (without @) shown by the support button; empty = the button is hidden. */
+  supportUsername: z.string().max(64).default(""),
+  /** First-party ads after a result, same rules as WhatsApp ads (ads.whatsapp); off here only. */
+  adsEnabled: z.boolean().default(true),
+});
+export type TelegramBotSettings = z.output<typeof telegramBotSettingsSchema>;
+
 const medicationsChatCardsSchema = z.object({
   enabled: z.boolean().default(true),
   max: z.number().int().min(0).max(5).default(3),
@@ -802,6 +817,8 @@ export const SETTINGS_REGISTRY = {
   whatsapp: { schema: whatsappSettingsSchema, visibility: "admin" },
   /** The WhatsApp AI agent: its own switch, independent from `auth.phoneVerification`. */
   waAgent: { schema: waAgentSettingsSchema, visibility: "admin" },
+  /** The Telegram prescription bot: its own switch and welcome texts; the token is an integration secret. */
+  telegramBot: { schema: telegramBotSettingsSchema, visibility: "admin" },
   /** The medication database and recognition thresholds (admin only; WP2 retires `rx.drugMatching`). */
   medications: { schema: medicationsSettingsSchema, visibility: "admin" },
   alerts: { schema: alertsSettingsSchema, visibility: "admin" },

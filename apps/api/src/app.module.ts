@@ -45,6 +45,7 @@ import { RxModule } from "./rx/rx.module.js";
 import { SettingsModule } from "./settings/settings.module.js";
 import { SiteHealthModule } from "./site-health/site-health.module.js";
 import { SubscriptionsModule } from "./subscriptions/subscriptions.module.js";
+import { TelegramBotModule } from "./telegram-bot/telegram-bot.module.js";
 import { UsersModule } from "./users/users.module.js";
 import { WaAgentModule } from "./wa-agent/wa-agent.module.js";
 import { WaitlistModule } from "./waitlist/waitlist.module.js";
@@ -81,6 +82,7 @@ export class AppModule {
         AccessModule,
         PhoneModule,
         WaAgentModule,
+        TelegramBotModule,
         ContactModule,
         SiteHealthModule,
         WaitlistModule,

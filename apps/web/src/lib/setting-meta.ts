@@ -414,7 +414,7 @@ export interface SettingsPageGroup {
 
 /**
  * The general settings page (`/admin/settings`). The other keys live with their feature:
- * `branding` on /admin/branding, `whatsapp` on /admin/whatsapp, `waAgent` on /admin/whatsapp/agent, `billing` on
+ * `branding` on /admin/branding, `whatsapp` on /admin/whatsapp, `waAgent` on /admin/whatsapp/agent, `telegramBot` on /admin/telegram, `billing` on
  * /admin/billing/settings, `rewards` and `growth` on /admin/growth/settings, `alerts` on
  * /admin/alerts, `medications` on /admin/drugs/recognition, `ai` and `skills` under /admin/ai.
  */

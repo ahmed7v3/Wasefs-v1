@@ -93,6 +93,7 @@ describe("visibleNavGroups", () => {
       "/admin/notifications",
       "/admin/whatsapp",
       "/admin/whatsapp/agent",
+      "/admin/telegram",
       "/admin/content?type=article",
       "/admin/content?type=guide",
       "/admin/content?type=glossary",
@@ -167,7 +168,7 @@ describe("visibleNavGroups", () => {
   });
 
   it("shows the WhatsApp agent page to wa_agent.read, and only the longest entry is active there", () => {
-    expect(hrefs(["wa_agent.read"])).toEqual(["/admin", "/admin/whatsapp/agent"]);
+    expect(hrefs(["wa_agent.read"])).toEqual(["/admin", "/admin/whatsapp/agent", "/admin/telegram"]);
     expect(hrefs(["settings.read"])).not.toContain("/admin/whatsapp/agent");
     expect(isNavActive("/admin/whatsapp", "/admin/whatsapp/agent")).toBe(false);
     expect(isNavActive("/admin/whatsapp/agent", "/admin/whatsapp/agent")).toBe(true);

@@ -260,6 +260,11 @@
       "import": "./dist/rx.js",
       "default": "./dist/rx.js"
     },
+    "./schemas/admin-telegram": {
+      "types": "./dist/schemas/admin-telegram.d.ts",
+      "import": "./dist/schemas/admin-telegram.js",
+      "default": "./dist/schemas/admin-telegram.js"
+    },
     "./schemas/admin-wa-agent": {
       "types": "./dist/schemas/admin-wa-agent.d.ts",
       "import": "./dist/schemas/admin-wa-agent.js",
