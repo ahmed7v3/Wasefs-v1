@@ -161,6 +161,68 @@ export class MediaService {
     return toMediaAsset(fresh);
   }
 
+  /**
+   * Server-side upload for the Publishing API: the api already holds the verified bytes, so it stages
+   * the object itself and hands it to the worker (the browser flow is presign, PUT, commit). Dedupe by
+   * digest: an asset that is already processing or ready is returned as is. `actor` names the API key
+   * in the audit row (the key, not a person, did this).
+   */
+  async ingestBytes(
+    request: FastifyRequest,
+    input: {
+      body: Buffer;
+      mime: CreateMediaUploadInput["mime"];
+      sha256: string;
+      ownerUserId: string;
+      actor: string;
+    },
+  ): Promise<{ asset: MediaAsset; deduplicated: boolean }> {
+    const originalKey = mediaStagingKey(randomUUID());
+    const staged = await this.repo.upsertStaged({
+      sha256: input.sha256,
+      mime: input.mime,
+      bytes: input.body.length,
+      originalKey,
+      createdBy: input.ownerUserId,
+    });
+    if (staged === undefined) {
+      const existing = await this.repo.findBySha(input.sha256);
+      if (existing === undefined) throw new AppError(ErrorCode.CONFLICT);
+      return { asset: toMediaAsset(existing), deduplicated: true };
+    }
+    await this.storage.putBytes({
+      key: originalKey,
+      body: input.body,
+      contentType: input.mime,
+      sha256Hex: input.sha256,
+    });
+    if (await this.repo.markProcessing(staged.id)) await this.queue.process(staged.id);
+    await this.audit.recordFor(
+      request,
+      {
+        actorId: null,
+        action: "media.create",
+        targetType: "media_asset",
+        targetId: staged.id,
+        after: {
+          actor: input.actor,
+          sha256: staged.sha256,
+          mime: input.mime,
+          bytes: input.body.length,
+        },
+      },
+      { verbatim: true },
+    );
+    const fresh = await this.repo.findById(staged.id);
+    if (fresh === undefined) throw new AppError(ErrorCode.NOT_FOUND);
+    return { asset: toMediaAsset(fresh), deduplicated: false };
+  }
+
+  /** Who uploaded the asset (null for none); undefined when it does not exist. */
+  async createdBy(id: string): Promise<string | null | undefined> {
+    return (await this.repo.findById(id))?.createdBy;
+  }
+
   async get(id: string): Promise<MediaAsset> {
     const row = await this.repo.findById(id);
     if (row === undefined) throw new AppError(ErrorCode.NOT_FOUND);

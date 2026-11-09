@@ -509,6 +509,16 @@
       "types": "./dist/schemas/admin-publishing-keys.d.ts",
       "import": "./dist/schemas/admin-publishing-keys.js",
       "default": "./dist/schemas/admin-publishing-keys.js"
+    },
+    "./schemas/publishing": {
+      "types": "./dist/schemas/publishing.d.ts",
+      "import": "./dist/schemas/publishing.js",
+      "default": "./dist/schemas/publishing.js"
+    },
+    "./publishing-guide": {
+      "types": "./dist/publishing-guide.d.ts",
+      "import": "./dist/publishing-guide.js",
+      "default": "./dist/publishing-guide.js"
     }
   },
   "files": [

@@ -54,5 +54,7 @@ import { TaxonomyService } from "./taxonomy.service.js";
         new WorkflowBulkAdapter(workflow, items),
     },
   ],
+  // The Publishing API reads and extends the taxonomy through the same services as the admin.
+  exports: [TaxonomyService, PeopleService],
 })
 export class TaxonomyModule {}

@@ -21,6 +21,7 @@ export * from "./payments.js";
 export * from "./plan-sale.js";
 export * from "./pg-errors.js";
 export * from "./points-ledger.js";
+export * from "./publishing-idempotency.js";
 export * from "./referrals.js";
 export * from "./rewards-admin.js";
 export * from "./rewards.js";

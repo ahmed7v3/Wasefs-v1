@@ -58,9 +58,38 @@ import { ContentItemsRepo, pageOf, type ContentData, type ItemListRow } from "./
 
 import type { AuthenticatedUser } from "../common/current-user.js";
 
+/**
+ * A non-human actor: a Publishing API key, or the system acting for one (the automatic publish after a
+ * reviewer approved). It is NEVER the owner and never a reviewer: `act` strips both flags, so the
+ * owner bypass of review, four-eyes and blocking gates cannot reach it whatever a caller put in the ctx.
+ */
+export interface MachineActor {
+  type: "api_key" | "system";
+  keyId: string;
+  /** The key's own daily publish cap; null = only the global cap applies. */
+  dailyPublishCap: number | null;
+}
+
 /** The caller as the workflow sees them, plus the name stamped on revisions and the publish log. */
 export interface ContentActorCtx extends WorkflowActor {
   name: string;
+  /** Set for Publishing API keys and the system acting for them; absent for people. */
+  machine?: MachineActor | undefined;
+}
+
+/** Who is written to the publish log and the outbox for this actor. */
+export function stampOf(actor: Pick<ContentActorCtx, "userId" | "name" | "machine">): {
+  type: "user" | "api_key" | "system";
+  id: string;
+  name: string;
+} {
+  if (actor.machine?.type === "api_key") {
+    return { type: "api_key", id: actor.machine.keyId, name: actor.name };
+  }
+  if (actor.machine?.type === "system") {
+    return { type: "system", id: `api_key:${actor.machine.keyId}`, name: actor.name };
+  }
+  return { type: "user", id: actor.userId, name: actor.name };
 }
 
 export const LIST_PAGE_SIZE_DEFAULT = 25;
@@ -170,7 +199,7 @@ export interface AppendRevisionArgs {
   built: BuiltRevision;
   kind: ContentRevision["kind"];
   note: string | null;
-  actor: { userId: string; name: string };
+  actor: Pick<ContentActorCtx, "userId" | "name" | "machine">;
   now: Date;
   /** Write a publish-log row for the status change a new revision causes (not for approve-with-edits). */
   logStatusChange: boolean;
@@ -188,11 +217,12 @@ export async function appendRevision(
 ): Promise<{ revision: ContentRevision; patch: Partial<ContentItem> }> {
   const { item, payload, built } = args;
   const number = await data.nextRevisionNumber(item.id);
+  const viaApi = args.actor.machine?.type === "api_key";
   const revision = await data.insertRevision(
     {
       itemId: item.id,
       number,
-      kind: args.kind,
+      kind: viaApi ? "api" : args.kind,
       title: payload.title,
       excerpt: payload.excerpt,
       definition: payload.definition,
@@ -204,7 +234,8 @@ export async function appendRevision(
       minhash: built.derived.minhash,
       quality: built.derived.quality,
       note: args.note,
-      createdByUserId: args.actor.userId,
+      createdByUserId: viaApi ? null : args.actor.userId,
+      createdByApiKeyId: viaApi ? (args.actor.machine?.keyId ?? null) : null,
       createdByName: args.actor.name,
       diffStats: diffStats(diffWords(args.previousBodyMd, payload.bodyMd)),
       parentRevisionId: item.currentRevisionId,
@@ -220,14 +251,15 @@ export async function appendRevision(
   await data.replaceMediaRefs(item.id, ["featured", "body", "og"], built.mediaRefs);
   await data.deleteAutosave(item.id, args.actor.userId);
   if (args.logStatusChange && next.status !== item.status) {
+    const stamp = stampOf(args.actor);
     await data.insertPublishLog({
       itemId: item.id,
       revisionId: revision.id,
       fromStatus: item.status,
       toStatus: next.status,
-      actorType: "user",
-      actorId: args.actor.userId,
-      actorName: args.actor.name,
+      actorType: stamp.type,
+      actorId: stamp.id,
+      actorName: stamp.name,
       reason: "revised",
       at: args.now,
     });
@@ -503,7 +535,11 @@ export class ContentItemsService {
   // Create
   // -------------------------------------------------------------------------------------------
 
-  async create(actor: ContentActorCtx, input: CreateContentItemInput): Promise<ContentItemDetail> {
+  async create(
+    actor: ContentActorCtx,
+    input: CreateContentItemInput,
+    options: { externalId?: string } = {},
+  ): Promise<ContentItemDetail> {
     const now = new Date();
     const settings = await this.settings.get("content");
 
@@ -594,6 +630,13 @@ export class ContentItemsService {
             flags: meta.flags,
             wordCount: built.derived.wordCount,
             searchText: built.searchText,
+            ...(actor.machine?.type === "api_key"
+              ? {
+                  source: "api" as const,
+                  apiKeyId: actor.machine.keyId,
+                  externalId: options.externalId ?? null,
+                }
+              : {}),
           },
           now,
         );
@@ -613,6 +656,10 @@ export class ContentItemsService {
         return item.id;
       });
     } catch (error) {
+      // Two concurrent creates with one external id: the loser should retry as an update.
+      if (isUniqueViolation(error, "content_items_api_external_key")) {
+        throw new AppError(ErrorCode.CONFLICT, { details: { reason: "external_id_exists" } });
+      }
       if (isUniqueViolation(error)) throw new AppError(ErrorCode.CONTENT_SLUG_TAKEN);
       throw error;
     }
