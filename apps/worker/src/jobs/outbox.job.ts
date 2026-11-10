@@ -166,7 +166,7 @@ export function outboxHandlers(
               postCommit.push({
                 kind: "alert_delivery" as const,
                 deliveryId: delivery.id,
-                jobId: `alert-delivery:${delivery.id}`,
+                jobId: `alert-delivery-${delivery.id}`,
               });
             }
           }

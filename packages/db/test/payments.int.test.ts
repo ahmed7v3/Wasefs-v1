@@ -899,7 +899,7 @@ describe("outbox", () => {
             {
               kind: "alert_delivery" as const,
               deliveryId: userId,
-              jobId: `alert-delivery:${userId}`,
+              jobId: `alert-delivery-${userId}`,
             },
           ];
         },

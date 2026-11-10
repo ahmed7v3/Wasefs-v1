@@ -23,7 +23,8 @@ export async function pendingDeliverySweepJob(
     )
     .limit(500);
   for (const delivery of pending) {
-    await payments.enqueueAlertDelivery(delivery.id, `alert-delivery:${delivery.id}`);
+    // BullMQ 5 rejects a custom job id containing ':', so the separator must not be one.
+    await payments.enqueueAlertDelivery(delivery.id, `alert-delivery-${delivery.id}`);
   }
 
   const digestCutoff = new Date(now.getTime() - 12 * 60_000);
