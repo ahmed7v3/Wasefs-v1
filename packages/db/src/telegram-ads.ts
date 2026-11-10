@@ -406,7 +406,10 @@ function statsWhere(filter: TelegramAdStatsFilter): SQL {
   return and(...parts) as SQL;
 }
 
-const cairoDay = sql<string>`to_char(${telegramAdEvents.createdAt} at time zone ${STATS_TZ}, 'YYYY-MM-DD')`;
+// Inlined, not bound: `cairoDay` is used in SELECT, GROUP BY and ORDER BY, and a bound value would
+// emit a different placeholder for each use ($1, $6, $7), which Postgres rejects as a GROUP BY
+// violation ("created_at must appear in the GROUP BY clause"). Keep in sync with STATS_TZ.
+const cairoDay = sql<string>`to_char(${telegramAdEvents.createdAt} at time zone 'Africa/Cairo', 'YYYY-MM-DD')`;
 
 export async function telegramAdTotals(
   db: Handle,
