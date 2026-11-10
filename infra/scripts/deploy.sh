@@ -86,15 +86,25 @@ if [[ "${DEPLOY_SKIP_PULL:-0}" != "1" ]]; then
 fi
 
 # Caddy runs with `admin off`, so it reads its config only at start. The workflow has already copied
-# the new Caddyfile; when it changed since the last healthy release, validate it in the running
-# container (before anything is touched) and restart Caddy after `up`.
+# the new Caddyfile; when it changed since the last healthy release, validate the file we are about
+# to install (before anything is touched) and restart Caddy after `up`.
+#
+# Validate a copy staged in the container's /tmp instead of /etc/caddy/Caddyfile: that path is a
+# bind-mounted file, and a file replaced on the host keeps the running container pointing at the
+# previous inode until it restarts. Validating it can therefore check stale content and pass a file
+# that will make the restarted Caddy fail to load.
 caddy_config_sum() { cat Caddyfile caddy/* 2>/dev/null | sha256sum | cut -d' ' -f1; }
 CADDY_SUM="$(caddy_config_sum)"
 CADDY_RESTART=0
 if [[ "$CADDY_SUM" != "$(cat .caddy-config-sum 2>/dev/null || true)" ]]; then
   if [[ -n "$(dc ps -q caddy 2>/dev/null)" ]]; then
-    dc exec -T caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 \
-      || die "the new Caddyfile is invalid; the running release was not touched"
+    dc exec -T caddy sh -c 'cat > /tmp/Caddyfile.check' < Caddyfile \
+      || die "could not stage the new Caddyfile for validation; the running release was not touched"
+    if ! dc exec -T caddy caddy validate --config /tmp/Caddyfile.check --adapter caddyfile >/dev/null 2>&1; then
+      dc exec -T caddy rm -f /tmp/Caddyfile.check >/dev/null 2>&1 || true
+      die "the new Caddyfile is invalid; the running release was not touched"
+    fi
+    dc exec -T caddy rm -f /tmp/Caddyfile.check >/dev/null 2>&1 || true
   fi
   CADDY_RESTART=1
 fi
