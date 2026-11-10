@@ -102,6 +102,10 @@ export function buildCsp({
       ],
     ],
     ["style-src", ["'self'", `'nonce-${nonce}'`]],
+    // Style ATTRIBUTES (a per-image focal point and its blur-up placeholder) cannot carry a nonce.
+    // Allowing only attributes keeps <style>/<link> locked to the nonce above; attributes cannot
+    // run script.
+    ["style-src-attr", ["'unsafe-inline'"]],
     // The API origin serves the uploaded logo and favicon (`/assets/<key>`); the media origin
     // serves every published picture (`<ContentImage>`).
     ["img-src", imgSources],

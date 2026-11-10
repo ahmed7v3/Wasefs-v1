@@ -19,7 +19,8 @@ describe("buildCsp", () => {
   it("allows scripts only from self, the nonce and strict-dynamic", () => {
     const csp = buildCsp(base);
     expect(directive(csp, "script-src")).toEqual(["'self'", "'nonce-abc123'", "'strict-dynamic'"]);
-    expect(csp).not.toContain("unsafe-inline");
+    expect(directive(csp, "script-src")).not.toContain("'unsafe-inline'");
+    expect(directive(csp, "style-src")).not.toContain("'unsafe-inline'");
     expect(csp).not.toContain("unsafe-eval");
   });
 
@@ -102,8 +103,9 @@ describe("buildCsp", () => {
     const on = buildCsp({ ...base, turnstile: true });
     expect(directive(on, "script-src")).toContain("https://challenges.cloudflare.com");
     expect(directive(on, "frame-src")).toEqual(["https://challenges.cloudflare.com"]);
-    // Nothing else widens: no inline scripts, no extra connect sources.
-    expect(on).not.toContain("unsafe-inline");
+    // Nothing else widens: no inline scripts or stylesheets, no extra connect sources.
+    expect(directive(on, "script-src")).not.toContain("'unsafe-inline'");
+    expect(directive(on, "style-src")).not.toContain("'unsafe-inline'");
     expect(directive(on, "connect-src")).toEqual(["'self'", "https://api.wasfa.online"]);
   });
 
@@ -119,8 +121,15 @@ describe("buildCsp", () => {
     ]);
   });
 
-  it("only upgrades insecure requests when asked", () => {
-    expect(buildCsp(base)).toContain("upgrade-insecure-requests");
+  it("allows style attributes but keeps inline stylesheets nonce-locked", () => {
+    const csp = buildCsp(base);
+    // Per-image focal point and blur-up placeholder are set as style attributes, which cannot be
+    // nonced; without this Chrome blocks them and logs a violation on every content page.
+    expect(directive(csp, "style-src-attr")).toEqual(["'unsafe-inline'"]);
+    expect(directive(csp, "style-src")).toEqual(["'self'", "'nonce-abc123'"]);
+  });
+
+  it("only upgrades insecure requests when asked", () => {    expect(buildCsp(base)).toContain("upgrade-insecure-requests");
     expect(buildCsp({ ...base, upgradeInsecure: false })).not.toContain(
       "upgrade-insecure-requests",
     );
