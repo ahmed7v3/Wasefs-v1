@@ -52,7 +52,12 @@ export async function pendingDeliverySweepJob(
     .limit(500);
   for (const delivery of pending) {
     // BullMQ 5 rejects a custom job id containing ':', so the separator must not be one.
-    await payments.enqueueAlertDelivery(delivery.id, `alert-delivery-${delivery.id}`);
+    const jobId = `alert-delivery-${delivery.id}`;
+    // A job that already exists cannot be added again: BullMQ ignores `add` for a known id. Without
+    // this check a window full of deliveries deferred until tomorrow's mail quota would still be
+    // re-added to nothing on every pass and hide every younger row - the state this fix ships to.
+    if (await payments.alertDeliveryJobExists(jobId)) continue;
+    await payments.enqueueAlertDelivery(delivery.id, jobId);
   }
 
   const digestCutoff = new Date(now.getTime() - 12 * 60_000);

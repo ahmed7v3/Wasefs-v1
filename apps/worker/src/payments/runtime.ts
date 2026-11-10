@@ -28,6 +28,8 @@ export interface PaymentsRuntime {
   /** Queues a mail; `jobId` makes a repeated call (outbox retry) a no-op while the job exists. */
   enqueueEmail(payload: EmailSendInput, jobId: string): Promise<void>;
   enqueueAlertDelivery(deliveryId: string, jobId: string): Promise<void>;
+  /** True while a job with this id exists (waiting, active, delayed, completed or failed). */
+  alertDeliveryJobExists(jobId: string): Promise<boolean>;
   enqueueAlertDigest(
     input: {
       adminUserId: string;
@@ -89,6 +91,9 @@ export function createPaymentsRuntime(
     },
     async enqueueAlertDelivery(deliveryId, jobId) {
       await notifications.add("alerts.deliver", { deliveryId }, { jobId });
+    },
+    async alertDeliveryJobExists(jobId) {
+      return (await notifications.getJob(jobId)) !== undefined;
     },
     async enqueueAlertDigest(input, delayMs) {
       const jobId = `alert-digest-${input.adminUserId}-${input.channel}-${Date.parse(input.windowStart)}`;
