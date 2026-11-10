@@ -40,8 +40,10 @@ services:
     cap_add: [NET_BIND_SERVICE, DAC_READ_SEARCH]
     ports:
       # Overridable only so the stack can run next to other software on a developer machine.
-      - "${HTTP_PORT:-80}:80"
-      - "${HTTPS_PORT:-443}:443"
+      # HTTP_BIND / HTTPS_BIND = "127.0.0.1:" publishes the port on the loopback only. Tunnel mode
+      # (docs/HYPERV-TUNNEL-DEPLOY.md) sets it: cloudflared on the host is the only client.
+      - "${HTTP_BIND:-}${HTTP_PORT:-80}:80"
+      - "${HTTPS_BIND:-}${HTTPS_PORT:-443}:443"
     environment:
       SITE_DOMAIN: ${SITE_DOMAIN:-wasfa.online}
       API_DOMAIN: ${API_DOMAIN:-api.wasfa.online}
