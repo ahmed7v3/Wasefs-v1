@@ -34,9 +34,11 @@ import { alertDeliveryJob } from "../src/alerts/alert-delivery.job.js";
 import { alertDigestJob } from "../src/alerts/alert-digest.job.js";
 import { pendingDeliverySweepJob } from "../src/alerts/pending-delivery-sweep.job.js";
 import { WA_ALERT_OPTIN_JIDS, processAlertOptIn } from "../src/alerts/wa-optins.loop.js";
+import { DeferJob } from "../src/defer.js";
 import { outboxHandlers } from "../src/jobs/outbox.job.js";
 import { applyDuePaymentMethodChangesJob } from "../src/jobs/payment-method-account-changes.job.js";
 import { paymentsReviewSlaJob } from "../src/jobs/payments-review-sla.job.js";
+import { utcDay } from "../src/notifications/cap-guard.js";
 import { createEmailRuntime } from "../src/notifications/email.js";
 
 import { testEnv } from "./support/env.js";
@@ -477,6 +479,161 @@ describe("admin alert fan-out", () => {
       .from(alertDeliveries)
       .where(eq(alertDeliveries.alertId, digestAlertId));
     expect(sent?.status).toBe("sent");
+  }, 60_000);
+});
+
+describe("pending delivery sweep", () => {
+  const raiseTestAlert = () =>
+    raiseAdminAlert(db.db, {
+      kind: "system.test",
+      severity: "info",
+      refType: "user",
+      refId: adminId,
+      summary: "Sweep fixture alert.",
+      link: "/admin/notifications",
+    });
+
+  it("does not let cap-deferred rows starve the rest of the backlog", async () => {
+    await db.db.delete(alertDeliveries);
+    const alertId = await raiseTestAlert();
+    // More deferred rows than the sweep's 500-row window, so any implementation that keeps
+    // returning them hides the Telegram row below for ever.
+    const hourAgo = new Date(Date.now() - 60 * 60_000);
+    const inserted = await db.db
+      .insert(alertDeliveries)
+      .values(
+        Array.from({ length: 520 }, () => ({
+          alertId,
+          adminUserId: adminId,
+          channel: "email" as const,
+          status: "pending" as const,
+          attempts: 1,
+          error: "deferred",
+          createdAt: hourAgo,
+        })),
+      )
+      .returning({ id: alertDeliveries.id });
+    const [actionable] = await db.db
+      .insert(alertDeliveries)
+      .values({
+        alertId,
+        adminUserId: adminId,
+        channel: "telegram",
+        status: "pending",
+        createdAt: new Date(Date.now() - 5 * 60_000),
+      })
+      .returning();
+    if (!actionable) throw new Error("delivery insert failed");
+
+    const enqueued: string[] = [];
+    await pendingDeliverySweepJob(
+      {},
+      {
+        db: db.db,
+        redis,
+        logger,
+        email: emailRuntime,
+        payments: {
+          enqueueAlertDelivery: async (id: string) => {
+            enqueued.push(id);
+          },
+          enqueueAlertDigest: async () => undefined,
+        } as unknown as PaymentsRuntime,
+      },
+      new Date(),
+    );
+
+    expect(enqueued).toEqual([actionable.id]);
+    expect(enqueued).not.toContain(inserted[0]?.id);
+  }, 60_000);
+
+  it("marks a cap-deferred email delivery instead of failing it", async () => {
+    await db.db.delete(alertDeliveries);
+    const alertId = await raiseTestAlert();
+    const [row] = await db.db
+      .insert(alertDeliveries)
+      .values({ alertId, adminUserId: adminId, channel: "email", status: "pending" })
+      .returning();
+    if (!row) throw new Error("delivery insert failed");
+
+    const dayKey = `mail:count:${utcDay(Date.now())}`;
+    await redis.set(dayKey, "1");
+    const capped = createEmailRuntime(
+      testEnv(redisInfra.url, {
+        MAIL_DAILY_CAP: "1",
+        ALERT_TELEGRAM_BOT_TOKEN: "123456:stub-token",
+        WEB_ORIGIN: "https://wasfa.example",
+      }),
+      redis,
+      logger,
+    );
+    try {
+      await expect(
+        alertDeliveryJob(
+          { deliveryId: row.id },
+          {
+            db: db.db,
+            redis,
+            logger,
+            email: capped,
+            env: testEnv(redisInfra.url, { ALERT_TELEGRAM_BOT_TOKEN: "123456:stub-token" }),
+          },
+        ),
+      ).rejects.toBeInstanceOf(DeferJob);
+    } finally {
+      await capped.transport.close();
+      await redis.del(dayKey);
+    }
+
+    const [after] = await db.db
+      .select()
+      .from(alertDeliveries)
+      .where(eq(alertDeliveries.id, row.id));
+    // Still pending for the delayed job, out of the sweep's candidates, and no attempt burned.
+    expect(after).toMatchObject({ status: "pending", error: "deferred", attempts: 0 });
+  }, 60_000);
+
+  it("re-arms a deferred row whose delayed job never ran", async () => {
+    await db.db.delete(alertDeliveries);
+    const alertId = await raiseTestAlert();
+    const [row] = await db.db
+      .insert(alertDeliveries)
+      .values({
+        alertId,
+        adminUserId: adminId,
+        channel: "email",
+        status: "pending",
+        error: "deferred",
+        attempts: 1,
+        createdAt: new Date(Date.now() - 48 * 60 * 60_000),
+      })
+      .returning();
+    if (!row) throw new Error("delivery insert failed");
+
+    const enqueued: string[] = [];
+    await pendingDeliverySweepJob(
+      {},
+      {
+        db: db.db,
+        redis,
+        logger,
+        email: emailRuntime,
+        payments: {
+          enqueueAlertDelivery: async (id: string) => {
+            enqueued.push(id);
+          },
+          enqueueAlertDigest: async () => undefined,
+        } as unknown as PaymentsRuntime,
+      },
+      new Date(),
+    );
+
+    expect(enqueued).toEqual([row.id]);
+    const [after] = await db.db
+      .select()
+      .from(alertDeliveries)
+      .where(eq(alertDeliveries.id, row.id));
+    expect(after?.error).toBeNull();
   }, 60_000);
 });
 
