@@ -4,7 +4,7 @@ import { REFERRAL_COOKIE, normalizeReferralCode, referralCookie } from "./lib/at
 import { botHitFor, reportBotHit } from "./lib/bot-report";
 import { classifyBot } from "./lib/bots";
 import { getPublicPathState } from "./lib/content-api";
-import { SECURITY_HEADERS, buildCsp, generateNonce, parseSources } from "./lib/csp";
+import { SECURITY_HEADERS, buildCsp, generateNonce, originOf, parseSources } from "./lib/csp";
 import {
   EARLY_VARIANT_COOKIE,
   earlyDomain,
@@ -59,6 +59,7 @@ export async function proxy(request: NextRequest, event: NextFetchEvent): Promis
     nonce,
     isDev: process.env.NODE_ENV === "development",
     apiOrigin: new URL(publicEnv.NEXT_PUBLIC_API_URL).origin,
+    mediaOrigin: originOf(publicEnv.NEXT_PUBLIC_MEDIA_ORIGIN),
     upgradeInsecure: isProduction,
     turnstile: publicEnv.NEXT_PUBLIC_TURNSTILE_SITE_KEY !== undefined,
     extra: {
