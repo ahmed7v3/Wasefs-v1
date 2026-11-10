@@ -134,6 +134,9 @@ export async function alertDigestJob(
       .set({ status: "sent", sentAt: new Date(), error: null })
       .where(and(inArray(alertDeliveries.id, deliveryIds), eq(alertDeliveries.status, "pending")));
   } catch (error) {
+    // A cap deferral is not a failed digest: the delayed job tries again after midnight, and the
+    // pending rows must keep their `digest_pending` marker for that retry.
+    if (error instanceof DeferJob) throw error;
     const code =
       error instanceof Error && error.message === "telegram_http" ? "telegram_http" : "send_failed";
     for (const { delivery } of pending) {
