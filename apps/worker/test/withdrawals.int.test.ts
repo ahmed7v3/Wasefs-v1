@@ -46,6 +46,7 @@ const runtime = {
   webOrigin: "https://wasfa.example",
   enqueueEmail: async () => undefined,
   enqueueAlertDelivery: async () => undefined,
+  alertDeliveryJobExists: async () => false,
   enqueueAlertDigest: async () => undefined,
 };
 

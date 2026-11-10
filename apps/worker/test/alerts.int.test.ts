@@ -139,6 +139,7 @@ describe("admin alert fan-out", () => {
       webOrigin: "https://wasfa.example",
       enqueueEmail: async () => undefined,
       enqueueAlertDelivery: async () => undefined,
+      alertDeliveryJobExists: async () => false,
       enqueueAlertDigest: async () => undefined,
     };
     const fanOut = outboxHandlers(runtime)["alerts.fan_out"];
@@ -269,6 +270,7 @@ describe("admin alert fan-out", () => {
       webOrigin: "https://wasfa.example",
       enqueueEmail: async () => undefined,
       enqueueAlertDelivery: async () => undefined,
+      alertDeliveryJobExists: async () => false,
       enqueueAlertDigest: async () => undefined,
     };
     const fanOut = outboxHandlers(runtime)["alerts.fan_out"];
@@ -317,6 +319,7 @@ describe("admin alert fan-out", () => {
       webOrigin: "https://wasfa.example",
       enqueueEmail: async () => undefined,
       enqueueAlertDelivery: async () => undefined,
+      alertDeliveryJobExists: async () => false,
       enqueueAlertDigest: async () => undefined,
     };
     const fanOut = outboxHandlers(runtime)["alerts.fan_out"];
@@ -434,6 +437,7 @@ describe("admin alert fan-out", () => {
       | undefined;
     const payments = {
       enqueueAlertDelivery: async () => undefined,
+      alertDeliveryJobExists: async () => false,
       enqueueAlertDigest: async (input: {
         adminUserId: string;
         channel: "email" | "telegram" | "whatsapp";
@@ -534,6 +538,7 @@ describe("pending delivery sweep", () => {
         logger,
         email: emailRuntime,
         payments: {
+          alertDeliveryJobExists: async () => false,
           enqueueAlertDelivery: async (id: string) => {
             enqueued.push(id);
           },
@@ -593,6 +598,49 @@ describe("pending delivery sweep", () => {
     expect(after).toMatchObject({ status: "pending", error: "deferred", attempts: 0 });
   }, 60_000);
 
+  it("skips a pending row whose delayed job already exists", async () => {
+    await db.db.delete(alertDeliveries);
+    const alertId = await raiseTestAlert();
+    const [row] = await db.db
+      .insert(alertDeliveries)
+      .values({
+        alertId,
+        adminUserId: adminId,
+        channel: "email",
+        status: "pending",
+        createdAt: new Date(Date.now() - 5 * 60_000),
+      })
+      .returning();
+    if (!row) throw new Error("delivery insert failed");
+
+    const enqueued: string[] = [];
+    const asked: string[] = [];
+    await pendingDeliverySweepJob(
+      {},
+      {
+        db: db.db,
+        redis,
+        logger,
+        email: emailRuntime,
+        payments: {
+          alertDeliveryJobExists: async (jobId: string) => {
+            asked.push(jobId);
+            return true;
+          },
+          enqueueAlertDelivery: async (id: string) => {
+            enqueued.push(id);
+          },
+          enqueueAlertDigest: async () => undefined,
+        } as unknown as PaymentsRuntime,
+      },
+      new Date(),
+    );
+
+    // The deferred-until-tomorrow job is already there; adding the same id would be a silent no-op.
+    expect(asked).toContain(`alert-delivery-${row.id}`);
+    expect(enqueued).toEqual([]);
+  }, 60_000);
+
   it("re-arms a deferred row whose delayed job never ran", async () => {
     await db.db.delete(alertDeliveries);
     const alertId = await raiseTestAlert();
@@ -619,6 +667,7 @@ describe("pending delivery sweep", () => {
         logger,
         email: emailRuntime,
         payments: {
+          alertDeliveryJobExists: async () => false,
           enqueueAlertDelivery: async (id: string) => {
             enqueued.push(id);
           },
@@ -982,6 +1031,7 @@ describe("protected account change, worker side", () => {
       webOrigin: "https://wasfa.example",
       enqueueEmail: async () => undefined,
       enqueueAlertDelivery: async () => undefined,
+      alertDeliveryJobExists: async () => false,
       enqueueAlertDigest: async () => undefined,
     };
     const fanOut = outboxHandlers(runtime)["alerts.fan_out"];

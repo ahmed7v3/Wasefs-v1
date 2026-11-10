@@ -54,6 +54,7 @@ const runtime = {
   webOrigin: "https://wasfa.example",
   enqueueEmail: () => Promise.resolve(),
   enqueueAlertDelivery: () => Promise.resolve(),
+  alertDeliveryJobExists: async () => false,
   enqueueAlertDigest: () => Promise.resolve(),
 };
 const drain = () => drainOutbox(worker.db, outboxHandlers(runtime), new Date(), 100);
