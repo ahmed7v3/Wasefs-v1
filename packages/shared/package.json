@@ -365,6 +365,11 @@
       "import": "./dist/schemas/wa-agent.js",
       "default": "./dist/schemas/wa-agent.js"
     },
+    "./schemas/telegram-pdf": {
+      "types": "./dist/schemas/telegram-pdf.d.ts",
+      "import": "./dist/schemas/telegram-pdf.js",
+      "default": "./dist/schemas/telegram-pdf.js"
+    },
     "./schemas/wa-document": {
       "types": "./dist/schemas/wa-document.d.ts",
       "import": "./dist/schemas/wa-document.js",
@@ -484,6 +489,16 @@
       "types": "./dist/schemas/early-access.d.ts",
       "import": "./dist/schemas/early-access.js",
       "default": "./dist/schemas/early-access.js"
+    },
+    "./telegram-ads": {
+      "types": "./dist/telegram-ads.d.ts",
+      "import": "./dist/telegram-ads.js",
+      "default": "./dist/telegram-ads.js"
+    },
+    "./schemas/admin-telegram-ads": {
+      "types": "./dist/schemas/admin-telegram-ads.d.ts",
+      "import": "./dist/schemas/admin-telegram-ads.js",
+      "default": "./dist/schemas/admin-telegram-ads.js"
     }
   },
   "files": [

@@ -23,6 +23,8 @@ export const DISALLOWED_PATHS = [
   "/drugs/search",
   // First-party ad click redirect: never crawled (the route is `/a/<id>`).
   "/a/",
+  // Telegram ad click redirect (the route is `/t/<token>`).
+  "/t/",
 ] as const;
 
 /** Path of the IndexNow key file route; the worker sender passes it as `keyLocation`. */
@@ -51,6 +53,7 @@ const NOINDEX_PREFIXES = [
   "/invite",
   "/join",
   "/a",
+  "/t",
 ] as const;
 
 export function isNoindexPath(pathname: string): boolean {

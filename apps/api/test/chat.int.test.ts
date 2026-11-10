@@ -464,7 +464,16 @@ describe("POST /ai/chats/:id/messages", () => {
     const settings = app.get(SettingsService);
     await settings.set(
       "ai",
-      { killSwitch: { all: false, rx: false, chat: true, search: false, wa_agent: false } },
+      {
+        killSwitch: {
+          all: false,
+          rx: false,
+          chat: true,
+          search: false,
+          wa_agent: false,
+          telegram_agent: false,
+        },
+      },
       { actorId: null },
     );
     try {
@@ -478,7 +487,16 @@ describe("POST /ai/chats/:id/messages", () => {
     } finally {
       await settings.set(
         "ai",
-        { killSwitch: { all: false, rx: false, chat: false, search: false, wa_agent: false } },
+        {
+          killSwitch: {
+            all: false,
+            rx: false,
+            chat: false,
+            search: false,
+            wa_agent: false,
+            telegram_agent: false,
+          },
+        },
         { actorId: null },
       );
     }

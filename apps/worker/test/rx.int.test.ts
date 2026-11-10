@@ -692,14 +692,14 @@ describe("rx.analyze", () => {
       .values({
         key: "ai",
         value: {
-          killSwitch: { all: false, rx: true, chat: false, search: false, wa_agent: false },
+          killSwitch: { all: false, rx: true, chat: false, search: false, wa_agent: false, telegram_agent: false },
         },
       })
       .onConflictDoUpdate({
         target: siteSettings.key,
         set: {
           value: {
-            killSwitch: { all: false, rx: true, chat: false, search: false, wa_agent: false },
+            killSwitch: { all: false, rx: true, chat: false, search: false, wa_agent: false, telegram_agent: false },
           },
         },
       });

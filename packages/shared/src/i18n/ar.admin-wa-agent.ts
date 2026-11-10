@@ -290,6 +290,7 @@ export const arAdminWaAgent = {
   "admin.telegram.settings.title": "الإعدادات",
   "admin.telegram.settings.enabled": "تفعيل البوت",
   "admin.telegram.settings.adsEnabled": "الإعلانات على تيليجرام",
+  "admin.telegram.settings.autoPdf": "إرسال ملف PDF تلقائياً بعد كل تحليل",
   "admin.telegram.stats.sharedPhones": "أرقام تمت مشاركتها",
   "admin.telegram.settings.welcomeAr": "رسالة الترحيب بالعربية",
   "admin.telegram.settings.welcomeEn": "رسالة الترحيب بالإنجليزية",

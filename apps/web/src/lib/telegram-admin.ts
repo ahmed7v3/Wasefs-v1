@@ -30,6 +30,7 @@ export const telegramSettingsSchema = z.object({
   welcomeEn: z.string().max(TELEGRAM_WELCOME_MAX),
   supportUsername: z.string().max(TELEGRAM_SUPPORT_MAX),
   adsEnabled: z.boolean(),
+  autoPdf: z.boolean(),
 });
 export type TelegramSettings = z.infer<typeof telegramSettingsSchema>;
 

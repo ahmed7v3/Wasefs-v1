@@ -50,6 +50,18 @@ export interface SendOptions {
   html?: boolean;
 }
 
+/** A file the bot uploads (photo or document): bytes, not a URL, so Telegram never has to fetch us. */
+export interface TelegramUpload {
+  bytes: Uint8Array;
+  filename: string;
+  contentType: string;
+}
+
+export interface SendMediaOptions extends SendOptions {
+  /** Caption (HTML unless html is false). Photos: 1024 chars max; documents: 1024 too. */
+  caption?: string | undefined;
+}
+
 export const BOT_COMMANDS = {
   ar: [
     ["start", "ابدأ"],
@@ -92,14 +104,16 @@ export class TelegramApi {
       }),
   ) {}
 
-  private async call<T>(method: string, body: Record<string, unknown> = {}): Promise<T> {
+  private async call<T>(method: string, body: Record<string, unknown> | FormData = {}): Promise<T> {
+    const isForm = body instanceof FormData;
     for (let attempt = 0; ; attempt += 1) {
       let response: Response;
       try {
         response = await this.fetchImpl(`${API_ROOT}/bot${this.token}/${method}`, {
           method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(body),
+          // A FormData body sets its own multipart content type (with the boundary).
+          ...(isForm ? {} : { headers: { "content-type": "application/json" } }),
+          body: isForm ? body : JSON.stringify(body),
           signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         });
       } catch {
@@ -171,6 +185,41 @@ export class TelegramApi {
     });
   }
 
+  private mediaForm(
+    chatId: number,
+    field: "photo" | "document",
+    file: TelegramUpload,
+    options: SendMediaOptions,
+  ): FormData {
+    const form = new FormData();
+    form.set("chat_id", String(chatId));
+    form.set(field, new Blob([Buffer.from(file.bytes)], { type: file.contentType }), file.filename);
+    if (options.caption) {
+      form.set("caption", options.caption);
+      if (options.html !== false) form.set("parse_mode", "HTML");
+    }
+    if (options.replyMarkup) form.set("reply_markup", JSON.stringify(options.replyMarkup));
+    return form;
+  }
+
+  /** Sends an image with an optional caption and inline buttons (a multipart upload). */
+  sendPhoto(
+    chatId: number,
+    photo: TelegramUpload,
+    options: SendMediaOptions = {},
+  ): Promise<SentMessage> {
+    return this.call("sendPhoto", this.mediaForm(chatId, "photo", photo, options));
+  }
+
+  /** Sends a file (the analysis PDF) as a downloadable document (a multipart upload). */
+  sendDocument(
+    chatId: number,
+    file: TelegramUpload,
+    options: SendMediaOptions = {},
+  ): Promise<SentMessage> {
+    return this.call("sendDocument", this.mediaForm(chatId, "document", file, options));
+  }
+
   async editMessageText(
     chatId: number,
     messageId: number,
@@ -193,11 +242,37 @@ export class TelegramApi {
     }
   }
 
+  /** Replaces the buttons under a message (an empty keyboard removes them); "not modified" is fine. */
+  async editMessageReplyMarkup(
+    chatId: number,
+    messageId: number,
+    replyMarkup: ReplyMarkup,
+  ): Promise<void> {
+    try {
+      await this.call("editMessageReplyMarkup", {
+        chat_id: chatId,
+        message_id: messageId,
+        reply_markup: replyMarkup,
+      });
+    } catch (error) {
+      if (error instanceof TelegramApiError && error.message.includes("not modified")) return;
+      throw error;
+    }
+  }
+
+  /** Removes a message (the PDF progress line once the file is sent); the caller ignores a failure. */
+  async deleteMessage(chatId: number, messageId: number): Promise<void> {
+    await this.call("deleteMessage", { chat_id: chatId, message_id: messageId });
+  }
+
   async answerCallbackQuery(id: string, text?: string): Promise<void> {
     await this.call("answerCallbackQuery", { callback_query_id: id, ...(text ? { text } : {}) });
   }
 
-  async sendChatAction(chatId: number, action: "typing" | "upload_photo"): Promise<void> {
+  async sendChatAction(
+    chatId: number,
+    action: "typing" | "upload_photo" | "upload_document",
+  ): Promise<void> {
     await this.call("sendChatAction", { chat_id: chatId, action });
   }
 

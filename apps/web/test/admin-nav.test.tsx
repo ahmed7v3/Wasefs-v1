@@ -94,6 +94,7 @@ describe("visibleNavGroups", () => {
       "/admin/whatsapp",
       "/admin/whatsapp/agent",
       "/admin/telegram",
+      "/admin/telegram/ads",
       "/admin/content?type=article",
       "/admin/content?type=guide",
       "/admin/content?type=glossary",
@@ -173,6 +174,14 @@ describe("visibleNavGroups", () => {
     expect(isNavActive("/admin/whatsapp", "/admin/whatsapp/agent")).toBe(false);
     expect(isNavActive("/admin/whatsapp/agent", "/admin/whatsapp/agent")).toBe(true);
     expect(navItemFor("/admin/whatsapp/agent")?.href).toBe("/admin/whatsapp/agent");
+  });
+
+  it("shows the Telegram ads console to ads.read, with the longest entry active on its sub-pages", () => {
+    expect(hrefs(["ads.read"])).toContain("/admin/telegram/ads");
+    expect(hrefs(["wa_agent.read"])).not.toContain("/admin/telegram/ads");
+    expect(isNavActive("/admin/telegram", "/admin/telegram/ads/settings")).toBe(false);
+    expect(isNavActive("/admin/telegram/ads", "/admin/telegram/ads/settings")).toBe(true);
+    expect(navItemFor("/admin/telegram/ads/creatives")?.href).toBe("/admin/telegram/ads");
   });
 
   it("canAccess treats a missing permission as denied and null as open", () => {

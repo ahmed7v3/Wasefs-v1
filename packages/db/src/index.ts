@@ -30,6 +30,7 @@ export * from "./seed-billing.js";
 export * from "./seed-data.js";
 export * from "./site-assets-write.js";
 export * from "./subscriptions.js";
+export * from "./telegram-ads.js";
 export * from "./telegram.js";
 export * from "./wa-agent-commerce.js";
 export * from "./wa-agent-turn.js";

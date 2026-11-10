@@ -11,6 +11,7 @@ export const enAdminBilling: Partial<Record<keyof typeof arAdminBilling, string>
   "admin.ai.task.summarize": "Summarizing",
   "admin.ai.task.web_search": "Web search",
   "admin.ai.task.wa_agent": "WhatsApp agent",
+  "admin.ai.task.telegram_agent": "Telegram bot",
   "admin.ai.mode.fast": "Fast",
   "admin.ai.mode.balanced": "Balanced",
   "admin.ai.mode.deep": "Deep",
