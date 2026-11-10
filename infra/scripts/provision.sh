@@ -13,7 +13,10 @@
 #   DEPLOY_AUTHORIZED_KEYS_FILE   file with the public key(s) allowed to log in as `deploy`
 #                                 (the GitHub Actions deploy key's public half, plus yours).
 # Optional
-#   ADMIN_USER                    the account you are logged in with and that keeps sudo
+#   TUNNEL_MODE                   1 = server behind a Cloudflare Tunnel (no public address; docs/HYPERV-TUNNEL-DEPLOY.md):
+#                                 no Cloudflare-only web firewall, timezone untouched, cloudflared installed.
+#                                 Set OWNER_IP_CIDR to your LAN (e.g. 172.29.90.0/24). TUNNEL_TOKEN installs the service.
+#   ADMIN_USER                   the account you are logged in with and that keeps sudo
 #                                 (default: $SUDO_USER, else ubuntu). Its authorized_keys must work!
 #   AUTO_REBOOT                   1 (default) = unattended-upgrades reboots at 03:30 UTC when a
 #                                 kernel update needs it; 0 = never reboot automatically.
@@ -78,7 +81,8 @@ grep -Eq '^(ssh-ed25519|ssh-rsa|ecdsa-sha2-[a-z0-9-]+|sk-ssh-ed25519@openssh.com
 
 # --- 1. Base system -----------------------------------------------------------------------------
 log "Base system: UTC, updates, packages"
-run timedatectl set-timezone UTC
+# Tunnel mode keeps the owner's own timezone (the backup timer below names UTC explicitly).
+[[ "${TUNNEL_MODE:-0}" == "1" ]] || run timedatectl set-timezone UTC
 run apt-get update -y
 run env DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
 run env DEBIAN_FRONTEND=noninteractive apt-get install -y \
@@ -137,6 +141,24 @@ else
 fi
 
 # --- 4. Firewall --------------------------------------------------------------------------------
+if [[ "${TUNNEL_MODE:-0}" == "1" ]]; then
+  # Cloudflare Tunnel: cloudflared connects OUT, so nothing needs to reach ports 80/443 from outside.
+  # SSH is allowed from OWNER_IP_CIDR only (the LAN, e.g. 172.29.90.0/24). Caddy's ports are published
+  # on 127.0.0.1 (HTTPS_BIND in .env.prod), so Docker's iptables bypass of UFW exposes nothing.
+  log "Firewall (tunnel mode): UFW, SSH from the LAN only, no web ports"
+  if (( ! DRY_RUN )); then
+    ufw default deny incoming
+    ufw default allow outgoing
+    if [[ -n "${OWNER_IP_CIDR:-}" ]]; then
+      ufw allow proto tcp from "$OWNER_IP_CIDR" to any port 22 comment ssh-owner
+    else
+      ufw limit 22/tcp comment ssh-anywhere
+    fi
+  else
+    echo "  [dry-run] ufw default deny incoming; allow 22 from ${OWNER_IP_CIDR:-anywhere (rate limited)}"
+  fi
+  run ufw --force enable
+else
 log "Firewall: UFW + Docker (DOCKER-USER) restricted to Cloudflare"
 
 # One script does the work so the weekly timer can re-run it when Cloudflare changes its ranges.
@@ -217,6 +239,7 @@ EOF
 run systemctl daemon-reload
 run systemctl enable --now wasfa-firewall.timer
 run systemctl enable wasfa-firewall.service
+fi
 
 # --- 5. fail2ban --------------------------------------------------------------------------------
 log "fail2ban for SSH"
@@ -327,6 +350,29 @@ WantedBy=timers.target
 EOF
 run systemctl daemon-reload
 run systemctl enable --now wasfa-backup.timer
+
+# --- 10. Cloudflare Tunnel (tunnel mode only) ---------------------------------------------------
+# Pinned release and checksum (same as .github/workflows/deploy.yml); bump both together. With
+# TUNNEL_TOKEN set the service is installed and started; without it only the binary is installed.
+if [[ "${TUNNEL_MODE:-0}" == "1" ]]; then
+  log "cloudflared"
+  CLOUDFLARED_VERSION="2026.10.7"
+  CLOUDFLARED_SHA256="70b1a1e0f46033ffc8d90b406e554044ba6cbf2e4360295ef1163aed31e09393"
+  if (( ! DRY_RUN )); then
+    if ! command -v cloudflared >/dev/null 2>&1; then
+      curl -fsSL -o /tmp/cloudflared.deb \
+        "https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-amd64.deb"
+      echo "${CLOUDFLARED_SHA256}  /tmp/cloudflared.deb" | sha256sum -c -
+      dpkg -i /tmp/cloudflared.deb
+      rm -f /tmp/cloudflared.deb
+    fi
+    if [[ -n "${TUNNEL_TOKEN:-}" ]] && ! systemctl is-enabled cloudflared >/dev/null 2>&1; then
+      cloudflared service install "$TUNNEL_TOKEN"
+    fi
+  else
+    echo "  [dry-run] install cloudflared ${CLOUDFLARED_VERSION}; service install when TUNNEL_TOKEN is set"
+  fi
+fi
 
 log "Done"
 cat <<EOF

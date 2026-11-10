@@ -36,6 +36,11 @@ jobs:
     # Secrets live in the `production` environment (Settings -> Environments), where
     # required reviewers can also be configured.
     environment: production
+    env:
+      # Tunnel mode only (repository variable DEPLOY_VIA_TUNNEL=true): cloudflared reads these to
+      # authenticate the SSH hop through Cloudflare Access. Empty otherwise, and then unused.
+      TUNNEL_SERVICE_TOKEN_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+      TUNNEL_SERVICE_TOKEN_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
     steps:
       - name: Resolve commit
         id: sha
@@ -52,8 +57,21 @@ jobs:
           ref: ${{ steps.sha.outputs.value }}
           persist-credentials: false
 
+      - name: Install cloudflared (SSH through Cloudflare Tunnel)
+        if: ${{ vars.DEPLOY_VIA_TUNNEL == 'true' }}
+        run: |
+          # Pinned release and checksum: the binary sees the deploy key's traffic.
+          version=2026.10.7
+          sha256=70b1a1e0f46033ffc8d90b406e554044ba6cbf2e4360295ef1163aed31e09393
+          curl -fsSL -o /tmp/cloudflared.deb \
+            "https://github.com/cloudflare/cloudflared/releases/download/${version}/cloudflared-linux-amd64.deb"
+          echo "${sha256}  /tmp/cloudflared.deb" | sha256sum -c -
+          sudo dpkg -i /tmp/cloudflared.deb
+          cloudflared --version
+
       - name: SSH setup
         env:
+          DEPLOY_VIA_TUNNEL: ${{ vars.DEPLOY_VIA_TUNNEL }}
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
@@ -73,6 +91,11 @@ jobs:
             echo "  IdentitiesOnly yes"
             echo "  StrictHostKeyChecking yes"
             echo "  ServerAliveInterval 15"
+            # The server has no public address: the SSH hop goes through Cloudflare Access
+            # (service token from TUNNEL_SERVICE_TOKEN_ID / _SECRET in the job environment).
+            if [[ "${DEPLOY_VIA_TUNNEL:-}" == "true" ]]; then
+              echo "  ProxyCommand cloudflared access ssh --hostname %h"
+            fi
           } > ~/.ssh/config
 
       - name: Sync stack configuration
