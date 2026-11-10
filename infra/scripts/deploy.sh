@@ -127,6 +127,14 @@ if (( started == 0 )); then
   if wait_ready; then
     printf '%s\n' "$SHA" > .deployed-sha
     printf '%s\n' "$CADDY_SUM" > .caddy-config-sum
+    # A manual `docker compose` run reads IMAGE_TAG from .env.prod (the workflow only exports it for
+    # its own run). Keep it on the release that is actually running, so nobody starts a different -
+    # or stale `latest` - image by hand after a deploy.
+    if grep -q '^IMAGE_TAG=' .env.prod; then
+      sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=$SHA/" .env.prod
+    else
+      printf 'IMAGE_TAG=%s\n' "$SHA" >> .env.prod
+    fi
     # Keep images used in the last week so a manual rollback does not need a pull.
     docker image prune -af --filter "until=168h" >/dev/null 2>&1 || true
     log "release $SHA is healthy"

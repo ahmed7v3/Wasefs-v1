@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { extractErrorRef } from "../src/lib/api-error";
-import { SECURITY_HEADERS, buildCsp, generateNonce, parseSources } from "../src/lib/csp";
+import { SECURITY_HEADERS, buildCsp, generateNonce, originOf, parseSources } from "../src/lib/csp";
 
 const base = {
   nonce: "abc123",
@@ -19,7 +19,8 @@ describe("buildCsp", () => {
   it("allows scripts only from self, the nonce and strict-dynamic", () => {
     const csp = buildCsp(base);
     expect(directive(csp, "script-src")).toEqual(["'self'", "'nonce-abc123'", "'strict-dynamic'"]);
-    expect(csp).not.toContain("unsafe-inline");
+    expect(directive(csp, "script-src")).not.toContain("'unsafe-inline'");
+    expect(directive(csp, "style-src")).not.toContain("'unsafe-inline'");
     expect(csp).not.toContain("unsafe-eval");
   });
 
@@ -57,8 +58,31 @@ describe("buildCsp", () => {
     ).toContain("https://cdn.example.com");
   });
 
-  it("adds env-driven extras (Turnstile, analytics) to the right directives", () => {
-    const csp = buildCsp({
+  it("always allows the media origin for images, so uploaded pictures are not blocked", () => {
+    const csp = buildCsp({ ...base, mediaOrigin: "https://media.wasfa.online" });
+    expect(directive(csp, "img-src")).toEqual([
+      "'self'",
+      "blob:",
+      "data:",
+      "https://api.wasfa.online",
+      "https://media.wasfa.online",
+    ]);
+    // Repeating it in the env extra must not duplicate the source.
+    expect(
+      directive(
+        buildCsp({
+          ...base,
+          mediaOrigin: "https://media.wasfa.online",
+          extra: { img: ["https://media.wasfa.online"] },
+        }),
+        "img-src",
+      ),
+    ).toEqual(directive(csp, "img-src"));
+    // No media origin configured (local dev) leaves the policy as it was.
+    expect(directive(buildCsp(base), "img-src")).not.toContain("media.wasfa.online");
+  });
+
+  it("adds env-driven extras (Turnstile, analytics) to the right directives", () => {    const csp = buildCsp({
       ...base,
       extra: {
         script: ["https://challenges.cloudflare.com"],
@@ -79,8 +103,9 @@ describe("buildCsp", () => {
     const on = buildCsp({ ...base, turnstile: true });
     expect(directive(on, "script-src")).toContain("https://challenges.cloudflare.com");
     expect(directive(on, "frame-src")).toEqual(["https://challenges.cloudflare.com"]);
-    // Nothing else widens: no inline scripts, no extra connect sources.
-    expect(on).not.toContain("unsafe-inline");
+    // Nothing else widens: no inline scripts or stylesheets, no extra connect sources.
+    expect(directive(on, "script-src")).not.toContain("'unsafe-inline'");
+    expect(directive(on, "style-src")).not.toContain("'unsafe-inline'");
     expect(directive(on, "connect-src")).toEqual(["'self'", "https://api.wasfa.online"]);
   });
 
@@ -96,8 +121,15 @@ describe("buildCsp", () => {
     ]);
   });
 
-  it("only upgrades insecure requests when asked", () => {
-    expect(buildCsp(base)).toContain("upgrade-insecure-requests");
+  it("allows style attributes but keeps inline stylesheets nonce-locked", () => {
+    const csp = buildCsp(base);
+    // Per-image focal point and blur-up placeholder are set as style attributes, which cannot be
+    // nonced; without this Chrome blocks them and logs a violation on every content page.
+    expect(directive(csp, "style-src-attr")).toEqual(["'unsafe-inline'"]);
+    expect(directive(csp, "style-src")).toEqual(["'self'", "'nonce-abc123'"]);
+  });
+
+  it("only upgrades insecure requests when asked", () => {    expect(buildCsp(base)).toContain("upgrade-insecure-requests");
     expect(buildCsp({ ...base, upgradeInsecure: false })).not.toContain(
       "upgrade-insecure-requests",
     );
@@ -134,6 +166,18 @@ describe("generateNonce", () => {
   });
 });
 
+describe("originOf", () => {
+  it("normalises a configured origin and drops paths, empty and garbage values", () => {
+    expect(originOf("https://media.wasfa.online")).toBe("https://media.wasfa.online");
+    expect(originOf("http://127.0.0.1:9000/wasfa-media")).toBe("http://127.0.0.1:9000");
+    expect(originOf("https://media.wasfa.online/")).toBe("https://media.wasfa.online");
+    expect(originOf(undefined)).toBeUndefined();
+    expect(originOf("")).toBeUndefined();
+    expect(originOf("media.wasfa.online")).toBeUndefined();
+    expect(originOf("javascript:alert(1)")).toBeUndefined();
+  });
+});
+
 describe("SECURITY_HEADERS", () => {
   it("includes the headers required by the task", () => {
     expect(SECURITY_HEADERS).toMatchObject({
@@ -141,6 +185,11 @@ describe("SECURITY_HEADERS", () => {
       "Referrer-Policy": "strict-origin-when-cross-origin",
     });
     expect(SECURITY_HEADERS["Permissions-Policy"]).toContain("geolocation=()");
+  });
+
+  it("does not name features the browser does not recognise", () => {
+    // Chrome logs "Unrecognized feature: 'browsing-topics'" for every document otherwise.
+    expect(SECURITY_HEADERS["Permissions-Policy"]).not.toContain("browsing-topics");
   });
 });
 

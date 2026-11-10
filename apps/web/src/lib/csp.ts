@@ -25,12 +25,33 @@ export function generateNonce(): string {
   return btoa(String.fromCharCode(...bytes));
 }
 
+/**
+ * `https://media.example.com` for a configured origin (MinIO serves `<origin>/<bucket>`, so a path is
+ * dropped). Undefined when unset or unusable, so a bad value cannot widen the policy.
+ */
+export function originOf(value: string | undefined | null): string | undefined {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    // `new URL("javascript:...").origin` is the string "null"; only real web origins are useful.
+    return url.protocol === "http:" || url.protocol === "https:" ? url.origin : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export interface CspOptions {
   nonce: string;
   /** React needs `eval` in development only (it rebuilds server stacks in the browser). */
   isDev: boolean;
   /** Origin of the API, allowed for `fetch`/SSE. */
   apiOrigin: string;
+  /**
+   * Origin that serves published media (`NEXT_PUBLIC_MEDIA_ORIGIN`). Always allowed for images: the
+   * app renders every uploaded picture from it, so forgetting to repeat it in
+   * `CSP_IMG_SRC_EXTRA` used to block them.
+   */
+  mediaOrigin?: string | undefined;
   /** Rewrites http subresources to https. Off outside production so local http still works. */
   upgradeInsecure: boolean;
   /** A Turnstile site key is configured: allow Cloudflare's script and challenge frame. */
@@ -48,12 +69,24 @@ export function buildCsp({
   nonce,
   isDev,
   apiOrigin,
+  mediaOrigin,
   upgradeInsecure,
   turnstile = false,
   extra = {},
 }: CspOptions): string {
   const turnstileSources = turnstile ? [TURNSTILE_ORIGIN] : [];
   const frames = [...turnstileSources, ...(extra.frame ?? [])];
+  // `Set` keeps the header short when an operator repeats the media origin in CSP_IMG_SRC_EXTRA.
+  const imgSources = [
+    ...new Set([
+      "'self'",
+      "blob:",
+      "data:",
+      apiOrigin,
+      ...(mediaOrigin ? [mediaOrigin] : []),
+      ...(extra.img ?? []),
+    ]),
+  ];
   const directives: [string, string[]][] = [
     ["default-src", ["'self'"]],
     [
@@ -69,8 +102,13 @@ export function buildCsp({
       ],
     ],
     ["style-src", ["'self'", `'nonce-${nonce}'`]],
-    // The API origin serves the uploaded logo and favicon (`/assets/<key>`).
-    ["img-src", ["'self'", "blob:", "data:", apiOrigin, ...(extra.img ?? [])]],
+    // Style ATTRIBUTES (a per-image focal point and its blur-up placeholder) cannot carry a nonce.
+    // Allowing only attributes keeps <style>/<link> locked to the nonce above; attributes cannot
+    // run script.
+    ["style-src-attr", ["'unsafe-inline'"]],
+    // The API origin serves the uploaded logo and favicon (`/assets/<key>`); the media origin
+    // serves every published picture (`<ContentImage>`).
+    ["img-src", imgSources],
     ["font-src", ["'self'"]],
     ["connect-src", ["'self'", apiOrigin, ...(extra.connect ?? [])]],
     ["frame-src", frames.length > 0 ? [...frames] : ["'none'"]],
@@ -90,8 +128,8 @@ export const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "strict-origin-when-cross-origin",
   // Camera is for photographing prescriptions later; everything else sensitive stays off.
-  "Permissions-Policy":
-    "camera=(self), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()",
+  // No `browsing-topics`: Chrome does not recognise it here and warns on every document.
+  "Permissions-Policy": "camera=(self), microphone=(), geolocation=(), payment=(), usb=()",
   "X-Frame-Options": "DENY",
   "Cross-Origin-Opener-Policy": "same-origin",
 };
