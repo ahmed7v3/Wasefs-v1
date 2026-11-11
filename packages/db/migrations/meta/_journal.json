@@ -288,6 +288,13 @@
       "when": 1794259100000,
       "tag": "0040_media_api_key",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1794259200000,
+      "tag": "0041_publishing_api_sequence_grant",
+      "breakpoints": true
     }
   ]
 }
