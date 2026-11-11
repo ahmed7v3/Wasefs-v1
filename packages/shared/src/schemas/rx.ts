@@ -165,6 +165,19 @@ export const rxResultItemSchema = z.object({
     .object({ drugId: z.string().uuid(), name: clip(200) })
     .nullable()
     .optional(),
+  /**
+   * "Did you mean": up to 3 database products (one per brand family) the written name resembles but does
+   * not agree with strongly enough to be shown as the name. Absent on older results and when none.
+   */
+  suggestions: z
+    .array(z.object({ drugId: z.string().uuid(), name: clip(200) }))
+    .max(3)
+    .optional(),
+  /**
+   * The database form of the matched product contradicts the form written or implied by the directions
+   * (drops vs chewable). The written/directions form is shown and the line is treated as uncertain.
+   */
+  formConflict: z.boolean().optional(),
   /** The model's own reading of the name, kept when the name shown is a database brand (feeds learning from corrections). */
   reading: text.optional(),
   /** Added after the reading by the details step; absent on older results and when it failed. */

@@ -40,7 +40,8 @@ Field rules for such an item:
 
 - `name`: ONLY the drug name as written (Latin letters when it is written in Latin). No bullet, no "x -", no "Rx", no number prefix, no strength, no form, and never any Arabic directions.
 - `strength`: the number (+ unit) written next to the name: "5", "20", "500 mg".
-- `form`: as written, abbreviated or not: "susp", "caps", "tab", "syrup", "amp".
+- `form`: as written, abbreviated or not: "susp", "caps", "tab", "syrup", "amp". Read the dosage form from the paper AND from the directions: "chewable" or «مضغ» / «يمضغ» / «قرص مضغ» means a chewable tablet, «نقط» / «قطرة» means drops, «شراب» syrup. When the name line gives no form but the directions do, use what the directions say; never guess a form that neither line supports.
+- Transcribe the name letter by letter as written. Never replace a written brand with a similar-looking brand you know ("Ripanox" is not "Riopan", "Gabimedra" is not "Gabapentin" or another "Gabi..." brand): if the letters are uncertain, put your best reading in `name` and the other readings of the same letters in `alternatives`.
 - `dose`: from the directions: "قرص", "نصف قرص", "ملعقة", "٥ مل", "نقطتين". Only when the directions give a dose unit; otherwise `null`.
 - `frequency`: how often and the timing words: "مرة يوميًا", "٣ مرات", "قبل العشاء", "نصف ساعة قبل الأكل".
 - `duration`: "لمدة ٥ أيام", "أسبوع".

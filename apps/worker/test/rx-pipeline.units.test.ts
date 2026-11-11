@@ -40,7 +40,7 @@ const cand = (
   over: Partial<RankedCandidate> = {},
 ): Omit<RankedCandidate, "via"> => ({
   drugId: id,
-  brandEn: `Brand ${id}`,
+  brandEn: "Dostenix",
   brandAr: null,
   brandKey: `key-${id}`,
   form: "tablet",
@@ -152,7 +152,7 @@ describe("matchLine", () => {
   });
 
   it("matches a verification re-read on its own text and never accepts it as clear", async () => {
-    script({ "Re-read": [cand("a", 0.97)] });
+    script({ "Re-read": [cand("a", 0.97, { brandEn: "Re-read" })] });
     const out = await matchLine(db, line({ legibility: "unclear" }), settings, "Re-read");
     expect(out.decision.matchClass).toBe("accept");
     expect(matchDrug).toHaveBeenCalledTimes(1);
@@ -161,7 +161,7 @@ describe("matchLine", () => {
 
 describe("matchItems", () => {
   it("flags verify decisions and unclear handwriting", async () => {
-    script({ Dostenix: [cand("a", 0.7)], Panadol: [cand("p", 0.99)] });
+    script({ Dostenix: [cand("a", 0.7)], Panadol: [cand("p", 0.99, { brandEn: "Panadol" })] });
     const extraction = rxExtractionSchema.parse({
       items: [
         line(),
