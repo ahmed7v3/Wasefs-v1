@@ -1,8 +1,8 @@
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import { formatPublishingKey } from "@wasfa/shared/publishing";
-import { lastValueFrom, of, throwError } from "rxjs";
+import { lastValueFrom, of, Subject, throwError } from "rxjs";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -47,6 +47,7 @@ function makeRow(overrides: Partial<PublishingApiKeyRow> = {}) {
     ownerUserId: "00000000-0000-7000-8000-000000000002",
     scopes: ["content:write"],
     canPublish: false,
+    requireSignature: false,
     allowedTypes: [],
     allowedCategorySlugs: [],
     defaultAuthorId: null,
@@ -65,12 +66,22 @@ function makeRow(overrides: Partial<PublishingApiKeyRow> = {}) {
 
 function setup(row: PublishingApiKeyRow | undefined, scopes: string[] = ["content:write"]) {
   const counts = new Map<string, number>();
+  const replayKeys = new Set<string>();
   const redis = {
-    incr: vi.fn((key: string) => {
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-      return Promise.resolve(counts.get(key));
+    eval: vi.fn((script: string, _keys: number, key: string) => {
+      if (script.includes("HMGET") && script.includes("burst")) {
+        const used = counts.get(key) ?? 0;
+        counts.set(key, used + 1);
+        return Promise.resolve([used < 20 ? 1 : 0, Math.max(0, 19 - used), 600, 30]);
+      }
+      if (script.includes("ZREMRANGEBYSCORE")) return Promise.resolve(1);
+      return Promise.resolve(1);
     }),
-    expire: vi.fn(() => Promise.resolve(1)),
+    set: vi.fn((key: string) => {
+      if (replayKeys.has(key)) return Promise.resolve(null);
+      replayKeys.add(key);
+      return Promise.resolve("OK");
+    }),
   };
   const repo = {
     findByKeyId: vi.fn((keyId: string) => Promise.resolve(row?.keyId === keyId ? row : undefined)),
@@ -89,7 +100,7 @@ function setup(row: PublishingApiKeyRow | undefined, scopes: string[] = ["conten
   const requestLog = new PublishingRequestLogger(repo as never, logger as never);
   const reflector = { getAllAndOverride: () => scopes };
   const guard = new PublishingKeyGuard(reflector as never, keys, requestLog, env);
-  return { guard, repo, redis, requestLog };
+  return { guard, repo, redis, requestLog, keys };
 }
 
 function context(authorization: string | undefined, ip = "203.0.113.9") {
@@ -99,6 +110,8 @@ function context(authorization: string | undefined, ip = "203.0.113.9") {
     headers: { ...(authorization === undefined ? {} : { authorization }), ...headers },
     method: "POST",
     routeOptions: { url: "/publishing/v1/articles/:id/publish" },
+    raw: { url: "/publishing/v1/articles/1?x=1" },
+    publishingRawBodyHash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     socket: { remoteAddress: ip },
     ip,
   };
@@ -160,6 +173,17 @@ describe("PublishingKeyGuard authentication", () => {
     expect(bodies.size).toBe(1);
   });
 
+  it("logs failed credentials without attributing unknown keys and attributes real rows only", async () => {
+    const { row } = makeRow();
+    const unknown = makeRow();
+    const { guard, repo } = setup(row);
+    await rejection(guard.canActivate(context(`Bearer ${unknown.raw}`).ctx));
+    expect(repo.insertRequest).toHaveBeenLastCalledWith(expect.objectContaining({ keyId: null, status: 401 }));
+    const wrongSecret = formatPublishingKey("live", row.keyId, generateSecret());
+    await rejection(guard.canActivate(context(`Bearer ${wrongSecret}`).ctx));
+    expect(repo.insertRequest).toHaveBeenLastCalledWith(expect.objectContaining({ keyId: row.id, status: 401 }));
+  });
+
   it("attaches the principal on success and throttles last_used_at", async () => {
     const { row, raw } = makeRow();
     const { guard, repo } = setup(row);
@@ -174,10 +198,57 @@ describe("PublishingKeyGuard authentication", () => {
       requestsPerMinute: 2,
     });
     expect(first.responseHeaders["RateLimit-Limit"]).toBe("2");
-    expect(first.responseHeaders["RateLimit-Remaining"]).toBe("1");
-    expect(Number(first.responseHeaders["RateLimit-Reset"])).toBeGreaterThan(0);
+    expect(first.responseHeaders["RateLimit-Remaining"]).toBe("19");
+    expect(first.responseHeaders["RateLimit-Reset"]).toBe("600");
     await guard.canActivate(context(`Bearer ${raw}`).ctx);
     expect(repo.touchLastUsed).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts signed optional requests and rejects replay, stale timestamps, and duplicate headers", async () => {
+    const { row, raw } = makeRow();
+    const { guard, redis } = setup(row);
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const requestPath = "/publishing/v1/articles/1?x=1";
+    const bodyHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+    const secret = raw.split("_").at(-1) ?? "";
+    const digest = createHmac("sha256", secret).update(`${timestamp}\nPOST\n${requestPath}\n${bodyHash}`).digest("hex");
+    const signed = context(`Bearer ${raw}`);
+    (signed.request.headers as Record<string, unknown>)["x-wasfa-timestamp"] = timestamp;
+    (signed.request.headers as Record<string, unknown>)["x-wasfa-signature"] = `v1=${digest}`;
+    await expect(guard.canActivate(signed.ctx)).resolves.toBe(true);
+    const replay = context(`Bearer ${raw}`);
+    (replay.request.headers as Record<string, unknown>)["x-wasfa-timestamp"] = timestamp;
+    (replay.request.headers as Record<string, unknown>)["x-wasfa-signature"] = `v1=${digest}`;
+    expect((await rejection(guard.canActivate(replay.ctx))).code).toBe(ErrorCode.INVALID_SIGNATURE);
+    expect(redis.set).toHaveBeenCalledWith(expect.any(String), "1", "EX", 601, "NX");
+
+    const stale = context(`Bearer ${raw}`);
+    (stale.request.headers as Record<string, unknown>)["x-wasfa-timestamp"] = String(Number(timestamp) - 301);
+    (stale.request.headers as Record<string, unknown>)["x-wasfa-signature"] = `v1=${digest}`;
+    expect((await rejection(guard.canActivate(stale.ctx))).code).toBe(ErrorCode.INVALID_SIGNATURE);
+
+    const duplicate = context(`Bearer ${raw}`);
+    (duplicate.request.headers as Record<string, unknown>)["x-wasfa-timestamp"] = [timestamp, timestamp];
+    (duplicate.request.headers as Record<string, unknown>)["x-wasfa-signature"] = `v1=${digest}`;
+    expect((await rejection(guard.canActivate(duplicate.ctx))).code).toBe(ErrorCode.INVALID_SIGNATURE);
+
+    const mismatch = context(`Bearer ${raw}`);
+    (mismatch.request.headers as Record<string, unknown>)["x-wasfa-timestamp"] = timestamp;
+    (mismatch.request.headers as Record<string, unknown>)["x-wasfa-signature"] = `v1=${"0".repeat(64)}`;
+    expect((await rejection(guard.canActivate(mismatch.ctx))).code).toBe(ErrorCode.INVALID_SIGNATURE);
+    expect(mismatch.responseHeaders["RateLimit-Limit"]).toBe(String(row.requestsPerMinute));
+
+    const malformed = context(`Bearer ${raw}`);
+    (malformed.request.headers as Record<string, unknown>)["x-wasfa-timestamp"] = timestamp;
+    (malformed.request.headers as Record<string, unknown>)["x-wasfa-signature"] = "v1=ABC";
+    expect((await rejection(guard.canActivate(malformed.ctx))).code).toBe(ErrorCode.INVALID_SIGNATURE);
+  });
+
+  it("requires a signature when enabled", async () => {
+    const { row, raw } = makeRow({ requireSignature: true });
+    const { guard } = setup(row);
+    const error = await rejection(guard.canActivate(context(`Bearer ${raw}`).ctx));
+    expect(error.code).toBe(ErrorCode.INVALID_SIGNATURE);
   });
 
   it("accepts the previous secret during a rotation grace and refuses it afterwards", async () => {
@@ -230,25 +301,64 @@ describe("PublishingKeyGuard authorisation and limits", () => {
     );
   });
 
-  it("answers 429 with RateLimit and Retry-After headers once the window is used up", async () => {
+  it("applies a burst-20 token bucket and denies the 21st request", async () => {
     const { row, raw } = makeRow();
     const { guard } = setup(row);
-    await guard.canActivate(context(`Bearer ${raw}`).ctx);
-    await guard.canActivate(context(`Bearer ${raw}`).ctx);
-    const third = context(`Bearer ${raw}`);
-    const error = await rejection(guard.canActivate(third.ctx));
+    for (let index = 0; index < 20; index += 1) await guard.canActivate(context(`Bearer ${raw}`).ctx);
+    const denied = context(`Bearer ${raw}`);
+    const error = await rejection(guard.canActivate(denied.ctx));
     expect(error.code).toBe(ErrorCode.RATE_LIMITED);
-    expect(error.httpStatus).toBe(429);
-    expect(third.responseHeaders["RateLimit-Limit"]).toBe("2");
-    expect(third.responseHeaders["RateLimit-Remaining"]).toBe("0");
-    expect(Number(third.responseHeaders["Retry-After"])).toBeGreaterThan(0);
+    expect(denied.responseHeaders["RateLimit-Limit"]).toBe("2");
+    expect(denied.responseHeaders["RateLimit-Remaining"]).toBe("0");
+    expect(denied.responseHeaders["Retry-After"]).toBe("30");
   });
 
-  it("fails open when Redis is down", async () => {
+  it("applies the media quota only to media creation routes", async () => {
     const { row, raw } = makeRow();
     const { guard, redis } = setup(row);
-    redis.incr.mockRejectedValueOnce(new Error("down"));
-    await expect(guard.canActivate(context(`Bearer ${raw}`).ctx)).resolves.toBe(true);
+    const evalDefault = redis.eval.getMockImplementation();
+    redis.eval.mockImplementation((script: string, keys: number, key: string) => {
+      if (script.includes("local cap=500")) return Promise.resolve([0, 7, 0]);
+      return evalDefault?.(script, keys, key) ?? Promise.resolve(1);
+    });
+    const media = context(`Bearer ${raw}`);
+    (media.request.routeOptions as { url: string }).url = "/publishing/v1/media";
+    (media.request.raw as { url: string }).url = "/publishing/v1/media/?bypass=true";
+    const denied = await rejection(guard.canActivate(media.ctx));
+    expect(denied.code).toBe(ErrorCode.RATE_LIMITED);
+    expect(media.responseHeaders["Retry-After"]).toBe("7");
+    expect(redis.eval.mock.calls.some(([script]) => script.includes("local cap=500"))).toBe(true);
+
+    const read = context(`Bearer ${raw}`);
+    (read.request.routeOptions as { url: string }).url = "/publishing/v1/media/:id";
+    (read.request.raw as { url: string }).url = "/publishing/v1/media/abc";
+    await expect(guard.canActivate(read.ctx)).resolves.toBe(true);
+
+    const fetch = context(`Bearer ${raw}`);
+    (fetch.request.routeOptions as { url: string }).url = "/publishing/v1/media/fetch";
+    (fetch.request.raw as { url: string }).url = "/publishing/v1/media/fetch?query=ignored";
+    expect((await rejection(guard.canActivate(fetch.ctx))).code).toBe(ErrorCode.RATE_LIMITED);
+  });
+
+  it("acquires and releases per-key concurrency leases with expiration pruning", async () => {
+    const { row } = makeRow();
+    const { keys, redis } = setup(row);
+    const token = "lease-token";
+    await expect(keys.acquireConcurrency(row.id, token, NOW)).resolves.toBe(true);
+    await keys.releaseConcurrency(row.id, token);
+    const acquire = redis.eval.mock.calls.find(([script]) => script.includes("ZREMRANGEBYSCORE"));
+    expect(acquire?.[0]).toContain("ZREMRANGEBYSCORE");
+    expect(acquire?.slice(1)).toEqual([1, `pub:conc:${row.id}`, String(NOW), "4", String(NOW + 120_000), token]);
+    expect(redis.eval.mock.calls.some(([script]) => script.includes("ZREM"))).toBe(true);
+  });
+
+  it("fails closed when Redis is down", async () => {
+    const { row, raw } = makeRow();
+    const { guard, redis } = setup(row);
+    redis.eval.mockRejectedValueOnce(new Error("down"));
+    const error = await rejection(guard.canActivate(context(`Bearer ${raw}`).ctx));
+    expect(error.code).toBe(ErrorCode.UPSTREAM_UNAVAILABLE);
+    expect(error.httpStatus).toBe(503);
   });
 });
 
@@ -258,25 +368,27 @@ describe("PublishingRequestLogInterceptor", () => {
     options: { url?: string; headers?: Record<string, string>; itemId?: string } = {},
   ) {
     const { row } = makeRow();
-    const { requestLog, repo } = setup(row);
+    const { requestLog, repo, keys, redis } = setup(row);
     const { ctx, request, reply } = context(undefined);
     request.url = options.url ?? "/publishing/v1/articles/abc123?secret=1";
     request.headers = options.headers ?? {};
     request.body = { body_markdown: "private article text" };
     request.publishingItemId = options.itemId;
     request[PUBLISHING_REQUEST_KEY] = { keyId: row.id };
+    request.publishingLease = "test-lease";
     reply.statusCode = 201;
-    const interceptor = new PublishingRequestLogInterceptor(requestLog);
-    return { result: lastValueFrom(interceptor.intercept(ctx, handler)), repo };
+    const interceptor = new PublishingRequestLogInterceptor(requestLog, keys);
+    return { result: lastValueFrom(interceptor.intercept(ctx, handler)), repo, redis };
   }
 
   it("records the route template, never the URL, and no body", async () => {
-    const { result, repo } = run(
+    const { result, repo, redis } = run(
       { handle: () => of("ok") },
       { headers: { "idempotency-key": "cover-1" }, itemId: "cnt_1" },
     );
     await result;
     expect(repo.insertRequest).toHaveBeenCalledTimes(1);
+    expect(redis.eval.mock.calls.some(([script]) => script.includes("ZREM"))).toBe(true);
     const entry = repo.insertRequest.mock.calls[0]?.[0] as RequestLogEntry;
     expect(entry).toMatchObject({
       method: "POST",
@@ -292,6 +404,31 @@ describe("PublishingRequestLogInterceptor", () => {
     expect(text).not.toContain("private article text");
   });
 
+  it("renews active concurrency leases until finalization releases them", async () => {
+    vi.useFakeTimers();
+    try {
+      const { row } = makeRow();
+      const { requestLog, keys, redis } = setup(row);
+      const { ctx, request } = context(undefined);
+      request[PUBLISHING_REQUEST_KEY] = { keyId: row.id };
+      request.publishingLease = "active-lease";
+      const pending = new Subject<string>();
+      const result = lastValueFrom(
+        new PublishingRequestLogInterceptor(requestLog, keys).intercept(ctx, { handle: () => pending }),
+      );
+      await vi.advanceTimersByTimeAsync(60_000);
+      const renewal = redis.eval.mock.calls.find(([script]) => script.includes("ZSCORE"));
+      expect(renewal).toBeDefined();
+      expect(renewal?.slice(1)).toEqual([1, `pub:conc:${row.id}`, "active-lease", String(Date.now() + 120_000)]);
+      pending.next("finished");
+      pending.complete();
+      await expect(result).resolves.toBe("finished");
+      expect(redis.eval.mock.calls.some(([script]) => script.includes("ZREM"))).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("records the status and error code of a failing handler and rethrows", async () => {
     const { result, repo } = run({
       handle: () => throwError(() => new AppError(ErrorCode.NOT_FOUND)),
@@ -304,11 +441,11 @@ describe("PublishingRequestLogInterceptor", () => {
 
   it("never fails the response when the log write fails", async () => {
     const { row } = makeRow();
-    const { requestLog, repo } = setup(row);
+    const { requestLog, repo, keys } = setup(row);
     repo.insertRequest.mockRejectedValueOnce(new Error("db down"));
     const { ctx, request } = context(undefined);
     request[PUBLISHING_REQUEST_KEY] = { keyId: row.id };
-    const interceptor = new PublishingRequestLogInterceptor(requestLog);
+    const interceptor = new PublishingRequestLogInterceptor(requestLog, keys);
     await expect(
       lastValueFrom(interceptor.intercept(ctx, { handle: () => of("fine") })),
     ).resolves.toBe("fine");

@@ -1,5 +1,8 @@
 import "reflect-metadata";
 
+import { createHash } from "node:crypto";
+import { Transform } from "node:stream";
+
 import helmet from "@fastify/helmet";
 import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
@@ -18,6 +21,12 @@ import { REDIS } from "./common/redis.js";
 import type { ApiEnv } from "./config/env.js";
 import type { ModuleMetadata } from "@nestjs/common";
 import type { IncomingMessage } from "node:http";
+
+declare module "fastify" {
+  interface FastifyRequest {
+    publishingRawBodyHash?: string;
+  }
+}
 
 /** Uploads go straight to R2 via presigned URLs, so JSON bodies never need more than this. */
 export const BODY_LIMIT_BYTES = 1_048_576;
@@ -103,6 +112,24 @@ export async function createApp(
   });
 
   limitUnknownRoutes(app.getHttpAdapter().getInstance(), app.get(REDIS), trust);
+
+  // Hash the stream without retaining body bytes; multipart uploads remain streaming.
+  app.getHttpAdapter().getInstance().addHook("preParsing", (request, _reply, payload, done) => {
+    if (!request.raw.url?.startsWith("/publishing/v1")) return done(null, payload);
+    const hash = createHash("sha256");
+    const tap = new Transform({
+      transform(chunk: Buffer, _encoding, callback) {
+        hash.update(chunk);
+        callback(null, chunk);
+      },
+      flush(callback) {
+        request.publishingRawBodyHash = hash.digest("hex");
+        callback();
+      },
+    });
+    payload.pipe(tap);
+    done(null, tap);
+  });
 
   // No custom Fastify error handler: Nest installs one at init that routes errors raised before
   // a handler runs (rate limit, body limit, bad JSON) through AllExceptionsFilter as well.

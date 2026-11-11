@@ -12,6 +12,7 @@ export interface StagedWrite {
   bytes: number;
   originalKey: string;
   createdBy: string;
+  apiKeyId?: string;
 }
 
 /** The media library is platform data (no owner); only admin routes reach this repository. */
@@ -48,6 +49,7 @@ export class MediaRepo {
           mime: row.mime,
           bytes: row.bytes,
           originalKey: row.originalKey,
+           ...(row.apiKeyId === undefined ? {} : { apiKeyId: row.apiKeyId }),
           rejectReason: null,
           updatedAt: new Date(),
         },

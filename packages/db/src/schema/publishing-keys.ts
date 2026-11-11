@@ -10,6 +10,7 @@ import {
   check,
   index,
   integer,
+  jsonb,
   pgTable,
   smallint,
   text,
@@ -43,6 +44,10 @@ export const publishingApiKeys = pgTable(
       .references(() => users.id),
     scopes: text().array().notNull(),
     canPublish: boolean().notNull().default(false),
+    requireSignature: boolean().notNull().default(false),
+    /** AES-256-GCM sealed webhook endpoint and signing secret; plaintext is never persisted. */
+    webhookUrlEnc: text(),
+    webhookSecretEnc: text(),
     allowedTypes: text()
       .array()
       .notNull()
@@ -86,7 +91,9 @@ export const publishingApiKeys = pgTable(
     index("publishing_api_keys_owner_idx").on(table.ownerUserId),
   ],
 );
-export type PublishingApiKeyRow = typeof publishingApiKeys.$inferSelect;
+type PublishingApiKeyColumns = typeof publishingApiKeys.$inferSelect;
+export type PublishingApiKeyRow = Omit<PublishingApiKeyColumns, "webhookUrlEnc" | "webhookSecretEnc"> &
+  Partial<Pick<PublishingApiKeyColumns, "webhookUrlEnc" | "webhookSecretEnc">>;
 export type NewPublishingApiKeyRow = typeof publishingApiKeys.$inferInsert;
 
 /**
@@ -97,9 +104,7 @@ export const publishingApiRequests = pgTable(
   "publishing_api_requests",
   {
     id: bigserial({ mode: "number" }).primaryKey(),
-    keyId: uuid()
-      .notNull()
-      .references(() => publishingApiKeys.id, { onDelete: "cascade" }),
+    keyId: uuid().references(() => publishingApiKeys.id, { onDelete: "set null" }),
     at: timestamp({ withTimezone: true }).notNull().defaultNow(),
     method: text().notNull(),
     route: text().notNull(),
@@ -115,3 +120,32 @@ export const publishingApiRequests = pgTable(
   ],
 );
 export type PublishingApiRequestRow = typeof publishingApiRequests.$inferSelect;
+
+/** Durable webhook delivery log. Payload and endpoint credentials are snapshots for stable retries. */
+export const publishingWebhookDeliveries = pgTable(
+  "publishing_webhook_deliveries",
+  {
+    id: idColumn(),
+    keyId: uuid()
+      .notNull()
+      .references(() => publishingApiKeys.id, { onDelete: "restrict" }),
+    event: text().notNull(),
+    payload: jsonb().$type<Record<string, unknown>>().notNull(),
+    webhookUrlEnc: text().notNull(),
+    webhookSecretEnc: text().notNull(),
+    status: text({ enum: ["pending", "succeeded", "failed"] as const })
+      .notNull()
+      .default("pending"),
+    attempts: integer().notNull().default(0),
+    nextAttemptAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    responseStatus: smallint(),
+    error: text(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    deliveredAt: timestamp({ withTimezone: true }),
+  },
+  (table) => [
+    index("publishing_webhook_deliveries_key_created_idx").on(table.keyId, table.createdAt),
+    index("publishing_webhook_deliveries_due_idx").on(table.status, table.nextAttemptAt),
+  ],
+);
+export type PublishingWebhookDeliveryRow = typeof publishingWebhookDeliveries.$inferSelect;

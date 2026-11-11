@@ -1,16 +1,18 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
+  contentItems,
   contentPeople,
   contentPublishLog,
   mediaAssets,
   publishingApiKeys,
   publishingApiRequests,
+  publishingWebhookDeliveries,
   users,
   type NewPublishingApiKeyRow,
   type PublishingApiKeyRow,
   type PublishingApiRequestRow,
 } from "@wasfa/db";
-import { and, count, desc, eq, gte, inArray, sql, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
 
 import { DB, type DbHandle } from "../common/database.js";
 
@@ -34,6 +36,9 @@ export type KeyPatch = Partial<
     | "name"
     | "scopes"
     | "canPublish"
+    | "requireSignature"
+     | "webhookUrlEnc"
+     | "webhookSecretEnc"
     | "allowedTypes"
     | "allowedCategorySlugs"
     | "defaultAuthorId"
@@ -45,7 +50,7 @@ export type KeyPatch = Partial<
 >;
 
 export interface RequestLogEntry {
-  keyId: string;
+  keyId: string | null;
   method: string;
   route: string;
   status: number;
@@ -171,6 +176,15 @@ export class PublishingKeysRepo {
     await this.handle.db.insert(publishingApiRequests).values(entry);
   }
 
+  recentWebhookDeliveries(id: string, limit: number) {
+    return this.handle.db
+      .select()
+      .from(publishingWebhookDeliveries)
+      .where(eq(publishingWebhookDeliveries.keyId, id))
+      .orderBy(desc(publishingWebhookDeliveries.createdAt))
+      .limit(limit);
+  }
+
   recentRequests(id: string, limit: number): Promise<PublishingApiRequestRow[]> {
     return this.handle.db
       .select()
@@ -195,16 +209,40 @@ export class PublishingKeysRepo {
       })
       .from(publishingApiRequests)
       .where(
-        and(inArray(publishingApiRequests.keyId, [...ids]), gte(publishingApiRequests.at, since)),
+        and(isNotNull(publishingApiRequests.keyId), inArray(publishingApiRequests.keyId, [...ids]), gte(publishingApiRequests.at, since)),
       )
       .groupBy(publishingApiRequests.keyId);
     for (const row of rows) {
+      if (row.keyId === null) continue;
       usage.set(row.keyId, {
         requestsToday: row.requests,
         errorsToday: row.errors,
+        // The request log is one row per HTTP call, so it cannot represent all successful
+        // creations in a batch. This value is replaced below with the authoritative item count.
         itemsCreatedToday: row.created,
         publishedToday: row.published,
       });
+    }
+    const createdRows = await this.handle.db
+      .select({ keyId: contentItems.apiKeyId, created: sql<number>`count(*)::int` })
+      .from(contentItems)
+      .where(
+        and(
+          isNotNull(contentItems.apiKeyId),
+          inArray(contentItems.apiKeyId, [...ids]),
+          gte(contentItems.createdAt, since),
+        ),
+      )
+      .groupBy(contentItems.apiKeyId);
+    for (const row of createdRows) {
+      if (row.keyId === null) continue;
+      const existing = usage.get(row.keyId) ?? {
+        requestsToday: 0,
+        errorsToday: 0,
+        itemsCreatedToday: 0,
+        publishedToday: 0,
+      };
+      usage.set(row.keyId, { ...existing, itemsCreatedToday: row.created });
     }
     return usage;
   }

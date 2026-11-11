@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { htmlToMarkdown } from "../src/html-to-markdown.js";
 import { buildPublishingGuide } from "../src/publishing-guide.js";
 import { PUBLISHING_DEFAULTS } from "../src/publishing.js";
 import {
@@ -180,6 +181,22 @@ describe("create input", () => {
     expect(issues({ ...english, seo: { description: "x".repeat(320) } })).toEqual([]);
   });
 
+  it("accepts HTML instead of Markdown and stores only converted Markdown", () => {
+    const parsed = publishingArticleInputSchema.parse({ ...english, body_markdown: undefined, body_html_import: "<h1>Heading</h1><p>Hello <strong>world</strong><script>alert(1)</script><a href=\"javascript:alert(2)\">bad</a><a href=\"https://example.com/a\">safe</a></p>" });
+    expect(parsed.body_markdown).toContain("## Heading");
+    expect(parsed.body_markdown).toContain("**world**");
+    expect(parsed.body_markdown).not.toContain("script");
+    expect(parsed.body_markdown).not.toContain("javascript:");
+    expect(parsed.body_markdown).toContain("[safe](https://example.com/a)");
+    expect("body_html_import" in parsed).toBe(false);
+    expect(issues({ ...english, body_html_import: "<p>x</p>" }).some((e) => e.path === "body_markdown")).toBe(true);
+  });
+
+  it("converts and removes dangerous content without fetching images", () => {
+    expect(htmlToMarkdown("<style>x</style><iframe>y</iframe><img src=\"https://bad.example/x\" alt=\"photo\"><ul><li>one</li></ul>")).toContain("photo");
+    expect(htmlToMarkdown("<script>secret</script><svg><text>active</text></svg>")).not.toMatch(/secret|active/);
+  });
+
   it("publish_on_approval is an optional boolean", () => {
     expect(
       publishingArticleInputSchema.parse({ ...english, publish_on_approval: true })
@@ -199,6 +216,13 @@ describe("merge patch", () => {
     expect(parsed.category).toBeNull();
     expect(parsed.seo?.description).toBeNull();
     expect(parsed.title).toBeUndefined();
+  });
+
+  it("normalizes patch HTML to Markdown and rejects two supplied body formats", () => {
+    const normalized = publishingArticlePatchSchema.parse({ body_html_import: "<p><em>hello</em></p>" });
+    expect(normalized.body_markdown).toContain("*hello*");
+    expect("body_html_import" in normalized).toBe(false);
+    expect(publishingArticlePatchSchema.safeParse({ body_markdown: "x", body_html_import: "<p>x</p>" }).success).toBe(false);
   });
 
   it("refuses an empty patch, type/locale changes and unknown fields", () => {

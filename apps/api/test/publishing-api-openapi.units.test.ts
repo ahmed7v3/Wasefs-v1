@@ -1,4 +1,4 @@
-import { METHOD_METADATA, PATH_METADATA } from "@nestjs/common/constants";
+import { METHOD_METADATA, PATH_METADATA } from "@nestjs/common/constants.js";
 import { ERROR_CODES } from "@wasfa/shared/errors";
 import { PUBLISHING_API_BASE, PUBLISHING_SCOPES } from "@wasfa/shared/publishing";
 import { buildPublishingGuide } from "@wasfa/shared/publishing-guide";
@@ -42,7 +42,10 @@ function registered(): Registered[] {
       if (method === undefined) continue;
       const sub = Reflect.getMetadata(PATH_METADATA, handler) as string;
       const full = `/${[base, sub].filter((part) => part !== "" && part !== "/").join("/")}`;
-      const relative = full.slice(PUBLISHING_API_BASE.length).replace(/:(\w+)/g, "{$1}");
+      const relative = full
+          .slice(PUBLISHING_API_BASE.length)
+          .replace(/:externalId/g, ":external_id")
+          .replace(/:(\w+)/g, "{$1}");
       found.push({
         label: `${(METHODS[method] ?? "?").toUpperCase()} ${relative}`,
         scopes: Reflect.getMetadata(PUBLISHING_SCOPES_KEY, handler) as unknown,
@@ -94,11 +97,11 @@ describe("route table and controllers cannot drift", () => {
     const creators = PUBLISHING_ROUTES.filter(
       (route) =>
         route.method === "post" &&
-        ["/articles", "/media", "/media/fetch", "/categories", "/tags"].includes(route.path),
+        ["/articles", "/articles/batch", "/media", "/media/fetch", "/categories", "/tags"].includes(route.path),
     );
-    expect(creators).toHaveLength(5);
+    expect(creators).toHaveLength(6);
     expect(creators.every((route) => route.idempotent)).toBe(true);
-    expect(PUBLISHING_ROUTES.filter((route) => route.idempotent)).toHaveLength(5);
+    expect(PUBLISHING_ROUTES.filter((route) => route.idempotent)).toHaveLength(6);
   });
 });
 
@@ -149,9 +152,9 @@ describe("OpenAPI document", () => {
       ]),
     );
     expect(schema.additionalProperties).toBe(false);
-    expect(schema.required).toEqual(
-      expect.arrayContaining(["type", "locale", "title", "body_markdown"]),
-    );
+    expect(schema.required).toEqual(expect.arrayContaining(["type", "locale", "title"]));
+    expect(schema.properties).toHaveProperty("body_markdown");
+    expect(schema.properties).toHaveProperty("body_html_import");
     expect(create.parameters).toContainEqual(
       expect.objectContaining({ name: "Idempotency-Key", required: true }),
     );
@@ -168,6 +171,10 @@ describe("OpenAPI document", () => {
     expect(put["x-required-scope"]).toBe("content:write");
     expect(spec.paths["/guide"]?.get?.security).toEqual([]);
     expect(spec.paths["/openapi.json"]?.get?.security).toEqual([]);
+    const me = spec.paths["/me"]?.get as { responses: Record<string, { content?: Record<string, { schema?: Record<string, unknown> }> }> };
+    expect(me.responses["200"]?.content?.["application/json"]?.schema).toMatchObject({
+      properties: { key: { properties: { require_signature: { type: "boolean" } } } },
+    });
   });
 
   it("documents the multipart upload and the list query", () => {

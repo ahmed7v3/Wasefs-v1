@@ -202,6 +202,50 @@ function KeyForm({
         </p>
       </div>
 
+      <div className="flex flex-col gap-1">
+        <Field label={t("admin.pub.form.webhookUrl")} hint={t("admin.pub.form.webhookUrl.hint")}>
+          {(control) => (
+            <Input
+              {...control}
+              name="webhookUrl"
+              dir="ltr"
+              type="url"
+              placeholder="https://example.com/hooks/wasfa"
+              value={values.webhookUrl}
+              onChange={(event) => { patch({ webhookUrl: event.target.value }); }}
+            />
+          )}
+        </Field>
+        <Field label={t("admin.pub.form.webhookSecret")} hint={t("admin.pub.form.webhookSecret.hint")}>
+          {(control) => (
+            <Input
+              {...control}
+              name="webhookSecret"
+              dir="ltr"
+              type="password"
+              autoComplete="new-password"
+              value={values.webhookSecret}
+              onChange={(event) => { patch({ webhookSecret: event.target.value }); }}
+            />
+          )}
+        </Field>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <Checkbox
+          name="requireSignature"
+          aria-describedby="require-signature-hint"
+          label={t("admin.pub.form.requireSignature")}
+          checked={values.requireSignature}
+          onChange={(event) => {
+            patch({ requireSignature: event.target.checked });
+          }}
+        />
+        <p id="require-signature-hint" className="ps-9 text-sm text-text-muted">
+          {t("admin.pub.form.requireSignature.hint")}
+        </p>
+      </div>
+
       <fieldset className="flex flex-col gap-1">
         <legend className="text-base font-semibold text-text">
           {t("admin.pub.form.allowedTypes")}

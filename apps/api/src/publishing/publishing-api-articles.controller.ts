@@ -13,9 +13,12 @@ import {
   Req,
   Res,
 } from "@nestjs/common";
+import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import {
   publishingArticleInputSchema,
   publishingArticlePatchSchema,
+  publishingBatchEnvelopeSchema,
+  publishingBatchItemSchema,
   publishingDeleteQuerySchema,
   publishingExternalIdParamSchema,
   publishingListQuerySchema,
@@ -24,8 +27,10 @@ import {
   publishingSubmitBodySchema,
 } from "@wasfa/shared/schemas/publishing";
 
+import { requestLocale } from "../common/errors.js";
+
 import { parseIfMatch, PublishingApiArticlesService } from "./publishing-api-articles.service.js";
-import { parseBody } from "./publishing-api-errors.js";
+import { parseBody, validationFailed } from "./publishing-api-errors.js";
 import {
   parseIdempotencyKey,
   PublishingIdempotencyService,
@@ -73,6 +78,52 @@ export class PublishingApiArticlesController {
     return result.body;
   }
 
+  @Post("batch")
+  @HttpCode(207)
+  @PublishingAuth("content:write")
+  async batch(
+    @CurrentKey() principal: PublishingPrincipal,
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+    @Headers("idempotency-key") idemHeader: string | undefined,
+    @Body() body: unknown,
+  ) {
+    const key = parseIdempotencyKey(idemHeader);
+    const envelope = parseBody(publishingBatchEnvelopeSchema, body);
+    const result = await this.idempotency.run(principal.keyId, key, requestHash("POST", "/articles/batch", body), async () => {
+      const results = [];
+      for (const raw of envelope.items) {
+        const rawId = raw && typeof raw === "object" && "external_id" in raw && typeof raw.external_id === "string" && /^[A-Za-z0-9._:-]{1,128}$/.test(raw.external_id) ? raw.external_id : null;
+        const parsed = publishingBatchItemSchema.safeParse(raw);
+        if (!parsed.success) {
+          const problems: Record<string, string> = {};
+          for (const issue of parsed.error.issues) {
+            problems[issue.path.join(".") || "(body)"] ??= issue.message;
+          }
+          const error = validationFailed(problems);
+          results.push({
+            external_id: rawId,
+            status: "error" as const,
+            error: error.toResponse(requestLocale(request)),
+          });
+          continue;
+        }
+        try {
+          const { external_id: externalId, ...input } = parsed.data;
+          const written = await this.articles.upsert(principal, request, externalId, input, null);
+          results.push({ external_id: externalId, status: "success" as const, article: written.article });
+        } catch (cause) {
+          const error = cause instanceof AppError ? cause : new AppError(ErrorCode.INTERNAL);
+          results.push({ external_id: rawId, status: "error" as const, error: error.toResponse(requestLocale(request)) });
+        }
+      }
+      return { status: 207, body: { results } };
+    });
+    reply.status(207);
+    if (result.replayed) reply.header("idempotent-replayed", "true");
+    return result.body;
+  }
+
   @Post("validate")
   @HttpCode(200)
   @PublishingAuth("content:write")
@@ -80,14 +131,14 @@ export class PublishingApiArticlesController {
     return this.articles.validate(principal, parseBody(publishingArticleInputSchema, body));
   }
 
-  @Put("by-external-id/:external_id")
+  @Put("by-external-id/:externalId")
   @PublishingAuth("content:write")
   async upsert(
     @CurrentKey() principal: PublishingPrincipal,
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
     @Headers("if-match") ifMatch: string | undefined,
-    @Param("external_id") externalId: string,
+    @Param("externalId") externalId: string,
     @Body() body: unknown,
   ) {
     const params = parseBody(publishingExternalIdParamSchema, { external_id: externalId });

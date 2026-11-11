@@ -30,7 +30,7 @@ const ERROR_RESPONSES: Record<string, string> = {
   "409": "CONFLICT / IDEMPOTENCY_MISMATCH / CONTENT_SLUG_TAKEN: see code and details",
   "422":
     "CONTENT_GATES_BLOCK: blocking quality issues in details.blocking (the item is saved as a draft)",
-  "429": "RATE_LIMITED / CONTENT_PUBLISH_CAP: honour Retry-After",
+  "429": "RATE_LIMITED / CONTENT_PUBLISH_CAP / PUBLISHING_CREATE_CAP: honour Retry-After",
 };
 
 function pathParameters(path: string): Json[] {

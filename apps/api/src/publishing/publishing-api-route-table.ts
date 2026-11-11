@@ -3,6 +3,8 @@ import {
   publishingArticleListSchema,
   publishingArticlePatchSchema,
   publishingArticleSchema,
+  publishingBatchInputSchema,
+  publishingBatchResponseSchema,
   publishingCategoryInputSchema,
   publishingCategorySchema,
   publishingDeleteQuerySchema,
@@ -60,6 +62,31 @@ const articleResponse = (status: number, description: string) => ({
   description,
 });
 
+const publishingMeResponseSchema = z.object({
+  key: z.object({
+    id: z.string(),
+    name: z.string(),
+    environment: z.string().nullable(),
+    scopes: z.array(z.string()),
+    can_publish: z.boolean(),
+    require_signature: z.boolean(),
+    allowed_types: z.array(z.string()),
+    allowed_category_slugs: z.array(z.string()),
+    default_author_id: z.string().nullable(),
+    default_featured_media_id: z.string().nullable(),
+    expires_at: z.string().nullable(),
+  }),
+  limits: z.object({
+    requests_per_minute: z.number().int(),
+    daily_publish_cap: z.number().int().nullable(),
+  }),
+  today: z.object({
+    requests: z.number().int(),
+    publishes_remaining: z.number().int().nullable(),
+    global_publish_cap_remaining: z.number().int(),
+  }),
+});
+
 export const PUBLISHING_ROUTES: readonly RouteDef[] = [
   {
     method: "get",
@@ -71,7 +98,7 @@ export const PUBLISHING_ROUTES: readonly RouteDef[] = [
     tag: "Meta",
     success: {
       status: 200,
-      schema: z.looseObject({}),
+      schema: publishingMeResponseSchema,
       description: "Key details",
     },
     externalOwner: "keys",
@@ -113,6 +140,17 @@ export const PUBLISHING_ROUTES: readonly RouteDef[] = [
       201,
       "Created (status shows what the workflow did with desired_status)",
     ),
+  },
+  {
+    method: "post",
+    path: "/articles/batch",
+    scope: "content:write",
+    auth: "key",
+    idempotent: true,
+    summary: "Upsert up to 25 articles by external_id with per-item outcomes (207).",
+    tag: "Articles",
+    body: publishingBatchInputSchema,
+    success: { status: 207, schema: publishingBatchResponseSchema, description: "Per-item results in input order" },
   },
   {
     method: "post",

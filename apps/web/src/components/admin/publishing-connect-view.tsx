@@ -2,7 +2,7 @@
 
 import { t, type MessageKey } from "@wasfa/shared/i18n";
 import { Button, Card, CardTitle } from "@wasfa/ui";
-import { ExternalLink, KeyRound } from "lucide-react";
+import { BookOpen, ExternalLink, KeyRound } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -63,13 +63,22 @@ export function PublishingConnectView() {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-text">{t("admin.pub.connect.title")}</h1>
-        <Link
-          href="/admin/content/api-keys"
-          className="inline-flex items-center gap-2 font-semibold text-primary underline"
-        >
-          <KeyRound aria-hidden className="size-5" />
-          {t("admin.pub.connect.keysLink")}
-        </Link>
+        <nav className="flex flex-wrap gap-x-5 gap-y-2">
+          <Link
+            href="/admin/content/api/docs"
+            className="inline-flex items-center gap-2 font-semibold text-primary underline"
+          >
+            <BookOpen aria-hidden className="size-5" />
+            {t("admin.nav.content.apiDocs")}
+          </Link>
+          <Link
+            href="/admin/content/api-keys"
+            className="inline-flex items-center gap-2 font-semibold text-primary underline"
+          >
+            <KeyRound aria-hidden className="size-5" />
+            {t("admin.pub.connect.keysLink")}
+          </Link>
+        </nav>
       </div>
       <p className="text-base text-text-muted">{t("admin.pub.connect.intro")}</p>
 

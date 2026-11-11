@@ -23,6 +23,7 @@ export interface PublishingPrincipal {
   ownerUserId: string;
   scopes: readonly PublishingScope[];
   canPublish: boolean;
+  requireSignature?: boolean;
   /** Empty = every writable type. */
   allowedTypes: readonly PublishingContentType[];
   /** Empty = any category. */

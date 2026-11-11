@@ -139,7 +139,8 @@ function harness(options: Options = {}) {
     ),
   };
   const workflow = {
-    act: vi.fn((_id: string, action: string) => {
+    act: vi.fn((...args: [string, string, unknown?, ContentActorCtx?]) => {
+      const action = args[1];
       const to =
         (
           { submit: "in_review", publish: "published", schedule: "scheduled" } as Record<
@@ -181,9 +182,10 @@ function harness(options: Options = {}) {
       }),
     ),
     listTags: vi.fn(() => Promise.resolve({ items: options.tags ?? [] })),
-    createTag: vi.fn((_actor: string, _request: unknown, input: { nameAr: string }) =>
-      Promise.resolve({ id: "018f0000-0000-7000-8000-0000000000e1", ...input }),
-    ),
+    createTag: vi.fn((...args: [string, unknown, { nameAr: string }]) => {
+      const input = args[2];
+      return Promise.resolve({ id: "018f0000-0000-7000-8000-0000000000e1", ...input });
+    }),
   };
   const people = {
     list: vi.fn(() =>
@@ -193,11 +195,15 @@ function harness(options: Options = {}) {
     ),
   };
   const api = {
-    findByExternalId: vi.fn((_key: string, external: string) =>
-      Promise.resolve(external === "kb-1" ? state.row : undefined),
-    ),
+    findByExternalId: vi.fn((...args: [string, string]) => {
+      const external = args[1];
+      return Promise.resolve(external === "kb-1" ? state.row : undefined);
+    }),
     findBySlug: vi.fn(() => Promise.resolve(undefined as ContentItem | undefined)),
-    list: vi.fn(() => Promise.resolve([] as unknown[])),
+    list: vi.fn((...args: [string, unknown, string | undefined, unknown?]) => {
+      void args;
+      return Promise.resolve([] as unknown[]);
+    }),
   };
   const audit = { recordFor: vi.fn(() => Promise.resolve()) };
   const service = new PublishingApiArticlesService(

@@ -140,6 +140,7 @@ describe("admin key schemas", () => {
     expect(parsed).toMatchObject({
       environment: "live",
       canPublish: false,
+      requireSignature: false,
       requestsPerMinute: 60,
       expiresInDays: 365,
       allowedTypes: [],
@@ -185,6 +186,7 @@ describe("audit of key changes", () => {
     ownerUserId: "00000000-0000-7000-8000-000000000002",
     scopes: ["content:write"],
     canPublish: false,
+    requireSignature: false,
     allowedTypes: [],
     allowedCategorySlugs: [],
     defaultAuthorId: null,

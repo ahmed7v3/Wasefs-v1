@@ -295,6 +295,10 @@ export class ContentWorkflowService {
           };
           await note("note");
           await log("in_review");
+           await data.emitPublishingWebhook(
+             { itemId, mediaId: null, event: "content.review_requested", comment: comment ?? null },
+             `publishing.webhook:${itemId}:${currentRevisionId}:review_requested`,
+           );
           break;
         case "approve": {
           patch = {
@@ -306,6 +310,10 @@ export class ContentWorkflowService {
           };
           await note("approve");
           await log("approved");
+           await data.emitPublishingWebhook(
+             { itemId, mediaId: null, event: "content.approved", comment: comment ?? null },
+             `publishing.webhook:${itemId}:${currentRevisionId}:approved`,
+           );
           // The stored review gate moves with the approval (the list counts issues from storage).
           if (!editedBuild) {
             const stored = qualityGateSchema.array().safeParse(current.quality);
@@ -323,6 +331,10 @@ export class ContentWorkflowService {
         case "request_changes":
           patch = { ...patch, status: "draft" };
           await note("request_changes");
+           await data.emitPublishingWebhook(
+             { itemId, mediaId: null, event: "content.changes_requested", comment: comment ?? null },
+             `publishing.webhook:${itemId}:${currentRevisionId}:changes_requested:${String(now.getTime())}`,
+           );
           await log("draft");
           break;
         case "schedule":
@@ -389,6 +401,10 @@ export class ContentWorkflowService {
             emitted = true;
           }
           await log("archived");
+           await data.emitPublishingWebhook(
+             { itemId, mediaId: null, event: "content.archived", comment: null },
+             `publishing.webhook:${itemId}:${String(now.getTime())}:archived`,
+           );
           break;
         }
         case "unarchive":

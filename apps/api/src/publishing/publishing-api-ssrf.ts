@@ -186,6 +186,11 @@ const defaultResolver: Resolver = async (hostname) => {
   return rows.map((row) => ({ address: row.address, family: row.family === 6 ? 6 : 4 }));
 };
 
+/** Validates an admin-supplied webhook URL with the same DNS/private-range policy as media fetch. */
+export async function validateWebhookUrl(rawUrl: string): Promise<void> {
+  await checkTarget(rawUrl, defaultResolver);
+}
+
 const defaultTransport: Transport = ({ url, address, signal }) =>
   new Promise((resolve, reject) => {
     const host = url.hostname.replace(/^\[|\]$/g, "");

@@ -17,6 +17,7 @@ import {
   PUBLISHING_SCOPES_KEY,
   type PublishingPrincipal,
 } from "../src/publishing/publishing-principal.js";
+import { PublishingRequestLogInterceptor } from "../src/publishing/publishing-request-log.js";
 
 import type { FastifyReply } from "fastify";
 
@@ -116,10 +117,16 @@ const service = {
   list: vi.fn(() => Promise.resolve({ items: [], next_cursor: null })),
   validate: vi.fn(() => Promise.resolve({ valid: true })),
   submit: vi.fn(() => Promise.resolve(answer(1))),
-  publish: vi.fn(() => Promise.resolve(answer(1))),
+  publish: vi.fn((...args: [unknown, unknown, string, unknown, number | null | undefined]) => {
+    void args;
+    return Promise.resolve(answer(1));
+  }),
   schedule: vi.fn(() => Promise.resolve(answer(1))),
   unpublish: vi.fn(() => Promise.resolve(answer(1))),
-  remove: vi.fn(() => Promise.resolve({ id: "x", result: "deleted" })),
+  remove: vi.fn((...args: [unknown, unknown, string, string | undefined]) => {
+    void args;
+    return Promise.resolve({ id: "x", result: "deleted" });
+  }),
   revisions: vi.fn(() => Promise.resolve({ items: [] })),
 };
 
@@ -138,6 +145,8 @@ beforeAll(async () => {
   })
     .overrideGuard(PublishingKeyGuard)
     .useValue(guard)
+    .overrideInterceptor(PublishingRequestLogInterceptor)
+    .useValue({ intercept: (_context: unknown, next: { handle: () => unknown }) => next.handle() })
     .compile();
   app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
   await app.init();
@@ -268,6 +277,29 @@ describe("PUT /articles/by-external-id/{external_id}", () => {
       code: "CONTENT_CONFLICT",
       details: { current_revision: 7 },
     });
+  });
+});
+
+describe("POST /articles/batch", () => {
+  it("returns ordered row results with partial validation failure and replays the complete 207", async () => {
+    const headers = { "idempotency-key": "batch-http-0001" };
+    const body = { items: [articleBody, { ...articleBody, external_id: "good-2" }] };
+    const first = await call("POST", "/articles/batch", { body, headers });
+    expect(first.statusCode).toBe(207);
+    expect(first.json()).toMatchObject({ results: [
+      { external_id: null, status: "error", error: { code: "VALIDATION_FAILED" } },
+      { external_id: "good-2", status: "success" },
+    ] });
+    const replay = await call("POST", "/articles/batch", { body, headers });
+    expect(replay.statusCode).toBe(207);
+    expect(replay.headers["idempotent-replayed"]).toBe("true");
+    expect(replay.json()).toEqual(first.json());
+  });
+  it("rejects more than 25 rows before executing any item", async () => {
+    const before = service.upsert.mock.calls.length;
+    const response = await call("POST", "/articles/batch", { body: { items: Array.from({ length: 26 }, () => articleBody) }, headers: { "idempotency-key": "batch-http-0002" } });
+    expect(response.statusCode).toBe(400);
+    expect(service.upsert).toHaveBeenCalledTimes(before);
   });
 });
 

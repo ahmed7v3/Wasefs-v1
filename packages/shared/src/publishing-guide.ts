@@ -117,6 +117,7 @@ const ROUTE_LINES: readonly (readonly [string, string])[] = [
   ["GET /guide", "this guide (public)"],
   ["POST /articles", "create (Idempotency-Key required)"],
   ["POST /articles/validate", "dry run, writes nothing"],
+  ["POST /articles/batch", "upsert up to 25 by external_id; partial results, HTTP 207; Idempotency-Key required"],
   ["PUT /articles/by-external-id/{external_id}", "create or update by your own id (recommended)"],
   ["GET /articles", "list"],
   ["GET /articles/{id}", "read"],

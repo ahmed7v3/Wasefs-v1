@@ -64,6 +64,9 @@ export function PublishingKeysView() {
           <Badge tone={row.environment === "live" ? "info" : "neutral"}>
             {t(`admin.pub.env.${row.environment}`)}
           </Badge>
+          {row.requireSignature ? (
+            <Badge tone="success">{t("admin.pub.signature.required")}</Badge>
+          ) : null}
         </span>
       ),
     },

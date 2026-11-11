@@ -274,6 +274,20 @@
       "when": 1794258696230,
       "tag": "0038_publishing_api",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1794259000000,
+      "tag": "0039_publishing_webhooks",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1794259100000,
+      "tag": "0040_media_api_key",
+      "breakpoints": true
     }
   ]
 }

@@ -226,7 +226,16 @@ Owner: content platform (WP3). All tables are platform data reachable only throu
 | `content_publish_log` | Append-style audit of every status change with actor; also counts the daily publish cap. |
 | `content_review_comments` | Reviewer comments tied to a revision (request changes / approve / note). |
 
-`media_assets` gains `original_filename`, `seo_filename`, `caption`, `credit`, `licence` (default `own`, CHECK in `MEDIA_LICENCES`), `licence_ref` and `warnings` (jsonb array).
+`media_assets` gains `original_filename`, `seo_filename`, `caption`, `credit`, `licence` (default `own`, CHECK in `MEDIA_LICENCES`), `licence_ref` and `warnings` (jsonb array). Publishing API media also records nullable `api_key_id` for webhook routing.
+
+### Phase 4 — WP4 (Publishing API webhooks, migrations 0038–0040)
+
+| Table | Purpose |
+|---|---|
+| `publishing_api_keys` (altered) | Adds AES-256-GCM encrypted webhook URL and signing secret; plaintext credentials never leave the admin/API process. |
+| `publishing_webhook_deliveries` | Immutable event payload snapshot and encrypted delivery credentials, attempt count, next-attempt time, HTTP response status and terminal error for the 8-attempt/24-hour retry window. |
+
+Webhook delivery rows are retained with the key for operational audit; payloads contain publishing identifiers and review comments only, never request bodies or secrets.
 
 ---
 

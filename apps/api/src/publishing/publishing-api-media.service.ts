@@ -143,6 +143,7 @@ export class PublishingApiMediaService {
       sha256,
       ownerUserId: principal.ownerUserId,
       actor: `api_key:${principal.keyId}`,
+       apiKeyId: principal.keyId,
     });
     const wanted = mapMediaMeta(fields);
     const patch = deduplicated ? blankOnly(asset, wanted) : wanted;

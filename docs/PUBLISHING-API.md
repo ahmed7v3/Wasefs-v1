@@ -135,7 +135,7 @@ The API uses the platform's standard error body (`packages/shared/src/errors`):
 | 415 | `UNSUPPORTED_MEDIA` | wrong media type or failed magic-byte check |
 | 422 | `QUALITY_GATE_FAILED` | publish requested but blocking gates fail (`details.blocking[]`) |
 | 422 | `REVIEW_REQUIRED` | publish requested for medical content without an approved revision |
-| 429 | `RATE_LIMITED` / `PUBLISH_CAP_REACHED` | §5 |
+| 429 | `RATE_LIMITED` / `PUBLISH_CAP_REACHED` / `PUBLISHING_CREATE_CAP` | §5 |
 | 503 | `UPSTREAM_UNAVAILABLE` | maintenance or storage down (retry with backoff) |
 
 ### 4.4 Pagination and filtering
@@ -154,7 +154,7 @@ All timestamps are ISO 8601 UTC (`2026-11-02T07:00:00Z`). `scheduled_at` must be
 | Media uploads/fetches | 20/min, 500/day |
 | Batch size | 25 items per `/articles/batch` call (each counts as one write) |
 | Body size | 1 MB JSON; Markdown body ≤ 200 KB |
-| Created items | 1,000/day |
+| Created items | 1,000/day per key (only genuinely new `content_items`; updates and idempotent replays do not consume the cap) |
 | Publishes (incl. scheduled ones going live) | per-key cap (default 25/day) and the global `content.maxPublishesPerDay` |
 | Concurrent requests | 4 |
 
@@ -216,10 +216,21 @@ Read-only fields returned: `id`, `status`, `revision`, `url` (when published), `
 | POST | `/articles/{id}/unpublish` | `content:publish` | back to draft, URL returns 404 |
 | DELETE | `/articles/{id}` | `content:write` | drafts: delete; published: archive (410) unless `redirect_to` is given (301) |
 | GET | `/articles/{id}/revisions` | `content:read` | revision list (no restore through the API) |
-| POST | `/articles/batch` | `content:write` | ≤ 25 upserts by `external_id`, per-item results, partial success allowed (`207`) |
+| POST | `/articles/batch` | `content:write` | ≤ 25 upserts by `external_id`, per-item results, partial success allowed (`207`, always) |
 | POST | `/media` · `/media/fetch` · GET `/media/{id}` · PATCH `/media/{id}` | `media:write` | §6 |
 | GET/POST | `/categories` · `/tags` | read: `content:read`; create: `taxonomy:write` | taxonomy |
 | GET | `/people` | `people:read` | authors and reviewers |
+
+`body_html_import` may replace `body_markdown` on create, upsert, validate, and patch; send exactly one on create/upsert/validate, and at most one on patch. Imported HTML is sanitized and converted to Markdown before workflow/rendering; raw HTML is never stored. Source and converted Markdown are each limited to 200 KB. External images are not fetched.
+
+Batch example (each row is a flattened article request with its stable `external_id`):
+```json
+{ "items": [
+  { "external_id": "kb-1042", "type": "article", "locale": "en", "title": "How to take antibiotics correctly", "excerpt": "Simple steps that help you follow the schedule and the length of your antibiotic course.", "body_markdown": "## Why\n\nText." },
+  { "external_id": "kb-1043", "type": "article", "locale": "en", "title": "Understanding medicines safely", "excerpt": "A short overview of how to use medicine information safely and when to ask a professional.", "body_html_import": "<h2>Key point</h2><p>Ask a <strong>pharmacist</strong>.</p>" }
+] }
+```
+The response is always HTTP `207`, in input order. Each row has either `{ "external_id": "kb-1042", "status": "success", "article": { ... } }` or `{ "external_id": null, "status": "error", "error": { "code": "VALIDATION_FAILED", "message": "…", "details": { ... } } }`. The call requires `Idempotency-Key`; replay returns the complete saved `207` body with `idempotent-replayed: true`.
 
 Updating a **published** item through the API creates a new revision; non-medical items publish it immediately only when `desired_status = published` and the key can publish; medical items go to review while the approved revision stays live (CONTENT-PLATFORM §4.1).
 
@@ -241,7 +252,7 @@ Recommended setup for high volume: one key per automation, `can_publish = false`
 
 ## 9. Webhooks (optional per key)
 
-Events: `content.created`, `content.review_requested`, `content.changes_requested` (with the reviewer's comment), `content.approved`, `content.published`, `content.unpublished`, `content.archived`, `media.ready`, `media.failed`, `key.expiring`.
+Events: `content.created`, `content.review_requested`, `content.changes_requested` (with the reviewer's comment), `content.approved`, `content.published`, `content.unpublished`, `content.archived`, `media.ready`, `media.failed`, `key.expiring` (emitted once when the key enters its 14-day expiry window).
 Delivery: `POST` JSON to the key's webhook URL with `X-Wasfa-Event`, `X-Wasfa-Delivery` (unique id), `X-Wasfa-Timestamp`, `X-Wasfa-Signature: v1=<HMAC_SHA256(webhook_secret, timestamp + "." + body)>`. Retries with exponential backoff for 24 h (8 attempts) through the outbox; deliveries visible in the admin log with response codes. The URL must be `https` and pass the same SSRF guard as media fetch.
 
 ---

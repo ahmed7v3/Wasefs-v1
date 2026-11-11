@@ -1,10 +1,15 @@
 import { randomUUID } from "node:crypto";
 
 import { Injectable } from "@nestjs/common";
-import { isUniqueViolation, type ContentItem, type ContentRevision } from "@wasfa/db";
+import {
+  isUniqueViolation,
+  type ContentItem,
+  type ContentRevision,
+} from "@wasfa/db";
 import {
   allowedActions,
   contentPath,
+  localDayBounds,
   diffStats,
   checkItemSlug,
   diffWords,
@@ -63,6 +68,9 @@ import type { AuthenticatedUser } from "../common/current-user.js";
  * reviewer approved). It is NEVER the owner and never a reviewer: `act` strips both flags, so the
  * owner bypass of review, four-eyes and blocking gates cannot reach it whatever a caller put in the ctx.
  */
+const PUBLISHING_DAILY_CREATE_CAP = 1_000;
+const PUBLISHING_USAGE_ZONE = "Africa/Cairo";
+
 export interface MachineActor {
   type: "api_key" | "system";
   keyId: string;
@@ -615,6 +623,20 @@ export class ContentItemsService {
     let id: string;
     try {
       id = await this.repo.transaction(async (data) => {
+        if (actor.machine?.type === "api_key") {
+          const day = localDayBounds(now, PUBLISHING_USAGE_ZONE);
+          await data.lockApiKeyCreateCap(actor.machine.keyId);
+          const createdToday = await data.countApiKeyItemsCreatedBetween(
+            actor.machine.keyId,
+            day.start,
+            day.end,
+          );
+          if (createdToday >= PUBLISHING_DAILY_CREATE_CAP) {
+            throw new AppError(ErrorCode.PUBLISHING_CREATE_CAP, {
+              details: { limit: PUBLISHING_DAILY_CREATE_CAP },
+            });
+          }
+        }
         const item = await data.insertItem(
           {
             type: input.type,
@@ -653,6 +675,12 @@ export class ContentItemsService {
         });
         await data.updateItem(item.id, { ...patch, status: "draft" });
         await data.setItemTags(item.id, [...new Set(refs.tagIds)]);
+         if (actor.machine?.type === "api_key") {
+           await data.emitPublishingWebhook(
+             { itemId: item.id, mediaId: null, event: "content.created", comment: null },
+             `publishing.webhook:${item.id}:created`,
+           );
+         }
         return item.id;
       });
     } catch (error) {

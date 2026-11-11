@@ -2,6 +2,7 @@ import { contentPath } from "@wasfa/shared/content/paths";
 import { and, asc, count, eq, gte, lte } from "drizzle-orm";
 
 import { enqueueOutbox } from "./outbox.js";
+import { enqueuePublishingWebhookEvent } from "./publishing-webhooks.js";
 import { contentItems, contentPublishLog, contentRevisions } from "./schema/index.js";
 
 import type { Transaction } from "./credits-ledger.js";
@@ -142,6 +143,11 @@ export async function publishItemTx(
     },
     `content.changed:${item.id}:${next.id}:published`,
   );
+  await enqueuePublishingWebhookEvent(
+    tx,
+    { itemId: item.id, mediaId: null, event: "content.published", comment: null },
+    `publishing.webhook:${item.id}:${next.id}:published`,
+  );
 
   return {
     publishedRevisionId: next.id,
@@ -185,6 +191,11 @@ export async function unpublishItemTx(tx: Transaction, input: UnpublishItemInput
     { itemId: item.id, kind: "unpublished", paths: [] as string[], oldPaths: [oldPath] },
     // The time makes a publish -> unpublish -> publish -> unpublish cycle distinct per unpublish.
     `content.changed:${item.id}:${oldRevisionId ?? "none"}:unpublished:${String(input.now.getTime())}`,
+  );
+  await enqueuePublishingWebhookEvent(
+    tx,
+    { itemId: item.id, mediaId: null, event: "content.unpublished", comment: null },
+    `publishing.webhook:${item.id}:${oldRevisionId ?? "none"}:unpublished:${String(input.now.getTime())}`,
   );
 }
 

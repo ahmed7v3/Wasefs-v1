@@ -10,6 +10,7 @@ import { ToastProvider } from "@wasfa/ui";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PublishingConnectView } from "../src/components/admin/publishing-connect-view";
+import { PublishingDocsView } from "../src/components/admin/publishing-docs-view";
 import { PublishingKeysView } from "../src/components/admin/publishing-keys-view";
 import { keyStatus, publishingBaseUrl } from "../src/lib/publishing-admin";
 import { ReauthProvider } from "../src/lib/reauth";
@@ -25,6 +26,7 @@ const baseKey: PublishingKey = {
   environment: "live",
   scopes: ["content:read", "content:write"],
   canPublish: false,
+  requireSignature: true,
   allowedTypes: [],
   allowedCategorySlugs: [],
   defaultAuthorId: null,
@@ -158,6 +160,7 @@ describe("PublishingKeysView", () => {
         .length,
     ).toBeGreaterThan(0);
     expect(screen.getAllByText(t("admin.pub.canPublish.no")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(t("admin.pub.signature.required")).length).toBeGreaterThan(0);
   });
 
   it("creates a key with a payload valid for the shared schema, shows the full key once and leaves nothing in the DOM", async () => {
@@ -170,6 +173,7 @@ describe("PublishingKeysView", () => {
     );
     await user.click(screen.getByLabelText(t("admin.pub.scope.media:write")));
     await user.click(screen.getByLabelText(t("admin.pub.form.canPublish")));
+    await user.click(screen.getByLabelText(t("admin.pub.form.requireSignature")));
     await user.click(screen.getByLabelText(t("admin.pub.type.article")));
     await user.type(screen.getByLabelText(t("admin.pub.form.categories")), "diabetes{Enter}");
     await user.type(screen.getByLabelText(t("admin.pub.form.ipAllowList")), "10.0.0.0/8\n1.2.3.4");
@@ -189,6 +193,7 @@ describe("PublishingKeysView", () => {
       environment: "live",
       scopes: ["content:read", "content:write", "media:write"],
       canPublish: true,
+      requireSignature: true,
       allowedTypes: ["article"],
       allowedCategorySlugs: ["diabetes"],
       ipAllowList: ["10.0.0.0/8", "1.2.3.4"],
@@ -230,6 +235,7 @@ describe("PublishingKeysView", () => {
     const name = await screen.findByLabelText(t("admin.pub.form.name"), { exact: false });
     await user.clear(name);
     await user.type(name, "Renamed");
+    await user.click(screen.getByLabelText(t("admin.pub.form.requireSignature")));
     expect(screen.queryByLabelText(t("admin.pub.form.expiresInDays"))).toBeNull();
     await user.click(screen.getByRole("button", { name: t("admin.pub.form.submitEdit") }));
     await waitFor(() => {
@@ -240,6 +246,7 @@ describe("PublishingKeysView", () => {
       unknown
     >;
     expect(body["name"]).toBe("Renamed");
+    expect(body["requireSignature"]).toBe(false);
     expect(body).not.toHaveProperty("environment");
     expect(body).not.toHaveProperty("expiresInDays");
   });
@@ -305,6 +312,7 @@ describe("PublishingConnectView", () => {
     const hrefs = screen.getAllByRole("link").map((link) => link.getAttribute("href"));
     expect(hrefs).toContain(`${publishingBaseUrl()}/openapi.json`);
     expect(hrefs).toContain(guideUrl);
+    expect(hrefs).toContain("/admin/content/api/docs");
     expect(
       screen.getByText(t("admin.pub.claudeMessage.template", { base: publishingBaseUrl() })),
     ).toBeTruthy();
@@ -325,5 +333,57 @@ describe("PublishingConnectView", () => {
     const open = screen.getByRole("link", { name: t("admin.pub.connect.guide.open") });
     expect(open.getAttribute("href")).toBe(guideUrl);
     expect(screen.queryByRole("button", { name: t("admin.pub.connect.guide.copy") })).toBeNull();
+  });
+});
+
+describe("PublishingDocsView", () => {
+  it("validates and renders the public OpenAPI routes, then filters them", async () => {
+    const user = userEvent.setup();
+    const openapiUrl = `${publishingBaseUrl()}/openapi.json`;
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(
+        json({
+          openapi: "3.1.0",
+          info: { title: "Publishing", version: "1.0.0" },
+          servers: [{ url: publishingBaseUrl() }],
+          paths: {
+            "/articles": {
+              get: {
+                summary: "List articles",
+                "x-required-scope": "content:read",
+                parameters: [{ name: "limit", in: "query", required: false, schema: { type: "integer" } }],
+                responses: { "200": { description: "Article list" } },
+              },
+              post: {
+                summary: "Create article",
+                "x-required-scope": "content:write",
+                security: [{ bearerAuth: [] }],
+                requestBody: { required: true, content: { "application/json": { schema: { type: "object" } } } },
+                responses: { "201": { description: "Created" } },
+              },
+            },
+            "/openapi.json": {
+              get: { summary: "OpenAPI specification", security: [], responses: { "200": { description: "Spec" } } },
+            },
+          },
+        }),
+      ),
+    );
+    render(<PublishingDocsView />);
+
+    expect(await screen.findByText("List articles")).toBeTruthy();
+    expect(screen.getByText("Create article")).toBeTruthy();
+    expect(screen.getByText(t("admin.pub.docs.authPublic"))).toBeTruthy();
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(openapiUrl);
+    expect(fetchMock.mock.calls[0]?.[1]?.credentials).toBe("omit");
+
+    await user.selectOptions(screen.getByLabelText(t("admin.pub.docs.methodFilter")), "post");
+    expect(screen.getByText("Create article")).toBeTruthy();
+    expect(screen.queryByText("List articles")).toBeNull();
+    await user.selectOptions(screen.getByLabelText(t("admin.pub.docs.methodFilter")), "");
+    await user.clear(screen.getByLabelText(t("admin.pub.docs.searchLabel")));
+    await user.type(screen.getByLabelText(t("admin.pub.docs.searchLabel")), "content:read");
+    expect(screen.getByText("List articles")).toBeTruthy();
+    expect(screen.queryByText("Create article")).toBeNull();
   });
 });

@@ -5,10 +5,11 @@ import {
   type NestInterceptor,
 } from "@nestjs/common";
 import { PinoLogger } from "nestjs-pino";
-import { catchError, tap, throwError, type Observable } from "rxjs";
+import { catchError, finalize, tap, throwError, type Observable } from "rxjs";
 
 import { toAppError } from "../common/errors.js";
 
+import { PublishingKeyService } from "./publishing-key.service.js";
 import { PublishingKeysRepo, type RequestLogEntry } from "./publishing-keys.repo.js";
 import { PUBLISHING_REQUEST_KEY, type PublishingPrincipal } from "./publishing-principal.js";
 
@@ -18,6 +19,8 @@ declare module "fastify" {
   interface FastifyRequest {
     /** Set by a Publishing API handler that created or touched one item; goes into the request log. */
     publishingItemId?: string;
+    publishingLease?: string;
+    publishingStartedAt?: number;
   }
 }
 
@@ -37,14 +40,14 @@ export class PublishingRequestLogger {
 
   record(entry: RequestLogEntry): void {
     this.repo.insertRequest(entry).catch((error: unknown) => {
-      this.logger.warn({ reason: (error as Error).message }, "Publishing request log write failed");
+      this.logger.warn({ errorClass: error instanceof Error ? error.name : "unknown" }, "Publishing request log write failed");
     });
   }
 
   /** Builds the entry from the live request; guard rejections (403/429) use it directly too. */
   entryFor(
     request: FastifyRequest,
-    keyId: string,
+    keyId: string | null,
     status: number,
     startedAt: number,
     errorCode: string | null,
@@ -69,7 +72,7 @@ export class PublishingRequestLogger {
  */
 @Injectable()
 export class PublishingRequestLogInterceptor implements NestInterceptor {
-  constructor(private readonly log: PublishingRequestLogger) {}
+  constructor(private readonly log: PublishingRequestLogger, private readonly keys: PublishingKeyService) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     if (context.getType() !== "http") return next.handle();
@@ -80,7 +83,11 @@ export class PublishingRequestLogInterceptor implements NestInterceptor {
       PUBLISHING_REQUEST_KEY
     ];
     if (!principal) return next.handle();
-    const startedAt = Date.now();
+    const startedAt = request.publishingStartedAt ?? Date.now();
+    const leaseToken = request.publishingLease;
+    const leaseTimer = leaseToken
+      ? setInterval(() => void this.keys.renewConcurrency(principal.keyId, leaseToken, Date.now()), 60_000)
+      : undefined;
     return next.handle().pipe(
       tap(() => {
         this.log.record(
@@ -99,6 +106,10 @@ export class PublishingRequestLogInterceptor implements NestInterceptor {
           ),
         );
         return throwError(() => error);
+      }),
+      finalize(() => {
+        if (leaseTimer) clearInterval(leaseTimer);
+        if (leaseToken) void this.keys.releaseConcurrency(principal.keyId, leaseToken);
       }),
     );
   }

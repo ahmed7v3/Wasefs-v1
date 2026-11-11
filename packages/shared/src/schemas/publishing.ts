@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { CONTENT_LOCALES } from "../content/constants.js";
+import { htmlToMarkdown } from "../html-to-markdown.js";
 import { PUBLISHING_CONTENT_TYPES, PUBLISHING_DEFAULTS } from "../publishing.js";
 
 import { MEDIA_LICENCES } from "./media.js";
@@ -61,6 +62,14 @@ const slug = z
 
 const markdownBytes = (value: string): boolean =>
   new TextEncoder().encode(value).length <= PUBLISHING_DEFAULTS.maxMarkdownBytes;
+const htmlBytes = (value: string): boolean => markdownBytes(value);
+const convertImportedHtml = (value: string): string | undefined => {
+  try {
+    return htmlToMarkdown(value);
+  } catch {
+    return undefined;
+  }
+};
 
 export const publishingSourceSchema = z.strictObject({
   title: z.string().trim().min(3).max(200),
@@ -115,9 +124,8 @@ const fields = {
   title: z.string().trim().min(2).max(110),
   slug,
   excerpt: z.string().trim().max(300),
-  body_markdown: z
-    .string()
-    .refine(markdownBytes, `at most ${String(PUBLISHING_DEFAULTS.maxMarkdownBytes)} bytes`),
+  body_markdown: z.string(),
+  body_html_import: z.string().max(PUBLISHING_DEFAULTS.maxMarkdownBytes).refine(htmlBytes, `at most ${String(PUBLISHING_DEFAULTS.maxMarkdownBytes)} bytes`),
   definition: z.string().trim().max(300),
   category: z.string().trim().min(1).max(120),
   tags: z.array(z.string().trim().min(1).max(100)).max(PUBLISHING_TAGS_MAX),
@@ -166,7 +174,8 @@ export const publishingArticleInputSchema = z
     title: fields.title,
     slug: fields.slug.optional(),
     excerpt: fields.excerpt.optional(),
-    body_markdown: fields.body_markdown,
+    body_markdown: fields.body_markdown.optional(),
+    body_html_import: fields.body_html_import.optional(),
     definition: fields.definition.optional(),
     category: fields.category.optional(),
     tags: fields.tags.optional(),
@@ -182,6 +191,9 @@ export const publishingArticleInputSchema = z
     publish_on_approval: fields.publish_on_approval.optional(),
   })
   .superRefine((value, ctx) => {
+    if ((value.body_markdown === undefined) === (value.body_html_import === undefined)) {
+      ctx.addIssue({ code: "custom", path: ["body_markdown"], message: "provide exactly one of body_markdown or body_html_import" });
+    }
     typeRules(value, ctx);
     if (value.type !== "glossary" && (value.excerpt === undefined || value.excerpt === "")) {
       ctx.addIssue({
@@ -207,6 +219,12 @@ export const publishingArticleInputSchema = z
         message: "scheduled_at is required with desired_status scheduled",
       });
     }
+  })
+  .transform(({ body_markdown, body_html_import, ...value }, ctx) => {
+    const markdown = body_markdown ?? (body_html_import === undefined ? undefined : convertImportedHtml(body_html_import));
+    if (body_html_import !== undefined && markdown === undefined) ctx.addIssue({ code: "custom", path: ["body_html_import"], message: "HTML import could not be safely converted" });
+    if (markdown !== undefined && !markdownBytes(markdown)) ctx.addIssue({ code: "custom", path: ["body_markdown"], message: `at most ${String(PUBLISHING_DEFAULTS.maxMarkdownBytes)} bytes` });
+    return { ...value, body_markdown: markdown ?? "" };
   });
 export type PublishingArticleInput = z.output<typeof publishingArticleInputSchema>;
 
@@ -220,6 +238,7 @@ export const publishingArticlePatchSchema = z
     slug: fields.slug.optional(),
     excerpt: fields.excerpt.optional(),
     body_markdown: fields.body_markdown.optional(),
+    body_html_import: fields.body_html_import.optional(),
     definition: fields.definition.optional(),
     category: fields.category.nullable().optional(),
     tags: fields.tags.optional(),
@@ -235,6 +254,7 @@ export const publishingArticlePatchSchema = z
     publish_on_approval: fields.publish_on_approval.optional(),
   })
   .superRefine((value, ctx) => {
+    if (value.body_markdown !== undefined && value.body_html_import !== undefined) ctx.addIssue({ code: "custom", path: ["body_html_import"], message: "provide only one body format" });
     if (value.title !== undefined && value.title.length < 2) {
       ctx.addIssue({ code: "custom", path: ["title"], message: "title is too short" });
     }
@@ -248,6 +268,12 @@ export const publishingArticlePatchSchema = z
         message: "scheduled_at is required with desired_status scheduled",
       });
     }
+  })
+  .transform(({ body_markdown, body_html_import, ...value }, ctx) => {
+    const markdown = body_html_import === undefined || body_markdown !== undefined ? body_markdown : convertImportedHtml(body_html_import);
+    if (body_html_import !== undefined && body_markdown === undefined && markdown === undefined) ctx.addIssue({ code: "custom", path: ["body_html_import"], message: "HTML import could not be safely converted" });
+    if (markdown !== undefined && !markdownBytes(markdown)) ctx.addIssue({ code: "custom", path: ["body_markdown"], message: `at most ${String(PUBLISHING_DEFAULTS.maxMarkdownBytes)} bytes` });
+    return { ...value, ...(markdown === undefined ? {} : { body_markdown: markdown }) };
   });
 export type PublishingArticlePatch = z.output<typeof publishingArticlePatchSchema>;
 
@@ -331,6 +357,16 @@ export const publishingArticleSchema = z.object({
   created: z.boolean(),
 });
 export type PublishingArticle = z.output<typeof publishingArticleSchema>;
+
+export const publishingBatchItemSchema = publishingArticleInputSchema.and(z.strictObject({ external_id: externalId }));
+export const publishingBatchInputSchema = z.strictObject({
+  items: z.array(publishingBatchItemSchema).min(1).max(25),
+});
+/** Envelope-only parser used so malformed individual rows remain independent outcomes. */
+export const publishingBatchEnvelopeSchema = z.strictObject({
+  items: z.array(z.unknown()).min(1).max(25),
+});
+
 
 export const publishingArticleListSchema = z.object({
   items: z.array(publishingArticleSchema.omit({ preview_url: true, notes: true, created: true })),
@@ -481,4 +517,11 @@ export const publishingErrorSchema = z.object({
   message: z.string(),
   details: z.record(z.string(), z.unknown()).optional(),
   ref: z.string().optional(),
+});
+
+export const publishingBatchResponseSchema = z.object({
+  results: z.array(z.discriminatedUnion("status", [
+    z.object({ external_id: z.string().nullable(), status: z.literal("success"), article: publishingArticleSchema }),
+    z.object({ external_id: z.string().nullable(), status: z.literal("error"), error: publishingErrorSchema }),
+  ])),
 });

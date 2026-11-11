@@ -1,5 +1,6 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { localDayBounds } from "@wasfa/shared/content";
+import { decodeEncryptionKey, encryptSecret } from "@wasfa/shared/crypto";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import { formatPublishingKey } from "@wasfa/shared/publishing";
 import {
@@ -8,6 +9,9 @@ import {
   type PublishingKeyIssued,
 } from "@wasfa/shared/schemas/admin-publishing-keys";
 
+import { API_ENV } from "../config/config.module.js";
+
+import { validateWebhookUrl } from "./publishing-api-ssrf.js";
 import { isValidAllowEntry } from "./publishing-ip.js";
 import { generateKeyId, generateSecret, hashSecret } from "./publishing-key-crypto.js";
 import { PublishingKeyService } from "./publishing-key.service.js";
@@ -21,6 +25,7 @@ import {
 import type { PublishingKeyPatch } from "./publishing-key-patch.js";
 import type { AuditScope } from "../audit/audited.decorator.js";
 import type { AuthenticatedUser } from "../common/current-user.js";
+import type { ApiEnv } from "../config/env.js";
 import type { PublishingApiKeyRow } from "@wasfa/db";
 
 /** Fields of a key that may appear in `audit_logs`: never the secret, hashes or ids (UUIDs get mangled by the redactor). */
@@ -29,6 +34,8 @@ export const PUBLISHING_KEY_AUDIT_FIELDS = [
   "environment",
   "scopes",
   "canPublish",
+  "requireSignature",
+  "webhookConfigured",
   "allowedTypes",
   "allowedCategorySlugs",
   "dailyPublishCap",
@@ -56,6 +63,8 @@ export function auditView(row: PublishingApiKeyRow): Record<string, unknown> {
     environment: row.environment,
     scopes: row.scopes,
     canPublish: row.canPublish,
+    requireSignature: row.requireSignature,
+    webhookConfigured: row.webhookUrlEnc !== null && row.webhookSecretEnc !== null,
     allowedTypes: row.allowedTypes,
     allowedCategorySlugs: row.allowedCategorySlugs,
     dailyPublishCap: row.dailyPublishCap,
@@ -80,6 +89,9 @@ export function toKeyView(
     last4: row.last4,
     scopes: row.scopes as PublishingKey["scopes"],
     canPublish: row.canPublish,
+    requireSignature: row.requireSignature,
+    webhookUrl: null,
+    webhookSecretConfigured: row.webhookUrlEnc !== null && row.webhookSecretEnc !== null,
     allowedTypes: row.allowedTypes as PublishingKey["allowedTypes"],
     allowedCategorySlugs: row.allowedCategorySlugs,
     defaultAuthorId: row.defaultAuthorId,
@@ -111,6 +123,7 @@ export class AdminPublishingKeysService {
   constructor(
     private readonly repo: PublishingKeysRepo,
     private readonly keys: PublishingKeyService,
+    @Inject(API_ENV) private readonly env: ApiEnv,
   ) {}
 
   async list(): Promise<{ items: PublishingKey[] }> {
@@ -140,6 +153,7 @@ export class AdminPublishingKeysService {
       throw new AppError(ErrorCode.FORBIDDEN, { details: { reason: "content_publish_required" } });
     }
     await this.validateReferences(input);
+    const webhook = await this.webhookValues(input.webhookUrl, input.webhookSecret);
 
     const now = new Date();
     const secret = generateSecret();
@@ -155,6 +169,8 @@ export class AdminPublishingKeysService {
       ownerUserId: actor.id,
       scopes: [...input.scopes],
       canPublish: input.canPublish,
+      requireSignature: input.requireSignature,
+       ...webhook,
       allowedTypes: [...input.allowedTypes],
       allowedCategorySlugs: input.allowedCategorySlugs,
       defaultAuthorId: input.defaultAuthorId,
@@ -188,8 +204,9 @@ export class AdminPublishingKeysService {
       throw new AppError(ErrorCode.FORBIDDEN, { details: { reason: "content_publish_required" } });
     }
     await this.validateReferences(patch);
+    const webhook = await this.webhookPatch(current.row, patch);
 
-    const row = await this.repo.update(id, patch as KeyPatch);
+    const row = await this.repo.update(id, { ...patch, ...webhook } as KeyPatch);
     if (!row) throw new AppError(ErrorCode.NOT_FOUND);
     await this.keys.invalidate(row.keyId);
     audit.targetId = id;
@@ -233,6 +250,23 @@ export class AdminPublishingKeysService {
     };
   }
 
+  async webhookDeliveries(id: string, limit: number) {
+    if (!(await this.repo.findById(id))) throw new AppError(ErrorCode.NOT_FOUND);
+    const items = await this.repo.recentWebhookDeliveries(id, limit);
+    return {
+      items: items.map((item) => ({
+        id: item.id,
+        event: item.event,
+        status: item.status,
+        attempts: item.attempts,
+        responseStatus: item.responseStatus,
+        error: item.error,
+        createdAt: item.createdAt.toISOString(),
+        deliveredAt: item.deliveredAt?.toISOString() ?? null,
+      })),
+    };
+  }
+
   async requests(id: string, limit: number) {
     await this.require(id);
     const rows = await this.repo.recentRequests(id, limit);
@@ -258,6 +292,38 @@ export class AdminPublishingKeysService {
   private async view(entry: KeyWithOwner, now: Date = new Date()): Promise<PublishingKey> {
     const usage = await this.repo.usageSince([entry.row.id], localDayBounds(now, USAGE_ZONE).start);
     return toKeyView(entry, usage.get(entry.row.id) ?? EMPTY_USAGE, now);
+  }
+
+  private async webhookValues(
+    webhookUrl: string | null,
+    webhookSecret: string | null,
+  ): Promise<{ webhookUrlEnc: string | null; webhookSecretEnc: string | null }> {
+    if ((webhookUrl === null) !== (webhookSecret === null)) throw invalid("webhook", "url_and_secret_required");
+    if (webhookUrl === null || webhookSecret === null) return { webhookUrlEnc: null, webhookSecretEnc: null };
+    await validateWebhookUrl(webhookUrl);
+    const key = decodeEncryptionKey(this.env.ENCRYPTION_KEY);
+    return {
+      webhookUrlEnc: encryptSecret(webhookUrl, key, "publishing:webhook:url"),
+      webhookSecretEnc: encryptSecret(webhookSecret, key, "publishing:webhook:secret"),
+    };
+  }
+
+  private async webhookPatch(
+    current: PublishingApiKeyRow,
+    patch: PublishingKeyPatch,
+  ): Promise<Partial<Pick<PublishingApiKeyRow, "webhookUrlEnc" | "webhookSecretEnc">>> {
+    if (patch.webhookUrl === undefined && patch.webhookSecret === undefined) return {};
+    if (patch.webhookUrl === null) return { webhookUrlEnc: null, webhookSecretEnc: null };
+    const urlEnc = patch.webhookUrl === undefined
+      ? current.webhookUrlEnc
+      : (await validateWebhookUrl(patch.webhookUrl), encryptSecret(patch.webhookUrl, decodeEncryptionKey(this.env.ENCRYPTION_KEY), "publishing:webhook:url"));
+    const secretEnc = patch.webhookSecret === undefined
+      ? current.webhookSecretEnc
+      : patch.webhookSecret === null
+        ? null
+        : encryptSecret(patch.webhookSecret, decodeEncryptionKey(this.env.ENCRYPTION_KEY), "publishing:webhook:secret");
+    if (urlEnc === null || secretEnc === null) throw invalid("webhook", "url_and_secret_required");
+    return { webhookUrlEnc: urlEnc ?? null, webhookSecretEnc: secretEnc ?? null };
   }
 
   private async validateReferences(

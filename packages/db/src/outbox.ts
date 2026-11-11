@@ -27,7 +27,8 @@ export type OutboxPostCommitAction =
     }
   | { kind: "customer_message"; payload: CustomerMessageInput; jobId: string }
   /** A follow-up for the WhatsApp agent (`wa:agent:events`); the worker pushes it after the commit. */
-  | { kind: "wa_agent_event"; event: WaAgentEvent };
+  | { kind: "wa_agent_event"; event: WaAgentEvent }
+  | { kind: "publishing_webhook"; deliveryId: string; jobId: string };
 
 /**
  * Writes a side effect in the caller's transaction. A repeated idempotency key is a no-op, so an

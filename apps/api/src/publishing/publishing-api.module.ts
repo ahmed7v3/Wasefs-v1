@@ -13,6 +13,7 @@ import { PublishingApiMediaService } from "./publishing-api-media.service.js";
 import { PublishingApiTaxonomyController } from "./publishing-api-taxonomy.controller.js";
 import { PublishingApiTaxonomyService } from "./publishing-api-taxonomy.service.js";
 import { PublishingApiRepo } from "./publishing-api.repo.js";
+import { PublishingModule } from "./publishing.module.js";
 
 /**
  * The agent-facing Publishing API (`/publishing/v1`, docs/PUBLISHING-API.md): articles and their
@@ -21,7 +22,7 @@ import { PublishingApiRepo } from "./publishing-api.repo.js";
  * so review, quality gates and publish caps are the ones the editors live under.
  */
 @Module({
-  imports: [ContentModule, TaxonomyModule, MediaModule],
+  imports: [ContentModule, TaxonomyModule, MediaModule, PublishingModule],
   controllers: [
     PublishingApiArticlesController,
     PublishingApiMediaController,

@@ -21,6 +21,10 @@ export const publishingKeyInputSchema = z.object({
   scopes: z.array(z.enum(PUBLISHING_SCOPES)).min(1),
   /** false = the key can only create drafts and submit for review. */
   canPublish: z.boolean().default(false),
+  requireSignature: z.boolean().default(false),
+  /** Optional webhook endpoint. The secret is write-only and never returned. */
+  webhookUrl: z.string().url().refine((value) => value.startsWith("https://"), "https_only").nullable().default(null),
+  webhookSecret: z.string().trim().min(16).max(256).nullable().default(null),
   /** Empty = every writable type. */
   allowedTypes: z.array(z.enum(PUBLISHING_CONTENT_TYPES)).default([]),
   /** Category slugs the key may use; empty = any. */
@@ -48,6 +52,9 @@ export const publishingKeyUpdatableFields = [
   "name",
   "scopes",
   "canPublish",
+  "requireSignature",
+  "webhookUrl",
+  "webhookSecret",
   "allowedTypes",
   "allowedCategorySlugs",
   "defaultAuthorId",
@@ -58,8 +65,10 @@ export const publishingKeyUpdatableFields = [
 ] as const;
 
 export const publishingKeySchema = publishingKeyInputSchema
-  .omit({ expiresInDays: true })
+  .omit({ expiresInDays: true, webhookSecret: true })
   .extend({
+    webhookUrl: z.string().url().nullable().optional(),
+    webhookSecretConfigured: z.boolean().optional(),
     id: z.string().uuid(),
     /** `wsk_live_<keyId>` : enough to recognise the key, never enough to use it. */
     prefix: z.string(),
@@ -117,3 +126,15 @@ export const publishingKeyRequestSchema = z.object({
 export const publishingKeyRequestListSchema = z.object({
   items: z.array(publishingKeyRequestSchema),
 });
+
+export const publishingWebhookDeliverySchema = z.object({
+  id: z.string().uuid(),
+  event: z.string(),
+  status: z.enum(["pending", "succeeded", "failed"]),
+  attempts: z.number().int(),
+  responseStatus: z.number().int().nullable(),
+  error: z.string().nullable(),
+  createdAt: isoDate,
+  deliveredAt: isoDate.nullable(),
+});
+export const publishingWebhookDeliveryListSchema = z.object({ items: z.array(publishingWebhookDeliverySchema) });

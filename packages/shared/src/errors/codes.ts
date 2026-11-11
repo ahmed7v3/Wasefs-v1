@@ -46,6 +46,7 @@ export const ErrorCode = {
   IDEMPOTENCY_MISMATCH: "IDEMPOTENCY_MISMATCH",
   UNSUPPORTED_MEDIA: "UNSUPPORTED_MEDIA",
   PAYLOAD_TOO_LARGE: "PAYLOAD_TOO_LARGE",
+  PUBLISHING_CREATE_CAP: "PUBLISHING_CREATE_CAP",
   // First-party ads (docs/ADS.md §1): the safety floor refusing an admin action.
   AD_CLASS_NOT_SERVABLE: "AD_CLASS_NOT_SERVABLE",
   AD_CATEGORY_FORBIDDEN: "AD_CATEGORY_FORBIDDEN",
@@ -250,6 +251,13 @@ export const ERROR_INFO: Record<ErrorCode, ErrorCodeInfo> = {
   INVALID_SIGNATURE: {
     httpStatus: 401,
     message: { ar: "توقيع غير صالح.", en: "Invalid signature." },
+  },
+  PUBLISHING_CREATE_CAP: {
+    httpStatus: 429,
+    message: {
+      ar: "تم بلوغ الحد اليومي لإنشاء العناصر عبر هذا المفتاح.",
+      en: "This API key has reached its daily item-creation limit.",
+    },
   },
   CONTENT_CONFLICT: {
     httpStatus: 409,

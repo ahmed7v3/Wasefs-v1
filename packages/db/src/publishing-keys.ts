@@ -8,8 +8,7 @@ import type { Database } from "./client.js";
 export const PUBLISHING_REQUEST_RETENTION_DAYS = 90;
 
 /**
- * Deletes request-log rows older than `days` and returns how many went. No worker job calls this
- * yet: wire it to a daily schedule (like the other retention sweeps) when the worker track picks it up.
+ * Deletes request-log rows older than `days` and returns how many went. Safe to call from a worker job.
  */
 export async function purgeOlderThan(
   db: Database,

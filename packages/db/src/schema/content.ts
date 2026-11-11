@@ -186,6 +186,9 @@ export const contentItems = pgTable(
     uniqueIndex("content_items_api_external_key")
       .on(table.apiKeyId, table.externalId)
       .where(sql`${table.externalId} is not null`),
+    index("content_items_api_key_created_idx")
+      .on(table.apiKeyId, table.createdAt)
+      .where(sql`${table.apiKeyId} is not null`),
     // Pages own a path below the root (`features/x`); every other type is one segment under its section.
     check("content_items_slug_check", matches(table.slug, CONTENT_PAGE_SLUG_PATTERN.source)),
     check(

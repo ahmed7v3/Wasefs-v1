@@ -20,6 +20,7 @@ CREATE TABLE "publishing_api_keys" (
 	"owner_user_id" uuid NOT NULL,
 	"scopes" text[] NOT NULL,
 	"can_publish" boolean DEFAULT false NOT NULL,
+	"require_signature" boolean DEFAULT false NOT NULL,
 	"allowed_types" text[] DEFAULT '{}'::text[] NOT NULL,
 	"allowed_category_slugs" text[] DEFAULT '{}'::text[] NOT NULL,
 	"default_author_id" uuid,
@@ -42,7 +43,7 @@ CREATE TABLE "publishing_api_keys" (
 --> statement-breakpoint
 CREATE TABLE "publishing_api_requests" (
 	"id" bigserial PRIMARY KEY NOT NULL,
-	"key_id" uuid NOT NULL,
+	"key_id" uuid,
 	"at" timestamp with time zone DEFAULT now() NOT NULL,
 	"method" text NOT NULL,
 	"route" text NOT NULL,
@@ -56,8 +57,9 @@ CREATE TABLE "publishing_api_requests" (
 ALTER TABLE "publishing_api_keys" ADD CONSTRAINT "publishing_api_keys_owner_user_id_users_id_fk" FOREIGN KEY ("owner_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "publishing_api_keys" ADD CONSTRAINT "publishing_api_keys_default_author_id_content_people_id_fk" FOREIGN KEY ("default_author_id") REFERENCES "public"."content_people"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "publishing_api_keys" ADD CONSTRAINT "publishing_api_keys_default_featured_media_id_media_assets_id_fk" FOREIGN KEY ("default_featured_media_id") REFERENCES "public"."media_assets"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "publishing_api_requests" ADD CONSTRAINT "publishing_api_requests_key_id_publishing_api_keys_id_fk" FOREIGN KEY ("key_id") REFERENCES "public"."publishing_api_keys"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "publishing_api_requests" ADD CONSTRAINT "publishing_api_requests_key_id_publishing_api_keys_id_fk" FOREIGN KEY ("key_id") REFERENCES "public"."publishing_api_keys"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "publishing_idempotency_created_idx" ON "publishing_idempotency" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "publishing_api_keys_owner_idx" ON "publishing_api_keys" USING btree ("owner_user_id");--> statement-breakpoint
 CREATE INDEX "publishing_api_requests_key_at_idx" ON "publishing_api_requests" USING btree ("key_id","at");--> statement-breakpoint
-CREATE INDEX "publishing_api_requests_at_idx" ON "publishing_api_requests" USING btree ("at");
+CREATE INDEX "publishing_api_requests_at_idx" ON "publishing_api_requests" USING btree ("at");--> statement-breakpoint
+CREATE INDEX "content_items_api_key_created_idx" ON "content_items" USING btree ("api_key_id","created_at") WHERE "content_items"."api_key_id" is not null;

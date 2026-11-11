@@ -35,6 +35,7 @@ export class PublishingMeController {
         environment: key.environment ?? null,
         scopes: key.scopes,
         can_publish: key.canPublish,
+        require_signature: key.requireSignature ?? false,
         allowed_types: key.allowedTypes,
         allowed_category_slugs: key.allowedCategorySlugs,
         default_author_id: key.defaultAuthorId,

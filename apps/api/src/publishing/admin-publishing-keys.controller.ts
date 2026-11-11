@@ -95,6 +95,13 @@ export class AdminPublishingKeysController {
     return this.keys.rotate(params.id, body.graceHours, audit);
   }
 
+  @Get(":id/webhooks")
+  @RequirePermission("content.api_keys")
+  @RateLimit(120)
+  webhooks(@Param() params: KeyParamDto, @Query() query: RequestsQueryDto) {
+    return this.keys.webhookDeliveries(params.id, query.limit);
+  }
+
   @Get(":id/requests")
   @RequirePermission("content.api_keys")
   @RateLimit(120)

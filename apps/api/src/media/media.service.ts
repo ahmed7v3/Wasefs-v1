@@ -175,6 +175,7 @@ export class MediaService {
       sha256: string;
       ownerUserId: string;
       actor: string;
+      apiKeyId?: string;
     },
   ): Promise<{ asset: MediaAsset; deduplicated: boolean }> {
     const originalKey = mediaStagingKey(randomUUID());

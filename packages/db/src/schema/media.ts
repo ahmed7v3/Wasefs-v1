@@ -54,6 +54,8 @@ export const mediaAssets = pgTable(
       .notNull()
       .default(sql`'[]'::jsonb`),
     createdBy: uuid().references(() => users.id, { onDelete: "set null" }),
+    /** Publishing API provenance; null for admin/browser uploads. */
+    apiKeyId: uuid(),
     ...timestamps(),
   },
   (table) => [
@@ -72,5 +74,6 @@ export const mediaAssets = pgTable(
   ],
 );
 
-export type MediaAssetRecord = typeof mediaAssets.$inferSelect;
+type MediaAssetColumns = typeof mediaAssets.$inferSelect;
+export type MediaAssetRecord = Omit<MediaAssetColumns, "apiKeyId"> & Partial<Pick<MediaAssetColumns, "apiKeyId">>;
 export type NewMediaAsset = typeof mediaAssets.$inferInsert;

@@ -38,6 +38,9 @@ export interface PublishingKeyFormValues {
   environment: PublishingKeyInput["environment"];
   scopes: PublishingKeyInput["scopes"];
   canPublish: boolean;
+  requireSignature: boolean;
+  webhookUrl: string;
+  webhookSecret: string;
   allowedTypes: PublishingKeyInput["allowedTypes"];
   allowedCategorySlugs: string[];
   defaultAuthorId: string | null;
@@ -56,6 +59,9 @@ export const emptyKeyForm = (): PublishingKeyFormValues => ({
   environment: "live",
   scopes: ["content:read", "content:write"],
   canPublish: false,
+  requireSignature: false,
+  webhookUrl: "",
+  webhookSecret: "",
   allowedTypes: [],
   allowedCategorySlugs: [],
   defaultAuthorId: null,
@@ -75,6 +81,9 @@ export function formFromKey(key: PublishingKey): PublishingKeyFormValues {
     environment: key.environment,
     scopes: key.scopes,
     canPublish: key.canPublish,
+    requireSignature: key.requireSignature,
+    webhookUrl: key.webhookUrl ?? "",
+    webhookSecret: "",
     allowedTypes: key.allowedTypes,
     allowedCategorySlugs: key.allowedCategorySlugs,
     defaultAuthorId: key.defaultAuthorId,
@@ -102,6 +111,9 @@ export function parseKeyForm(values: PublishingKeyFormValues): PublishingKeyInpu
     environment: values.environment,
     scopes: values.scopes,
     canPublish: values.canPublish,
+    requireSignature: values.requireSignature,
+    webhookUrl: values.webhookUrl.trim() === "" ? null : values.webhookUrl.trim(),
+    webhookSecret: values.webhookSecret.trim() === "" ? null : values.webhookSecret.trim(),
     allowedTypes: values.allowedTypes,
     allowedCategorySlugs: values.allowedCategorySlugs,
     defaultAuthorId: values.defaultAuthorId,
@@ -117,11 +129,17 @@ export function parseKeyForm(values: PublishingKeyFormValues): PublishingKeyInpu
 /** The PATCH body: only the updatable fields (the environment and expiry never change). */
 export function patchBody(
   input: PublishingKeyInput,
-): Pick<PublishingKeyInput, (typeof publishingKeyUpdatableFields)[number]> {
+): Partial<Pick<PublishingKeyInput, (typeof publishingKeyUpdatableFields)[number]>> {
   return {
     name: input.name,
     scopes: input.scopes,
     canPublish: input.canPublish,
+    requireSignature: input.requireSignature,
+    ...(input.webhookUrl === null && input.webhookSecret === null
+      ? { webhookUrl: null, webhookSecret: null }
+      : input.webhookUrl !== null && input.webhookSecret === null
+        ? { webhookUrl: input.webhookUrl }
+        : { webhookUrl: input.webhookUrl, webhookSecret: input.webhookSecret }),
     allowedTypes: input.allowedTypes,
     allowedCategorySlugs: input.allowedCategorySlugs,
     defaultAuthorId: input.defaultAuthorId,
