@@ -185,6 +185,7 @@ export function fakeRepo(item: ContentItem, revision: ContentRevision = makeRevi
     publish: vi.fn(() => Promise.resolve({})),
     unpublish: vi.fn(() => Promise.resolve()),
     emit: vi.fn(() => Promise.resolve()),
+    emitPublishingWebhook: vi.fn(() => Promise.resolve()),
     transaction: vi.fn(),
   };
   data.transaction.mockImplementation((fn: (tx: typeof data) => Promise<unknown>) => fn(data));
