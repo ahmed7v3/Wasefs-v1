@@ -74,8 +74,6 @@ export const enCore: Partial<Record<MessageKey, string>> = {
   "whatsapp.customer.footer": "Wasfa AI · To stop WhatsApp messages, send: STOP",
   "whatsapp.agent.accountUnavailable":
     "Sorry, we cannot help with this account right now. Please contact the Wasfa AI team through the website.",
-  "whatsapp.agent.busy":
-    "Sorry, we are very busy right now. We have noted your message and our team will reply soon.",
   "whatsapp.agent.coupon.title": "A special discount for you",
   "whatsapp.agent.medical.lengthHint":
     "(The reply is sent over WhatsApp: keep the answer brief, at most {chars} characters.)",
