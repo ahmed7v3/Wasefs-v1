@@ -501,13 +501,27 @@ describe("pending delivery sweep", () => {
     await db.db.delete(alertDeliveries);
     const alertId = await raiseTestAlert();
     // More deferred rows than the sweep's 500-row window, so any implementation that keeps
-    // returning them hides the Telegram row below for ever.
+    // returning them hides the Telegram row below for ever. Each deferred row needs its own alert:
+    // `alert_deliveries` is unique per (alert, admin, channel).
     const hourAgo = new Date(Date.now() - 60 * 60_000);
+    const deferredAlerts = await db.db
+      .insert(adminAlerts)
+      .values(
+        Array.from({ length: 520 }, (_, i) => ({
+          kind: "system.test" as const,
+          severity: "info" as const,
+          refType: "user",
+          refId: adminId,
+          summary: `Sweep fixture deferred alert ${i}`,
+          link: "/admin/notifications",
+        })),
+      )
+      .returning({ id: adminAlerts.id });
     const inserted = await db.db
       .insert(alertDeliveries)
       .values(
-        Array.from({ length: 520 }, () => ({
-          alertId,
+        deferredAlerts.map(({ id }) => ({
+          alertId: id,
           adminUserId: adminId,
           channel: "email" as const,
           status: "pending" as const,
