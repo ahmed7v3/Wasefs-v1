@@ -480,6 +480,8 @@ export const arAdminContent = {
     "شروط الجودة منعت الجدولة أو النشر. المحرر يرى الشرط الفاشل ويصلحه، فهو سلوك متوقع.",
   "admin.issue.explain.CONTENT_PUBLISH_CAP":
     "بلغ النشر حد اليوم. يبقى العنصر مجدولًا لليوم التالي. راجع الحد في إعدادات المحتوى إن تكرر.",
+  "admin.issue.explain.PUBLISHING_CREATE_CAP":
+    "بلغ مفتاح النشر الآلي حد إنشاء العناصر اليومي. سيُسمح بإنشاء عناصر جديدة غدًا، بينما تستمر التحديثات.",
   "admin.issue.explain.CONTENT_FOUR_EYES":
     "كاتب العنصر حاول اعتماده بنفسه. القاعدة تتطلب مراجعًا آخر، وهي سلوك متوقع.",
   "admin.issue.explain.CONTENT_NOT_A_REVIEWER":
