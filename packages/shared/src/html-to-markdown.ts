@@ -47,6 +47,11 @@ function plainText(node: Node, depth: number, count: { value: number }): string 
 
 export function htmlToMarkdown(input: string): string {
   if (byteLength(input) > MAX_BYTES) throw new RangeError("HTML import exceeds 200 KB");
+  // Avoid invoking the HTML5 parser when a plain-text source already cannot fit the Markdown cap.
+  // This keeps hostile text-only payloads bounded even on slow CI runners.
+  if (!input.includes("<") && !input.includes("&") && byteLength(escapeText(input)) > MAX_OUTPUT_BYTES) {
+    throw new RangeError("Converted Markdown exceeds 200 KB");
+  }
   const fragment = parseFragment(input);
   let nodeCount = 0;
 
