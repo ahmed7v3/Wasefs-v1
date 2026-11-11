@@ -44,7 +44,7 @@ services:
   # Pinned by digest: MinIO no longer publishes to Docker Hub, so this is Chainguard's build.
   # The image has no shell, hence no curl healthcheck; `minio-init` retries until the server is up.
   minio:
-    image: cgr.dev/chainguard/minio@sha256:090010a3f73f6aa2dff606c61cd0de3640b22748abe19f4e48cce6dc9de7a53f
+    image: cgr.dev/chainguard/minio@sha256:616286de6ef3a1892876b126e745e152d8e03add6357203f8a1f854bdd1dce76
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
