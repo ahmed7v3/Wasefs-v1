@@ -99,6 +99,13 @@ export const contentFlagsSchema = z.object({
   sponsored: z.boolean().default(false),
   /** Adds the editorial note «كُتب بمساعدة أدوات ذكاء اصطناعي» (SEO-GEO §9.6). */
   aiAssisted: z.boolean().default(false),
+  /**
+   * Set by the Publishing API for a medical item whose key asked for `published`: the item goes live by
+   * itself when a human reviewer approves exactly that revision. `publishOnApprovalCap` snapshots the
+   * key's daily publish cap for that moment. Optional (no default) so existing flag literals stay valid.
+   */
+  publishOnApproval: z.boolean().optional(),
+  publishOnApprovalCap: z.number().int().min(1).nullable().optional(),
 });
 export type ContentFlags = z.output<typeof contentFlagsSchema>;
 
@@ -184,6 +191,8 @@ export const contentFlagsPatchSchema = z.object({
   showRelated: contentFlagsSchema.shape.showRelated.unwrap().optional(),
   sponsored: contentFlagsSchema.shape.sponsored.unwrap().optional(),
   aiAssisted: contentFlagsSchema.shape.aiAssisted.unwrap().optional(),
+  publishOnApproval: contentFlagsSchema.shape.publishOnApproval,
+  publishOnApprovalCap: contentFlagsSchema.shape.publishOnApprovalCap,
 });
 
 export const contentMetaPatchSchema = z.object({

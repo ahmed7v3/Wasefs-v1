@@ -510,6 +510,8 @@ export const enAdminContent = {
     "Quality rules blocked scheduling or publishing. The editor shows the failing rule; expected.",
   "admin.issue.explain.CONTENT_PUBLISH_CAP":
     "The daily publishing cap was reached. The item stays scheduled for the next day. Review the cap in content settings if it repeats.",
+  "admin.issue.explain.PUBLISHING_CREATE_CAP":
+    "The automation key reached its daily item-creation cap. New items can be created tomorrow; updates continue.",
   "admin.issue.explain.CONTENT_FOUR_EYES":
     "The author tried to approve their own item. The rule needs another reviewer; expected.",
   "admin.issue.explain.CONTENT_NOT_A_REVIEWER":

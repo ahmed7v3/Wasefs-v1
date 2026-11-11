@@ -8,6 +8,7 @@ import { enAdminEditor } from "./en.admin-editor.js";
 import { enAdminEvals } from "./en.admin-evals.js";
 import { enAdminGateways } from "./en.admin-gateways.js";
 import { enAdminGrowth } from "./en.admin-growth.js";
+import { enAdminPublishing } from "./en.admin-publishing.js";
 import { enAdminRevenue } from "./en.admin-revenue.js";
 import { enAdminSeo } from "./en.admin-seo.js";
 import { enAdminSiteHealth } from "./en.admin-site-health.js";
@@ -46,6 +47,7 @@ export const en: Partial<Record<MessageKey, string>> = {
   ...enAdminSiteHealth,
   ...enAdminWaAgent,
   ...enAdminTelegramAds,
+  ...enAdminPublishing,
   ...enAdminAds,
   ...enAdminAi,
   ...enAdminBilling,

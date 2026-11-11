@@ -12,6 +12,7 @@ import {
 } from "@wasfa/shared/content";
 import { AppError, ErrorCode } from "@wasfa/shared/errors";
 import {
+  contentFlagsSchema,
   qualityGateSchema,
   type ContentActionBody,
   type QualityGate,
@@ -22,7 +23,13 @@ import { SettingsService } from "../settings/settings.service.js";
 
 import { ContentRenderService } from "./content-render.service.js";
 import { ContentItemsRepo } from "./items.repo.js";
-import { appendRevision, kickOutbox, metaOf, type ContentActorCtx } from "./items.service.js";
+import {
+  appendRevision,
+  kickOutbox,
+  metaOf,
+  stampOf,
+  type ContentActorCtx,
+} from "./items.service.js";
 
 import type { ContentAction, ContentStatus } from "@wasfa/shared/content/constants";
 
@@ -44,6 +51,17 @@ export const WORKFLOW_TO_ERROR: Record<WorkflowErrorCode, ErrorCode> = {
 function refusal(result: Extract<TransitionResult, { ok: false }>): AppError {
   return new AppError(WORKFLOW_TO_ERROR[result.code]);
 }
+
+/** The daily cap refusal; to an API key it is a 429 (retry tomorrow), to a person the editor's 409. */
+function capError(actor: ContentActorCtx, scope: "global" | "key"): AppError {
+  return new AppError(ErrorCode.CONTENT_PUBLISH_CAP, {
+    ...(actor.machine ? { httpStatus: 429 } : {}),
+    details: { scope },
+  });
+}
+
+/** What a reviewer's approval makes of a medical item whose key asked for `published`, if anything. */
+const AUTO_PUBLISH_REASON = "publish_on_approval";
 
 function conflict(item: Pick<ContentItem, "lockVersion" | "currentRevisionId"> | undefined) {
   return new AppError(ErrorCode.CONTENT_CONFLICT, {
@@ -73,8 +91,13 @@ export class ContentWorkflowService {
     itemId: string,
     action: ContentAction,
     body: ContentActionBody,
-    actor: ContentActorCtx,
+    callerActor: ContentActorCtx,
   ): Promise<{ from: ContentStatus; to: ContentStatus; overridden: string[] }> {
+    // A machine actor (API key, or the system acting for one) is never the owner and never a reviewer:
+    // whatever the caller put in the ctx, the owner bypasses of review, four-eyes and gates cannot apply.
+    const actor: ContentActorCtx = callerActor.machine
+      ? { ...callerActor, isOwner: false, isActiveReviewer: false }
+      : callerActor;
     const now = new Date();
     const item = await this.repo.findItem(itemId);
     if (!item?.currentRevisionId) throw new AppError(ErrorCode.NOT_FOUND);
@@ -188,7 +211,7 @@ export class ContentWorkflowService {
 
     const eventKey = `content.changed:${itemId}:${action}:${String(now.getTime())}`;
     let emitted = false;
-    const stamped = { type: "user" as const, id: actor.userId, name: actor.name };
+    const stamped = stampOf(actor);
 
     const result = await this.repo.transaction(async (data) => {
       const locked = await data.lockItem(itemId);
@@ -231,9 +254,9 @@ export class ContentWorkflowService {
           revisionId: currentRevisionId,
           fromStatus: locked.status,
           toStatus: to,
-          actorType: "user",
-          actorId: actor.userId,
-          actorName: actor.name,
+          actorType: stamped.type,
+          actorId: stamped.id,
+          actorName: stamped.name,
           reason: null,
           at: now,
         });
@@ -272,6 +295,10 @@ export class ContentWorkflowService {
           };
           await note("note");
           await log("in_review");
+           await data.emitPublishingWebhook(
+             { itemId, mediaId: null, event: "content.review_requested", comment: comment ?? null },
+             `publishing.webhook:${itemId}:${currentRevisionId}:review_requested`,
+           );
           break;
         case "approve": {
           patch = {
@@ -283,6 +310,10 @@ export class ContentWorkflowService {
           };
           await note("approve");
           await log("approved");
+           await data.emitPublishingWebhook(
+             { itemId, mediaId: null, event: "content.approved", comment: comment ?? null },
+             `publishing.webhook:${itemId}:${currentRevisionId}:approved`,
+           );
           // The stored review gate moves with the approval (the list counts issues from storage).
           if (!editedBuild) {
             const stored = qualityGateSchema.array().safeParse(current.quality);
@@ -300,6 +331,10 @@ export class ContentWorkflowService {
         case "request_changes":
           patch = { ...patch, status: "draft" };
           await note("request_changes");
+           await data.emitPublishingWebhook(
+             { itemId, mediaId: null, event: "content.changes_requested", comment: comment ?? null },
+             `publishing.webhook:${itemId}:${currentRevisionId}:changes_requested:${String(now.getTime())}`,
+           );
           await log("draft");
           break;
         case "schedule":
@@ -321,8 +356,16 @@ export class ContentWorkflowService {
           const since = localDayBounds(now, settings.timeZone).start;
           if ((await data.countPublishedSince(since)) >= settings.maxPublishesPerDay) {
             // The cap protects the site from a runaway automation; the owner publishing by hand is not one.
-            if (actor.isOwner !== true) throw new AppError(ErrorCode.CONTENT_PUBLISH_CAP);
+            if (actor.isOwner !== true) throw capError(actor, "global");
             overridden.push("daily_cap");
+          }
+          const keyCap = actor.machine?.dailyPublishCap ?? null;
+          if (
+            actor.machine !== undefined &&
+            keyCap !== null &&
+            (await data.countPublishedByKeySince(actor.machine.keyId, since)) >= keyCap
+          ) {
+            throw capError(actor, "key");
           }
           if (freshGates) await data.updateRevisionQuality(current.id, freshGates);
           // The helper moves the pointers, writes the publish log and the outbox event itself.
@@ -358,6 +401,10 @@ export class ContentWorkflowService {
             emitted = true;
           }
           await log("archived");
+           await data.emitPublishingWebhook(
+             { itemId, mediaId: null, event: "content.archived", comment: null },
+             `publishing.webhook:${itemId}:${String(now.getTime())}:archived`,
+           );
           break;
         }
         case "unarchive":
@@ -379,6 +426,60 @@ export class ContentWorkflowService {
     });
 
     if (emitted) await kickOutbox(this.outbox, eventKey);
+    if (action === "approve") await this.publishAfterApproval(itemId);
     return result;
+  }
+
+  /**
+   * Publishing API `publish_on_approval`: a human reviewer just approved. If the approved revision is
+   * the one an API key wrote with that flag, the system publishes it on the key's behalf through the
+   * normal `publish` action, so the same gates, caps and side effects apply. If anything refuses, the
+   * item stays approved and the publish log says why (the reviewer's approval is never undone).
+   */
+  private async publishAfterApproval(itemId: string): Promise<void> {
+    const item = await this.repo.findItem(itemId);
+    if (
+      !item?.currentRevisionId ||
+      item.status !== "approved" ||
+      item.apiKeyId === null ||
+      item.reviewedRevisionId !== item.currentRevisionId
+    ) {
+      return;
+    }
+    const flags = contentFlagsSchema.safeParse(item.flags);
+    if (!flags.success || flags.data.publishOnApproval !== true) return;
+    const revision = await this.repo.findRevision(itemId, item.currentRevisionId);
+    // Only the revision the key itself wrote qualifies; a reviewer's edited revision is theirs to publish.
+    if (revision?.createdByApiKeyId !== item.apiKeyId) return;
+
+    const system: ContentActorCtx = {
+      userId: item.apiKeyId,
+      name: "System (publish on approval)",
+      permissions: new Set(["content.read", "content.publish"]),
+      isActiveReviewer: false,
+      isOwner: false,
+      machine: {
+        type: "system",
+        keyId: item.apiKeyId,
+        dailyPublishCap: flags.data.publishOnApprovalCap ?? null,
+      },
+    };
+    try {
+      await this.act(itemId, "publish", {}, system);
+    } catch (error) {
+      const code = error instanceof AppError ? error.code : "ERROR";
+      const stamp = stampOf(system);
+      await this.repo.insertPublishLog({
+        itemId,
+        revisionId: item.currentRevisionId,
+        fromStatus: "approved",
+        toStatus: "approved",
+        actorType: stamp.type,
+        actorId: stamp.id,
+        actorName: stamp.name,
+        reason: `${AUTO_PUBLISH_REASON}_blocked:${code}`,
+        at: new Date(),
+      });
+    }
   }
 }

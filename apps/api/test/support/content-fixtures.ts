@@ -181,6 +181,7 @@ export function fakeRepo(item: ContentItem, revision: ContentRevision = makeRevi
     deleteArchivedRedirect: vi.fn(() => Promise.resolve(false)),
     lockPublishCap: vi.fn(() => Promise.resolve()),
     countPublishedSince: vi.fn(() => Promise.resolve(0)),
+    countPublishedByKeySince: vi.fn(() => Promise.resolve(0)),
     publish: vi.fn(() => Promise.resolve({})),
     unpublish: vi.fn(() => Promise.resolve()),
     emit: vi.fn(() => Promise.resolve()),

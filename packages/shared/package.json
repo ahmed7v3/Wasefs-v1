@@ -499,6 +499,36 @@
       "types": "./dist/schemas/admin-telegram-ads.d.ts",
       "import": "./dist/schemas/admin-telegram-ads.js",
       "default": "./dist/schemas/admin-telegram-ads.js"
+    },
+    "./publishing": {
+      "types": "./dist/publishing.d.ts",
+      "import": "./dist/publishing.js",
+      "default": "./dist/publishing.js"
+    },
+    "./schemas/admin-publishing-keys": {
+      "types": "./dist/schemas/admin-publishing-keys.d.ts",
+      "import": "./dist/schemas/admin-publishing-keys.js",
+      "default": "./dist/schemas/admin-publishing-keys.js"
+    },
+    "./schemas/publishing": {
+      "types": "./dist/schemas/publishing.d.ts",
+      "import": "./dist/schemas/publishing.js",
+      "default": "./dist/schemas/publishing.js"
+    },
+    "./schemas/publishing-openapi": {
+      "types": "./dist/schemas/publishing-openapi.d.ts",
+      "import": "./dist/schemas/publishing-openapi.js",
+      "default": "./dist/schemas/publishing-openapi.js"
+    },
+    "./schemas/publishing-webhooks": {
+      "types": "./dist/schemas/publishing-webhooks.d.ts",
+      "import": "./dist/schemas/publishing-webhooks.js",
+      "default": "./dist/schemas/publishing-webhooks.js"
+    },
+    "./publishing-guide": {
+      "types": "./dist/publishing-guide.d.ts",
+      "import": "./dist/publishing-guide.js",
+      "default": "./dist/publishing-guide.js"
     }
   },
   "files": [
@@ -512,6 +542,7 @@
   },
   "dependencies": {
     "mdast-util-to-string": "4.0.0",
+    "parse5": "8.0.1",
     "rehype-sanitize": "6.0.0",
     "rehype-stringify": "10.0.1",
     "remark-directive": "4.0.0",

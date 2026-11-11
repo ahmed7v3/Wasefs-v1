@@ -41,6 +41,7 @@ import {
   reconcilePaymentsJob,
 } from "./jobs/payments.job.js";
 import { promotionsStatusJob } from "./jobs/promotions.job.js";
+import { publishingRetentionJob } from "./jobs/publishing-retention.job.js";
 import { reconcileRewardsJob, releaseRewardsJob } from "./jobs/rewards.job.js";
 import { rxAnalyzeJob } from "./jobs/rx.job.js";
 import { indexNowJob } from "./jobs/seo.indexnow.job.js";
@@ -51,6 +52,7 @@ import { mediaProcessJob } from "./media/media.job.js";
 import { customerNotifyJob, customerWhatsappCheckJob } from "./notifications/customer.job.js";
 import { emailSendJob, type EmailRuntime } from "./notifications/email.js";
 import { ogRenderJob } from "./og/og.job.js";
+import { publishingWebhookJob } from "./publishing/webhook.job.js";
 
 import type { AiRuntime } from "./ai/runtime.js";
 import type { DocumentRenderer } from "./documents/renderer.js";
@@ -96,6 +98,7 @@ export const HANDLERS: Handlers = {
   notifications: {
     "email.send": emailSendJob,
     "alerts.deliver": alertDeliveryJob,
+    "publishing.webhook": publishingWebhookJob,
     "alerts.digest": alertDigestJob,
     "alerts.sweep_pending": pendingDeliverySweepJob,
     "customer.notify": customerNotifyJob,
@@ -140,6 +143,7 @@ export const HANDLERS: Handlers = {
     "payments.consistency": paymentsConsistencyJob,
     "outbox.drain": drainOutboxJob,
     "alerts.retention": alertsRetentionJob,
+    "publishing.retention": publishingRetentionJob,
     "payment-methods.apply-due": applyDuePaymentMethodChangesJob,
     "payments.review-sla": paymentsReviewSlaJob,
     "payments.failure_spike": paymentsFailureSpikeJob,
@@ -280,6 +284,8 @@ export const GROWTH_LIFECYCLE_PATTERN = "25 * * * *";
 /** Nightly at 04:40 UTC: growth events and the mail log past 13 months. */
 export const GROWTH_RETENTION_PATTERN = "40 4 * * *";
 export const WA_AGENT_RETENTION_PATTERN = "50 4 * * *";
+/** Daily at 04:55 UTC: purge Publishing API replay records and request logs. */
+export const PUBLISHING_RETENTION_PATTERN = "55 4 * * *";
 
 /** Registers repeatable jobs. Upserting by id is idempotent, so restarts never duplicate them. */
 export async function registerSchedules(queues: readonly Queue[]): Promise<void> {
@@ -431,6 +437,11 @@ export async function registerSchedules(queues: readonly Queue[]): Promise<void>
     "wa-agent.retention",
     { pattern: WA_AGENT_RETENTION_PATTERN, tz: "UTC" },
     { name: "wa-agent.retention", data: {} },
+  );
+  await payments.upsertJobScheduler(
+    "publishing.retention",
+    { pattern: PUBLISHING_RETENTION_PATTERN, tz: "UTC" },
+    { name: "publishing.retention", data: {} },
   );
   await payments.upsertJobScheduler(
     "withdrawals.overdue",

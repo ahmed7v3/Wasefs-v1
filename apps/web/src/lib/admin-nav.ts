@@ -481,6 +481,20 @@ export const ADMIN_NAV: readonly AdminNavGroup[] = [
         permission: "content.read",
       },
       {
+        href: "/admin/content/api-keys",
+        label: "admin.nav.content.apiKeys",
+        description: "admin.nav.content.apiKeys.description",
+        icon: KeyRound,
+        permission: "content.api_keys",
+      },
+      {
+        href: "/admin/content/api",
+        label: "admin.nav.content.apiConnect",
+        description: "admin.nav.content.apiConnect.description",
+        icon: Bot,
+        permission: "content.read",
+      },
+      {
         // A deep link to the `content` group of the general settings page; never "active" itself.
         href: "/admin/settings#group-content",
         label: "admin.nav.content.settings",

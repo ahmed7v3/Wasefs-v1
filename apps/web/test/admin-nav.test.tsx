@@ -42,7 +42,7 @@ describe("visibleNavGroups", () => {
     ]);
   });
 
-  it("maps every page to its read permission, never to a write permission (evals.run, withdrawals.review and alerts.receive guard pages with no separate read permission)", () => {
+  it("maps every page to its read permission, never to a write permission (evals.run, withdrawals.review, content.api_keys and alerts.receive guard pages with no separate read permission)", () => {
     const permissions = ADMIN_NAV.flatMap((group) => group.items.map((item) => item.permission));
     for (const permission of permissions) {
       expect(
@@ -50,6 +50,7 @@ describe("visibleNavGroups", () => {
           permission.endsWith(".read") ||
           permission === "evals.run" ||
           permission === "withdrawals.review" ||
+          permission === "content.api_keys" ||
           permission === "alerts.receive",
       ).toBe(true);
     }
@@ -105,6 +106,8 @@ describe("visibleNavGroups", () => {
       "/admin/content/taxonomy",
       "/admin/content/people",
       "/admin/content/redirects",
+      "/admin/content/api-keys",
+      "/admin/content/api",
       "/admin/settings#group-content",
       "/admin/ai",
       "/admin/ai/providers",
@@ -162,14 +165,23 @@ describe("visibleNavGroups", () => {
       "/admin/content/taxonomy",
       "/admin/content/people",
       "/admin/content/redirects",
+      "/admin/content/api",
     ]);
+    expect(hrefs(["content.api_keys"])).toContain("/admin/content/api-keys");
+    expect(hrefs(["content.read"])).not.toContain("/admin/content/api-keys");
+    expect(navItemFor("/admin/content/api-keys")?.href).toBe("/admin/content/api-keys");
+    expect(navItemFor("/admin/content/api")?.href).toBe("/admin/content/api");
     expect(hrefs(["content.read", "settings.read"])).toContain("/admin/settings#group-content");
     expect(visibleNavGroups(["content.read"]).map((group) => group.id)).toContain("content");
     expect(visibleNavGroups(["users.read"]).map((group) => group.id)).not.toContain("content");
   });
 
   it("shows the WhatsApp agent page to wa_agent.read, and only the longest entry is active there", () => {
-    expect(hrefs(["wa_agent.read"])).toEqual(["/admin", "/admin/whatsapp/agent", "/admin/telegram"]);
+    expect(hrefs(["wa_agent.read"])).toEqual([
+      "/admin",
+      "/admin/whatsapp/agent",
+      "/admin/telegram",
+    ]);
     expect(hrefs(["settings.read"])).not.toContain("/admin/whatsapp/agent");
     expect(isNavActive("/admin/whatsapp", "/admin/whatsapp/agent")).toBe(false);
     expect(isNavActive("/admin/whatsapp/agent", "/admin/whatsapp/agent")).toBe(true);

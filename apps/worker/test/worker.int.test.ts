@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 
-import { createDb } from "@wasfa/db";
+import { createDb, publishingApiRequests, publishingIdempotency } from "@wasfa/db";
 import { WORKER_HEARTBEAT_KEY, workerStatus } from "@wasfa/shared/queues";
 import { Queue, type Job } from "bullmq";
+import { eq } from "drizzle-orm";
 import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -106,6 +107,87 @@ describe("system.heartbeat", () => {
     const heartbeat = schedulers.filter((scheduler) => scheduler.key === "system.heartbeat");
     expect(heartbeat).toHaveLength(1);
     expect(heartbeat[0]?.every).toBe(300_000);
+  });
+});
+
+describe("Publishing API retention", () => {
+  it("registers once daily at 04:55 UTC and purges expired rows without logging request identifiers", async () => {
+    expect(Object.keys(HANDLERS.payments)).toContain("publishing.retention");
+    const payments = set.queues.find((queue) => queue.name === "payments");
+    await registerSchedules(set.queues);
+    await registerSchedules(set.queues);
+    const schedulers = (await payments?.getJobSchedulers()) ?? [];
+    const matching = schedulers.filter((scheduler) => scheduler.key === "publishing.retention");
+    expect(matching).toHaveLength(1);
+    expect(matching[0]).toMatchObject({ pattern: "55 4 * * *", tz: "UTC" });
+
+    const idempotencyKeyId = randomUUID();
+    const idempotencyKeys = {
+      expired: `expired-${randomUUID()}`,
+      fresh: `fresh-${randomUUID()}`,
+    };
+    const now = new Date();
+    await database.db.insert(publishingIdempotency).values([
+      {
+        keyId: idempotencyKeyId,
+        idemKey: idempotencyKeys.expired,
+        requestHash: "expired-hash",
+        createdAt: new Date(now.getTime() - 25 * 60 * 60 * 1000),
+      },
+      {
+        keyId: idempotencyKeyId,
+        idemKey: idempotencyKeys.fresh,
+        requestHash: "fresh-hash",
+        createdAt: new Date(now.getTime() - 60 * 60 * 1000),
+      },
+    ]);
+    const requestRoutes = {
+      expired: `/retention-expired-${randomUUID()}`,
+      fresh: `/retention-fresh-${randomUUID()}`,
+    };
+    await database.db
+      .insert(publishingApiRequests)
+      .values([
+        {
+          at: new Date(now.getTime() - 91 * 86_400_000),
+          method: "GET",
+          route: requestRoutes.expired,
+          status: 200,
+          latencyMs: 1,
+        },
+        {
+          at: new Date(now.getTime() - 1 * 86_400_000),
+          method: "GET",
+          route: requestRoutes.fresh,
+          status: 200,
+          latencyMs: 1,
+        },
+      ]);
+
+    await payments?.add("publishing.retention", {}, { jobId: `t-publishing-retention-${randomUUID()}` });
+    await waitFor(async () => {
+      const [expiredIdempotency, freshIdempotency, oldRequest, recentRequest] = await Promise.all([
+        database.db.query.publishingIdempotency.findFirst({
+          where: eq(publishingIdempotency.idemKey, idempotencyKeys.expired),
+        }),
+        database.db.query.publishingIdempotency.findFirst({
+          where: eq(publishingIdempotency.idemKey, idempotencyKeys.fresh),
+        }),
+        database.db.query.publishingApiRequests.findFirst({
+          where: eq(publishingApiRequests.route, requestRoutes.expired),
+        }),
+        database.db.query.publishingApiRequests.findFirst({
+          where: eq(publishingApiRequests.route, requestRoutes.fresh),
+        }),
+      ]);
+      return expiredIdempotency === undefined && oldRequest === undefined && freshIdempotency && recentRequest
+        ? true
+        : null;
+    });
+    const output = logs.join("");
+    expect(output).toContain("Publishing API records past retention deleted");
+    expect(output).not.toContain(requestRoutes.expired);
+    expect(output).not.toContain(idempotencyKeys.expired);
   });
 });
 

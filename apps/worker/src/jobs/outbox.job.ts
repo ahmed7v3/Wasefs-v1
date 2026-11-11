@@ -19,6 +19,10 @@ import {
   dealRewardOverrides,
   type RewardEvaluationOptions,
   silenceMarketing,
+  publishingApiKeys,
+  publishingWebhookDeliveries,
+  contentItems,
+  mediaAssets,
 } from "@wasfa/db";
 import { ALERT_CHANNELS } from "@wasfa/shared/billing";
 import { decodeEncryptionKey, decryptSecret } from "@wasfa/shared/crypto";
@@ -27,6 +31,7 @@ import { MARKETING_SILENCE_AFTER_COMPLAINT_DAYS } from "@wasfa/shared/growth";
 import { formatMoney } from "@wasfa/shared/money";
 import { ALERT_KIND_PERMISSION } from "@wasfa/shared/permissions";
 import { CONTENT_CHANGED_TOPIC } from "@wasfa/shared/schemas/content";
+import { publishingWebhookEventSchema } from "@wasfa/shared/schemas/publishing-webhooks";
 import { SUBSCRIPTION_REMINDER_SLOTS } from "@wasfa/shared/subscriptions";
 import { and, desc, eq, gte, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
@@ -78,7 +83,7 @@ async function withAgentFollowUp(
 export function outboxHandlers(
   runtime: Pick<
     PaymentsRuntime,
-    "enqueueEmail" | "webOrigin" | "enqueueAlertDelivery" | "enqueueAlertDigest"
+    "enqueueEmail" | "webOrigin" | "enqueueAlertDelivery" | "enqueuePublishingWebhook" | "enqueueAlertDigest"
   >,
   rewards: RewardEvaluationOptions = { deals: dealRewardOverrides },
   content?: ContentChangeDeps,
@@ -86,6 +91,38 @@ export function outboxHandlers(
   return {
     // Without deps (tests, no runtime) the topic stays parked, never dropped.
     ...(content ? { [CONTENT_CHANGED_TOPIC]: contentChangeHandler(content) } : {}),
+    "publishing.webhook_event": async (tx, entry) => {
+      const event = publishingWebhookEventSchema.parse(entry.payload);
+      const target = event.keyId
+        ? { keyId: event.keyId }
+        : event.itemId
+          ? (await tx.select({ keyId: contentItems.apiKeyId }).from(contentItems).where(eq(contentItems.id, event.itemId)).limit(1))[0]
+          : event.mediaId
+            ? (await tx.select({ keyId: mediaAssets.apiKeyId }).from(mediaAssets).where(eq(mediaAssets.id, event.mediaId)).limit(1))[0]
+            : undefined;
+      if (!target?.keyId) return;
+      const key = (await tx.select().from(publishingApiKeys).where(eq(publishingApiKeys.id, target.keyId)).limit(1))[0];
+      if (!key?.webhookUrlEnc || !key.webhookSecretEnc) return;
+      const body = {
+        id: event.itemId ?? event.mediaId ?? event.keyId,
+        event: event.event,
+        data: {
+          key_id: event.keyId,
+          item_id: event.itemId,
+          media_id: event.mediaId,
+          ...(event.comment ? { comment: event.comment } : {}),
+        },
+        created_at: new Date().toISOString(),
+      };
+      const [delivery] = await tx.insert(publishingWebhookDeliveries).values({
+        keyId: key.id,
+        event: event.event,
+        payload: body,
+        webhookUrlEnc: key.webhookUrlEnc,
+        webhookSecretEnc: key.webhookSecretEnc,
+      }).returning({ id: publishingWebhookDeliveries.id });
+      return delivery ? [{ kind: "publishing_webhook" as const, deliveryId: delivery.id, jobId: `publishing-webhook-${delivery.id}` }] : [];
+    },
     "alerts.fan_out": async (tx, entry) => {
       const { alertId } = z.object({ alertId: z.uuid() }).parse(entry.payload);
       const [alert] = await tx.select().from(adminAlerts).where(eq(adminAlerts.id, alertId));
@@ -499,6 +536,8 @@ export async function drainOutboxJob(
   const result = await drainOutbox(db, handlers, new Date(), 50, async (action) => {
     if (action.kind === "alert_delivery") {
       await payments.enqueueAlertDelivery(action.deliveryId, action.jobId);
+    } else if (action.kind === "publishing_webhook") {
+      await payments.enqueuePublishingWebhook?.(action.deliveryId, action.jobId);
     } else if (action.kind === "customer_message") {
       await payments.enqueueCustomerMessage(action.payload, action.jobId);
     } else if (action.kind === "wa_agent_event") {

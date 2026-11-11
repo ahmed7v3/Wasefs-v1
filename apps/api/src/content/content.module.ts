@@ -25,6 +25,12 @@ import { ContentWorkflowService } from "./workflow.service.js";
     ContentWorkflowService,
     PreviewTokenService,
   ],
-  exports: [ContentItemsService, ContentItemsRepo, ContentWorkflowService],
+  exports: [
+    ContentItemsService,
+    ContentItemsRepo,
+    ContentWorkflowService,
+    ContentRenderService,
+    PreviewTokenService,
+  ],
 })
 export class ContentModule {}

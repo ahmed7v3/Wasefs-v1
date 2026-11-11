@@ -70,6 +70,33 @@ export class MediaStorage implements OnApplicationShutdown {
     };
   }
 
+  /**
+   * Stores bytes the api itself already holds and verified (the Publishing API's upload and URL fetch),
+   * with the same S3 checksum the presigned path demands, so a corrupted transfer fails here.
+   */
+  async putBytes(options: {
+    key: string;
+    body: Buffer;
+    contentType: string;
+    sha256Hex: string;
+  }): Promise<void> {
+    const { s3, bucket } = this.connect();
+    try {
+      await s3.send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: options.key,
+          Body: options.body,
+          ContentType: options.contentType,
+          ContentLength: options.body.length,
+          ChecksumSHA256: Buffer.from(options.sha256Hex, "hex").toString("base64"),
+        }),
+      );
+    } catch (error) {
+      throw new AppError(ErrorCode.UPSTREAM_UNAVAILABLE, { cause: error });
+    }
+  }
+
   /** Size of the stored object, or `null` when there is none. */
   async headBytes(key: string): Promise<number | null> {
     const { s3, bucket } = this.connect();

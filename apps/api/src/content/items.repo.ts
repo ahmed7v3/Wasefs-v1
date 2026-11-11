@@ -15,6 +15,7 @@ import {
   contentTags,
   countPublishedSince,
   enqueueOutbox,
+  enqueuePublishingWebhookEvent,
   mediaAssets,
   publishItemTx,
   purgeItemTx,
@@ -160,6 +161,8 @@ export interface NewRevisionRow {
   quality: unknown[];
   note: string | null;
   createdByUserId: string | null;
+  /** Set when the revision was written through the Publishing API. */
+  createdByApiKeyId?: string | null;
   createdByName: string;
   diffStats: { added: number; removed: number };
   parentRevisionId: string | null;
@@ -179,6 +182,10 @@ export interface NewItemRow {
   flags: Record<string, unknown>;
   wordCount: number;
   searchText: string;
+  /** Publishing API items: where it came from and the integrator's own id (unique per key). */
+  source?: "editor" | "api";
+  apiKeyId?: string | null;
+  externalId?: string | null;
 }
 
 const typeCases = CONTENT_TYPES.map(
@@ -650,7 +657,7 @@ export class ContentData {
       .values({
         ...row,
         status: "draft",
-        source: "editor",
+        source: row.source ?? "editor",
         lockVersion: 0,
         createdAt,
         updatedAt: createdAt,
@@ -849,8 +856,51 @@ export class ContentTxData extends ContentData {
     await this.tx.execute(sql`select pg_advisory_xact_lock(hashtext('content.publish-cap'))`);
   }
 
+  /** Serialises one API key's daily creation-cap check across concurrent transactions. */
+  async lockApiKeyCreateCap(keyId: string): Promise<void> {
+    await this.tx.execute(sql`select pg_advisory_xact_lock(hashtext('content.api-create-cap:' || ${keyId}))`);
+  }
+
+  async countApiKeyItemsCreatedBetween(keyId: string, start: Date, end: Date): Promise<number> {
+    const [row] = await this.tx
+      .select({ total: sql<number>`count(*)::int` })
+      .from(contentItems)
+      .where(
+        and(
+          eq(contentItems.apiKeyId, keyId),
+          gte(contentItems.createdAt, start),
+          lt(contentItems.createdAt, end),
+        ),
+      );
+    return row?.total ?? 0;
+  }
+
   countPublishedSince(since: Date): Promise<number> {
     return countPublishedSince(this.tx, since);
+  }
+
+  /**
+   * Publishes made BY one Publishing API key since `since`: its own publishes, and the automatic ones
+   * the system performed for it after a reviewer approved (`publish_on_approval`).
+   */
+  async countPublishedByKeySince(keyId: string, since: Date): Promise<number> {
+    const [row] = await this.tx
+      .select({ total: sql<number>`count(*)::int` })
+      .from(contentPublishLog)
+      .where(
+        and(
+          eq(contentPublishLog.toStatus, "published"),
+          gte(contentPublishLog.at, since),
+          or(
+            and(eq(contentPublishLog.actorType, "api_key"), eq(contentPublishLog.actorId, keyId)),
+            and(
+              eq(contentPublishLog.actorType, "system"),
+              eq(contentPublishLog.actorId, `api_key:${keyId}`),
+            ),
+          ),
+        ),
+      );
+    return row?.total ?? 0;
   }
 
   publish(input: { itemId: string; actor: ContentActor; now: Date }): Promise<PublishItemResult> {
@@ -876,6 +926,13 @@ export class ContentTxData extends ContentData {
     idempotencyKey: string,
   ): Promise<void> {
     return enqueueOutbox(this.tx, "content.changed", payload, idempotencyKey);
+  }
+
+  emitPublishingWebhook(
+    payload: { keyId?: string | null; itemId: string | null; mediaId: string | null; event: string; comment: string | null },
+    idempotencyKey: string,
+  ): Promise<void> {
+    return enqueuePublishingWebhookEvent(this.tx, payload as never, idempotencyKey);
   }
 }
 

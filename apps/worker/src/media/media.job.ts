@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { enqueuePublishingWebhookEvent } from "@wasfa/db";
 import {
   MEDIA_FORMAT_MIME,
   MEDIA_KEY_PREFIX,
@@ -46,6 +47,13 @@ export async function mediaProcessJob(
 
   const reject = async (reason: string): Promise<void> => {
     await markRejected(db, assetId, reason);
+    if (asset.apiKeyId) {
+      await enqueuePublishingWebhookEvent(
+        db,
+        { itemId: null, mediaId: assetId, event: "media.failed", comment: reason },
+        `publishing.webhook:${assetId}:failed:${reason}`,
+      );
+    }
     await media.remove(stagingKey);
     logger.info({ assetId, reason }, "Media rejected");
   };
@@ -80,7 +88,16 @@ export async function mediaProcessJob(
       blurDataUrl: processed.blurDataUrl,
       variants,
     });
-    if (updated) await media.remove(stagingKey);
+    if (updated) {
+      await media.remove(stagingKey);
+      if (asset.apiKeyId) {
+        await enqueuePublishingWebhookEvent(
+          db,
+          { itemId: null, mediaId: assetId, event: "media.ready", comment: null },
+          `publishing.webhook:${assetId}:ready`,
+        );
+      }
+    }
     logger.info(
       { assetId, variants: variants.length, warnings: processed.warnings },
       "Media processed",

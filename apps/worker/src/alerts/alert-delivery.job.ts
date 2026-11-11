@@ -113,7 +113,15 @@ export async function alertDeliveryJob(
       .set({ status: "sent", sentAt: new Date(), error: null })
       .where(eq(alertDeliveries.id, deliveryId));
   } catch (error) {
-    if (error instanceof DeferJob) throw error;
+    if (error instanceof DeferJob) {
+      // Marker read by the sweep: the delayed job already exists, so re-adding would be a no-op.
+      // The deferral does not count as a delivery attempt.
+      await db
+        .update(alertDeliveries)
+        .set({ error: "deferred", attempts: row.delivery.attempts })
+        .where(eq(alertDeliveries.id, deliveryId));
+      throw error;
+    }
     const code =
       error instanceof Error && /^(telegram_http|mail daily cap)$/.test(error.message)
         ? error.message.replaceAll(" ", "_")
